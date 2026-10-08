@@ -121,9 +121,16 @@ def main():
     print(json.dumps(summary, indent=2))
 
 
-def verify_case(vcs, clean, manifest, boundary, case, expected=0):
-    prepare_replay(manifest, boundary, "InventoryFixture-NoConfig-DefaultF2Config",
+def verify_case(vcs, clean, manifest, boundary, case, expected=0,
+                configuration="InventoryFixture-NoConfig-DefaultF2Config", post_replay_checks=""):
+    prepare_replay(manifest, boundary, configuration,
                    (case / "capture.rtlckpt").read_bytes(), (case / "capture.trace").read_bytes(), case)
+    if post_replay_checks:
+        bench = case / "replay.sv"
+        source = bench.read_text()
+        marker = '  $display("PASS: fresh clean RTL replay'
+        require(source.count(marker) == 1, "missing replay completion marker")
+        bench.write_text(source.replace(marker, post_replay_checks + "\n" + marker))
     run([vcs, "-full64", "-sverilog", "-debug_access+all", "+vpi", "-cc", os.environ["CC"],
          "-cpp", os.environ["CXX"], "-CFLAGS", f"-std=c++17 -I{os.environ['VCS_HOME']}/include",
          "-timescale=1ns/1ps", "-top", "semantic_replay_tb", f"-Mdir={case / 'csrc'}", "-o", case / "simv",

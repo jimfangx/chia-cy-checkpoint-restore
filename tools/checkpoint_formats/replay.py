@@ -75,9 +75,11 @@ def inventory_rtl(mods, module, prefix=""):
     return result
 
 
-def prepare_capture(manifest, boundary, clean_text, transformed_text, out):
+def prepare_capture(manifest, boundary, clean_text, transformed_text, out, freeze_port=None):
     validate_manifest(manifest)
     ports = boundary_ports(boundary)
+    if freeze_port is not None:
+        require(dict(name=freeze_port, direction="input", width=1) in ports, "invalid freeze boundary port")
     require(boundary["dut_root"] == manifest["dut_root"], "DUT boundary root mismatch")
     require(manifest["clock_domain"] == manifest["dut_root"] + ".clock", "unsupported oracle clock domain")
     expected = {e["hierarchy"][len(manifest["dut_root"]) + 1:]:
@@ -99,16 +101,21 @@ def prepare_capture(manifest, boundary, clean_text, transformed_text, out):
     declarations = [f"input wire [{f['width'] - 1}:0] f{i}" for i, f in enumerate(fields)]
     arguments = [f".f{i}({f['path']})" for i, f in enumerate(fields)]
     fmt = '{"cycle":%0d,"values":[' + ','.join('"%h"' for _ in fields) + ']}'
+    if freeze_port is not None:
+        fmt = fmt[:-1] + ',"semantic_cycle":%0d}'
+    freeze_index = next((i for i, f in enumerate(fields) if f["path"] == freeze_port), None)
     source = ["`timescale 1ps/1ps", "module semantic_capture_oracle(input wire clock,",
               ",\n".join(declarations) + ");", "integer fd = 0;", "longint unsigned cycle = 0;",
-              "string filename;", "initial begin",
+              "longint unsigned semantic_cycle = 0;", "string filename;", "initial begin",
               '  if ($value$plusargs("semantic_capture=%s", filename)) begin',
               '    fd = $fopen(filename, "w");',
               '    if (!fd) $fatal(1, "Cannot open semantic capture");', "  end", "end",
               "always @(posedge clock) begin", "  if (fd) begin",
               f"    $fdisplay(fd, {json.dumps(fmt)}, cycle, " +
-              ", ".join(f"f{i}" for i in range(len(fields))) + ");",
-              "    $fflush(fd);", "  end", "  cycle = cycle + 1;", "end",
+              ", ".join(f"f{i}" for i in range(len(fields))) +
+              (", semantic_cycle" if freeze_port is not None else "") + ");",
+              "    $fflush(fd);", "  end", "  cycle = cycle + 1;",
+              (f"  if (!f{freeze_index}) semantic_cycle = semantic_cycle + 1;" if freeze_port is not None else ""), "end",
               "final if (fd) $fclose(fd);", "endmodule",
               f"bind {module} semantic_capture_oracle semantic_oracle(.clock(clock), " +
               ", ".join(arguments) + ");"]

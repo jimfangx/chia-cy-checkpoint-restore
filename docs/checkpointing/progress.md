@@ -1,6 +1,13 @@
 # Checkpointing progress
 
-Current milestone: M2-semantic-vcs-replay, iteration 7. Small-DUT M2 acceptance verified; ready for the loop's independent verification. No external dependency is currently missing.
+Current milestone: M3-banked-state-access, iteration 8. Small-DUT M3 acceptance verified; ready for independent loop verification. No external dependency is currently missing.
+
+Iteration 8 (October 8):
+
+- Implemented synthesizable StateID-ordered register/logical-memory access, a two-entry FIFO, atomic freeze through final consumption, separate control reset, and explicit command/busy/bank errors. The four-bank InventoryBankedFixture holds all 22 semantic words, including SRAM writes and synchronous resets, while the controller progresses outside the semantic root. Functional reset edges retain M2 target-cycle indices; transfer edges never advance semantic time.
+- Added compiler-checked explicit bank bindings and a manifest-hashed access sidecar. Omitted/added/reordered/reshaped/ambiguous state fails before emission. The host serializer requires exact ordered membership, widths, logical addresses and final marker, and refuses errored/incomplete captures. No hardware collector uses direct DUT simulator readout; the separate VCS bind is an independent oracle.
+- Passed 19 Python tests, 15 Scala inventory/stage tests, compiler manifest/codec corruption checks, original M2's five fresh VCS replay cases and negative tests, ordinary clean InventoryDUT VCS, and GCD VCS metasim. M3 metasim/clean RTL acceptance also passes: six 22-word captures are byte-identical to the independent backdoor oracle at semantic cycles 13, 13, 15, 16, 18 and 22, with 547 stalled transfer boundaries; the bank-fault capture is rejected. Fresh VCS processes replay the unmodified hardware checkpoint for C=18..22 (75 output comparisons), plus all 242 transfer boundaries (3,630 comparisons), and reject eight invalid bank/slot/address selectors. Evidence is under `automations/checkpoint_loop/runs/m3-iteration8/acceptance/`. Every VCS shell sources both repository environments, then vcs-env.sh last; Y-2026.03-SP1, `-full64`, GCC/G++ 13.
+- Explicit clients cover the small DUT; automatic compiler insertion/general FAME mapping, synchronous RAM pipelines and Rocket/BOOM are unsupported. CheckpointBridge/DMA is M5. No physical FPGA, Level-1 continuation, formal/ASIC activity or power validation is claimed. Plans and conda/PDF files were preserved without staging, commit, reset or git cleaning. Details and reproduction: [m3-banked-state-access.md](m3-banked-state-access.md).
 
 Iteration 7 (October 8):
 
