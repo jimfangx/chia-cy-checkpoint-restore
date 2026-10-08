@@ -15,11 +15,17 @@ bash tools/checkpoint_loop/run.sh
 
 `run.sh` sources Chipyard's `env.sh` and FireSim's `env.sh`, then imports the
 local Chia checkout. Set `CHIA_SOURCE` if your Chia installation is elsewhere.
-Codex uses its configured default model; `--model MODEL` overrides it. For a
+Codex uses its CLI default model; `--model MODEL` overrides it. For a
 short trial, `--max-iterations 1` stops after one Codex turn and leaves a
 resumable state. With the default `0`, the loop continues until milestones are
 verified or a real external dependency blocks progress. A repeat invocation
 resumes from `runs/state.json`.
+
+The local Codex invocation uses `danger-full-access` because this host's
+`workspace-write` sandbox fails to initialize its `bwrap` loopback network.
+`--ignore-user-config` keeps unrelated MCP apps out of the implementation
+agent; Codex still uses its local authentication. The CLI's model default is
+used unless `--model` is supplied.
 
 There are two remote Chia nodes: one runs Codex, one runs verification. Codex
 receives one focused milestone at a time and reports a structured result with

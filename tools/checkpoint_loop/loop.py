@@ -126,6 +126,7 @@ def codex_iteration(prompt: str, schema: str, report_path: str, log_path: str,
     log = BoundedLog(Path(log_path))
     command = [
         "codex", "-a", "never", "exec", "--json", "--ephemeral",
+        "--ignore-user-config",
         "--sandbox", sandbox, "--color", "never", "-C", str(ROOT),
         "--output-schema", schema, "--output-last-message", report_path,
     ]
@@ -364,7 +365,7 @@ def main() -> int:
     parser.add_argument("--runs", type=Path, default=DEFAULT_RUNS)
     parser.add_argument("--model", default=None, help="Codex model; default uses CLI config")
     parser.add_argument("--sandbox", choices=["workspace-write", "danger-full-access"],
-                        default="workspace-write")
+                        default="danger-full-access")
     parser.add_argument("--max-iterations", type=int, default=0,
                         help="Optional operational stop for a trial run; 0 runs until done")
     parser.add_argument("--dry-run", action="store_true")
