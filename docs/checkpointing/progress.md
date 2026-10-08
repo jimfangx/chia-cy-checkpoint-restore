@@ -1,6 +1,14 @@
 # Checkpointing progress
 
-Current milestone: M3-banked-state-access, iteration 8. Small-DUT M3 acceptance verified; ready for independent loop verification. No external dependency is currently missing.
+Current milestone: M4-full-metasim-restore, iteration 9. In progress: generated RTL inventory/capture and host fail-closed preflight implemented; complete runtime capture and fresh-process restoration remain outstanding. No required external dependency is currently missing.
+
+Iteration 9 (October 8):
+
+- Added opt-in post-emitter-lowering Level-1 inventory at the explicit FPGATop metasim root, separate from semantic StateIDs/manifests. Final instance connectors, registers, logical memories and explicit memory pipeline registers are covered. Opaque/unresolved/async/implicit-pipeline state fails explicitly. Exact AbstractClockGate and hash-bound metasim BUFGCE adapters account for stored clock-model state.
+- InventoryFixture has 529 entries, 539 words, 2,512 bits and 83 instances: transformed DUT/SRAM/in-flight operation, FAME progress, LI-BDN queues, bridge/counter/control/interconnect state. Independent emitted RTL declaration coverage agrees exactly. VCS captures all words at active, queued/outstanding and held-response points. These are generated RTL diagnostics at host samples, not complete `.fsckpt` files or certified target-cycle cuts.
+- Added default-unsupported software schema/save/validate/load hooks for widgets and stream engines and deterministic registry ownership. Real VCS preflight/save/restore requests exit 1 before driver initialization, identify unsupported widget/0 and publish no incomplete checkpoint. The metasim runtime cut also remains explicitly unsupported.
+- Passed 22 Python tests, 19 Scala inventory/stage tests, compiler manifest/codec corruption checks, ordinary clean InventoryDUT VCS and GCD VCS metasim. Full M2 passes all five fresh-process cases (108 samples/1,404 comparisons) plus mismatch and restore-negative tests. Full M3 passes six byte-identical hardware/oracle captures, 547 stalled boundaries, 5 semantic/242 transfer-edge replay samples and eight invalid client reads. All VCS shells source both environments then vcs-env.sh last; Y-2026.03-SP1, `-full64`, GCC/G++ 13, `VCS_FLAGS=-Mupdate` for reused Make builds.
+- Next: audited driver/runtime/transport/harness/PRNG/scheduler adapters; full `mm_t` functional DRAM plus `mm_magic_t` burst and response queues; actual FASED inventory/capture; atomic consistent cut, complete manifest-bound `.fsckpt`, prevalidated fresh-process load before target time, and target-visible output/transaction timing comparison with outstanding traffic. No full Level-1 continuation, FASED, FPGA, formal or ASIC validation is claimed. Plans/conda/PDFs were preserved without staging, commit/reset/clean. Details: [m4-generated-state-inventory.md](m4-generated-state-inventory.md). Evidence is under `automations/checkpoint_loop/runs/m4-iteration9/`.
 
 Iteration 8 (October 8):
 
