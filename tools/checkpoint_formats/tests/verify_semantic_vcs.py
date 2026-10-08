@@ -1,0 +1,140 @@
+"""Reproducible M2 VCS metasim -> fresh ordinary RTL replay acceptance check.
+
+Run from Chipyard root after sourcing env.sh, sims/firesim/env.sh, and
+automations/checkpoint_loop/vcs-env.sh LAST. All diagnostics go under --out.
+"""
+
+import argparse
+import copy
+import json
+import os
+from pathlib import Path
+import subprocess
+
+from tools.checkpoint_formats.codec import encode, require
+from tools.checkpoint_formats.replay import (
+    package_capture, prepare_capture, prepare_replay, read_json,
+)
+
+
+ROOT = Path(__file__).resolve().parents[3]
+
+
+def run(argv, log, cwd=ROOT, expected=0):
+    with log.open("w") as output:
+        output.write(f"cwd={cwd}\nargv={json.dumps([str(a) for a in argv])}\n")
+        output.flush()
+        process = subprocess.Popen([str(a) for a in argv], cwd=cwd, stdout=output, stderr=subprocess.STDOUT)
+        output.write(f"fresh_process_pid={process.pid}\n")
+        output.flush()
+        try:
+            code = process.wait(timeout=600)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+            raise
+        output.write(f"exit={code}\n")
+    require(code == expected if expected is not None else code != 0,
+            f"unexpected process exit {code}; see {log}")
+    return log.read_text()
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--build", type=Path, required=True)
+    parser.add_argument("--out", type=Path, required=True)
+    args = parser.parse_args()
+    build, out = args.build.resolve(), args.out.resolve()
+    out.mkdir(parents=True, exist_ok=True)
+    vcs = Path(os.environ["VCS_HOME"]) / "bin/vcs"
+    require(str(vcs) == "/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs", "source vcs-env.sh LAST")
+    make = ["make", "DESIGN=InventoryFixture", "TARGET_CONFIG=NoConfig", "PLATFORM_CONFIG=DefaultF2Config",
+            "SEMANTIC_CHECKPOINT_ROOT=InventoryFixture.dut", f"BUILD_DIR={build}"]
+    sim_dir = ROOT / "sims/firesim/sim"
+    run(make + ["verilog"], out / "fixture-verilog.log", sim_dir)
+    generated = build / "f2/f2-midasexamples-InventoryFixture-NoConfig-DefaultF2Config"
+    base = generated / "FireSim-generated"
+    manifest, boundary = read_json(str(base) + ".semantic-state.json"), read_json(str(base) + ".semantic-boundary.json")
+    clean = Path(str(base) + ".semantic-clean.sv")
+    fields = prepare_capture(manifest, boundary, clean.read_text(), Path(str(base) + ".sv").read_text(), out)
+    run(make + ["vcs", f"VCS={vcs} -full64", "VCS_FLAGS=-Mupdate", f"VCS_EXTRA_V={out / 'capture.sv'}"],
+        out / "fixture-vcs-build.log", sim_dir)
+    text = run([generated / "InventoryFixture", "+vcs+initreg+0", "+vcs+initmem+0",
+                f"+semantic_capture={out / 'capture.jsonl'}"], out / "metasim-run.log")
+    require("*** PASSED ***" in text, "metasim fixture did not report PASS")
+    rows = [json.loads(line) for line in (out / "capture.jsonl").read_text().splitlines()]
+    require(len(rows) == 37, f"unexpected actual DUT edge count {len(rows)}")
+    values = [{f["path"]: int(v, 16) for f, v in zip(fields, row["values"])} for row in rows]
+    # Independent oracle checks tie row indices to the target test sequence,
+    # rather than the clock bridge's count (which reports 38 for this test).
+    require(all(v["reset"] == 1 and v["counter"] == 0 for v in values[:5]), "reset edge indexing")
+    require(all(v["reset"] == 0 and v["counter"] == c - 5 for c, v in enumerate(values[5:], 5)),
+            "target edge indexing disagrees with DUT counter")
+    require(values[5]["io_wen"] == 1 and values[5]["io_data"] == 0x100, "first post-reset edge")
+    require(values[22]["qValid"] == 1, "queue checkpoint is empty")
+    require(values[24]["busy"] == values[24]["qValid"] == 1 and values[24]["delay"] == 1,
+            "outstanding operation/queue checkpoint missing")
+    require(values[26]["responseValid"] == values[26]["qValid"] == 1 and values[26]["io_respReady"] == 0,
+            "stalled response/queue checkpoint missing")
+    cases = [("reset", 0), ("active", 5), ("queued", 22), ("outstanding", 24), ("stalled", 26)]
+    summary = dict(actual_dut_edges=len(rows), clock_bridge_reported_cycles=38, cases=[],
+                   semantic_entries=len(manifest["state"]), words=sum(e["depth"] for e in manifest["state"]))
+    traces = {}
+    for name, cycle in cases:
+        case = out / name
+        ckpt, trace = package_capture(manifest, boundary, "InventoryFixture-NoConfig-DefaultF2Config",
+                                      out / "capture.jsonl", cycle, len(rows) - cycle, case)
+        traces[name] = (ckpt, trace)
+        verify_case(vcs, clean, manifest, boundary, case)
+        summary["cases"].append(dict(name=name, cycle=cycle, samples=len(rows) - cycle,
+                                     checkpoint_state={k: values[cycle][k] for k in
+                                                       ("counter", "qValid", "busy", "delay", "responseValid", "io_respReady")}))
+    # Corrupt a logically valid, checksummed trace, so comparison must identify
+    # the first differing output at its original target cycle.
+    mismatch = out / "mismatch"
+    mismatch.mkdir(exist_ok=True)
+    ckpt, trace = traces["stalled"]
+    altered = copy.deepcopy(trace)
+    value = altered["records"][3]["outputs"]["io_respData"]
+    value["value"] = f"{int(value['value'], 16) ^ 1:03x}"
+    (mismatch / "capture.rtlckpt").write_bytes((out / "stalled/capture.rtlckpt").read_bytes())
+    (mismatch / "capture.trace").write_bytes(encode("trace", altered))
+    result = verify_case(vcs, clean, manifest, boundary, mismatch, expected=None)
+    require("FIRST_MISMATCH cycle=29 signal=io_respData" in result and result.count("FIRST_MISMATCH") == 1,
+            "first mismatch did not name exact signal/cycle")
+    summary["first_mismatch"] = dict(cycle=29, signal="io_respData", exit="nonzero")
+    # Runtime handle/shape failures must terminate before any semantic deposit.
+    stalled = out / "stalled"
+    restore = (stalled / "restore.txt").read_text()
+    bad_files = dict(missing_handle=restore.replace(".counter ", ".absent "),
+                     wrong_width=restore.replace(".counter 9 ", ".counter 8 "),
+                     malformed=restore + "truncated-row\n",
+                     incomplete="\n".join(restore.splitlines()[:-1]) + "\n")
+    for name, content in bad_files.items():
+        file = out / f"{name}.restore.txt"
+        file.write_text(content)
+        result = run([stalled / "simv", f"+restore={file}", f"+waveform={out / (name + '.vcd')}"],
+                     out / f"{name}.log", expected=None)
+        require("RESTORE_ERROR" in result and "RESTORE: deposited" not in result, "bad restore partially deposited state")
+    summary["restore_rejections"] = list(bad_files)
+    (out / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
+    print(json.dumps(summary, indent=2))
+
+
+def verify_case(vcs, clean, manifest, boundary, case, expected=0):
+    prepare_replay(manifest, boundary, "InventoryFixture-NoConfig-DefaultF2Config",
+                   (case / "capture.rtlckpt").read_bytes(), (case / "capture.trace").read_bytes(), case)
+    run([vcs, "-full64", "-sverilog", "-debug_access+all", "+vpi", "-cc", os.environ["CC"],
+         "-cpp", os.environ["CXX"], "-CFLAGS", f"-std=c++17 -I{os.environ['VCS_HOME']}/include",
+         "-timescale=1ns/1ps", "-top", "semantic_replay_tb", f"-Mdir={case / 'csrc'}", "-o", case / "simv",
+         clean, case / "replay.sv", ROOT / "tools/checkpoint_formats/semantic_restore.cc"], case / "build.log")
+    result = run([case / "simv", f"+restore={case / 'restore.txt'}", f"+waveform={case / 'replay.vcd'}"],
+                 case / "run.log", expected=expected)
+    if expected == 0:
+        require("PASS: fresh clean RTL replay" in result, "clean replay did not report PASS")
+        require((case / "replay.vcd").stat().st_size > 0, "missing clean RTL waveform")
+    return result
+
+
+if __name__ == "__main__":
+    main()

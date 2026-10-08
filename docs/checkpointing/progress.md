@@ -1,6 +1,14 @@
 # Checkpointing progress
 
-Current milestone: M1-schema-and-stateids, iteration 6. M1 acceptance verified; ready for the loop's independent verification. No external dependency is currently missing.
+Current milestone: M2-semantic-vcs-replay, iteration 7. Small-DUT M2 acceptance verified; ready for the loop's independent verification. No external dependency is currently missing.
+
+Iteration 7 (October 8):
+
+- Implemented VCS Level-2 backdoor capture on actual gated DUT rising edges, before sequential updates, with complete StateID-bound registers/memory contents and all target boundary I/O. Compiler emits DUT-only ordinary RTL and a boundary manifest from the exact pre-FAME IR. Unsupported identity mappings (lost/extra/renamed/reshaped/threaded state, multiple DUT instances) fail explicitly. Level-1 checkpoints remain independent.
+- Extended InventoryFixture with a request queue, two-cycle memory operation, and held response. Five fresh ordinary clean RTL VCS processes restore checkpoints at reset C=0, active/write C=5, queued C=22, outstanding C=24, and stalled-response C=26. All 108 sampled target cycles and 1,404 output comparisons match; each process verifies all 22 restored semantic words before its first edge and writes a VCD. Capture records 37 DUT edges (0..36); bridge reports 38. Independent reset/counter checks establish indices without using PeekPoke's unstable reads.
+- A checksummed trace error reports `FIRST_MISMATCH cycle=29 signal=io_respData expected=102 actual=103` and exits 1. VCS initially returned zero after `$fatal`; added explicit DPI failure exit. Missing/reshaped handles, malformed restore data, and incomplete deposits exit 1 before modifying state. Integrity/build/manifest/completeness checks precede replay generation. No DUT reset or draining is required at the in-flight checkpoints.
+- Passed 14 Scala inventory/stage tests and 15 Python container/semantic/replay tests with no skips, the manifest codec verification, ordinary InventoryDUT VCS regression, and GCD VCS metasim regression. Every VCS shell sources both repository environments, then vcs-env.sh last; release Y-2026.03-SP1, `-full64`, GCC/G++ 13. Acceptance script rebuilds/runs all five cases and negative tests. Diagnostics are under `automations/checkpoint_loop/runs/m2-iteration7/`; details and reproduction: [m2-semantic-vcs-replay.md](m2-semantic-vcs-replay.md).
+- Scope is the hierarchy-preserving small DUT and its explicit memory pipeline. Rocket/BOOM, general FAME renaming/threading mappings, physical FPGA capture, Level-1 continuation, formal/ASIC activity, and power are unvalidated. Next milestone M3: synthesizable extraction, checked through metasim without claiming physical FPGA validation. Plans, conda files, loop code, and PDFs were preserved; no staging, commit, reset, or cleaning performed.
 
 Iteration 6 (October 8):
 

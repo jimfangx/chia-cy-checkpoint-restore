@@ -41,8 +41,9 @@ record lists are valid at the container level for empty inventories or zero-leng
 traces. `semantic.py` enforces complete Level-2 membership, widths and depths against
 the compiler manifest; its `encode_semantic(document, manifest)` and
 `decode_semantic(data, expected_build, manifest)` are the entry points for semantic
-checkpoints. The low-level codec does not establish completeness. Level-1 ownership
-and trace boundary coverage validation remain future work. ASIC netlist metadata is intentionally unsupported in
+checkpoints. The low-level codec does not establish completeness. `replay.py`
+enforces complete trace boundary membership and widths against the compiler's
+boundary manifest. Level-1 ownership remains future work. ASIC netlist metadata is intentionally unsupported in
 v1; no gate-level mapping or power analysis is claimed.
 
 Run from the Chipyard root:
@@ -53,10 +54,11 @@ python -m unittest discover -s tools/checkpoint_formats/tests -v
 
 The opt-in Golden Gate CLI flag `--semantic-checkpoint-root Top.dut` invokes
 `midas.checkpoint.SemanticStateInventory` after target lowering, before
-`MidasTransforms`. It emits `<output-base>.semantic-state.json` and the same
-uninstrumented circuit as `<output-base>.semantic-reference.fir`. The reference
-includes the enclosing harness; select the recorded DUT module and its reachable
-modules when emitting clean RTL (as the compiler test does).
+`MidasTransforms`. It emits `<output-base>.semantic-state.json`, the same
+uninstrumented circuit as `<output-base>.semantic-reference.fir`, a DUT-only
+ordinary RTL reference as `<output-base>.semantic-clean.sv`, and a complete
+port list as `<output-base>.semantic-boundary.json`. The FIRRTL reference includes
+the enclosing harness; the clean RTL contains only the selected DUT and reachable modules.
 
 The v1 manifest contains a single selected DUT clock domain and sorted entries
 for each lowered scalar register and logical memory. Aggregate registers/arrays
@@ -71,8 +73,44 @@ Opaque modules, unresolved/non-bit state, derived/gated clocks, asynchronous
 resets, multiple target clocks, and memories with read latency other than zero,
 write latency other than one, or readwrite ports fail explicitly. Synchronous
 memory read pipelines need their own inventory before support can be enabled.
-No memory ports are added. This is discovery/serialization, not hardware capture
-or mapping through FAME; the reference manifest is retained as a separate artifact.
+No memory ports are added. General mapping through FAME and hardware capture are
+future work; the reference manifest is retained as a separate artifact.
+
+`replay.py` provides a VCS backdoor oracle for a single hierarchy-preserving DUT
+instance. It rejects missing, extra, renamed, reshaped, or threaded state and
+boundary ports before generating a module bind. The bind samples the actual
+gated DUT clock in the active region, before sequential NBA updates, including
+every memory address and every boundary port except the implicit clock. Host
+stalls do not advance the sample index. Checkpoints and finite traces use the
+manifest-bound containers above; `.fsckpt` is independent and is not used.
+
+After checksum/build/completeness validation, the replay generator creates an
+ordinary DUT bench and a deposit list. `semantic_restore.cc` resolves and checks
+all VPI handles before depositing registers and memory words through a DPI call.
+The bench verifies every restored word before its first clock edge, drives each
+recorded input, settles combinational logic, and compares every output before
+the corresponding rising edge. It writes VCD waveforms. A mismatch names the
+original target cycle and signal, expected and actual bits, and exits nonzero
+through DPI (`$fatal` alone returned zero in the tested VCS release).
+
+The executable M2 acceptance check exercises reset, active execution and memory
+writes, a nonempty queue, an outstanding memory pipeline operation, and a held
+response under backpressure. Each checkpoint starts a fresh clean VCS process.
+It also injects a checksummed trace error and rejects invalid runtime restore
+handles, widths, malformed data, and incomplete deposits:
+
+```sh
+source env.sh && source sims/firesim/env.sh
+source automations/checkpoint_loop/vcs-env.sh
+export JAVA_TOOL_OPTIONS='-Xmx8G -Xss8M'
+python -m tools.checkpoint_formats.tests.verify_semantic_vcs \
+  --build automations/checkpoint_loop/runs/m2-metasim \
+  --out automations/checkpoint_loop/runs/m2-iteration7/acceptance
+```
+
+This prototype covers the small InventoryFixture, including its target SRAM.
+It does not establish Rocket/BOOM, multi-model/threaded FAME mappings, physical
+FPGA capture, ASIC gate-level activity, or power estimation.
 
 For real compiler-artifact verification, run the Scala inventory suite with
 `CHECKPOINT_TEST_ARTIFACT_DIR` set to a directory, then from the Chipyard root run:
