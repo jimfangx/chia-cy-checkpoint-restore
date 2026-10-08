@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 import re
 
-from .codec import HASH, bit_value, canonical, keys, natural, require
+from .codec import HASH, bit_value, canonical, keys, natural, require, unique_object
 from .replay import IDENT, RANGE, modules
 
 
@@ -64,6 +64,7 @@ def validate_generated_manifest(manifest):
         for name in ("clock_expression", "reset_expression"):
             require(type(entry[name]) is str and entry[name], "missing clock/reset metadata")
         require(entry["adapter"] in ("firrtl-register-v1", "firrtl-memory-v1",
+                                     "firrtl-emitter-memory-pipeline-v1",
                                      "abstract-clock-gate-v1", "metasim-bufgce-v1"), "unknown state adapter")
         require((entry["kind"] == "memory") == (entry["adapter"] == "firrtl-memory-v1"), "adapter kind mismatch")
         ids.append(entry["state_id"])
@@ -174,3 +175,108 @@ def prepare_generated_probe(manifest, out):
     (out / "generated-probe.sv").write_text('\n'.join(source) + '\n')
     (out / "generated-layout.json").write_bytes(canonical(words))
     return words
+
+
+def prepare_generated_stream_probe(manifest, out, stages, harness="emul"):
+    """VCS diagnostic for large generated memories, one manifested entry per line.
+
+    Each stage is a nonempty mapping of manifested scalar paths to minimum
+    values. Every word is read at the same settled falling edge, with no clock
+    or MMIO advances. The explicit harness adapter names a single FPGATop
+    instance; callers must check that hierarchy against the actual harness.
+    This is read-only metasim instrumentation, not synthesizable transport.
+    """
+    validate_generated_manifest(manifest)
+    require(re.fullmatch(IDENT, harness) is not None, "invalid diagnostic harness")
+    require(type(stages) is list and stages, "empty diagnostic stages")
+    state = {e["hierarchy"]: e for e in manifest["state"]}
+    predicates = []
+    for stage in stages:
+        require(type(stage) is dict and stage, "empty diagnostic predicate")
+        terms = []
+        for path, minimum in stage.items():
+            require(path in state and state[path]["kind"] == "register", "unmanifested/non-scalar trigger")
+            natural(minimum)
+            require(minimum.bit_length() <= state[path]["width"], "trigger threshold overflow")
+            terms.append(f"({harness}.{path} >= {state[path]['width']}'d{minimum})")
+        predicates.append(" && ".join(terms))
+    digest = hashlib.sha256(canonical(manifest)).hexdigest()
+    header = dict(capture_version=2, capture_type="generated_rtl_diagnostic", scope="generated_rtl_only",
+                  external_runtime_required=True, manifest_sha256=digest, sample_phase="settled_host_negedge")
+    prefix = canonical(header).decode()[:-1] + ',"host_sample":%0d,"stage":%0d}'
+    source = ["`timescale 1ps/1ps", "module generated_stream_probe(input wire clock);",
+              "integer fd = 0; integer stage = 0; integer address; longint unsigned host_sample = 0; string filename;",
+              'initial if ($value$plusargs("generated_capture=%s", filename)) begin',
+              '  fd = $fopen(filename, "w"); if (!fd) $fatal(1, "cannot open generated probe"); end',
+              "always @(negedge clock) begin", "  #1; host_sample = host_sample + 1;",
+              "  if (fd && (" + " || ".join(f"(stage == {i} && ({p}))" for i, p in enumerate(predicates)) + ")) begin",
+              f"    $fdisplay(fd, {json.dumps(prefix)}, host_sample, stage);"]
+    for entry in manifest["state"]:
+        record = dict(state_id=entry["state_id"], width=entry["width"], depth=entry["depth"])
+        fmt = canonical(record).decode()[:-1] + ',"values":['
+        source.append(f"    $fwrite(fd, {json.dumps(fmt)});")
+        path = harness + "." + entry["hierarchy"]
+        if entry["kind"] == "memory":
+            source += [f"    for (address = 0; address < {entry['depth']}; address = address + 1) begin",
+                       '      if (address) $fwrite(fd, ",");',
+                       f'      $fwrite(fd, "\\\"%h\\\"", {path}[address]);', "    end"]
+        else:
+            source.append(f'    $fwrite(fd, "\\\"%h\\\"", {path});')
+        source.append('    $fdisplay(fd, "]}");')
+    source += ["    $fflush(fd); stage = stage + 1;", "  end", "end", "final if (fd) $fclose(fd);",
+               "endmodule", f"bind {manifest['root_module']} generated_stream_probe generated_probe(.clock(clock));"]
+    out = Path(out)
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "generated-probe.sv").write_text("\n".join(source) + "\n")
+    (out / "generated-triggers.json").write_bytes(canonical(stages))
+
+
+def validate_generated_stream(manifest, path, stages):
+    """Validate complete ordered captures without expanding RAMs into word owners.
+
+    Memory is bounded by the largest entry, rather than total simulator words.
+    Truncated, extra, reshaped, reordered and unknown values fail explicitly.
+    Return scalar observations for checking transaction predicates independently.
+    """
+    validate_generated_manifest(manifest)
+    natural(stages)
+    require(stages > 0, "empty generated capture stream")
+    digest = hashlib.sha256(canonical(manifest)).hexdigest()
+    samples = []
+    with Path(path).open() as stream:
+        def row():
+            line = stream.readline()
+            require(bool(line), "incomplete generated RTL stream")
+            return json.loads(line, object_pairs_hook=unique_object)
+        for stage in range(stages):
+            header = row()
+            keys(header, {"capture_version", "capture_type", "scope", "external_runtime_required",
+                          "manifest_sha256", "sample_phase", "host_sample", "stage"})
+            require(type(header["capture_version"]) is int and header["capture_version"] == 2
+                    and header["capture_type"] == "generated_rtl_diagnostic"
+                    and header["scope"] == "generated_rtl_only" and header["external_runtime_required"] is True
+                    and header["manifest_sha256"] == digest and header["sample_phase"] == "settled_host_negedge",
+                    "incompatible generated RTL stream")
+            natural(header["stage"])
+            require(header["stage"] == stage, "generated capture stage order")
+            natural(header["host_sample"])
+            require(not samples or header["host_sample"] > samples[-1]["host_sample"], "host sample order")
+            scalars, words = {}, 0
+            for entry in manifest["state"]:
+                record = row()
+                keys(record, {"state_id", "width", "depth", "values"})
+                require(record["state_id"] == entry["state_id"], "generated capture membership/order")
+                natural(record["width"])
+                natural(record["depth"])
+                require((record["width"], record["depth"]) == (entry["width"], entry["depth"]),
+                        "generated capture shape mismatch")
+                require(type(record["values"]) is list and len(record["values"]) == entry["depth"],
+                        "incomplete generated memory capture")
+                for value in record["values"]:
+                    bit_value(dict(width=entry["width"], value=value))
+                if entry["kind"] == "register":
+                    scalars[entry["hierarchy"]] = int(record["values"][0], 16)
+                words += entry["depth"]
+            samples.append(dict(stage=stage, host_sample=header["host_sample"], words=words, scalars=scalars))
+        require(not stream.read(1), "trailing generated capture data")
+    return samples

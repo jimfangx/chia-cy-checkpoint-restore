@@ -8,6 +8,7 @@ from pathlib import Path
 
 from tools.checkpoint_formats.codec import FormatError, canonical, encode, decode
 from tools.checkpoint_formats.semantic import decode_semantic, encode_semantic, manifest_hash
+from tools.checkpoint_formats.simulator import check_generated_rtl
 
 
 def verify(directory, basename="InventoryDUT", dut_root="Harness.dut", configuration="InventoryDUT"):
@@ -74,11 +75,25 @@ def verify(directory, basename="InventoryDUT", dut_root="Harness.dut", configura
     print("Scope: synthetic serialization values; no capture or replay is claimed")
 
 
+def verify_emitter_memories(directory):
+    """Check Scala's actual passthrough fixtures against emitted declarations."""
+    directory = Path(directory)
+    for port, policies in (("reader", ("old", "new", "undefined")), ("readwriter", ("old", "undefined"))):
+        for policy in policies:
+            base = directory / f"passthrough-{port}-{policy}"
+            manifest = json.loads(base.with_suffix(".json").read_text())
+            check_generated_rtl(manifest, base.with_suffix(".fir").read_text(), base.with_suffix(".sv").read_text(), "")
+            print(f"PASS: exact emitted memory/pipeline membership and shapes: {base.name}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("directory")
     parser.add_argument("--basename", default="InventoryDUT")
     parser.add_argument("--dut-root", default="Harness.dut")
     parser.add_argument("--configuration", default="InventoryDUT")
+    parser.add_argument("--emitter-memories", action="store_true")
     args = parser.parse_args()
     verify(args.directory, args.basename, args.dut_root, args.configuration)
+    if args.emitter_memories:
+        verify_emitter_memories(args.directory)

@@ -1,10 +1,14 @@
 import copy
 import hashlib
+import json
+from pathlib import Path
+import tempfile
 import unittest
 
 from tools.checkpoint_formats.codec import FormatError, canonical
 from tools.checkpoint_formats.simulator import (check_generated_rtl, generated_capture,
-                                                generated_words, validate_generated_manifest)
+                                                generated_words, validate_generated_manifest,
+                                                prepare_generated_stream_probe, validate_generated_stream)
 
 
 def fixture():
@@ -66,6 +70,64 @@ class SimulatorInventoryTest(unittest.TestCase):
                 check_generated_rtl(m, "reference", bad, "")
         with self.assertRaises(FormatError):
             check_generated_rtl(m, "modified", rtl, "")
+
+    def test_stream_covers_complete_memories_and_rejects_corrupt_membership(self):
+        m = fixture()
+        header = dict(capture_version=2, capture_type="generated_rtl_diagnostic", scope="generated_rtl_only",
+                      external_runtime_required=True, manifest_sha256=hashlib.sha256(canonical(m)).hexdigest(),
+                      sample_phase="settled_host_negedge", host_sample=7, stage=0)
+        rows = [header] + [dict(state_id=e["state_id"], width=e["width"], depth=e["depth"],
+                               values=[f"{(1 << e['width']) - 1:0{(e['width']+3)//4}x}"] * e["depth"])
+                           for e in m["state"]]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "state.jsonl"
+            def write(value):
+                path.write_text("".join(json.dumps(row) + "\n" for row in value))
+            write(rows)
+            observed = validate_generated_stream(m, path, 1)
+            self.assertEqual(observed[0]["words"], 3)
+            self.assertEqual(observed[0]["scalars"]["Top.counter"], (1 << 257) - 1)
+            memory = next(i for i, e in enumerate(m["state"], 1) if e["kind"] == "memory")
+            mutations = (
+                lambda r: r[0].update(external_runtime_required=False),
+                lambda r: r[0].update(manifest_sha256="0"*64),
+                lambda r: r[0].update(host_sample=True),
+                lambda r: r[0].update(stage=1),
+                lambda r: r[memory].update(values=r[memory]["values"][:-1]),
+                lambda r: r[memory].update(width=8),
+                lambda r: r[memory].update(depth=True),
+                lambda r: r[memory].update(values=["xxx", "xxx"]),
+                lambda r: r[memory].update(values=["fff", "fff"]),
+                lambda r: r[memory].update(state_id="0"*64),
+                lambda r: r.reverse(),
+                lambda r: r.pop(),
+                lambda r: r.append(r[-1]),
+            )
+            for mutate in mutations:
+                altered = copy.deepcopy(rows)
+                mutate(altered)
+                write(altered)
+                with self.assertRaises(FormatError):
+                    validate_generated_stream(m, path, 1)
+            write(rows + [dict(header, host_sample=8, stage=1)] + rows[1:])
+            self.assertEqual(len(validate_generated_stream(m, path, 2)), 2)
+            write(rows + [dict(header, host_sample=7, stage=1)] + rows[1:])
+            with self.assertRaises(FormatError):
+                validate_generated_stream(m, path, 2)
+
+    def test_stream_probe_bounds_generation_by_entries_and_requires_manifested_triggers(self):
+        m = fixture()
+        with tempfile.TemporaryDirectory() as directory:
+            out = Path(directory)
+            prepare_generated_stream_probe(m, out, [{"Top.counter": 1}])
+            source = (out / "generated-probe.sv").read_text()
+            self.assertIn("emul.Top.fifo[address]", source)
+            self.assertIn("address < 2", source)
+            self.assertIn("emul.Top.counter >= 257'd1", source)
+            for bad in ([], [{}], [{"Top.absent": 1}], [{"Top.fifo": 1}],
+                        [{"Top.counter": True}], [{"Top.counter": 1 << 257}]):
+                with self.assertRaises(FormatError):
+                    prepare_generated_stream_probe(m, out, bad)
 
 
 if __name__ == "__main__":
