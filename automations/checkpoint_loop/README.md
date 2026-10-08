@@ -15,13 +15,26 @@ bash automations/checkpoint_loop/run.sh
 
 `run.sh` sources Chipyard's `env.sh` and FireSim's `env.sh`, then imports the
 local Chia checkout. Set `CHIA_SOURCE` if your Chia installation is elsewhere.
-It then sources `vcs-env.sh`, which sources `~/flexlm.sh` for licenses and pins
+It then sources `vcs-env.sh`, which sources `/ecad/tools/vlsi.bashrc` for licenses and pins
 `VCS_HOME` and `PATH` to VCS Y-2026.03-SP1. Set `CHECKPOINT_LICENSE_SETUP` to
 use another license setup script. The helper also adds the conda library
 directory to `LD_LIBRARY_PATH` so the 64-bit VCS executable can load `libelf.so.1`.
 Source this helper last after the build environments in each `bash -lc` check:
 login-shell startup can otherwise select an older `VCS_HOME` even when an
 absolute path to the new `bin/vcs` is used.
+
+The system setup includes the reachable Synopsys server
+`1709@flex-lic.millennium.berkeley.edu`. The user's `~/flexlm.sh` currently
+lists only the two BWRC servers, which failed connection checks from this host.
+
+The helper selects `/usr/bin/gcc-13` and `/usr/bin/g++-13` for VCS builds.
+Conda currently supplies GCC 15, which rejects an undeclared function in
+VCS-generated C. Small `compiler-bin/gcc` and `compiler-bin/g++` wrappers
+handle VCS's internal compiler/linker invocations in addition to the exported
+`CC`/`CXX` and `VCS_CC`.
+Conda's Python remains available for the loop.
+On the first Make rebuild of an existing VCS directory after switching releases,
+pass `VCS_FLAGS=-Mupdate` to regenerate VCS's cached C build Makefile.
 
 To inspect the configured license servers and VCS feature availability:
 
@@ -43,8 +56,11 @@ verified or a real external dependency blocks progress. A repeat invocation
 resumes from `runs/state.json`.
 
 The local Codex invocation defaults to `workspace-write`, using the Linux
-bubblewrap sandbox. It passes `-a never` so it never prompts for approval;
-commands denied by the sandbox return an error to the agent.
+bubblewrap sandbox. A per-invocation `checkpoint` permission profile inherits
+`:workspace` filesystem restrictions and enables outbound networking for
+Synopsys/FlexNet license checkout. This permits outbound connections generally;
+it is not a license-server-only allowlist. It passes `-a never` so it never
+prompts for approval; commands denied by the sandbox return an error to the agent.
 Full access is unavailable through the loop's `--sandbox` option.
 `--ignore-user-config` keeps unrelated MCP apps out of the implementation
 agent; Codex still uses its local authentication. The loop explicitly passes

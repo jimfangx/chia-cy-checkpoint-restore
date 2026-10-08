@@ -159,9 +159,19 @@ def codex_iteration(prompt: str, schema: str, report_path: str, log_path: str,
         "codex", "-a", "never", "exec", "--json", "--ephemeral",
         "--ignore-user-config",
         "-c", f'model_reasoning_effort="{effort}"',
-        "--sandbox", sandbox, "--color", "never", "-C", str(ROOT),
+        "--color", "never", "-C", str(ROOT),
         "--output-schema", schema, "--output-last-message", report_path,
     ]
+    if sandbox == "workspace-write":
+        # VCS/FlexNet requires direct outbound TCP; keep workspace filesystem
+        # restrictions while allowing license checkout inside agent commands.
+        command.extend([
+            "-c", 'default_permissions="checkpoint"',
+            "-c", 'permissions.checkpoint.extends=":workspace"',
+            "-c", "permissions.checkpoint.network.enabled=true",
+        ])
+    else:
+        command.extend(["--sandbox", sandbox])
     if model:
         command.extend(["--model", model])
     command.append("-")
@@ -347,8 +357,14 @@ Use VCS metasim and ordinary clean RTL VCS on this machine. Source
 {ROOT / 'env.sh'} and {FIRE / 'env.sh'} when a build needs them, then source
 {HERE / 'vcs-env.sh'} LAST in every VCS build, simulation, or license-check
 shell, including bash -lc verification commands. This sources the license
-setup from CHECKPOINT_LICENSE_SETUP (default ~/flexlm.sh) and pins VCS_HOME,
-PATH, 64-bit mode, and the conda library path. VCS is {VCS}; use -full64.
+setup from CHECKPOINT_LICENSE_SETUP (default /ecad/tools/vlsi.bashrc) and pins VCS_HOME,
+PATH, 64-bit mode, system GCC/G++ 13, and the conda library path.
+Keep CC/CXX and VCS_CC from that setup: Conda GCC 15 rejects implicit
+function declarations in VCS-generated C. The helper also supplies gcc on
+PATH for VCS's internal generated-C compiler and g++ for its linker.
+VCS is {VCS}; use -full64.
+When reusing a VCS build directory from an older release, use VCS_FLAGS=-Mupdate
+for the first Make build so VCS regenerates its cached C build Makefile.
 An absolute bin/vcs path alone does not override an older VCS_HOME set by
 login-shell initialization. Use this release for new checks even if saved
 reports or historical logs name an older version. Jasper is {JASPER}.

@@ -1,9 +1,20 @@
 # M1 inventory verification and recovery
 
-Iteration 5 adds an executable FireSim inventory fixture and handles Chisel's
-conditional SRAM write clock validity. VCS Y-2026.03-SP1 execution is blocked by
-license checkout. Diagnostic logs are under
+Iteration 6 verifies M1 acceptance after the license/environment recovery in
+[progress.md](progress.md). Clean InventoryDUT VCS, InventoryFixture VCS metasim,
+and GCD VCS metasim pass with Y-2026.03-SP1 and GCC/G++ 13. The fixture's four
+reset checks now explicitly select the signal-value `expect` overload; literal
+zero previously selected the Boolean overload and skipped those reads.
+Diagnostic logs are under
 `automations/checkpoint_loop/runs`. Run from the Chipyard root unless stated otherwise.
+
+Current verification logs are in `runs/m1-iteration6`: `compiler-tests.log`
+(14 Scala tests), `formats.log` (10 Python tests), `inventory-codecs.log` and
+`fixture-codecs.log` (both actual manifests and seeded containers),
+`clean-build.log`, `clean-run.log`, `fixture-vcs.log`,
+`fixture-output/InventoryFixture.vcs.out`, `gcd-vcs.log`, and
+`gcd-output/GCD.vcs.out`. All commands completed successfully. The existing
+full Golden Gate artifacts were reused; Make's three verilog targets were up to date.
 
 The source fixture is
 `sims/firesim/sim/midas/src/test/resources/checkpoint/InventoryDUT.firrtl`;
@@ -46,7 +57,7 @@ recording, simulator ownership completeness, or replay. Semantic decode rejects
 missing/extra/wrong-shaped state even with valid checksum and manifest hash.
 Restoration must use manifest-bound validation, not the low-level container API.
 
-Ordinary clean RTL VCS (attempted; license failure, exit 255):
+Ordinary clean RTL VCS (iteration 6 compiled and simulated successfully):
 
 The commands below now select Y-2026.03-SP1; iteration 4 logs used an older
 release. Source `vcs-env.sh` last to load licenses and override login-shell
@@ -57,18 +68,17 @@ source env.sh && source sims/firesim/env.sh
 source automations/checkpoint_loop/vcs-env.sh
 timeout 90 "$VCS_HOME/bin/vcs" -full64 -sverilog \
   -timescale=1ns/1ps -top InventoryDUT_tb \
-  -Mdir=automations/checkpoint_loop/runs/m1-inventory/y2026-clean-csrc \
-  -o automations/checkpoint_loop/runs/m1-inventory/y2026-clean-simv \
+  -Mdir=automations/checkpoint_loop/runs/m1-iteration6/clean-csrc \
+  -o automations/checkpoint_loop/runs/m1-iteration6/clean-simv \
   automations/checkpoint_loop/runs/m1-inventory/InventoryDUT.sv \
   tools/checkpoint_formats/tests/InventoryDUT_tb.sv
+automations/checkpoint_loop/runs/m1-iteration6/clean-simv
 ```
 
-After successful compilation, run `runs/m1-inventory/y2026-clean-simv` using the full
-path beneath automations/checkpoint_loop and the same library environment.
-This runtime command has **not** run. The bench checks reset, FSM progression,
+The bench checks reset, FSM progression,
 all array members, both leaf instances, and every RAM word; it does not restore.
 
-Full Golden Gate build (passed) and VCS metasim attempt (license queue; timeout 124):
+Full Golden Gate build (passed) and GCD VCS metasim (passed after environment recovery):
 
 ```sh
 source env.sh && source sims/firesim/env.sh
@@ -77,13 +87,15 @@ export JAVA_TOOL_OPTIONS='-Xmx8G -Xss8M'
 cd sims/firesim/sim
 make verilog DESIGN=GCD TARGET_CONFIG=NoConfig PLATFORM_CONFIG=DefaultF2Config \
   BUILD_DIR=/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m1-metasim
-timeout 90 make vcs DESIGN=GCD TARGET_CONFIG=NoConfig PLATFORM_CONFIG=DefaultF2Config \
+timeout 90 make run-vcs DESIGN=GCD TARGET_CONFIG=NoConfig PLATFORM_CONFIG=DefaultF2Config \
+  SEMANTIC_CHECKPOINT_ROOT=GCD.dut \
   BUILD_DIR=/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m1-metasim \
-  "VCS=$VCS_HOME/bin/vcs -full64"
+  OUTPUT_DIR=/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m1-iteration6/gcd-output \
+  "VCS=$VCS_HOME/bin/vcs -full64" VCS_FLAGS=-Mupdate
 ```
 
-No metasim binary/runtime result is claimed. GCD is a compiler regression;
-the SRAM/array fixture's pending VCS runtime check is described below.
+GCD reported PASS after 12 target cycles in iteration 6. GCD is a compiler and
+execution regression; the SRAM/array fixture's VCS runtime check is described below.
 
 Full compiler with opt-in discovery (passed):
 
@@ -106,13 +118,16 @@ validated nine distinct DUT register IDs, bridge exclusion, canonical JSON,
 and reference hash. Capture, hardware transport, replay, ASIC activity, and FPGA
 validation remain later work. Unsupported state stays an explicit compile error.
 
-Iteration 5 full-fixture metasim preparation:
+Full-fixture metasim (iteration 6 passed):
 
 `InventoryFixture.scala` and `TestInventoryFixture.cc` are executable counterparts
 of the FIRRTL fixture. The driver checks reset, each target-cycle counter/FSM
 transition, all three register array members, repeated leaf instances, and every
-SRAM address. A C++ syntax check passed. A simulation pass requires VCS license
-checkout; do not infer execution from compiler or syntax-check results.
+SRAM address. The corrected driver compiled and passed 84 actual signal checks,
+including four reset reads, after 22 reported target cycles. A C++ syntax check
+also passed. The PeekPoke bridge's global precise-peek flag did not assert and
+the driver emitted unstable-value warnings. Observed values matched; settled
+trace-boundary sampling remains an M2 requirement. No replay is claimed.
 
 ```sh
 source env.sh && source sims/firesim/env.sh
@@ -125,7 +140,8 @@ make verilog DESIGN=InventoryFixture TARGET_CONFIG=NoConfig PLATFORM_CONFIG=Defa
 timeout 90 make run-vcs DESIGN=InventoryFixture TARGET_CONFIG=NoConfig PLATFORM_CONFIG=DefaultF2Config \
   SEMANTIC_CHECKPOINT_ROOT=InventoryFixture.dut \
   BUILD_DIR=/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m1-metasim \
-  "VCS=$VCS_HOME/bin/vcs -full64"
+  OUTPUT_DIR=/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m1-iteration6/fixture-output \
+  "VCS=$VCS_HOME/bin/vcs -full64" VCS_FLAGS=-Mupdate
 ```
 
 `SEMANTIC_CHECKPOINT_ROOT` passes the opt-in compiler argument through Make.
@@ -153,10 +169,8 @@ Only combinational nodes/wires are enable aliases: a register's next-state
 driver must never stand in for its stored value. A delayed-enable negative test
 checks this distinction.
 
-The new clean RTL attempt uses the required release and ends with exit 255:
-"Server node is down or not responding" / "Failed to obtain license".
-Both InventoryFixture and GCD VCS metasim attempts time out after 90 seconds
-in the license queue (exit 124).
-No clean RTL simulation, metasim execution, capture, restore, or FPGA validation
-is claimed. Report individual nonempty output files as artifacts; the loop's
+Iteration 5's license failures are historical; iteration 6 successfully compiled
+and executed clean RTL and both VCS metasim targets with the required release.
+Capture, restore, replay, ASIC activity, and FPGA validation remain later work.
+Report individual nonempty output files as artifacts; the loop's
 artifact check does not accept directory paths or empty successful-check logs.
