@@ -9,8 +9,8 @@ artifacts exist and its verification commands pass.
 Start from the Chipyard root:
 
 ```bash
-bash tools/checkpoint_loop/run.sh --dry-run
-bash tools/checkpoint_loop/run.sh
+bash automations/checkpoint_loop/run.sh --dry-run
+bash automations/checkpoint_loop/run.sh
 ```
 
 `run.sh` sources Chipyard's `env.sh` and FireSim's `env.sh`, then imports the

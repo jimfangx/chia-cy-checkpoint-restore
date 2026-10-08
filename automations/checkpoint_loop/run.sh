@@ -16,4 +16,4 @@ CHIA_SOURCE="${CHIA_SOURCE:-$ROOT_DIR/../chia-cy-checkpoint-restore-chia}"
 export PYTHONPATH="$CHIA_SOURCE${PYTHONPATH:+:$PYTHONPATH}"
 python -c 'from chia.base.ChiaFunction import ChiaFunction' >/dev/null
 
-exec python "$ROOT_DIR/tools/checkpoint_loop/loop.py" "$@"
+exec python "$ROOT_DIR/automations/checkpoint_loop/loop.py" "$@"
