@@ -408,8 +408,9 @@ def main() -> int:
     parser.add_argument("--effort", default="high",
                         choices=["low", "medium", "high", "xhigh"],
                         help="Codex reasoning effort (default: high)")
-    parser.add_argument("--sandbox", choices=["workspace-write", "danger-full-access"],
-                        default="danger-full-access")
+    parser.add_argument("--sandbox", choices=["workspace-write", "read-only"],
+                        default="workspace-write",
+                        help="Codex sandbox (default: workspace-write); approvals are never prompted")
     parser.add_argument("--max-iterations", type=int, default=0,
                         help="Optional operational stop for a trial run; 0 runs until done")
     parser.add_argument("--dry-run", action="store_true")

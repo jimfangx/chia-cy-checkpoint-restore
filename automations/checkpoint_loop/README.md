@@ -24,8 +24,10 @@ resumable state. With the default `0`, the loop continues until milestones are
 verified or a real external dependency blocks progress. A repeat invocation
 resumes from `runs/state.json`.
 
-The local Codex invocation uses `danger-full-access` because this host's
-`workspace-write` sandbox fails to initialize its `bwrap` loopback network.
+The local Codex invocation defaults to `workspace-write`, using the Linux
+bubblewrap sandbox. It passes `-a never` so it never prompts for approval;
+commands denied by the sandbox return an error to the agent.
+Full access is unavailable through the loop's `--sandbox` option.
 `--ignore-user-config` keeps unrelated MCP apps out of the implementation
 agent; Codex still uses its local authentication. The loop explicitly passes
 its model and reasoning effort settings to each Codex turn.

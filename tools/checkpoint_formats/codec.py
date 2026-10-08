@@ -12,7 +12,7 @@ class FormatError(ValueError):
 
 MAGIC = {"fsckpt": b"FSCKPT\x00\x01", "rtlckpt": b"RTLCKP\x00\x01", "trace": b"TRACE\x00\x00\x01"}
 BUILD_KEYS = {
-    "fsckpt": {"target_configuration", "rtl_build_hash", "golden_gate_build_hash", "state_manifest_hash"},
+    "fsckpt": {"target_configuration", "rtl_build_hash", "golden_gate_build_hash", "simulator_build_hash", "state_manifest_hash"},
     "rtlckpt": {"target_configuration", "rtl_build_hash", "state_manifest_hash"},
     "trace": {"target_configuration", "rtl_build_hash", "boundary_manifest_hash"},
 }
