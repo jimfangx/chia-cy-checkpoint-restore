@@ -3,28 +3,33 @@ import copy
 import hashlib
 import json
 import random
-import sys
+import argparse
 from pathlib import Path
 
 from tools.checkpoint_formats.codec import FormatError, canonical, encode, decode
 from tools.checkpoint_formats.semantic import decode_semantic, encode_semantic, manifest_hash
 
 
-def verify(directory):
+def verify(directory, basename="InventoryDUT", dut_root="Harness.dut", configuration="InventoryDUT"):
     directory = Path(directory)
-    raw = (directory / "InventoryDUT.semantic-state.json").read_bytes()
+    raw = (directory / (basename + ".semantic-state.json")).read_bytes()
     manifest = json.loads(raw)
     assert canonical(manifest) == raw, "Scala/Python canonical JSON disagreement"
-    reference = (directory / "InventoryDUT.semantic-reference.fir").read_bytes()
+    reference = (directory / (basename + ".semantic-reference.fir")).read_bytes()
     assert hashlib.sha256(reference).hexdigest() == manifest["reference_sha256"]
     assert len(manifest["state"]) == 8
+    assert manifest["dut_root"] == dut_root
     assert {s["hierarchy"] for s in manifest["state"]} == {
-        "Harness.dut." + name for name in ("counter", "fsm", "bank_0", "bank_1", "bank_2", "sram", "a.saved", "b.saved")
+        dut_root + "." + name for name in ("counter", "fsm", "bank_0", "bank_1", "bank_2", "sram", "a.saved", "b.saved")
     }
+    for entry in manifest["state"]:
+        name = entry["hierarchy"].removeprefix(dut_root + ".")
+        assert (entry["kind"], entry["width"], entry["depth"]) == (
+            "memory" if name == "sram" else "register", 2 if name == "fsm" else 9, 8 if name == "sram" else 1)
     rng = random.Random(441)
     doc = dict(format_version=1, checkpoint_type="rtlckpt", target_cycle=42,
                target_clock_phase="before_rising_edge",
-               build=dict(target_configuration="InventoryDUT", rtl_build_hash=manifest["reference_sha256"],
+               build=dict(target_configuration=configuration, rtl_build_hash=manifest["reference_sha256"],
                           state_manifest_hash=manifest_hash(manifest)), records=[])
     for entry in manifest["state"]:
         doc["records"].append(dict(state_id=entry["state_id"], width=entry["width"], depth=entry["depth"],
@@ -33,7 +38,7 @@ def verify(directory):
     data = encode_semantic(doc, manifest)
     assert decode_semantic(data, doc["build"], manifest) == doc
     assert encode_semantic(decode_semantic(data, doc["build"], manifest), manifest) == data
-    (directory / "InventoryDUT.rtlckpt").write_bytes(data)
+    (directory / (basename + ".rtlckpt")).write_bytes(data)
     for byte in range(len(data)):
         for bit in range(8):
             damaged = bytearray(data)
@@ -61,13 +66,19 @@ def verify(directory):
     ):
         example = dict(format_version=1, checkpoint_type=kind, target_cycle=42,
                        target_clock_phase="before_rising_edge", records=records,
-                       build=dict(target_configuration="InventoryDUT", rtl_build_hash=manifest["reference_sha256"], **builds))
+                       build=dict(target_configuration=configuration, rtl_build_hash=manifest["reference_sha256"], **builds))
         encoded = encode(kind, example)
         assert decode(encoded, kind, example["build"]) == example
-        (directory / ("InventoryDUT." + kind)).write_bytes(encoded)
+        (directory / (basename + "." + kind)).write_bytes(encoded)
     print(f"PASS: compiler's 8-entry manifest, reference hash, complete bit-exact roundtrip, {len(data) * 8} single-bit corruptions, omitted state rejection, independent fsckpt/trace")
     print("Scope: synthetic serialization values; no capture or replay is claimed")
 
 
 if __name__ == "__main__":
-    verify(sys.argv[1])
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("directory")
+    parser.add_argument("--basename", default="InventoryDUT")
+    parser.add_argument("--dut-root", default="Harness.dut")
+    parser.add_argument("--configuration", default="InventoryDUT")
+    args = parser.parse_args()
+    verify(args.directory, args.basename, args.dut_root, args.configuration)

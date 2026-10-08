@@ -5,10 +5,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 source "$ROOT_DIR/env.sh"
 source "$ROOT_DIR/sims/firesim/env.sh"
+source "$ROOT_DIR/automations/checkpoint_loop/vcs-env.sh"
 set -u
-
-# VCS's 64-bit executable needs libelf from this checkout's conda environment.
-export LD_LIBRARY_PATH="$ROOT_DIR/.conda-env/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
 # The Chia checkout is a sibling of this Chipyard checkout on this machine.
 # Override CHIA_SOURCE if it is installed elsewhere.

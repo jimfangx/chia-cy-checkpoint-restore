@@ -29,7 +29,7 @@ FIRE = ROOT / "sims" / "firesim"
 HERE = Path(__file__).resolve().parent
 SCHEMA = HERE / "report.schema.json"
 DEFAULT_RUNS = HERE / "runs"
-VCS = Path("/ecad/tools/synopsys/vcs/W-2024.09-1/bin/vcs")
+VCS = Path("/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs")
 JASPER = Path("/ecad/tools/cadence/JASPER/jasper_2025.03/bin/jg")
 LOG_BYTES = 16 * 1024 * 1024
 LOG_BACKUPS = 6
@@ -344,8 +344,14 @@ Previous feedback: {state.get('feedback', '(none)')}
 Full previous verification log: {verification_log}
 
 Use VCS metasim and ordinary clean RTL VCS on this machine. Source
-{ROOT / 'env.sh'} and {FIRE / 'env.sh'} when a build needs them. VCS is {VCS};
-use -full64 and the inherited conda library path. Jasper is {JASPER}.
+{ROOT / 'env.sh'} and {FIRE / 'env.sh'} when a build needs them, then source
+{HERE / 'vcs-env.sh'} LAST in every VCS build, simulation, or license-check
+shell, including bash -lc verification commands. This sources the license
+setup from CHECKPOINT_LICENSE_SETUP (default ~/flexlm.sh) and pins VCS_HOME,
+PATH, 64-bit mode, and the conda library path. VCS is {VCS}; use -full64.
+An absolute bin/vcs path alone does not override an older VCS_HOME set by
+login-shell initialization. Use this release for new checks even if saved
+reports or historical logs name an older version. Jasper is {JASPER}.
 There is no FPGA. Keep FPGA capture/transport code
 synthesizable and test it through metasim, but do not claim FPGA validation.
 

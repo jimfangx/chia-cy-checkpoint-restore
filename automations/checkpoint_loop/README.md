@@ -15,8 +15,26 @@ bash automations/checkpoint_loop/run.sh
 
 `run.sh` sources Chipyard's `env.sh` and FireSim's `env.sh`, then imports the
 local Chia checkout. Set `CHIA_SOURCE` if your Chia installation is elsewhere.
-It also adds the conda library directory to `LD_LIBRARY_PATH` so the 64-bit
-VCS executable can load `libelf.so.1`.
+It then sources `vcs-env.sh`, which sources `~/flexlm.sh` for licenses and pins
+`VCS_HOME` and `PATH` to VCS Y-2026.03-SP1. Set `CHECKPOINT_LICENSE_SETUP` to
+use another license setup script. The helper also adds the conda library
+directory to `LD_LIBRARY_PATH` so the 64-bit VCS executable can load `libelf.so.1`.
+Source this helper last after the build environments in each `bash -lc` check:
+login-shell startup can otherwise select an older `VCS_HOME` even when an
+absolute path to the new `bin/vcs` is used.
+
+To inspect the configured license servers and VCS feature availability:
+
+```bash
+source automations/checkpoint_loop/vcs-env.sh
+printenv VCS_HOME SNPSLMD_LICENSE_FILE
+vcs -full64 -ID
+/ecad/tools/mentor/calibre/current/bin/lmutil lmstat -a -c "$SNPSLMD_LICENSE_FILE"
+```
+
+Look for license server and `snpslmd` status `UP`, and the issued/in-use counts
+for VCS features. `vcs -ID` only identifies the version; a successful VCS
+compilation and `simv` run confirm actual compile/runtime license checkout.
 Codex defaults to `gpt-6.1-sol` with `high` reasoning effort; `--model MODEL`
 and `--effort LEVEL` override these settings. For a
 short trial, `--max-iterations 1` stops after one Codex turn and leaves a
@@ -66,7 +84,7 @@ Older saved runs automatically migrate to path-only commit exclusions on
 resume, preserving milestone and iteration progress.
 
 The current machine has VCS at
-`/ecad/tools/synopsys/vcs/W-2024.09-1/bin/vcs` and Jasper at
+`/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs` and Jasper at
 `/ecad/tools/cadence/JASPER/jasper_2025.03/bin/jg`. FPGA bring-up is deferred.
 Gate-level replay and power analysis still require a real ASIC netlist,
 matching libraries, and a suitable power analysis tool; the loop must report
