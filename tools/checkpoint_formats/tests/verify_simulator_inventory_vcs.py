@@ -13,7 +13,7 @@ import shutil
 from tools.checkpoint_formats.codec import canonical, require
 from tools.checkpoint_formats.simulator import (check_generated_rtl, generated_capture,
                                                 prepare_generated_probe)
-from tools.checkpoint_formats.tests.verify_semantic_vcs import ROOT, run
+from tools.checkpoint_formats.tests.verify_semantic_vcs import ROOT, run, invalidate_stale_driver_objects
 
 
 def main():
@@ -39,12 +39,7 @@ def main():
     check_generated_rtl(manifest, (out / "FireSim-generated.simulator-reference.fir").read_text(),
                         (out / "FireSim-generated.sv").read_text() + bufgce_model.read_text(), bufgce_model.read_text())
     words = prepare_generated_probe(manifest, out)
-    # VCS's external-C cached makefile does not track entry.cc reliably.
-    # Invalidate only stale generated entry.o so this check always uses preflight.
-    entry_source = sim_dir / "midas/src/main/cc/entry.cc"
-    for obj in generated.glob("*.csrc/entry.o"):
-        if obj.stat().st_mtime < max(entry_source.stat().st_mtime, Path(str(base) + ".const.h").stat().st_mtime):
-            obj.unlink()
+    invalidate_stale_driver_objects(generated, out / "rebuilt-driver-objects.json")
     run(make + ["vcs", f"VCS={vcs} -full64", "VCS_FLAGS=-Mupdate", f"VCS_EXTRA_V={out / 'generated-probe.sv'}"],
         out / "fixture-vcs-build.log", sim_dir)
     binary = generated / "InventoryFixture"

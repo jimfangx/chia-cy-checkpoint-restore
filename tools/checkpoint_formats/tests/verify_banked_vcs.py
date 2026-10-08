@@ -15,7 +15,7 @@ from tools.checkpoint_formats.banked import encode_banked, validate_binding
 from tools.checkpoint_formats.codec import FormatError, require
 from tools.checkpoint_formats.replay import package_capture, prepare_capture, read_json, state_words
 from tools.checkpoint_formats.semantic import decode_semantic, encode_semantic
-from tools.checkpoint_formats.tests.verify_semantic_vcs import ROOT, run, verify_case
+from tools.checkpoint_formats.tests.verify_semantic_vcs import ROOT, run, verify_case, invalidate_stale_driver_objects
 
 
 PORTS = ["start", "command", "startReady", "freeze", "done", "error", "cycle",
@@ -185,6 +185,7 @@ def main():
     if registry_object.exists() and registry_object.stat().st_mtime_ns < Path(str(base) + ".const.h").stat().st_mtime_ns:
         registry_object.unlink()
         (out / "registry-rebuild.log").write_text("Invalidated stale generated entry.o after bridge header changed\n")
+    invalidate_stale_driver_objects(generated, out / "rebuilt-driver-objects.json")
     run(make + ["vcs", f"VCS={vcs} -full64", "VCS_FLAGS=-Mupdate",
                 f"VCS_EXTRA_V={out / 'capture.sv'} {out / 'ports.sv'}"], out / "vcs-build.log", sim_dir)
     result = run([generated / "InventoryBankedFixture", "+vcs+initreg+0", "+vcs+initmem+0",

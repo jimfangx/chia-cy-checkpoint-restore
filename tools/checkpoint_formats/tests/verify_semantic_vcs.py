@@ -9,6 +9,7 @@ import copy
 import json
 import os
 from pathlib import Path
+import shlex
 import subprocess
 
 from tools.checkpoint_formats.codec import encode, require
@@ -18,6 +19,26 @@ from tools.checkpoint_formats.replay import (
 
 
 ROOT = Path(__file__).resolve().parents[3]
+
+
+def invalidate_stale_driver_objects(generated, log):
+    """VCS's cached external-C makefile can ignore compiler header dependencies.
+
+    Remove only generated objects whose recorded source/header is newer, so
+    these checks actually exercise the current driver ABI on reused builds.
+    """
+    removed = []
+    for dependency_file in generated.glob("*.csrc/*.d"):
+        obj = dependency_file.with_suffix(".o")
+        if not obj.exists():
+            continue
+        dependencies = shlex.split(dependency_file.read_text().replace("\\\n", " ").partition(":")[2])
+        stale = [str(path) for token in dependencies
+                 if (path := Path(token)).is_file() and path.stat().st_mtime_ns > obj.stat().st_mtime_ns]
+        if stale:
+            obj.unlink()
+            removed.append(dict(object=str(obj), newer_dependencies=stale))
+    log.write_text(json.dumps(removed, indent=2) + "\n")
 
 
 def run(argv, log, cwd=ROOT, expected=0):
@@ -57,6 +78,7 @@ def main():
     manifest, boundary = read_json(str(base) + ".semantic-state.json"), read_json(str(base) + ".semantic-boundary.json")
     clean = Path(str(base) + ".semantic-clean.sv")
     fields = prepare_capture(manifest, boundary, clean.read_text(), Path(str(base) + ".sv").read_text(), out)
+    invalidate_stale_driver_objects(generated, out / "rebuilt-driver-objects.json")
     run(make + ["vcs", f"VCS={vcs} -full64", "VCS_FLAGS=-Mupdate", f"VCS_EXTRA_V={out / 'capture.sv'}"],
         out / "fixture-vcs-build.log", sim_dir)
     text = run([generated / "InventoryFixture", "+vcs+initreg+0", "+vcs+initmem+0",
