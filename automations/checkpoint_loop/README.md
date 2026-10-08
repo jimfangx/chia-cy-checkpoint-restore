@@ -17,7 +17,8 @@ bash automations/checkpoint_loop/run.sh
 local Chia checkout. Set `CHIA_SOURCE` if your Chia installation is elsewhere.
 It also adds the conda library directory to `LD_LIBRARY_PATH` so the 64-bit
 VCS executable can load `libelf.so.1`.
-Codex uses its CLI default model; `--model MODEL` overrides it. For a
+Codex defaults to `gpt-6.1-sol` with `high` reasoning effort; `--model MODEL`
+and `--effort LEVEL` override these settings. For a
 short trial, `--max-iterations 1` stops after one Codex turn and leaves a
 resumable state. With the default `0`, the loop continues until milestones are
 verified or a real external dependency blocks progress. A repeat invocation
@@ -26,8 +27,8 @@ resumes from `runs/state.json`.
 The local Codex invocation uses `danger-full-access` because this host's
 `workspace-write` sandbox fails to initialize its `bwrap` loopback network.
 `--ignore-user-config` keeps unrelated MCP apps out of the implementation
-agent; Codex still uses its local authentication. The CLI's model default is
-used unless `--model` is supplied.
+agent; Codex still uses its local authentication. The loop explicitly passes
+its model and reasoning effort settings to each Codex turn.
 
 There are two remote Chia nodes: one runs Codex, one runs verification. Codex
 receives one focused milestone at a time and reports a structured result with
@@ -50,10 +51,17 @@ directory is removed after a normal shutdown.
 After every turn, the loop commits a checkpoint to the FireSim git repository,
 then to Chipyard (including the FireSim submodule pointer). It records even
 work-in-progress turns with clearly labeled commits. Files already dirty when
-the loop starts are excluded and fingerprinted; if they change, the loop stops
-before committing. Existing staged changes also prevent startup. This is
+the loop starts are excluded from commits. Their contents can change without
+blocking resume or checkpointing. Existing staged changes prevent startup. This is
 important in this checkout, where several conda files and the plan/PDF files
 were already user-owned changes.
+The agent treats `plan_agent.md` and `plan_human.md` as read-only inputs,
+regardless of their git status; progress and proposed corrections go under
+`docs/checkpointing/`.
+Both plans are always excluded from checkpoints, even if initially clean.
+There are no file-fingerprint checks, including during a running invocation.
+Older saved runs automatically migrate to path-only commit exclusions on
+resume, preserving milestone and iteration progress.
 
 The current machine has VCS at
 `/ecad/tools/synopsys/vcs/W-2024.09-1/bin/vcs` and Jasper at

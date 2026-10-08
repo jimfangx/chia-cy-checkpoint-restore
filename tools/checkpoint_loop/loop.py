@@ -333,6 +333,9 @@ Use targeted rg/sed reads so large plans do not flood the tool log.
 Treat plan_agent.md and plan_human.md as read-only inputs. Never edit, rewrite,
 rename, delete, or stage either plan, whether tracked, untracked, clean, or dirty.
 Record progress and proposed plan corrections only under docs/checkpointing/.
+
+For every new iteration, re-read the top of plan_agent.md for any updated instructions and apply them as needed.
+
 Chipyard repo: {ROOT}
 FireSim repo: {FIRE}
 Chia loop: {HERE}
@@ -343,18 +346,19 @@ Iteration: {iteration}
 Previous feedback: {state.get('feedback', '(none)')}
 Full previous verification log: {verification_log}
 
-Use VCS metasim and ordinary clean RTL VCS on this machine. Source
-{ROOT / 'env.sh'} and {FIRE / 'env.sh'} when a build needs them. VCS is {VCS};
+Use VCS for simulations, run both FireSim metasimulation and ordinary pre FireSim FAME transformed RTL on this machine. {ROOT / 'sims' / 'vcs'} has a good makefile example to run pre FireSim FAME transformed RTL with DRAMSim2 as backing. This is only an example, and likely will not "just work" for our case.
+You likely need to write something different, especially for cosimulating our FAME transformed RTL in metasim in the background with our pre FireSim FAME transformed design RTL. FireSim also have a working Metasimulation (no restoring) flow already, which you can reference for your restoring into Metasimulation work.
+Source {FIRE / 'sourceme-manager.sh --skip-ssh-setup'} to activate the env for FireSim and Chipyard builds. VCS is {VCS};
 use -full64 and the inherited conda library path. Jasper is {JASPER}.
 There is no FPGA. Keep FPGA capture/transport code
-synthesizable and test it through metasim, but do not claim FPGA validation.
+synthesizable and test it through FireSim metasim, but do not claim FPGA validation.
 
 Preserve target-cycle semantics and fail explicitly on unsupported state.
 Keep Level-1 simulator and Level-2 semantic checkpoints independent. Do not
 substitute RTL switching activity for ASIC gate-level activity. Read the two
 papers at the repository root when relevant. Work on a focused, testable
 increment. Do not skip tests, edit the existing dirty conda files or the
-untracked plan/PDF files, commit, reset, or clean git history. The Chia loop
+untracked plan/PDF files, commit, reset, or clean git history. Do not change anything outside of the `/scratch/jfx/chia-cy-checkpoint-restore/` directory. The Chia loop
 handles git checkpoints. Update a concise progress document under
 docs/checkpointing/ so the next Codex turn can recover context.
 Put diagnostic logs in {HERE / 'runs'}, not in tracked documentation. Do not

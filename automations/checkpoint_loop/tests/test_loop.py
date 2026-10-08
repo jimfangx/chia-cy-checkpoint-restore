@@ -2,11 +2,13 @@
 
 import json
 import io
+from contextlib import contextmanager
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -16,6 +18,77 @@ from milestones import MILESTONES
 
 
 class LoopTests(unittest.TestCase):
+    @contextmanager
+    def repositories(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "chipyard"
+            fire = Path(directory) / "firesim"
+            for repo in (root, fire):
+                repo.mkdir()
+                loop.git(repo, "init", "-q")
+                loop.git(repo, "config", "user.name", "test")
+                loop.git(repo, "config", "user.email", "test@example.org")
+                (repo / "existing.txt").write_text("original\n")
+                if repo == root:
+                    for name in loop.READ_ONLY_PLANS:
+                        (repo / name).write_text("original plan\n")
+                loop.git(repo, "add", ".")
+                loop.git(repo, "commit", "-qm", "initial")
+            with patch.object(loop, "ROOT", root), patch.object(loop, "FIRE", fire):
+                yield root, fire, Path(directory) / "state.json"
+
+    def test_resume_accepts_plan_edits_and_preserves_progress(self):
+        with self.repositories() as (root, fire, state_path):
+            # Emulate an older saved run, including its dirty-plan fingerprint.
+            baseline = {"chipyard": {"plan_agent.md": "outdated-fingerprint"}, "firesim": {}}
+            old_state = {"milestone_index": 2, "iteration": 7, "feedback": "continue",
+                         "baseline": baseline, "commits": {"chipyard": "saved-commit"}}
+            loop.save_state(state_path, old_state)
+            for name in loop.READ_ONLY_PLANS:
+                (root / name).write_text("updated user plan\n")
+            state = loop.load_state(state_path)
+            for key in ("milestone_index", "iteration", "feedback", "commits"):
+                self.assertEqual(state[key], old_state[key])
+            self.assertEqual(json.loads(state_path.read_text()), state)
+            for name in loop.READ_ONLY_PLANS:
+                self.assertEqual((root / name).read_text(), "updated user plan\n")
+                self.assertIn(name, state["baseline"]["chipyard"])
+            self.assertIsInstance(state["baseline"]["chipyard"], list)
+            self.assertEqual(state["baseline"]["firesim"], [])
+            (root / "agent.txt").write_text("agent work\n")
+            self.assertEqual(loop.stage_owned(root, state["baseline"]["chipyard"]), ["agent.txt"])
+            self.assertEqual(loop.git(root, "diff", "--cached", "--name-only").stdout.decode().strip(),
+                             "agent.txt")
+
+    def test_plan_edits_during_run_are_excluded_without_blocking_checkpoint(self):
+        with self.repositories() as (root, fire, state_path):
+            state = loop.load_state(state_path)
+            for name in loop.READ_ONLY_PLANS:
+                plan = root / name
+                plan.write_text("updated user plan\n")
+            (root / "agent.txt").write_text("agent work\n")
+            commits = loop.checkpoint_both(1, "test", "wip", state["baseline"])
+            self.assertEqual(set(commits), {"chipyard", "firesim"})
+            self.assertEqual(loop.git(root, "show", "HEAD:agent.txt").stdout, b"agent work\n")
+            for name in loop.READ_ONLY_PLANS:
+                self.assertEqual(loop.git(root, "show", f"HEAD:{name}").stdout, b"original plan\n")
+                self.assertEqual((root / name).read_text(), "updated user plan\n")
+
+    def test_resume_accepts_other_preexisting_edits_and_keeps_them_excluded(self):
+        with self.repositories() as (root, fire, state_path):
+            for repo in (root, fire):
+                (repo / "existing.txt").write_text("user change\n")
+            state = loop.load_state(state_path)
+            for repo in (root, fire):
+                existing = repo / "existing.txt"
+                existing.write_text("updated user change\n")
+            resumed = loop.load_state(state_path)
+            self.assertEqual(resumed, state)
+            loop.checkpoint_both(1, "test", "wip", resumed["baseline"])
+            for repo in (root, fire):
+                self.assertEqual(loop.git(repo, "show", "HEAD:existing.txt").stdout, b"original\n")
+                self.assertEqual((repo / "existing.txt").read_text(), "updated user change\n")
+
     def test_codex_tool_and_agent_events_are_visible(self):
         command = {"type": "item.completed", "item": {
             "type": "command_execution", "command": "make run-vcs",
@@ -64,7 +137,7 @@ class LoopTests(unittest.TestCase):
             subprocess.run(["git", "-C", str(repo), "commit", "-qm", "initial"], check=True)
             existing.write_text("user change\n")
             (repo / "agent.txt").write_text("agent change\n")
-            owned = loop.stage_owned(repo, {"existing.txt": loop.file_fingerprint(existing)})
+            owned = loop.stage_owned(repo, ["existing.txt"])
             self.assertEqual(owned, ["agent.txt"])
             staged = loop.git(repo, "diff", "--cached", "--name-only").stdout.decode().strip()
             self.assertEqual(staged, "agent.txt")
