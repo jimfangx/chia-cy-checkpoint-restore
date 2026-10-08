@@ -15,6 +15,8 @@ bash tools/checkpoint_loop/run.sh
 
 `run.sh` sources Chipyard's `env.sh` and FireSim's `env.sh`, then imports the
 local Chia checkout. Set `CHIA_SOURCE` if your Chia installation is elsewhere.
+It also adds the conda library directory to `LD_LIBRARY_PATH` so the 64-bit
+VCS executable can load `libelf.so.1`.
 Codex uses its CLI default model; `--model MODEL` overrides it. For a
 short trial, `--max-iterations 1` stops after one Codex turn and leaves a
 resumable state. With the default `0`, the loop continues until milestones are

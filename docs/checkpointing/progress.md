@@ -1,6 +1,13 @@
 # Checkpointing progress
 
-Current milestone: M0-reconnaissance, iteration 2. Source reconnaissance complete.
+Current milestone: M1-schema-and-stateids, iteration 3. In progress.
+
+- Implemented strict independent v1 .fsckpt, .rtlckpt, and .trace container codecs in tools/checkpoint_formats/codec.py. Includes deterministic serialization, SHA-256 header/payload checksums, exact length checking, mandatory build compatibility, raw arbitrary-width bits, memory address ordering, and explicit rejection of X/Z, unsupported versions/phases and malformed records. Semantic/trace compatibility does not depend on the Golden Gate build.
+- Six unittest cases actually passed, covering all single-bit corruptions and truncations of each sample format, round trips through 1025-bit memory words, build/type mismatch, invalid schemas with valid checksums, duplicate keys and target-cycle sequencing. Log: tools/checkpoint_loop/runs/m1-formats-tests.log. Format contract and limitations: tools/checkpoint_formats/README.md.
+- This is a focused container increment, not M1 acceptance. Missing: pre-FAME discovery and StateID derivation, semantic/ownership/boundary manifest membership validation, test DUT with FSM/register array/SRAM and same-module instances, compiler tests, and VCS metasim/clean RTL execution. No capture/restore, formal, ASIC activity, or FPGA validation is claimed. No external dependency blocker was encountered in this increment.
+- Next: implement the opt-in discovery hook at GoldenGateCompilerPhase.loweredTarget, retaining an uninstrumented replay reference; reject opaque/unsupported state explicitly. Connect generated manifests to codec validation so incomplete or wrong-shaped records fail even when the supplied manifest hash matches. Exercise the actual compiler and test DUT before declaring M1 ready.
+
+Previous M0 context (source reconnaissance complete):
 
 - Created the previously missing reconnaissance.md with 119 checked source links, current revisions, compiler pass order, an explicit post-target-lowering/pre-MidasTransforms StateID hook, GCD instance/register trace, and the known Level-1 RTL/software/transport owners.
 - Documented exclusions: FAME5 missing rename handling, optional RAM replacement, opaque sequential state, unsupported clock/reset semantics, partitioned systems, unsaved drivers/external inputs and incomplete capture cuts. These are requirements for future rejection, not implemented checkpoint support.

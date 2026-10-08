@@ -34,6 +34,8 @@ VCS = Path("/ecad/tools/synopsys/vcs/W-2024.09-1/bin/vcs")
 JASPER = Path("/ecad/tools/cadence/JASPER/jasper_2025.03/bin/jg")
 LOG_BYTES = 16 * 1024 * 1024
 LOG_BACKUPS = 6
+STREAM_CHUNK_CHARS = 64 * 1024
+MAX_PARSED_EVENT_CHARS = 4 * 1024 * 1024
 
 
 class BoundedLog:
@@ -119,6 +121,35 @@ def render_codex_event(line: str) -> str:
     return ""
 
 
+def bounded_json_lines(stream):
+    """Read JSONL without keeping an arbitrarily large tool result in RAM.
+
+    Oversize events are still streamed verbatim to the diagnostic log and
+    console. The structured final answer comes from --output-last-message.
+    """
+    pending = ""
+    oversized = False
+    while True:
+        piece = stream.readline(STREAM_CHUNK_CHARS)
+        if not piece:
+            break
+        if oversized:
+            yield piece, False
+            if piece.endswith("\n"):
+                oversized = False
+            continue
+        pending += piece
+        if len(pending) >= MAX_PARSED_EVENT_CHARS:
+            yield pending, False
+            pending = ""
+            oversized = not piece.endswith("\n")
+        elif pending.endswith("\n"):
+            yield pending, True
+            pending = ""
+    if pending:
+        yield pending, not oversized
+
+
 @ChiaFunction(resources={"codex_creds": 0.01})
 def codex_iteration(prompt: str, schema: str, report_path: str, log_path: str,
                     model: str | None, sandbox: str) -> dict[str, Any]:
@@ -144,10 +175,10 @@ def codex_iteration(prompt: str, schema: str, report_path: str, log_path: str,
             assert process.stdin is not None and process.stdout is not None
             process.stdin.write(prompt)
             process.stdin.close()
-            for line in process.stdout:
+            for line, parseable in bounded_json_lines(process.stdout):
                 # The raw stream is retained only in rotating diagnostics.
                 log.write(f"[codex jsonl] {line}")
-                rendered = render_codex_event(line)
+                rendered = render_codex_event(line) if parseable else f"[codex raw chunk] {line}"
                 if rendered:
                     log.show(rendered)
             returncode = process.wait()
@@ -192,7 +223,7 @@ def verify(commands: list[dict[str, Any]], log_path: str) -> list[dict[str, Any]
                     errors="replace", bufsize=1,
                 ) as process:
                     assert process.stdout is not None
-                    for line in process.stdout:
+                    for line in iter(lambda: process.stdout.readline(STREAM_CHUNK_CHARS), ""):
                         log.show(f"[verification log] {line}")
                     returncode = process.wait()
             except OSError as exc:
@@ -299,7 +330,9 @@ def make_prompt(milestone: Milestone, iteration: int, state: dict[str, Any],
                 verification_log: Path) -> str:
     return f"""Implement the current milestone of the FireSim checkpoint/restore plan.
 
-Read {ROOT / 'plan_agent.md'} and {ROOT / 'plan_human.md'} before editing.
+Read the sections of {ROOT / 'plan_agent.md'} and {ROOT / 'plan_human.md'}
+relevant to this milestone before editing. Read {ROOT / 'docs/checkpointing/progress.md'}.
+Use targeted rg/sed reads so large plans do not flood the tool log.
 Chipyard repo: {ROOT}
 FireSim repo: {FIRE}
 Chia loop: {HERE}
@@ -312,7 +345,8 @@ Full previous verification log: {verification_log}
 
 Use VCS metasim and ordinary clean RTL VCS on this machine. Source
 {ROOT / 'env.sh'} and {FIRE / 'env.sh'} when a build needs them. VCS is {VCS};
-Jasper is {JASPER}. There is no FPGA. Keep FPGA capture/transport code
+use -full64 and the inherited conda library path. Jasper is {JASPER}.
+There is no FPGA. Keep FPGA capture/transport code
 synthesizable and test it through metasim, but do not claim FPGA validation.
 
 Preserve target-cycle semantics and fail explicitly on unsupported state.
@@ -323,6 +357,8 @@ increment. Do not skip tests, edit the existing dirty conda files or the
 untracked plan/PDF files, commit, reset, or clean git history. The Chia loop
 handles git checkpoints. Update a concise progress document under
 docs/checkpointing/ so the next Codex turn can recover context.
+Put diagnostic logs in {HERE / 'runs'}, not in tracked documentation. Do not
+reduce the test scope or skip a check to save memory or disk.
 
 Return the required JSON report. Set status to ready only when the milestone's
 acceptance is supported by real artifacts and verification commands. Include
