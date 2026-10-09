@@ -42,6 +42,8 @@ struct Deposit {
   std::vector<s_vpi_vecval> value;
 };
 std::vector<Deposit> pending;
+std::vector<Deposit> prepared;
+uint64_t deposited_words = 0;
 
 int fail(const char *reason, const std::string &path) {
   vpi_printf(RESTORE_LOG "_ERROR: %s %s\n", reason, path.c_str());
@@ -79,11 +81,10 @@ extern "C" void generated_restore_fail(const char *message) {
   std::exit(EXIT_FAILURE);
 }
 
-extern "C" int generated_restore(const char *filename) {
-  if (!pending.empty()) return fail("unverified previous load", filename);
+namespace {
+int prepare(std::istream &input, const char *filename) {
+  if (!pending.empty() || !prepared.empty()) return fail("unconsumed previous load", filename);
   if (!low_clock()) return fail("host clock must be known low", clock_path);
-  std::ifstream input(filename);
-  if (!input) return fail("cannot open staging file", filename);
   std::string line, magic, manifest, build, phase, extra;
   uint64_t count = 0, expected = 0;
   for (const auto &entry : entries) expected += entry.depth;
@@ -135,15 +136,40 @@ extern "C" int generated_restore(const char *filename) {
   }
   if (std::getline(input, line) || !input.eof()) return fail("trailing/malformed state", filename);
   // No heap allocations or input/handle validation remains after this point.
-  pending.swap(deposits);
+  prepared.swap(deposits);
+  vpi_printf(RESTORE_LOG ": prepared %zu words without deposits\n", prepared.size());
+  return 0;
+}
+}
+
+extern "C" int generated_restore_prepare_text(const char *text) {
+  if (!text) return fail("missing staging text", clock_path);
+  std::istringstream input(text);
+  return prepare(input, "aggregate staging");
+}
+
+extern "C" int generated_restore_commit() {
+  if (prepared.empty() || !pending.empty()) return fail("no prepared load", clock_path);
+  if (!low_clock()) return fail("clock advanced after preparation", clock_path);
+  pending.swap(prepared);
   for (auto &deposit : pending) {
     s_vpi_value value{};
     value.format = vpiVectorVal;
     value.value.vector = deposit.value.data();
     vpi_put_value(deposit.handle, &value, nullptr, vpiNoDelay);
+    ++deposited_words;
   }
   vpi_printf(RESTORE_LOG ": deposited %zu words with host clock low\n", pending.size());
   return 0;
+}
+
+extern "C" uint64_t generated_restore_deposit_count() { return deposited_words; }
+
+extern "C" int generated_restore(const char *filename) {
+  std::ifstream input(filename);
+  if (!input) return fail("cannot open staging file", filename);
+  if (prepare(input, filename)) return 1;
+  return generated_restore_commit();
 }
 
 extern "C" int generated_restore_verify() {

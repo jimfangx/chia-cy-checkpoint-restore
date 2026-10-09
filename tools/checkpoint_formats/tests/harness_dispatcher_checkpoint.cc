@@ -8,6 +8,14 @@
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#ifdef AGGREGATE_RESTORE
+#include "../aggregate_restore.h"
+extern "C" int harness_restore_initialize();
+extern "C" uint64_t generated_restore_deposit_count();
+extern "C" uint64_t harness_restore_deposit_count();
+static aggregate_restore_t aggregate;
+static std::string aggregate_file, aggregate_negative;
+#endif
 
 simif_emul_t *simulator = nullptr;
 static midas_time_t now = 1000000;
@@ -89,13 +97,14 @@ std::vector<std::pair<std::string,checkpoint_owner_t *>> owners() {
 }
 int entry(int argc,char **argv) {
   try {
-    unsigned cut=0; bool restore=false; std::string negative;
+    unsigned cut=0; bool restore=false; std::string negative, bundle;
     for(int i=1;i<argc;++i) {
       const std::string a=argv[i];
       if(a.rfind("+source=",0)==0) source=a.substr(8);
       if(a.rfind("+outdir=",0)==0) output=a.substr(8);
       if(a.rfind("+cut=",0)==0) cut=std::stoul(a.substr(5));
       if(a=="+restore") restore=true;
+      if(a.rfind("+aggregate=",0)==0) bundle=a.substr(11);
       if(a.rfind("+negative=",0)==0) negative=a.substr(10);
     }
     check(cut>0 && !output.empty());
@@ -110,6 +119,19 @@ int entry(int argc,char **argv) {
     registry->add_widget(new master_t(*p,{0,4,8},0,{}));
     registry->add_widget(new clockmodule_t(*p,{16,20,24,28,32,36},0,{}));
     driver=std::make_unique<driver_t>(*registry,*p);
+#ifdef AGGREGATE_RESTORE
+    if (restore && !bundle.empty()) {
+      aggregate_file=bundle; aggregate_negative=negative;
+      p->begin_restored_load(*driver);
+      uint32_t banks[3]={0,0,0};
+      rejects([&]{ p->begin_restored_load(*driver); });
+      rejects([&]{ p->start_driver(*driver); });
+      rejects([&]{ p->start_restored_driver(*driver,67,banks); });
+      check(rejections==3); rejections=0;
+      puts("AGGREGATE_RESERVATION_GUARDS count=3");
+      return 0; // Return with clocks held; VPI settles before prevalidation.
+    }
+#endif
     if(restore) {
       uint32_t banks[3]={0,0,0};
       rejects([&]{ p->resume_restored_driver(67,banks); });
@@ -141,6 +163,55 @@ int entry(int argc,char **argv) {
     std::fflush(nullptr);std::_Exit(1);
   }
 }
+#ifdef AGGREGATE_RESTORE
+extern "C" int harness_dispatcher_prepare_aggregate() {
+  try {
+    auto *p=static_cast<platform_t *>(simulator);
+    uint32_t banks[3]={0,0,0};
+    rejects([&]{ p->resume_restored_driver(67,banks); });
+    rejects([&]{ p->arm_restored_driver(*driver); });
+    auto list=owners();
+    if(aggregate_negative=="unsupported") driver->supported=false;
+    const auto mmio=p->master->save_checkpoint(), memory=p->slave.at(0)->save_checkpoint(), timing=p->checkpoint_host_timing_owner().second->save_checkpoint();
+    try {
+      aggregate.prepare(aggregate_file,list);
+      if (aggregate_negative=="commit-order") aggregate.commit_rtl();
+    }
+    catch (...) {
+      check(!generated_restore_deposit_count() && !harness_restore_deposit_count() &&
+            p->master->save_checkpoint()==mmio && p->slave.at(0)->save_checkpoint()==memory &&
+            p->checkpoint_host_timing_owner().second->save_checkpoint()==timing &&
+            driver->index==0 && p->calls==0);
+      rejects([&]{ aggregate.prepare(aggregate_file,list); });
+      rejects([&]{ aggregate.commit_native(); });
+      rejects([&]{ aggregate.commit_rtl(); });
+      puts("AGGREGATE_REJECTED_UNCHANGED deposits=0 native_loads=0 driver_calls=0 poisoned=1");
+      throw;
+    }
+    check(!generated_restore_deposit_count() && !harness_restore_deposit_count());
+    aggregate.commit_native();
+    puts("AGGREGATE_ALL_OWNERS_PREVALIDATED_BEFORE_LOAD");
+    p->arm_restored_driver(*driver);
+    rejects([&]{ p->arm_restored_driver(*driver); });
+    rejects([&]{ p->start_driver(*driver); });
+    rejects([&]{ p->start_restored_driver(*driver,67,banks); });
+    check(rejections==5); puts("HARNESS_DISPATCHER_ARM_GUARDS count=5");
+    for(size_t i=0;i<list.size();++i) save_file(output/("initial-"+std::to_string(i)),list[i].second->save_checkpoint());
+    save_file(output/"initial.mmio",p->master->save_checkpoint());
+    save_file(output/"initial.memory",p->slave.at(0)->save_checkpoint());
+    now=1000100; trace.open(output/"driver.trace");check(bool(trace));
+    return 0;
+  } catch(const std::exception &e) {
+    fprintf(stderr,"HARNESS_DISPATCHER_REJECTED_BEFORE_EDGE: %s\n",e.what());
+    std::fflush(nullptr);std::_Exit(1);
+  }
+}
+
+extern "C" int harness_dispatcher_commit_aggregate() {
+  try { aggregate.commit_rtl(); return 0; }
+  catch(const std::exception &e) { fprintf(stderr,"AGGREGATE_COMMIT_ERROR: %s\n",e.what()); return 1; }
+}
+#endif
 extern "C" void harness_dispatcher_check_native() {
   try {
     // A terminal bootstrap has already joined/deleted the native simulator.

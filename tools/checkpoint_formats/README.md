@@ -43,7 +43,7 @@ the compiler manifest; its `encode_semantic(document, manifest)` and
 `decode_semantic(data, expected_build, manifest)` are the entry points for semantic
 checkpoints. The low-level codec does not establish completeness. `replay.py`
 enforces complete trace boundary membership and widths against the compiler's
-boundary manifest. Level-1 ownership remains future work. ASIC netlist metadata is intentionally unsupported in
+boundary manifest. Level-1 production ownership is still incomplete. ASIC netlist metadata is intentionally unsupported in
 v1; no gate-level mapping or power analysis is claimed.
 
 Run from the Chipyard root:
@@ -163,3 +163,28 @@ startup and invalid phases fail explicitly. `verify_harness_dispatcher_vcs`
 compares actual harness/generated/native/DPI continuations with a small audited
 driver using fixture MMIO services. No production `.fsckpt` loader is enabled.
 See `docs/checkpointing/m4-harness-dispatcher-integration.md`.
+
+`aggregate.py` binds a complete aggregate to an explicitly audited runtime
+profile, generated/harness inventories, ordered native owner IDs/schemas,
+native implementation/configuration hash, and exact simulator executable hash.
+It uses the existing `.fsckpt` container; generated and harness words have
+separate namespaces and opaque native payloads preserve every byte, including
+leading zeros. The cut records actual target time separately from host samples
+and completed driver operations. Invalid checksum/build/membership/shape/phase
+or reset/finish/clock values reject before staging publication.
+
+`aggregate_restore.cc` consumes trusted local staging produced by the validated
+container, using a compiled profile table. It validates every native payload
+and both complete VPI tables before any native load or RTL deposit. Prepared
+values are retained in memory, so commit does not reread component files.
+Any failure consumes the coordinator; the caller must terminate that process.
+Native readback, RTL settlement/readback, and the existing DPI bootstrap must
+all finish with clocks held before release. `begin_restored_load` reserves that
+fresh clock hold before any state is loaded; ordinary/direct startup and a
+different or repeated reservation reject.
+
+`verify_harness_dispatcher_vcs --aggregate` verifies this path with five fresh
+fixture-profile checkpoints, actual generated RTL/harness/native/DPI state,
+and fixture driver MMIO. This does not enable production `+fs-restore` or
+establish production FCFS/FASED continuation. See
+`docs/checkpointing/m4-aggregate-prevalidation.md` for the scope and evidence.

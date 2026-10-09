@@ -85,6 +85,13 @@ def prepare_generated_restore(manifest, capture, build_hash, destination,
     not a durable checkpoint container. No format checksum/aggregate ownership
     is implied. The VPI consumer rechecks identity, membership, shape and bits.
     """
+    text = generated_restore_text(manifest, capture, build_hash, root)
+    Path(destination).write_text(text)
+    return len(capture['records'])
+
+
+def generated_restore_text(manifest, capture, build_hash, root="generated_tb.FPGATop"):
+    """Validate and render a component without publishing any staging file."""
     validate_generated_manifest(manifest)
     require(type(build_hash) is str and HASH.fullmatch(build_hash), "invalid generated build hash")
     require(type(root) is str and all(re.fullmatch(IDENT, p) for p in root.split('.')),
@@ -114,5 +121,4 @@ def prepare_generated_restore(manifest, capture, build_hash, destination,
         path = root + record["owner"][len(manifest["root_module"]):]
         rows.append(f'{path} {record["width"]} {record["value"]}')
     # All validation precedes file creation, including bad records at the end.
-    Path(destination).write_text('\n'.join(rows) + '\n')
-    return len(words)
+    return '\n'.join(rows) + '\n'

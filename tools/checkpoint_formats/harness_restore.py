@@ -103,8 +103,13 @@ def prepare_harness_loader(layout, out):
 
 
 def prepare_harness_restore(layout, capture, destination):
+    Path(destination).write_text(harness_restore_text(layout, capture))
+    return len(capture['records'])
+
+
+def harness_restore_text(layout, capture):
+    """Validate and render a component without publishing any staging file."""
     validate_harness_capture(layout, capture)
     rows = [f'FSHRNS1 {capture["layout_sha256"]} {layout["source_hash"]} settled_host_negedge {len(layout["records"])}']
     rows.extend(f'{r["owner"]} {r["width"]} {r["value"]}' for r in capture['records'])
-    Path(destination).write_text('\n'.join(rows)+'\n')
-    return len(capture['records'])
+    return '\n'.join(rows)+'\n'

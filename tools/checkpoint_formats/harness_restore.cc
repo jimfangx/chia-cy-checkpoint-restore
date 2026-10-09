@@ -11,9 +11,14 @@
 #define generated_restore harness_restore_deposit
 #define generated_restore_verify harness_restore_readback
 #define generated_restore_fail harness_restore_fail
+#define generated_restore_prepare_text harness_restore_prepare_impl
+#define generated_restore_commit harness_restore_commit_impl
+#define generated_restore_deposit_count harness_restore_deposit_count
 #include "generated_restore.cc"
 #undef generated_restore
 #undef generated_restore_verify
+#undef generated_restore_prepare_text
+#undef generated_restore_commit
 
 namespace {
 bool armed = false, advanced = false, loaded = false, poisoned = false;
@@ -53,6 +58,20 @@ extern "C" int harness_restore(const char *filename) {
   if (!armed || advanced || loaded || poisoned)
     return fail("requires unused fresh armed harness before first edge", clock_path);
   const int result = harness_restore_deposit(filename);
+  if (!result) loaded = true;
+  return result;
+}
+
+extern "C" int harness_restore_prepare_text(const char *text) {
+  if (!armed || advanced || loaded || poisoned)
+    return fail("requires unused fresh armed harness before first edge", clock_path);
+  return harness_restore_prepare_impl(text);
+}
+
+extern "C" int harness_restore_commit() {
+  if (!armed || advanced || loaded || poisoned)
+    return fail("requires unused fresh armed harness before first edge", clock_path);
+  const int result = harness_restore_commit_impl();
   if (!result) loaded = true;
   return result;
 }

@@ -9,8 +9,11 @@ import os
 import re
 from pathlib import Path
 import struct
+import hashlib
 
 from tools.checkpoint_formats.codec import canonical, require
+from tools.checkpoint_formats.aggregate import (runtime_manifest, build_identity, encode_aggregate,
+    prepare_aggregate_loader, prepare_aggregate_restore)
 from tools.checkpoint_formats.generated_restore import generated_build_identity, prepare_generated_loader, prepare_generated_restore
 from tools.checkpoint_formats.harness_restore import harness_layout, harness_capture, prepare_harness_loader, prepare_harness_restore
 from tools.checkpoint_formats.simulator import generated_capture, generated_words
@@ -23,6 +26,7 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--build',type=Path,required=True)
     parser.add_argument('--out',type=Path,required=True)
+    parser.add_argument('--aggregate', action='store_true', help='bound fixture-profile .fsckpt and all-owner prevalidation')
     args=parser.parse_args();out=args.out.resolve();out.mkdir(parents=True,exist_ok=True)
     require(os.environ['VCS_HOME']=='/ecad/tools/synopsys/vcs/Y-2026.03-SP1','source vcs-env.sh LAST')
     generated=args.build.resolve()/'f2/f2-midasexamples-InventoryFixture-NoConfig-DefaultF2Config'
@@ -101,12 +105,38 @@ def main():
         'core/bridge_driver.cc','core/driver_boundary_diagnostic.cc','emul/simif_emul.cc','emul/dpi.cc',
         'emul/mm.cc','emul/mmio.cc','emul/qsfp.cc','emul/host_timing.cc','bridges/master.cc','bridges/clock.cc','bridges/loadmem.cc')],
         ROOT/'tools/checkpoint_formats/harness_restore.cc',ROOT/'tools/checkpoint_formats/generated_restore.cc']
+    if args.aggregate:
+        identities=['runtime/mmio','runtime/functional-memory/0','runtime/host-timing',
+                    'runtime/simulation','runtime/simulation/base','widget/0','widget/1']
+        schemas=['firesim.mmio.full.v1','firesim.mm_magic.full.v1','firesim.host-timing.mt19937-64.libstdcxx.v1',
+                 'fixture.harness-dispatcher.v1','firesim.simulation.base.v1','firesim.widget.master.v1','firesim.widget.clock.v1']
+        sources.append(ROOT/'tools/checkpoint_formats/aggregate_restore.cc')
+        dependencies=sorted({*sources, *cc.rglob('*.h'), *cc.rglob('*.cc'),
+            ROOT/'tools/checkpoint_formats/aggregate_restore.h'})
+        native_hash=hashlib.sha256(canonical(dict(sources={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in dependencies},
+            cflags='-std=c++20 -DVCS -DAGGREGATE_RESTORE', vcs_home=os.environ['VCS_HOME'], generated_build=identity))).hexdigest()
+        aggregate_manifest=runtime_manifest('harness-dispatcher-fixture-v1',manifest,layout,
+            [dict(owner=name,schema=schema) for name,schema in zip(identities,schemas)],native_hash)
+        prepare_aggregate_loader(aggregate_manifest,out)
+        (out/'aggregate-manifest.json').write_bytes(canonical(aggregate_manifest))
+        # Prevalidate the single aggregate during the reserved initial clock
+        # hold, before native loading/arming or any RTL deposit.
+        source=(out/'monitor.sv').read_text()
+        source=source.replace('import "DPI-C" context function int harness_restore_initialize();',
+            'import "DPI-C" context function int harness_restore_initialize();\nimport "DPI-C" context function int harness_dispatcher_prepare_aggregate();\nimport "DPI-C" context function int harness_dispatcher_commit_aggregate();')
+        source=source.replace(' if(!$value$plusargs("harness=%s",hfile) || !$value$plusargs("generated=%s",gfile)) harness_restore_fail("load args");','')
+        source=source.replace(' if(harness_restore(hfile) || generated_restore(gfile)) harness_restore_fail("load");',
+            ' if(harness_dispatcher_prepare_aggregate() || harness_dispatcher_commit_aggregate()) harness_restore_fail("aggregate commit");')
+        (out/'monitor.sv').write_text(source)
     run([Path(os.environ['VCS_HOME'])/'bin/vcs','-full64','-sverilog','-debug_access+all','+vpi','+vcs+initreg+random',
          '+define+VCS','+define+CLOCK_PERIOD=1','-timescale=1ps/1ps','-top','emul',
-         '-cc',os.environ['CC'],'-cpp',os.environ['CXX'],'-CFLAGS',f'-std=c++20 -DVCS -I{cc} -I{out}',
+         '-cc',os.environ['CC'],'-cpp',os.environ['CXX'],'-CFLAGS',f'-std=c++20 -DVCS {"-DAGGREGATE_RESTORE" if args.aggregate else ""} -I{cc} -I{out}',
          '-LDFLAGS','-Wl,--no-as-needed -pthread -lgmp',f'-Mdir={out/"csrc"}','-o',out/'simv',
          out/'harness.sv',out/'monitor.sv',generated/'FireSim-generated.sv',verilog/'BUFGCE.v',*sources],out/'build.log')
     common=[out/'simv','-no_save','+vcs+initreg+0','+vcs+initmem+0']
+    if args.aggregate:
+        aggregate_build=build_identity(aggregate_manifest,manifest,layout,out/'simv')
+        (out/'aggregate-build.json').write_bytes(canonical(aggregate_build))
     cases=[]
     for cut in (13,14,16,31,32):
         case=out/f'cut-{cut}';ref=case/'reference';dst=case/'restore'
@@ -125,8 +155,23 @@ def main():
         prepare_harness_restore(layout,harness_capture(layout,row['banks'],cut),harness)
         prepare_generated_restore(manifest,generated_capture(manifest,unpack_state(words,row['state']),cut),identity,gen,'emul.FPGATop')
         command=[*common,'+restore',f'+cut={cut}',f'+source={ref}',f'+harness={harness}',f'+generated={gen}']
+        if args.aggregate:
+            edge=int(re.search(r'HARNESS_DISPATCHER_CUT edges=(\d+)',log)[1])
+            gc=generated_capture(manifest,unpack_state(words,row['state']),edge)
+            hc=harness_capture(layout,row['banks'],edge)
+            data=encode_aggregate(aggregate_build,aggregate_manifest,manifest,layout,gc,hc,
+                {name:owners[name][1] for name in identities},edge)
+            checkpoint=case/'checkpoint.fsckpt';checkpoint.write_bytes(data)
+            bundle=case/'aggregate.load'
+            restored_doc=prepare_aggregate_restore(data,aggregate_build,aggregate_manifest,manifest,layout,bundle)
+            require(restored_doc['target_cycle']==edge,'target time replaced by driver operation')
+            command=[*common,'+restore',f'+cut={cut}',f'+aggregate={bundle}']
         log=run([*command,f'+outdir={dst}'],dst/'run.log',dst)
         require('HARNESS_DISPATCHER_ARM_GUARDS count=5' in log,'arming lifecycle guards missing')
+        if args.aggregate:
+            require('AGGREGATE_ALL_OWNERS_PREVALIDATED_BEFORE_LOAD' in log,'aggregate prevalidation did not run')
+            require(log.index('GENERATED_RESTORE: prepared') < log.index('AGGREGATE_ALL_OWNERS_PREVALIDATED_BEFORE_LOAD')
+                    and log.index('HARNESS_RESTORE: prepared') < log.index('AGGREGATE_ALL_OWNERS_PREVALIDATED_BEFORE_LOAD'), 'owners loaded before both VPI preparations')
         require('HARNESS_DISPATCHER_NATIVE_UNCHANGED' in log and 'HARNESS_DISPATCHER_BOOTSTRAP zero_edges=1 refreshes=1' in log,'publication integration did not run')
         require(json.loads((dst/'loaded.jsonl').read_text())==row,'generated/harness changed before bootstrap')
         for i in range(7): require((ref/f'owner-{i}').read_bytes()==(dst/f'initial-{i}').read_bytes(),'owner changed before first edge')
@@ -158,9 +203,38 @@ def main():
             failed=case/f'malformed-{i}';failed.mkdir(exist_ok=True)
             for j in range(7):
                 b=(ref/f'owner-{j}').read_bytes();(failed/f'owner-{j}').write_bytes(b[:-1] if j==i else b)
-            bad=[x for x in command if not str(x).startswith('+source=')]+[f'+source={failed}',f'+outdir={failed}']
+            if args.aggregate:
+                changed=dict((name,owners[name][1]) for name in identities)
+                changed[identities[i]]=b'\x00' if i==3 else changed[identities[i]][:-1]
+                malformed=encode_aggregate(aggregate_build,aggregate_manifest,manifest,layout,gc,hc,changed,edge)
+                (failed/'checkpoint.fsckpt').write_bytes(malformed)
+                prepare_aggregate_restore(malformed,aggregate_build,aggregate_manifest,manifest,layout,failed/'aggregate.load')
+                bad=[x for x in command if not str(x).startswith('+aggregate=')]+[f'+aggregate={failed/"aggregate.load"}',f'+outdir={failed}']
+            else:
+                bad=[x for x in command if not str(x).startswith('+source=')]+[f'+source={failed}',f'+outdir={failed}']
             text=run(bad,failed/'run.log',failed,expected=1)
             require('HARNESS_DISPATCHER_REJECTED_BEFORE_EDGE' in text and not list(failed.glob('initial-*')) and not (failed/'driver.trace').exists(),'malformed owner published state')
+            if args.aggregate: require('AGGREGATE_REJECTED_UNCHANGED' in text,'malformed aggregate mutated native/RTL state')
+        if args.aggregate:
+            # Faults in the LAST generated/harness row and aggregate framing
+            # must leave even the earlier valid native owners untouched.
+            staging=bundle.read_text()
+            negative_bundles={
+                'manifest':staging.replace(hashlib.sha256(canonical(aggregate_manifest)).hexdigest(),'0'*64,1),
+                'schema':staging.replace(schemas[-1],'unsupported.schema',1),
+                'generated-last':staging.replace(gen.read_text().splitlines()[-1],gen.read_text().splitlines()[-1].rsplit(' ',1)[0]+' '+ 'x'*len(gen.read_text().splitlines()[-1].split()[-1]),1),
+                'harness-last':staging.replace(harness.read_text().splitlines()[-1],harness.read_text().splitlines()[-1].rsplit(' ',1)[0]+' 1',1),
+                'trailing':staging+'extra\n',
+                'truncated':staging[:-10],
+                'commit-order':staging,
+            }
+            for name,text in negative_bundles.items():
+                failed=case/name;failed.mkdir(exist_ok=True);(failed/'aggregate.load').write_text(text)
+                bad=[x for x in command if not str(x).startswith('+aggregate=')]+[f'+aggregate={failed/"aggregate.load"}',f'+outdir={failed}']
+                if name=='commit-order': bad.append('+negative=commit-order')
+                result=run(bad,failed/'run.log',failed,expected=1)
+                require('AGGREGATE_REJECTED_UNCHANGED' in result and not list(failed.glob('initial-*'))
+                    and not (failed/'driver.trace').exists(),'bad last section mutated earlier owner')
         for negative in ('unsupported','reset','finish','repeat'):
             failed=case/negative;failed.mkdir(exist_ok=True)
             text=run([*command,f'+negative={negative}',f'+outdir={failed}'],failed/'run.log',failed,expected=1)
@@ -169,6 +243,9 @@ def main():
     summary=dict(scope=__doc__,cases=cases,fresh_continuations=len(cases),samples=sum(c['samples'] for c in cases),
         before_first_edge_native_owner_comparisons=7*len(cases),malformed_native_processes=7*len(cases),
         arming_lifecycle_rejections=5*len(cases),lifecycle_negative_processes=4*len(cases),generated_build_hash=identity,whole_runtime_restore_verified=False)
+    if args.aggregate:
+        summary.update(scope='Bound fixture-profile .fsckpt into fresh actual harness/DPI/native dispatcher; MMIO remains fixture',
+            aggregate_containers=len(cases),all_owner_prevalidation_rejections=14*len(cases),production_fcfs_restore_verified=False)
     (out/'summary.json').write_text(json.dumps(summary,indent=2)+'\n');print(json.dumps(summary,indent=2))
 
 
