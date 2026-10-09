@@ -37,14 +37,29 @@ def main():
     runtime=json.loads((out/'runtime-manifest.json').read_text())
     layout=json.loads((out/'harness-layout.json').read_text())
     build=json.loads((out/'aggregate-build.json').read_text())
-    assert runtime['schema']=='firesim.aggregate.lowclock.v2'
+    assert runtime['schema'] in ('firesim.aggregate.lowclock.v2','firesim.aggregate.lowclock.v3')
+    bound=runtime['schema']=='firesim.aggregate.lowclock.v3'
+    owner_count=17 if bound else 16
+    if bound:
+        native_inputs=json.loads((out/'native-build-inputs.json').read_text())
+        assert sha(canonical(native_inputs))==runtime['native_build_hash']
+        root=Path(__file__).resolve().parents[3]
+        assert native_inputs['compiler']=='/usr/bin/g++-13'
+        assert native_inputs['vcs_home']=='/ecad/tools/synopsys/vcs/Y-2026.03-SP1'
+        assert native_inputs['generated_build']==layout['generated_build_hash']
+        assert all(sha((root/name).read_bytes())==value for name,value in native_inputs['sources'].items())
+        assert runtime['cut_contract']==dict(
+            target_cycle_owner='FPGATop.FASEDMemoryTimingModel_0.model.tCycle',
+            target_cycle_path='emul.FPGATop.FASEDMemoryTimingModel_0.model.tCycle',
+            target_cycle_semantics='fased_model_tCycle_at_settled_host_negedge',
+            host_sample_semantics='completed_host_rising_edges_before_cut')
     assert runtime['generated_encoding']=='ascending_nibble_padded_words_v1'
     assert build['simulator_build_hash']==sha((out/'simv').read_bytes())
     assert build['state_manifest_hash']==sha(canonical(runtime))
     assert runtime['generated_manifest_hash']==sha(canonical(manifest))
     assert runtime['harness_layout_hash']==sha(canonical(layout))
     assert len(manifest['state'])==2856 and sum(e['depth'] for e in manifest['state'])==13507456
-    assert len(layout['records'])==29 and len(runtime['native_owners'])==16
+    assert len(layout['records'])==29 and len(runtime['native_owners'])==owner_count
     pids=[];results=[]
     def process(path):
         text=path.read_text();pids.append(int(re.search(r'fresh_process_pid=(\d+)',text)[1]));return text
@@ -69,6 +84,27 @@ def main():
         rows={r['owner']:r for r in doc['records']}
         assert len(rows)==len(doc['records']) and list(rows)==sorted(rows)
         operation,owners=diagnostic(path/'software.diag');assert operation==case['cut']
+        if bound:
+            identity=(path/'runtime-identity.bin').read_bytes();pos=0
+            def u64():
+                nonlocal pos
+                n,=struct.unpack_from('<Q',identity,pos);pos+=8;return n
+            def string():
+                nonlocal pos
+                size=u64();value=identity[pos:pos+size].decode();pos+=size;return value
+            assert string()=='FCFS_RUNTIME1'
+            assert [u64() for _ in range(4)]==[4194304,1000000,
+                7 if case['timing']=='randomized' else 1,
+                2**64-1 if case['timing']=='randomized' else 0]
+            elf_files=[]
+            for _ in range(u64()):
+                filename=string();digest=identity[pos:pos+32];pos+=32
+                assert Path(filename).is_absolute() and hashlib.sha256(Path(filename).read_bytes()).digest()==digest
+                elf_files.append(filename)
+            assert pos==len(identity) and elf_files==sorted(set(elf_files))
+            assert str(out/'simv') in elf_files and any('_archive_' in f for f in elf_files)
+            assert any('libcrypto.so' in f for f in elf_files) and any('libvcsnew.so' in f for f in elf_files)
+            owners['runtime/compatibility']=('firesim.runtime.fcfs-config-and-loaded-elf.v1',identity)
         expected={'cut/host_sample'}
         words=0
         with (path/'generated.jsonl').open() as stream:
@@ -120,9 +156,9 @@ def main():
         if operation==699275:
             assert any(m['inflight_write'] for m in memories)
             assert scalars['FPGATop.FASEDMemoryTimingModel_0.model.SatUpDownCounter_1.value']>0
-        results.append(dict(timing=case['timing'],cut=operation,generated_words=words,native_owners=16,
+        results.append(dict(timing=case['timing'],cut=operation,generated_words=words,native_owners=owner_count,
                             continuation_rows=len(continuation),memories=memories))
-    assert len(summary['malformed_processes'])==21
+    assert len(summary['malformed_processes'])==(23 if bound else 21)
     for label in summary['malformed_processes']:
         text=process(out/'negative'/label/'run.log')
         assert 'native_loads=0 deposits=0' in text and 'PRODUCTION_NEGATIVE zero_edges=1' in text
@@ -130,9 +166,28 @@ def main():
         if label=='late-harness-shape': assert 'prepared 13507456 words without deposits' in text
     text=process(out/'unsupported/run.log')
     assert 'PRODUCTION_AGGREGATE_ENTRY_ERROR' in text and 'unsupported' in text
-    assert len(set(pids))==len(pids)==34
+    if bound:
+        assert summary['runtime_compatibility_rejections']==['memory','horizon','host-delay','seed','loaded-library','preload-hook']
+        for label in summary['runtime_compatibility_rejections']:
+            text=process(out/'runtime-negative'/label/'run.log')
+            if label=='preload-hook':
+                assert 'unsupported LD_PRELOAD/LD_AUDIT library hooks' in text
+                assert 'PRODUCTION_AGGREGATE_RESERVED' not in text
+                continue
+            errors={'memory':'incompatible AXI/backing-memory geometry',
+                    'horizon':'incompatible scheduler configuration',
+                    'host-delay':'incompatible timing configuration',
+                    'seed':'incompatible timing configuration',
+                    'loaded-library':'configuration/loaded ELF changed after entry'}
+            assert errors[label] in text
+            assert 'native_loads=0 deposits=0' in text and 'PRODUCTION_NEGATIVE zero_edges=1' in text
+            assert 'PRODUCTION_AGGREGATE_LOADED' not in text and 'PRODUCTION_BOOTSTRAP' not in text
+        text=(out/'negative/target-cycle/run.log').read_text()
+        assert 'target cycle disagrees with bound counter' in text
+    assert len(set(pids))==len(pids)==(42 if bound else 34)
     result=dict(cases=results,fresh_processes=len(pids),generated_word_comparisons=5*13507456,
-                native_owner_comparisons=80,malformed_processes=21,all_transaction_ports=40,
+                native_owner_comparisons=5*owner_count,malformed_processes=len(summary['malformed_processes']),all_transaction_ports=40,
+                runtime_compatibility_rejections=6 if bound else 0,
                 production_plusargs_enabled=False,physical_fpga_validated=False)
     (out/'independent-evidence.json').write_bytes(canonical(result))
     print('PASS: independently audited full production aggregate test-entry restart',json.dumps(result))

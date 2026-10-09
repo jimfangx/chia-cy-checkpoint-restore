@@ -14,8 +14,10 @@ versions, noncanonical encoding, trailing data, and invalid values fail with
 `FormatError`.
 
 All documents have `format_version: 1`, `checkpoint_type`, `target_cycle`,
-`target_clock_phase: "before_rising_edge"`, `build`, and `records`. Cycle C
-means immediately before target rising edge C. Trace inputs are the values to
+`target_clock_phase: "before_rising_edge"`, `build`, and `records`. For Level-2
+checkpoints and traces, cycle C means immediately before target rising edge C.
+Level-1 profiles separately bind the model counter and consistent-cut indexing
+contract; the production v3 contract is described below. Trace inputs are the values to
 apply for that edge; outputs are the values to compare immediately before that
 edge after input settling. No host-cycle interpretation is implied. Other
 phases and multiple clock domains are not represented by this prototype.
@@ -184,14 +186,28 @@ Native payloads and harness records retain their independent namespaces.
 prevalidation/readback as `FSGRTL1`, without millions of repeated path strings
 in the durable file. Retained VPI handles/values still scale with word count.
 
+The v3 packed profile also binds its target-cycle field to a manifested 64-bit
+counter and records the separate host-sample indexing contract. Both the
+container decoder and compiled coordinator check that counter before loading
+any owner. The existing v1/v2 profiles and Level-2 formats remain independent.
+
 `verify_production_aggregate_vcs` uses a test entry that constructs the actual
 generated production registry, metasim platform and FCFS driver. It captures
 the complete parked low-clock cut, writes a bound `.fsckpt`, loads all owners
 in fresh VCS processes and compares every target FASED transaction port against
 uninterrupted execution. It exercises native and late generated/harness
 rejections before loading or clock advancement. Production `+fs-checkpoint`
-and `+fs-restore` remain unsupported; the durable runtime entry and full
-configuration/library binding require integration before milestone acceptance.
+and `+fs-restore` remain unsupported; the durable runtime entry still requires
+integration before milestone acceptance. The test entry's immutable
+`runtime/compatibility` owner binds the explicit memory size, cycle horizon,
+host delay/seed, zero VCS initialization, and SHA-256 of the executable and
+every file-backed ELF object reported by `dl_iterate_phdr`. Unknown arguments
+and preload/audit library hooks fail closed. Hashes and library membership are
+rechecked at the cut, native
+prevalidation/readback and exit. This test-only owner uses OpenSSL libcrypto;
+it does not capture library internal state or authorize arbitrary plugins.
+`verify_runtime_identity` checks it with native ASan/UBSan and an independent
+SHA-256 oracle, including changed library contents at the same pathname.
 
 `aggregate_restore.cc` consumes trusted local staging produced by the validated
 container, using a compiled profile table. It validates every native payload

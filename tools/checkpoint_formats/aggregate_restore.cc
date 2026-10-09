@@ -9,6 +9,7 @@
 extern "C" int generated_restore_prepare_text(const char *);
 extern "C" int harness_restore_prepare_text(const char *);
 extern "C" int generated_restore_commit();
+extern "C" int generated_restore_check_target_cycle(const char *, uint64_t);
 extern "C" int harness_restore_commit();
 namespace {
 struct NativeIdentity { const char *owner, *schema; };
@@ -78,6 +79,10 @@ void aggregate_restore_t::prepare(const std::string &filename, const owners_t &l
   require(input.peek()==std::char_traits<char>::eof(), "trailing aggregate bytes");
   require(!generated_restore_prepare_text(generated.c_str()), "aggregate generated validation failed");
   require(!harness_restore_prepare_text(harness.c_str()), "aggregate harness validation failed");
+#ifdef AGGREGATE_TARGET_CYCLE_PATH
+  require(!generated_restore_check_target_cycle(AGGREGATE_TARGET_CYCLE_PATH, target_cycle),
+          "aggregate target cycle validation failed");
+#endif
   owners=list; payloads.swap(next); phase=phase_t::prepared;
 }
 

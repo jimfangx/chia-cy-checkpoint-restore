@@ -5,8 +5,10 @@
 #include "core/simulation.h"
 #include "emul/simif_emul.h"
 #include "../aggregate_restore.h"
+#include "../runtime_identity.h"
 #include <fstream>
 #include <memory>
+#include <dlfcn.h>
 
 #define GET_INCLUDES
 #include "FireSim-generated.const.h"
@@ -26,6 +28,8 @@ static aggregate_restore_t aggregate;
 static std::string bundle;
 static std::string negative;
 static std::string loaded_native;
+static std::string extra_library;
+static std::unique_ptr<runtime_identity_t> runtime_identity;
 struct observed_owner_t : checkpoint_owner_t {
   checkpoint_owner_t &owner;
   size_t &loads;
@@ -42,6 +46,7 @@ static aggregate_restore_t::owners_t owners() {
   auto drivers = simulation->checkpoint_driver_owners();
   result.insert(result.end(), widgets.begin(), widgets.end());
   result.insert(result.end(), drivers.begin(), drivers.end());
+  result.emplace_back("runtime/compatibility", runtime_identity.get());
   return result;
 }
 extern "C" uint64_t generated_restore_deposit_count();
@@ -50,11 +55,22 @@ extern "C" uint64_t harness_restore_deposit_count();
 int entry(int argc, char **argv) {
   try {
     std::vector<std::string> args(argv+1, argv+argc);
+    runtime_identity = std::make_unique<runtime_identity_t>(args);
     for (const auto &arg : args) {
       if (arg.rfind("+test-aggregate=", 0)==0) bundle=arg.substr(16);
       if (arg.rfind("+test-negative=", 0)==0) negative=arg.substr(15);
       if (arg.rfind("+test-loaded-native=", 0)==0) loaded_native=arg.substr(20);
+      if (arg.rfind("+test-extra-library=", 0)==0) extra_library=arg.substr(20);
+      if (arg.rfind("+test-runtime-identity=", 0)==0) {
+        const auto bytes=runtime_identity->save_checkpoint();
+        std::ofstream file(arg.substr(23), std::ios::binary);
+        file.write(reinterpret_cast<const char *>(bytes.data()), bytes.size());
+        file.close();
+        if (!file) throw std::runtime_error("runtime identity evidence write failed");
+      }
     }
+    if (!extra_library.empty() && (bundle.empty() || negative.empty()))
+      throw std::runtime_error("unsupported test library outside a negative fresh restore");
     auto platform = create_simif(conf_target, argc, argv);
     simulator = dynamic_cast<simif_emul_t *>(platform.release());
     if (!simulator) throw std::runtime_error("production profile requires VCS metasim");
@@ -81,7 +97,20 @@ int entry(int argc, char **argv) {
   }
 }
 
+extern "C" void production_runtime_identity_verify() {
+  if (!negative.empty()) return; // Expected rejection processes never resume.
+  try { runtime_identity->save_checkpoint(); }
+  catch (const std::exception &error) {
+    fprintf(stderr, "PRODUCTION_RUNTIME_IDENTITY_ERROR: %s\n", error.what());
+    std::exit(1);
+  }
+}
+
 extern "C" int production_aggregate_load() {
+  if (!extra_library.empty() && !dlopen(extra_library.c_str(), RTLD_NOW|RTLD_LOCAL)) {
+    fprintf(stderr, "PRODUCTION_AGGREGATE_LOAD_ERROR: test library load failed\n");
+    return 1;
+  }
   auto list = owners();
   size_t loads = 0;
   std::vector<std::unique_ptr<observed_owner_t>> observed;

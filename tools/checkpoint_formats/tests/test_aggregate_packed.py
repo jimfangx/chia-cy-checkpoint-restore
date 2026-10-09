@@ -53,5 +53,33 @@ class PackedAggregateTest(unittest.TestCase):
                 altered=copy.deepcopy(m);change(altered)
                 with self.assertRaises(FormatError): packed.decode_aggregate(data,b,altered,g,h)
 
+    def test_bound_target_cycle_rejects_rechecksummed_wrong_counter_before_publication(self):
+        with tempfile.TemporaryDirectory() as directory:
+            out=Path(directory)
+            b,m,g,h,data=self.fixture(out)
+            d=decode(data,'fsckpt',b)
+            # Adapt the fixture's manifested wide scalar into a 64-bit counter.
+            g=copy.deepcopy(g)
+            entry=next(e for e in g['state'] if e['kind']=='register')
+            entry['width']=64;counter=entry['hierarchy']
+            m=packed.runtime_manifest(m['profile'],g,h,m['native_owners'],m['native_build_hash'],counter)
+            b=aggregate.build_identity(m,g,h,out/'simv')
+            d['build']=b
+            r=next(r for r in d['records'] if r['owner']=='generated-entry/'+counter)
+            r.update(width=64,value=f'{9:016x}')
+            good=encode('fsckpt',d)
+            self.assertEqual(packed.prepare_aggregate_restore(good,b,m,g,h,out/'load')['target_cycle'],9)
+            for change in (lambda x:x.update(target_cycle=10),
+                           lambda x:next(r for r in x['records'] if r['owner']=='generated-entry/'+counter).update(value='0000000000000008')):
+                bad=copy.deepcopy(d);change(bad);(out/'load').write_text('preserve')
+                with self.assertRaisesRegex(FormatError,'target cycle disagrees'):
+                    packed.prepare_aggregate_restore(encode('fsckpt',bad),b,m,g,h,out/'load')
+                self.assertEqual((out/'load').read_text(),'preserve')
+            for owner in ('Top.absent','Top.fifo'):
+                with self.assertRaises(FormatError):
+                    packed.runtime_manifest(m['profile'],g,h,m['native_owners'],m['native_build_hash'],owner)
+            bad=copy.deepcopy(m);bad['cut_contract']['target_cycle_semantics']='host_cycle'
+            with self.assertRaises(FormatError): packed.decode_aggregate(good,b,bad,g,h)
+
 
 if __name__ == '__main__': unittest.main()

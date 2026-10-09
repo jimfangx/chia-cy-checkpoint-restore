@@ -52,14 +52,140 @@ def compare_target_trace(expected, observed, fields, cut, sample):
                        f'signal={signal} expected={ev} actual={av}')
 
 
+def verify_rejections(common, out, owner_rows, manifest):
+    # Native payload and late complete generated/harness preparation failures
+    # must leave ALL owners unmodified, with no loads/deposits or rising edge.
+    first = out/'default/cut-3'
+    good = (first/'aggregate.load').read_text().splitlines(keepends=True)
+    failures = []
+    for index, row in enumerate(owner_rows, 1):
+        altered = good.copy(); fields = altered[index].split()
+        fields[3] = str(int(fields[3])-1); fields[4] = fields[4][:-2]
+        altered[index] = ' '.join(fields)+'\n'
+        failures.append(('native-'+row['owner'].replace('/','-'), altered))
+    altered = good.copy(); fields=altered[1].split(); fields[2]='unsupported'; altered[1]=' '.join(fields)+'\n'
+    failures.append(('native-schema',altered))
+    altered = good.copy(); altered[1],altered[2]=altered[2],altered[1]
+    failures.append(('native-order',altered))
+    gi = 1+len(owner_rows)
+    hi = gi+2+len(manifest['state'])
+    for label, index, section_start, section_end in [
+            ('late-generated-shape', hi-1, gi+1, hi),
+            ('late-harness-shape', len(good)-1, hi+1, len(good))]:
+        altered=good.copy();fields=altered[index].split();fields[1]=str(int(fields[1])+1)
+        altered[index]=' '.join(fields)+'\n'
+        altered[section_start-1]=good[section_start-1].split()[0]+' '+str(sum(len(s) for s in altered[section_start:section_end]))+'\n'
+        failures.append((label,altered))
+    failures.append(('trailing-section', [*good,'extra\n']))
+    altered=good.copy(); header=altered[0].split(); header[2]=str(int(header[2])+1)
+    altered[0]=' '.join(header)+'\n'; failures.append(('target-cycle',altered))
+    negative_results=[]
+    for label, lines in failures:
+        case=out/'negative'/label;case.mkdir(parents=True,exist_ok=True)
+        (case/'aggregate.load').write_text(''.join(lines))
+        text=run([*common,f'+test-aggregate={case/"aggregate.load"}',f'+test-negative={label}'],case/'run.log',case)
+        require('native_loads=0 deposits=0' in text and 'PRODUCTION_NEGATIVE zero_edges=1' in text,
+                'production rejection mutated an owner or advanced clocks')
+        negative_results.append(label)
+    unsupported=out/'unsupported';unsupported.mkdir(exist_ok=True)
+    text=run([*common,f'+test-aggregate={first/"aggregate.load"}','+profile-interval=250000'],
+             unsupported/'run.log',unsupported,expected=1)
+    require('PRODUCTION_AGGREGATE_ENTRY_ERROR' in text and 'unsupported' in text,
+            'unaudited production callback did not fail closed')
+    # Real fresh processes with changed configuration or an extra loaded ELF
+    # must reject during all-owner prevalidation before ANY native/VPI state loads.
+    runtime_rejections=[]
+    for label, change in [('memory',['+memsize=4194368']), ('horizon',['+max-cycles=1000001']),
+                          ('host-delay',['+fuzz-host-timing=2']), ('seed',['+fuzz-seed=1'])]:
+        case=out/'runtime-negative'/label;case.mkdir(parents=True,exist_ok=True)
+        replacement={arg.split('=')[0] for arg in change}
+        configured=[arg for arg in common if str(arg).split('=')[0] not in replacement]+change
+        text=run([*configured,f'+test-aggregate={first/"aggregate.load"}',f'+test-negative={label}'],
+                 case/'run.log',case)
+        expected_error = {'memory':'incompatible AXI/backing-memory geometry',
+                          'horizon':'incompatible scheduler configuration',
+                          'host-delay':'incompatible timing configuration',
+                          'seed':'incompatible timing configuration'}[label]
+        require(expected_error in text and
+                'native_loads=0 deposits=0' in text and 'PRODUCTION_NEGATIVE zero_edges=1' in text,
+                'changed runtime configuration did not reject atomically')
+        runtime_rejections.append(label)
+    preload=out/'preload.cc';preload.write_text('extern "C" int checkpoint_extra_library() { return 33; }\n')
+    run([os.environ['CXX'],'-shared','-fPIC',preload,'-o',out/'preload.so'],out/'preload-build.log')
+    case=out/'runtime-negative/loaded-library';case.mkdir(parents=True,exist_ok=True)
+    text=run([*common,f'+test-aggregate={first/"aggregate.load"}',f'+test-extra-library={out/"preload.so"}',
+              '+test-negative=loaded-library'],case/'run.log',case)
+    require('configuration/loaded ELF changed after entry' in text and 'native_loads=0 deposits=0' in text
+            and 'PRODUCTION_NEGATIVE zero_edges=1' in text,'changed loaded library did not reject atomically')
+    runtime_rejections.append('loaded-library')
+    case=out/'runtime-negative/preload-hook';case.mkdir(parents=True,exist_ok=True)
+    text=run(['env',f'LD_PRELOAD={out/"preload.so"}',*common,f'+test-aggregate={first/"aggregate.load"}'],
+             case/'run.log',case,expected=1)
+    require('unsupported LD_PRELOAD/LD_AUDIT library hooks' in text and
+            'PRODUCTION_AGGREGATE_RESERVED' not in text, 'unaudited preload hook accepted')
+    runtime_rejections.append('preload-hook')
+    # Sanitize both staging encodings, with wide registers and memory padding.
+    native_rejections = verify_native(out)
+    native_out = out/'native'
+    old = (native_out/'wide.load').read_text().splitlines()
+    lines = [old[0].replace('FSGRTL1','FSGRTL2')]
+    from tools.checkpoint_formats.tests.test_simulator import fixture
+    index = 1
+    for entry in fixture()['state']:
+        bits = ''.join(line.split()[2] for line in old[index:index+entry['depth']])
+        lines.append(f'generated_tb.{entry["hierarchy"]} {entry["width"]} {entry["depth"]} {bits}')
+        index += entry['depth']
+    (native_out/'wide-packed.load').write_text('\n'.join(lines)+'\n')
+    run([native_out/'verify',native_out/'wide-packed.load'], native_out/'packed.log')
+    return dict(malformed_processes=negative_results, unsupported_callback_rejected=True,
+                runtime_compatibility_rejections=runtime_rejections,
+                fixture_word_sanitizer_rejections=native_rejections)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--build', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--resume-after-continuations', action='store_true',
+                        help='Recheck this run\'s completed continuations and rerun every rejection/sanitizer scope')
     args = parser.parse_args()
     out = args.out.resolve(); out.mkdir(parents=True, exist_ok=True)
     require(os.environ['VCS_HOME'] == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'source vcs-env.sh LAST')
     require(os.environ['CXX'] == '/usr/bin/g++-13', 'preserve VCS compiler setup')
+    if args.resume_after_continuations:
+        manifest=json.loads((out/'generated-manifest.json').read_text())
+        runtime=json.loads((out/'runtime-manifest.json').read_text())
+        layout=json.loads((out/'harness-layout.json').read_text())
+        build=json.loads((out/'aggregate-build.json').read_text())
+        inputs=json.loads((out/'native-build-inputs.json').read_text())
+        require(hashlib.sha256(canonical(inputs)).hexdigest()==runtime['native_build_hash'] and
+                all(hashlib.sha256((ROOT/name).read_bytes()).hexdigest()==value
+                    for name,value in inputs['sources'].items()),'changed native implementation in resumed run')
+        require(build_identity(runtime,manifest,layout,out/'simv')==build,'changed executable in resumed run')
+        results=json.loads((out/'partial-results.json').read_text())
+        require({(r['timing'],r['cut']) for r in results}=={('default',3),('default',11),
+                ('default',699275),('default',699276),('randomized',101)} and len(results)==5,
+                'resumption requires all five completed fresh continuations')
+        fields=json.loads((out/'target-port-layout.json').read_text())
+        for r in results:
+            case=out/r['timing']/f'cut-{r["cut"]}'
+            text=(case/'restore.log').read_text()
+            require(text.endswith('exit=0\n') and '*** PASSED ***' in text
+                    and f'Target Cycles Emulated: {r["target_completion"]}\n' in text
+                    and 'PRODUCTION_PRE_EDGE owners_loaded=1 host_edges=0 target_edges=0' in text
+                    and 'PRODUCTION_BOOTSTRAP zero_edges=1' in text,'incomplete continuation evidence')
+            packed.decode_aggregate((case/'capture.fsckpt').read_bytes(),build,runtime,manifest,layout)
+            reference=(out/r['timing']/'reference/ports.trace').read_text().splitlines(keepends=True)
+            require((case/'capture.trace').read_text().splitlines(keepends=True)==reference,'changed capture evidence')
+            compare_target_trace(reference[r['host_sample']:],(case/'restore.trace').read_text().splitlines(keepends=True),
+                                 fields,r['cut'],r['host_sample'])
+        common=[out/'simv','-no_save','+vcs+initreg+0','+vcs+initmem+0','+memsize=4194304','+max-cycles=1000000']
+        rejections=verify_rejections(common,out,runtime['native_owners'],manifest)
+        summary=dict(cases=results,**rejections,test_entry_production_continuation_verified=True,
+                     production_plusargs_enabled=False,physical_fpga_validated=False)
+        (out/'summary.json').write_bytes(canonical(summary))
+        print('PASS: rechecked all five fresh continuations and reran every rejection/sanitizer scope',flush=True)
+        return
     generated = args.build.resolve()/'f2/f2-fasedtests-AXI4Fuzzer-FCFSConfig-FCFS16GBQuadRank_DefaultF1Config'
     cc = ROOT/'sims/firesim/sim/midas/src/main/cc'
     verilog = ROOT/'sims/firesim/sim/midas/src/main/verilog'
@@ -79,6 +205,8 @@ def main():
     _, inventory = read_diagnostic(old)
     owner_rows = [dict(owner=name, schema=schema) for name, (schema, _) in inventory.items()
                   if schema and name != 'diagnostic/harness-banks']
+    compatibility = dict(owner='runtime/compatibility', schema='firesim.runtime.fcfs-config-and-loaded-elf.v1')
+    owner_rows.append(compatibility)
     sources = [tests/'production_aggregate_checkpoint.cc', cc/'simif_emul_all.cc', *sorted((cc/'core').glob('*.cc')),
                *[cc/p for p in ('emul/simif_emul.cc', 'emul/dpi.cc', 'emul/mm.cc', 'emul/mmio.cc',
                                'emul/qsfp.cc', 'emul/host_timing.cc', 'bridges/master.cc', 'bridges/clock.cc',
@@ -86,15 +214,20 @@ def main():
                                'bridges/fased_memory_timing_model.cc')],
                ROOT/'sims/firesim/sim/src/main/cc/fasedtests/fasedtests_top.cc',
                ROOT/'tools/checkpoint_formats/aggregate_restore.cc',
+               ROOT/'tools/checkpoint_formats/runtime_identity.cc',
                ROOT/'tools/checkpoint_formats/generated_restore.cc',
                ROOT/'tools/checkpoint_formats/harness_restore.cc']
     dependencies = sorted({*sources, *cc.rglob('*.h'), *cc.rglob('*.cc'),
-                           ROOT/'tools/checkpoint_formats/aggregate_restore.h', generated/'FireSim-generated.const.h'})
-    native_hash = hashlib.sha256(canonical(dict(
+                           ROOT/'tools/checkpoint_formats/aggregate_restore.h',
+                           ROOT/'tools/checkpoint_formats/runtime_identity.h', generated/'FireSim-generated.const.h'})
+    native_inputs = dict(
         sources={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in dependencies},
         compiler='/usr/bin/g++-13', vcs_home=os.environ['VCS_HOME'], cflags='-std=c++20 -DVCS',
-        generated_build=identity))).hexdigest()
-    runtime = packed.runtime_manifest('fcfs-fased-production-test-entry-v2', manifest, layout, owner_rows, native_hash)
+        generated_build=identity)
+    native_hash = hashlib.sha256(canonical(native_inputs)).hexdigest()
+    (out/'native-build-inputs.json').write_bytes(canonical(native_inputs))
+    runtime = packed.runtime_manifest('fcfs-fased-production-test-entry-v3', manifest, layout, owner_rows, native_hash,
+                                     'FPGATop.FASEDMemoryTimingModel_0.model.tCycle')
     prepare_aggregate_loader(runtime, out)
     for name, value in [('generated-manifest', manifest), ('harness-layout', layout), ('runtime-manifest', runtime)]:
         (out/(name+'.json')).write_bytes(canonical(value))
@@ -110,6 +243,7 @@ def main():
         'import "DPI-C" context function int harness_restore_verify();',
         'import "DPI-C" context function int generated_restore_verify();',
         'import "DPI-C" context function int production_aggregate_load();',
+        'import "DPI-C" context function void production_runtime_identity_verify();',
         'import "DPI-C" context function void harness_restore_fail(input string message);',
         'integer fd=0, status=0, refreshes=0; longint unsigned edges=0, target_edges=0;',
         'bit restoring=0; string filename, bundle;',
@@ -119,7 +253,7 @@ def main():
         # Independent gate edge accounting, without forcing its enable.
         *['always @(posedge emul.'+e['hierarchy']+') target_edges=target_edges+1;'
           for e in manifest['state'] if e['adapter']=='metasim-bufgce-v1'],
-        'always @(emul.checkpoint_settled_event) $display("PRODUCTION_CUT host_edges=%0d target_edges=%0d",edges,target_edges);',
+        'always @(emul.checkpoint_settled_event) begin production_runtime_identity_verify(); $display("PRODUCTION_CUT host_edges=%0d target_edges=%0d",edges,target_edges); end',
         'always @(emul.checkpoint_input_refresh) if(restoring) begin',
         'if(edges || target_edges || emul.clock || refreshes) harness_restore_fail("bootstrap refresh phase");',
         'refreshes=refreshes+1; end',
@@ -137,7 +271,7 @@ def main():
         'emul.checkpoint_resume_restored();',
         'if(edges || target_edges || emul.clock || refreshes!=1) harness_restore_fail("bootstrap advanced time");',
         '$display("PRODUCTION_BOOTSTRAP zero_edges=1");',
-        'end end end', 'final if(fd) $fclose(fd);', 'endmodule',
+        'end end end', 'final begin production_runtime_identity_verify(); if(fd) $fclose(fd); end', 'endmodule',
         'bind FPGATop production_aggregate_monitor aggregate_monitor();']
     (out/'monitor.sv').write_text('\n'.join(monitor)+'\n')
     (out/'harness.sv').write_text(''.join(f'`include "{p}"\n' for p in (
@@ -145,7 +279,7 @@ def main():
     run([Path(os.environ['VCS_HOME'])/'bin/vcs', '-full64', '-sverilog', '-debug_access+all', '+vpi',
          '+vcs+initreg+random', '+define+VCS', '+define+CLOCK_PERIOD=1', '-timescale=1ps/1ps', '-top', 'emul',
          '-cc', os.environ['CC'], '-cpp', os.environ['CXX'], '-CFLAGS', f'-std=c++20 -DVCS -I{cc} -I{out} -I{generated}',
-         '-LDFLAGS', '-Wl,--no-as-needed -pthread -lgmp', f'-Mdir={out/"csrc"}', '-o', out/'simv',
+         '-LDFLAGS', '-Wl,--no-as-needed -pthread -lgmp -lcrypto -ldl', f'-Mdir={out/"csrc"}', '-o', out/'simv',
          out/'harness.sv', out/'monitor.sv', out/'settled-generated-probe.sv',
          generated/'FireSim-generated.sv', verilog/'BUFGCE.v', *sources], out/'build.log')
     build = build_identity(runtime, manifest, layout, out/'simv')
@@ -165,11 +299,13 @@ def main():
             case = out/label/f'cut-{cut}'; case.mkdir(parents=True, exist_ok=True)
             diagnostic = case/'software.diag'; diagnostic.unlink(missing_ok=True)
             log = run([*common, *timing, f'+fs-driver-cut={cut}', '+fs-driver-settled', '+fs-driver-lowclock',
+                       f'+test-runtime-identity={case/"runtime-identity.bin"}',
                        f'+fs-driver-diagnostic={diagnostic}', f'+settled_generated_capture={case/"generated.jsonl"}',
                        f'+target_port_trace={case/"capture.trace"}'], case/'capture.log', case)
             require('*** PASSED ***' in log and (case/'capture.trace').read_bytes()==(ref/'ports.trace').read_bytes(),
                     'capture changed production target output/transaction timing')
             operation, native = read_diagnostic(diagnostic)
+            native[compatibility['owner']] = (compatibility['schema'], (case/'runtime-identity.bin').read_bytes())
             require(operation==cut, 'wrong operation cut')
             require([dict(owner=name, schema=schema) for name,(schema,_) in native.items()
                      if schema and name!='diagnostic/harness-banks']==owner_rows, 'changed production owner inventory')
@@ -219,58 +355,8 @@ def main():
                 results.sort(key=lambda r:(r['timing'],r['cut']))
                 (out/'partial-results.json').write_bytes(canonical(results))
                 print('PASS:', result, flush=True)
-    # Native payload and late complete generated/harness preparation failures
-    # must leave ALL owners unmodified, with no loads/deposits or rising edge.
-    first = out/'default/cut-3'
-    good = (first/'aggregate.load').read_text().splitlines(keepends=True)
-    failures = []
-    for index, row in enumerate(owner_rows, 1):
-        altered = good.copy(); fields = altered[index].split()
-        fields[3] = str(int(fields[3])-1); fields[4] = fields[4][:-2]
-        altered[index] = ' '.join(fields)+'\n'
-        failures.append(('native-'+row['owner'].replace('/','-'), altered))
-    altered = good.copy(); fields=altered[1].split(); fields[2]='unsupported'; altered[1]=' '.join(fields)+'\n'
-    failures.append(('native-schema',altered))
-    altered = good.copy(); altered[1],altered[2]=altered[2],altered[1]
-    failures.append(('native-order',altered))
-    gi = 1+len(owner_rows)
-    hi = gi+2+len(manifest['state'])
-    for label, index, section_start, section_end in [
-            ('late-generated-shape', hi-1, gi+1, hi),
-            ('late-harness-shape', len(good)-1, hi+1, len(good))]:
-        altered=good.copy();fields=altered[index].split();fields[1]=str(int(fields[1])+1)
-        altered[index]=' '.join(fields)+'\n'
-        altered[section_start-1]=good[section_start-1].split()[0]+' '+str(sum(len(s) for s in altered[section_start:section_end]))+'\n'
-        failures.append((label,altered))
-    failures.append(('trailing-section', [*good,'extra\n']))
-    negative_results=[]
-    for label, lines in failures:
-        case=out/'negative'/label;case.mkdir(parents=True,exist_ok=True)
-        (case/'aggregate.load').write_text(''.join(lines))
-        text=run([*common,f'+test-aggregate={case/"aggregate.load"}',f'+test-negative={label}'],case/'run.log',case)
-        require('native_loads=0 deposits=0' in text and 'PRODUCTION_NEGATIVE zero_edges=1' in text,
-                'production rejection mutated an owner or advanced clocks')
-        negative_results.append(label)
-    unsupported=out/'unsupported';unsupported.mkdir(exist_ok=True)
-    text=run([*common,f'+test-aggregate={first/"aggregate.load"}','+profile-interval=250000'],
-             unsupported/'run.log',unsupported,expected=1)
-    require('PRODUCTION_AGGREGATE_ENTRY_ERROR' in text and 'unsupported' in text,
-            'unaudited production callback did not fail closed')
-    # Sanitize both staging encodings, with wide registers and memory padding.
-    native_rejections = verify_native(out)
-    native_out = out/'native'
-    old = (native_out/'wide.load').read_text().splitlines()
-    lines = [old[0].replace('FSGRTL1','FSGRTL2')]
-    from tools.checkpoint_formats.tests.test_simulator import fixture
-    index = 1
-    for entry in fixture()['state']:
-        bits = ''.join(line.split()[2] for line in old[index:index+entry['depth']])
-        lines.append(f'generated_tb.{entry["hierarchy"]} {entry["width"]} {entry["depth"]} {bits}')
-        index += entry['depth']
-    (native_out/'wide-packed.load').write_text('\n'.join(lines)+'\n')
-    run([native_out/'verify',native_out/'wide-packed.load'], native_out/'packed.log')
-    summary = dict(cases=results, malformed_processes=negative_results, unsupported_callback_rejected=True,
-                   fixture_word_sanitizer_rejections=native_rejections,
+    rejections=verify_rejections(common, out, owner_rows, manifest)
+    summary = dict(cases=results, **rejections,
                    test_entry_production_continuation_verified=True, production_plusargs_enabled=False,
                    physical_fpga_validated=False)
     (out/'summary.json').write_bytes(canonical(summary))

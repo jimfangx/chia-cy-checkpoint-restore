@@ -142,6 +142,9 @@ def prepare_aggregate_loader(manifest, out):
     """Compile the expected profile/native membership; never trust file schemas."""
     out = Path(out)
     text = f'static const char *aggregate_manifest_hash = {json.dumps(digest(manifest))};\n'
+    if 'cut_contract' in manifest:
+        path = manifest['cut_contract']['target_cycle_path']
+        text += f'#define AGGREGATE_TARGET_CYCLE_PATH {json.dumps(path)}\n'
     text += 'static const NativeIdentity native_identities[] = {\n'
     text += ',\n'.join('{%s, %s}' % (json.dumps(r['owner']), json.dumps(r['schema']))
                       for r in manifest['native_owners'])+'\n};\n'

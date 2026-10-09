@@ -18,9 +18,21 @@ ENCODING = 'ascending_nibble_padded_words_v1'
 SCHEMA = 'firesim.aggregate.lowclock.v2'
 
 
-def runtime_manifest(profile, generated, layout, owners, native_hash):
+def runtime_manifest(profile, generated, layout, owners, native_hash, target_cycle_owner=None):
     manifest = word_manifest(profile, generated, layout, owners, native_hash)
-    return dict(manifest, schema=SCHEMA, generated_encoding=ENCODING)
+    manifest = dict(manifest, schema=SCHEMA, generated_encoding=ENCODING)
+    if target_cycle_owner is not None:
+        require(type(target_cycle_owner) is str, 'invalid target cycle binding')
+        matches = [e for e in generated['state'] if e['hierarchy'] == target_cycle_owner]
+        require(len(matches) == 1 and matches[0]['kind'] == 'register'
+                and matches[0]['width'] == 64 and matches[0]['depth'] == 1,
+                'target cycle binding requires one manifested 64-bit register')
+        manifest.update(schema='firesim.aggregate.lowclock.v3', cut_contract=dict(
+            target_cycle_owner=target_cycle_owner,
+            target_cycle_path=layout['root']+'.'+target_cycle_owner,
+            target_cycle_semantics='fased_model_tCycle_at_settled_host_negedge',
+            host_sample_semantics='completed_host_rising_edges_before_cut'))
+    return manifest
 
 
 def entry_value(entry, value):
@@ -73,10 +85,16 @@ def read_generated_cut(generated, path):
 
 
 def _components(doc, manifest, generated, layout):
-    keys(manifest, {'schema', 'profile', 'phase', 'generated_manifest_hash', 'harness_layout_hash',
-                    'native_build_hash', 'native_owners', 'generated_encoding'})
+    fields = {'schema', 'profile', 'phase', 'generated_manifest_hash', 'harness_layout_hash',
+              'native_build_hash', 'native_owners', 'generated_encoding'}
+    contract = manifest.get('cut_contract')
+    if contract is not None:
+        fields.add('cut_contract')
+        keys(contract, {'target_cycle_owner', 'target_cycle_path', 'target_cycle_semantics', 'host_sample_semantics'})
+    keys(manifest, fields)
     require(manifest == runtime_manifest(manifest['profile'], generated, layout,
-                                        manifest['native_owners'], manifest['native_build_hash']),
+                                        manifest['native_owners'], manifest['native_build_hash'],
+                                        contract['target_cycle_owner'] if contract is not None else None),
             'changed packed runtime inventory/encoding')
     require(type(doc['target_cycle']) is int and 0 <= doc['target_cycle'] < 2**64,
             'unsupported target cycle range')
@@ -98,6 +116,9 @@ def _components(doc, manifest, generated, layout):
         r = rows['generated-entry/'+entry['hierarchy']]
         require(r['width'] == 4*((entry['width']+3)//4)*entry['depth'], 'changed generated entry shape')
         entry_value(entry, r['value'])
+    if contract is not None:
+        require(int(rows['generated-entry/'+contract['target_cycle_owner']]['value'], 16) == doc['target_cycle'],
+                'target cycle disagrees with bound generated counter')
     h = harness_capture(layout, [rows['harness/'+r['owner']]['value'] for r in layout['records']], sample)
     require(all(rows['harness/'+r['owner']]['width'] == r['width'] for r in layout['records']),
             'changed harness shape')

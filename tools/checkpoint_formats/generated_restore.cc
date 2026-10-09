@@ -182,6 +182,22 @@ extern "C" int generated_restore_prepare_text(const char *text) {
   return prepare(input, "aggregate staging");
 }
 
+#ifdef RESTORE_ENTRY_MAGIC
+// Inspect the retained prepared scalar, never the fresh/random RTL value.
+// Used by a bound aggregate before any native load or VPI deposit.
+extern "C" int generated_restore_check_target_cycle(const char *path, uint64_t expected) {
+  for (const auto &deposit : prepared) {
+    if (deposit.path != path) continue;
+    if (deposit.value.size()!=2 || vpi_get(vpiSize,deposit.handle)!=64)
+      return fail("invalid target cycle counter", path);
+    const uint64_t actual=uint64_t(uint32_t(deposit.value[0].aval)) |
+        (uint64_t(uint32_t(deposit.value[1].aval))<<32);
+    return actual==expected ? 0 : fail("target cycle disagrees with bound counter",path);
+  }
+  return fail("missing prepared target cycle counter",path);
+}
+#endif
+
 extern "C" int generated_restore_commit() {
   if (prepared.empty() || !pending.empty()) return fail("no prepared load", clock_path);
   if (!low_clock()) return fail("clock advanced after preparation", clock_path);
