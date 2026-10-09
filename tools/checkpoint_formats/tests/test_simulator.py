@@ -149,6 +149,14 @@ class SimulatorInventoryTest(unittest.TestCase):
             with self.assertRaises(FormatError):
                 validate_generated_stream(m, path, 1)
             self.assertEqual(len(validate_generated_stream(m, path, 1, header["sample_phase"])), 1)
+            prepare_settled_generated_probe(m, out, lowclock=True)
+            self.assertIn("settled_host_negedge_parked_driver", (out / "settled-generated-probe.sv").read_text())
+            header["sample_phase"] = "settled_host_negedge_parked_driver"
+            path.write_text("\n".join(json.dumps(r) for r in [header, *records]) + "\n")
+            self.assertEqual(len(validate_generated_stream(m, path, 1, header["sample_phase"])), 1)
+            for phase in ("settled_host_negedge", "settled_host_posedge_parked_driver"):
+                with self.assertRaises(FormatError):
+                    validate_generated_stream(m, path, 1, phase)
             with self.assertRaises(FormatError):
                 validate_generated_stream(m, path, 1, "unknown")
 

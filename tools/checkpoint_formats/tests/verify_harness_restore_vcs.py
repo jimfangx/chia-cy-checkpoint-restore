@@ -91,6 +91,7 @@ def main():
 static std::ifstream output;
 extern "C" void simulator_entry() {}
 extern "C" svBit simulator_checkpoint_pending() { return 0; }
+extern "C" svBit simulator_checkpoint_lowclock() { return 0; }
 extern "C" void simulator_checkpoint_settled(unsigned,const svBitVecVal*,svBit*,svBitVecVal*,svBitVecVal*,svBitVecVal*,svBitVecVal*,svBitVecVal*,svBitVecVal*,svBitVecVal*,svBitVecVal*,svBitVecVal*) { std::exit(1); }
 extern "C" void harness_fixture_open(const char *path) { output.open(path); if (!output) std::exit(1); }
 extern "C" void harness_fixture_flip_bank() {

@@ -131,3 +131,13 @@ failure. `verify_harness_restore_vcs` tests the actual harness and generated RTL
 with recorded native DPI outputs. This is independent of semantic replay and
 does not reconstruct the driver/DPI context or load a whole `.fsckpt`. Scope
 and evidence are in `docs/checkpointing/m4-harness-bank-load.md`.
+
+`+fs-driver-settled +fs-driver-lowclock` keeps the completed-operation driver
+parked through the natural falling edge, captures all generated words and
+software/harness banks with clocks low, then resumes the same dispatcher.
+Published outputs settle and incoming latches refresh before the next rising
+tick. Native phase checks reject mismatched harness clock flags. The strict
+modifier requires a settled diagnostic request; it does not enable `.fsckpt`
+loading. `verify_settled_boundary_vcs --lowclock` checks complete production
+transaction traces, and `verify_lowclock_cut` compares every software/generated
+owner with its rising-edge cut. See `docs/checkpointing/m4-lowclock-cut.md`.

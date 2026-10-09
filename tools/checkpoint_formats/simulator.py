@@ -237,10 +237,10 @@ def _stream_record_source(manifest, harness):
     return source
 
 
-def prepare_settled_generated_probe(manifest, out, harness="emul"):
+def prepare_settled_generated_probe(manifest, out, harness="emul", *, lowclock=False):
     """Read every generated word while the completed-operation driver is parked.
 
-    top.sv signals this event one picosecond after rising-edge settlement, then
+    top.sv signals this event one picosecond after the requested edge, then
     yields one delta for read-only probes before native capture/resume. This is
     a diagnostic, without a full runtime format or generated-state load path.
     """
@@ -249,7 +249,8 @@ def prepare_settled_generated_probe(manifest, out, harness="emul"):
     digest = hashlib.sha256(canonical(manifest)).hexdigest()
     header = dict(capture_version=2, capture_type="generated_rtl_diagnostic", scope="generated_rtl_only",
                   external_runtime_required=True, manifest_sha256=digest,
-                  sample_phase="settled_host_posedge_parked_driver")
+                  sample_phase=("settled_host_negedge_parked_driver" if lowclock else
+                                "settled_host_posedge_parked_driver"))
     prefix = canonical(header).decode()[:-1] + ',"host_sample":%0d,"stage":0}'
     source = ["`timescale 1ps/1ps", "module settled_generated_probe();",
               "integer fd = 0; integer address; integer captures = 0; longint unsigned host_sample = 0; string filename;",
@@ -276,7 +277,8 @@ def validate_generated_stream(manifest, path, stages, sample_phase="settled_host
     Return scalar observations for checking transaction predicates independently.
     """
     validate_generated_manifest(manifest)
-    require(sample_phase in ("settled_host_negedge", "settled_host_posedge_parked_driver"),
+    require(sample_phase in ("settled_host_negedge", "settled_host_posedge_parked_driver",
+                             "settled_host_negedge_parked_driver"),
             "unsupported diagnostic sample phase")
     natural(stages)
     require(stages > 0, "empty generated capture stream")

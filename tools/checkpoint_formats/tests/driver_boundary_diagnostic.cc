@@ -76,6 +76,30 @@ int main(int argc, char **argv) {
     driver_boundary_diagnostic_t settled({"+fs-driver-cut=1",
         "+fs-driver-diagnostic=x", "+fs-driver-settled"});
     check(settled.settled() && settled.due());
+    for (const auto &args : std::vector<std::vector<std::string>>{
+             {"+fs-driver-lowclock"},
+             {"+fs-driver-cut=1", "+fs-driver-diagnostic=x", "+fs-driver-lowclock"},
+             {"+fs-driver-cut=1", "+fs-driver-diagnostic=x", "+fs-driver-settled", "+fs-driver-lowclock=1"},
+             {"+fs-driver-cut=1", "+fs-driver-diagnostic=x", "+fs-driver-settled",
+              "+fs-driver-lowclock", "+fs-driver-lowclock"}})
+      rejects([&] { driver_boundary_diagnostic_t diagnostic(args); });
+    driver_boundary_diagnostic_t lowclock({"+fs-driver-cut=1",
+        "+fs-driver-diagnostic=x", "+fs-driver-settled", "+fs-driver-lowclock"});
+    check(lowclock.lowclock() && lowclock.settled() && lowclock.due() && !settled.lowclock());
+    // Check clock packing at either side of a 32-bit word boundary, as well
+    // as the actual FCFS bank width. Phase errors reject before publication.
+    for (uint32_t bits : {67U, 96U, 97U, 4145U}) {
+      std::vector<uint32_t> banks((bits + 31) / 32, 0);
+      harness_observation_t::require_clock_phase(bits, banks.data(), true);
+      rejects([&] { harness_observation_t::require_clock_phase(bits, banks.data(), false); });
+      banks[(bits - 65) / 32] |= 1U << ((bits - 65) % 32);
+      harness_observation_t::require_clock_phase(bits, banks.data(), false);
+      rejects([&] { harness_observation_t::require_clock_phase(bits, banks.data(), true); });
+    }
+    rejects([&] { harness_observation_t::require_clock_phase(67, nullptr, true); });
+    uint32_t invalid_phase = 0;
+    rejects([&] { harness_observation_t::require_clock_phase(66, &invalid_phase, true); });
+    rejects([&] { harness_observation_t::require_clock_phase((1U << 20) + 1, &invalid_phase, true); });
     // Packed DPI buffers can have arbitrary high padding. The observation
     // must own its bytes and canonicalize that padding without mutating it.
     for (uint32_t bits : {3U, 31U, 32U, 33U, 63U, 64U, 65U}) {
