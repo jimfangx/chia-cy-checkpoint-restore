@@ -157,9 +157,9 @@ def main():
                 require(sample['scalars'][prefix + '.model.SatUpDownCounter_1.value'] > 0,
                         'late settled cut lost outstanding target write')
             audited_widgets, unsupported_widgets = check_widget_inventory(owners, (generated / 'FireSim-generated.const.h').read_text())
-            require(len(audited_widgets) == 5 and unsupported_widgets == {'widget/2'}, 'incomplete concrete widget inventory')
+            require(len(audited_widgets) == 6 and not unsupported_widgets, 'incomplete concrete widget inventory')
             require(all(not owners[key][0] for key in ('runtime/harness','runtime/execution-context',
-                    'generated/rtl','runtime/simulation','widget/2')), 'unaudited owner declared restorable')
+                    'generated/rtl','runtime/simulation')), 'unaudited owner declared restorable')
             return dict(timing=label, cut=cut, target_cycles=target_cycles, target_port_sha256=expected_trace,
                 generated_sha256=expected_rtl, settled_generated_sha256=digest(parked),
                 generated_words=sample['words'], host_sample=sample['host_sample'], harness_bits=bits,

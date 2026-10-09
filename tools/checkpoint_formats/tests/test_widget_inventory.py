@@ -3,6 +3,7 @@ import unittest
 from tools.checkpoint_formats.codec import FormatError
 from tools.checkpoint_formats.tests.verify_widget_checkpoint_vcs import oracle
 from tools.checkpoint_formats.tests.widget_inventory import check_widget_inventory, constructor_inventory
+from tools.checkpoint_formats.tests.verify_fased_checkpoint_vcs import configuration, text, words
 
 
 def fixture():
@@ -33,6 +34,51 @@ def fixture():
 
 
 class WidgetInventoryTest(unittest.TestCase):
+    def fased_fixture(self):
+        owners, header = fixture()
+        block = '''#ifdef GET_BRIDGE_CONSTRUCTOR
+registry.add_widget(new FASEDMemoryTimingModel(
+  simif,
+  AddressMap{
+    std::vector<std::pair<std::string, uint32_t>>{
+      { R"ESC(latency)ESC", 8 },
+      { R"ESC(cycles)ESC", 12 },
+    },
+    std::vector<std::pair<std::string, uint32_t>>{
+      { R"ESC(latency)ESC", 8 },
+    }
+  },
+  0,
+  args,
+  R"ESC(stats.csv)ESC",
+  1L << 10
+));
+#endif
+'''
+        header = header.replace('#ifdef GET_BRIDGE_CONSTRUCTOR\nregistry.add_widget(new unknown_t(',
+                                block+'#ifdef GET_BRIDGE_CONSTRUCTOR\nregistry.add_widget(new unknown_t(')
+        owners['widget/6'] = owners.pop('widget/5')
+        config = configuration({'latency':8,'cycles':12}, {'latency':8}, 0, 1024, False, {}, (), ())
+        owners['widget/5'] = ('firesim.widget.fased.v1', config+words(1)+text('cycles,\n'))
+        return owners, header
+
+    def test_fased_configuration_lifecycle_and_history(self):
+        owners, header = self.fased_fixture()
+        self.assertEqual(check_widget_inventory(owners, header),
+                         ({f'widget/{i}' for i in range(6)}, {'widget/6'}))
+
+    def test_changed_fased_configuration_or_history_reject(self):
+        owners, header = self.fased_fixture()
+        for changed in (header.replace('1L << 10', '1L << 11'),
+                        header.replace('ESC(cycles)ESC', 'ESC(renamed)ESC'),
+                        header.replace('ESC(latency)ESC", 8', 'ESC(latency)ESC", 9')):
+            with self.assertRaises(FormatError):
+                check_widget_inventory(owners, changed)
+        for payload in (b'', owners['widget/5'][1][:-1], owners['widget/5'][1]+b'\0'):
+            current = owners.copy(); current['widget/5'] = ('firesim.widget.fased.v1', payload)
+            with self.assertRaises(FormatError):
+                check_widget_inventory(current, header)
+
     def test_generated_pass_order_and_complete_configuration(self):
         owners, header = fixture()
         self.assertEqual([row[0] for row in constructor_inventory(header)],

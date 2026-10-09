@@ -1,13 +1,38 @@
 """Independent checks of concrete widget payloads against generated constructors.
 
 Registry identities follow entry.cc's core/stream/bridge passes, not the header's
-text order. This audit checker is deliberately limited to the five supported
+text order. This audit checker is deliberately limited to the six supported
 widget classes; it never infers checkpoint support for an unfamiliar driver.
 """
 import re
 import struct
 
 from tools.checkpoint_formats.codec import require
+from tools.checkpoint_formats.tests.verify_fased_checkpoint_vcs import configuration, NAMES, text, words
+
+
+def check_fased_widget(schema, payload, block):
+    """Bind the production default-argument, unprofiled cut to its constructor."""
+    maps = re.findall(r'std::vector<std::pair<std::string, uint32_t>>\{(.*?)\n\s*\}', block, re.S)
+    require(len(maps) == 2, 'changed FASED address-map emission')
+    read, write = [dict((name, int(addr)) for name, addr in
+        re.findall(r'R"ESC\((.*?)\)ESC",\s*(\d+)', mapping)) for mapping in maps]
+    tail = re.search(r'\n\s*(\d+),\s*\n\s*args\s*,\s*R"ESC\(.*?\)ESC"\s*,\s*(\d+)L << (\d+)', block)
+    require(tail is not None, 'changed FASED model/memory configuration')
+    model, base, shift = map(int, tail.groups())
+    histograms = NAMES if 'hostReadLatencyHist_enable' in write else ()
+    ranges = ('read', 'write') if 'readRanges_enable' in write else ()
+    config = configuration(read, write, model, base << shift, False, {}, histograms, ranges)
+    exclusion = ('Hist_dataL','Hist_dataH','Hist_addr','Hist_enable','hostMemOffsetLow',
+                 'hostMemOffsetHigh','Ranges_dataL','Ranges_dataH','Ranges_addr','Ranges_enable','numRanges')
+    header = ''.join(name+',' for name in sorted(read) if name not in write and
+                     not any(part in name for part in exclusion))+'\n'
+    # The production fixture has no software instrumentation baselines. Fail
+    # closed if its generated configuration adds them until independently
+    # cross-checked against hardware, rather than assuming zero values.
+    require(not histograms and not ranges, 'unhandled production FASED baseline fixture')
+    require(schema == 'firesim.widget.fased.v1' and payload == config + words(1) + text(header),
+            'FASED configuration/lifecycle/profiling history differs from generated construction')
 
 
 FIELDS = {
@@ -39,6 +64,10 @@ def check_widget_inventory(owners, header):
         identity = f'widget/{index}'
         require(identity in owners, f'missing actual widget owner {identity}')
         schema, payload = owners[identity]
+        if kind == 'FASEDMemoryTimingModel':
+            check_fased_widget(schema, payload, block)
+            supported.append(identity)
+            continue
         if kind not in FIELDS:
             require(not schema and not payload, f'unaudited driver {kind} declared supported')
             unsupported.append(identity)

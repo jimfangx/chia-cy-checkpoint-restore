@@ -103,8 +103,8 @@ def main():
         unsupported = [key for key, (schema, _) in owners.items() if not schema]
         supported = {key: payload for key, (schema, payload) in owners.items() if schema}
         audited_widgets, unsupported_widgets = check_widget_inventory(owners, (binary.parent / 'FireSim-generated.const.h').read_text())
-        require(unsupported_widgets == {'widget/2'}, 'FASED ownership changed')
-        require(set(('widget/2', 'runtime/simulation', 'generated/rtl', 'runtime/harness',
+        require(not unsupported_widgets and len(audited_widgets) == 6, 'incomplete FASED ownership')
+        require(set(('runtime/simulation', 'generated/rtl', 'runtime/harness',
                      'runtime/execution-context')) <= set(unsupported), 'unaudited owners omitted')
         require(set(supported) == {'runtime/mmio', 'runtime/host-timing', 'runtime/scheduler',
                                   'runtime/simulation/fased-run-loop',
