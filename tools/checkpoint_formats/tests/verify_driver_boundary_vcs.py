@@ -15,7 +15,7 @@ import struct
 
 from tools.checkpoint_formats.codec import require
 from tools.checkpoint_formats.tests.widget_inventory import check_widget_inventory
-from tools.checkpoint_formats.tests.simulation_inventory import check_simulation_base
+from tools.checkpoint_formats.tests.simulation_inventory import check_simulation_base, check_fcfs_driver
 from tools.checkpoint_formats.tests.verify_semantic_vcs import ROOT, run
 
 CC = ROOT / 'sims/firesim/sim/midas/src/main/cc'
@@ -106,10 +106,11 @@ def main():
         supported = {key: payload for key, (schema, payload) in owners.items() if schema}
         audited_widgets, unsupported_widgets = check_widget_inventory(owners, (binary.parent / 'FireSim-generated.const.h').read_text())
         require(not unsupported_widgets and len(audited_widgets) == 6, 'incomplete FASED ownership')
-        require(set(('runtime/simulation', 'generated/rtl', 'runtime/harness',
+        check_fcfs_driver(owners, (binary.parent / 'FireSim-generated.const.h').read_text())
+        require(set(('generated/rtl', 'runtime/harness',
                      'runtime/execution-context')) <= set(unsupported), 'unaudited owners omitted')
         require(set(supported) == {'runtime/mmio', 'runtime/host-timing', 'runtime/scheduler',
-                                  'runtime/simulation/base',
+                                  'runtime/simulation', 'runtime/simulation/base',
                                   'runtime/simulation/fased-run-loop',
                                   *audited_widgets,
                                   *[f'runtime/functional-memory/{i}' for i in range(4)]},

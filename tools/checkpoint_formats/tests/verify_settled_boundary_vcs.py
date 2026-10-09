@@ -15,7 +15,7 @@ import struct
 
 from tools.checkpoint_formats.codec import require
 from tools.checkpoint_formats.tests.widget_inventory import check_widget_inventory
-from tools.checkpoint_formats.tests.simulation_inventory import check_simulation_base
+from tools.checkpoint_formats.tests.simulation_inventory import check_simulation_base, check_fcfs_driver
 from tools.checkpoint_formats.simulator import (prepare_generated_stream_probe,
     prepare_settled_generated_probe, validate_generated_stream)
 from tools.checkpoint_formats.tests.verify_driver_boundary_vcs import read_diagnostic, words
@@ -162,12 +162,13 @@ def main():
                         'late settled cut lost outstanding target write')
             audited_widgets, unsupported_widgets = check_widget_inventory(owners, (generated / 'FireSim-generated.const.h').read_text())
             require(len(audited_widgets) == 6 and not unsupported_widgets, 'incomplete concrete widget inventory')
+            concrete_driver = check_fcfs_driver(owners, (generated / 'FireSim-generated.const.h').read_text())
             require(all(not owners[key][0] for key in ('runtime/harness','runtime/execution-context',
-                    'generated/rtl','runtime/simulation')), 'unaudited owner declared restorable')
+                    'generated/rtl')), 'unaudited owner declared restorable')
             return dict(timing=label, cut=cut, target_cycles=target_cycles, target_port_sha256=expected_trace,
                 generated_sha256=expected_rtl, settled_generated_sha256=digest(parked),
                 generated_words=sample['words'], host_sample=sample['host_sample'], harness_bits=bits,
-                simulation_base=simulation_base, memories=memories, audited_widgets=sorted(audited_widgets), unsupported_widgets=sorted(unsupported_widgets), diagnostic=str(diagnostic), settled_generated=str(parked))
+                simulation_base=simulation_base, concrete_driver=concrete_driver, memories=memories, audited_widgets=sorted(audited_widgets), unsupported_widgets=sorted(unsupported_widgets), diagnostic=str(diagnostic), settled_generated=str(parked))
         # Unique processes/output trees; the shared executable remains fixed.
         with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
             for future in concurrent.futures.as_completed([pool.submit(verify_cut, cut) for cut in cuts]):
