@@ -8,7 +8,8 @@ import unittest
 from tools.checkpoint_formats.codec import FormatError, canonical
 from tools.checkpoint_formats.simulator import (check_generated_rtl, generated_capture,
                                                 generated_words, validate_generated_manifest,
-                                                prepare_generated_stream_probe, validate_generated_stream)
+                                                prepare_generated_stream_probe, validate_generated_stream,
+                                                prepare_settled_generated_probe)
 
 
 def fixture():
@@ -128,6 +129,28 @@ class SimulatorInventoryTest(unittest.TestCase):
                         [{"Top.counter": True}], [{"Top.counter": 1 << 257}]):
                 with self.assertRaises(FormatError):
                     prepare_generated_stream_probe(m, out, bad)
+
+    def test_settled_phase_requires_explicit_validator_and_reads_every_memory_word(self):
+        m = fixture()
+        with tempfile.TemporaryDirectory() as directory:
+            out = Path(directory)
+            prepare_settled_generated_probe(m, out)
+            source = (out / "settled-generated-probe.sv").read_text()
+            self.assertIn("emul.checkpoint_settled_event", source)
+            self.assertIn("emul.Top.fifo[address]", source)
+            self.assertIn("settled_host_posedge_parked_driver", source)
+            header = dict(capture_version=2, capture_type="generated_rtl_diagnostic", scope="generated_rtl_only",
+                          external_runtime_required=True, manifest_sha256=hashlib.sha256(canonical(m)).hexdigest(),
+                          sample_phase="settled_host_posedge_parked_driver", host_sample=7, stage=0)
+            records = [dict(state_id=e["state_id"], width=e["width"], depth=e["depth"],
+                            values=["0" * ((e["width"] + 3) // 4)] * e["depth"]) for e in m["state"]]
+            path = out / "capture.jsonl"
+            path.write_text("\n".join(json.dumps(r) for r in [header, *records]) + "\n")
+            with self.assertRaises(FormatError):
+                validate_generated_stream(m, path, 1)
+            self.assertEqual(len(validate_generated_stream(m, path, 1, header["sample_phase"])), 1)
+            with self.assertRaises(FormatError):
+                validate_generated_stream(m, path, 1, "unknown")
 
 
 if __name__ == "__main__":

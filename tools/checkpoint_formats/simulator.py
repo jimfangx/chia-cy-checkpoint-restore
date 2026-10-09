@@ -211,6 +211,17 @@ def prepare_generated_stream_probe(manifest, out, stages, harness="emul"):
               "always @(negedge clock) begin", "  #1; host_sample = host_sample + 1;",
               "  if (fd && (" + " || ".join(f"(stage == {i} && ({p}))" for i, p in enumerate(predicates)) + ")) begin",
               f"    $fdisplay(fd, {json.dumps(prefix)}, host_sample, stage);"]
+    source += _stream_record_source(manifest, harness)
+    source += ["    $fflush(fd); stage = stage + 1;", "  end", "end", "final if (fd) $fclose(fd);",
+               "endmodule", f"bind {manifest['root_module']} generated_stream_probe generated_probe(.clock(clock));"]
+    out = Path(out)
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "generated-probe.sv").write_text("\n".join(source) + "\n")
+    (out / "generated-triggers.json").write_bytes(canonical(stages))
+
+
+def _stream_record_source(manifest, harness):
+    source = []
     for entry in manifest["state"]:
         record = dict(state_id=entry["state_id"], width=entry["width"], depth=entry["depth"])
         fmt = canonical(record).decode()[:-1] + ',"values":['
@@ -223,15 +234,41 @@ def prepare_generated_stream_probe(manifest, out, stages, harness="emul"):
         else:
             source.append(f'    $fwrite(fd, "\\\"%h\\\"", {path});')
         source.append('    $fdisplay(fd, "]}");')
-    source += ["    $fflush(fd); stage = stage + 1;", "  end", "end", "final if (fd) $fclose(fd);",
-               "endmodule", f"bind {manifest['root_module']} generated_stream_probe generated_probe(.clock(clock));"]
+    return source
+
+
+def prepare_settled_generated_probe(manifest, out, harness="emul"):
+    """Read every generated word while the completed-operation driver is parked.
+
+    top.sv signals this event one picosecond after rising-edge settlement, then
+    yields one delta for read-only probes before native capture/resume. This is
+    a diagnostic, without a full runtime format or generated-state load path.
+    """
+    validate_generated_manifest(manifest)
+    require(re.fullmatch(IDENT, harness) is not None, "invalid diagnostic harness")
+    digest = hashlib.sha256(canonical(manifest)).hexdigest()
+    header = dict(capture_version=2, capture_type="generated_rtl_diagnostic", scope="generated_rtl_only",
+                  external_runtime_required=True, manifest_sha256=digest,
+                  sample_phase="settled_host_posedge_parked_driver")
+    prefix = canonical(header).decode()[:-1] + ',"host_sample":%0d,"stage":0}'
+    source = ["`timescale 1ps/1ps", "module settled_generated_probe();",
+              "integer fd = 0; integer address; integer captures = 0; longint unsigned host_sample = 0; string filename;",
+              f"always @(posedge {harness}.clock) host_sample = host_sample + 1;",
+              'initial if ($value$plusargs("settled_generated_capture=%s", filename)) begin',
+              '  fd = $fopen(filename, "w"); if (!fd) $fatal(1, "cannot open settled probe"); end',
+              f"always @({harness}.checkpoint_settled_event) if (fd) begin",
+              '  if (captures) $fatal(1, "repeated settled probe");',
+              f"  $fdisplay(fd, {json.dumps(prefix)}, host_sample);"]
+    source += _stream_record_source(manifest, harness)
+    source += ["  $fflush(fd); captures = captures + 1;", "end",
+               "final if (fd) $fclose(fd);", "endmodule",
+               f"bind {manifest['root_module']} settled_generated_probe settled_probe();"]
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
-    (out / "generated-probe.sv").write_text("\n".join(source) + "\n")
-    (out / "generated-triggers.json").write_bytes(canonical(stages))
+    (out / "settled-generated-probe.sv").write_text("\n".join(source) + "\n")
 
 
-def validate_generated_stream(manifest, path, stages):
+def validate_generated_stream(manifest, path, stages, sample_phase="settled_host_negedge"):
     """Validate complete ordered captures without expanding RAMs into word owners.
 
     Memory is bounded by the largest entry, rather than total simulator words.
@@ -239,6 +276,8 @@ def validate_generated_stream(manifest, path, stages):
     Return scalar observations for checking transaction predicates independently.
     """
     validate_generated_manifest(manifest)
+    require(sample_phase in ("settled_host_negedge", "settled_host_posedge_parked_driver"),
+            "unsupported diagnostic sample phase")
     natural(stages)
     require(stages > 0, "empty generated capture stream")
     digest = hashlib.sha256(canonical(manifest)).hexdigest()
@@ -255,7 +294,7 @@ def validate_generated_stream(manifest, path, stages):
             require(type(header["capture_version"]) is int and header["capture_version"] == 2
                     and header["capture_type"] == "generated_rtl_diagnostic"
                     and header["scope"] == "generated_rtl_only" and header["external_runtime_required"] is True
-                    and header["manifest_sha256"] == digest and header["sample_phase"] == "settled_host_negedge",
+                    and header["manifest_sha256"] == digest and header["sample_phase"] == sample_phase,
                     "incompatible generated RTL stream")
             natural(header["stage"])
             require(header["stage"] == stage, "generated capture stage order")

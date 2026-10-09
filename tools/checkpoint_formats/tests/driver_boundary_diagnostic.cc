@@ -3,6 +3,7 @@
 #include "core/stepped_run_loop.h"
 #include "core/systematic_scheduler.h"
 #include "emul/host_timing.h"
+#include "emul/harness_observation.h"
 #include <filesystem>
 #include <fstream>
 #include <functional>
@@ -66,6 +67,31 @@ int main(int argc, char **argv) {
               "+fs-driver-diagnostic=y"},
              {"+fs-driver-cut=1", "+fs-driver-diagnostic="}})
       rejects([&] { driver_boundary_diagnostic_t diagnostic(args); });
+    for (const auto &args : std::vector<std::vector<std::string>>{
+             {"+fs-driver-settled"},
+             {"+fs-driver-cut=1", "+fs-driver-diagnostic=x", "+fs-driver-settled=1"},
+             {"+fs-driver-cut=1", "+fs-driver-diagnostic=x",
+              "+fs-driver-settled", "+fs-driver-settled"}})
+      rejects([&] { driver_boundary_diagnostic_t diagnostic(args); });
+    driver_boundary_diagnostic_t settled({"+fs-driver-cut=1",
+        "+fs-driver-diagnostic=x", "+fs-driver-settled"});
+    check(settled.settled() && settled.due());
+    // Packed DPI buffers can have arbitrary high padding. The observation
+    // must own its bytes and canonicalize that padding without mutating it.
+    for (uint32_t bits : {3U, 31U, 32U, 33U, 63U, 64U, 65U}) {
+      uint32_t banks[3] = {0x87654321, 0xffffffff, 0xffffffff};
+      harness_observation_t observed(bits, banks);
+      const auto saved = observed.save_checkpoint();
+      check(saved.size() == 16 + 4 * ((bits + 31) / 32));
+      observed.validate_checkpoint(saved);
+      banks[0] = 0;
+      check(observed.save_checkpoint() == saved);
+      auto bad = saved;
+      bad.back() ^= 1;
+      rejects([&] { observed.validate_checkpoint(bad); });
+      rejects([&] { observed.load_checkpoint(saved); });
+    }
+    rejects([&] { harness_observation_t observed(2, nullptr); });
     auto make = [&](const std::string &name, uint64_t cut = 1) {
       return driver_boundary_diagnostic_t(
           {"+fs-driver-cut=" + std::to_string(cut),
