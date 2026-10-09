@@ -141,3 +141,15 @@ modifier requires a settled diagnostic request; it does not enable `.fsckpt`
 loading. `verify_settled_boundary_vcs --lowclock` checks complete production
 transaction traces, and `verify_lowclock_cut` compares every software/generated
 owner with its rising-edge cut. See `docs/checkpointing/m4-lowclock-cut.md`.
+
+`simif_emul_t::start_restored_driver` bootstraps the dispatcher component from
+a freshly loaded incremental simulation flow at a low-clock returned-operation
+cut. It skips the initial native tick and initialization, and returns at the
+next normal yield or completion. Packed clock/reset/finish checks and unsupported
+owner/lifecycle checks precede worker creation. The caller must separately load
+native/generated/harness owners, publish outgoing banks and refresh incoming
+banks before the first rising edge. Full checkpoint requests remain unsupported.
+`verify_dispatcher_checkpoint_vcs` exercises the real pthread dispatcher with
+fixture MMIO/RTL services, native sanitizers and fresh VCS DPI processes,
+including outstanding native traffic and terminal zero-edge completion. See
+`docs/checkpointing/m4-dispatcher-bootstrap.md`.
