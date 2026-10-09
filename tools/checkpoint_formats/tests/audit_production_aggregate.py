@@ -171,18 +171,20 @@ def main():
             assert scalars['FPGATop.FASEDMemoryTimingModel_0.model.SatUpDownCounter_1.value']>0
         results.append(dict(timing=case['timing'],cut=operation,generated_words=words,native_owners=owner_count,
                             continuation_rows=len(continuation),memories=memories))
-    assert len(summary['malformed_processes'])==(23 if bound else 21)
+    public=summary.get('public_durable_restore_enabled',False)
+    assert len(summary['malformed_processes'])==(0 if public else 23 if bound else 21)
     for label in summary['malformed_processes']:
         text=process(out/'negative'/label/'run.log')
         assert 'native_loads=0 deposits=0' in text and 'PRODUCTION_NEGATIVE zero_edges=1' in text
         assert 'PRODUCTION_AGGREGATE_LOADED' not in text and 'PRODUCTION_BOOTSTRAP' not in text
         if label=='late-harness-shape': assert 'prepared 13507456 words without deposits' in text
-    text=process(out/'unsupported/run.log')
-    error='FS_CHECKPOINT_ENTRY_ERROR' if summary.get('real_production_entry_verified') else 'PRODUCTION_AGGREGATE_ENTRY_ERROR'
-    assert error in text and 'unsupported' in text
-    if summary.get('real_production_entry_verified'):
-        assert 'FS_CHECKPOINT_ENTRY_CONFIGURED' not in text
-    if bound:
+    if not public:
+        text=process(out/'unsupported/run.log')
+        error='FS_CHECKPOINT_ENTRY_ERROR' if summary.get('real_production_entry_verified') else 'PRODUCTION_AGGREGATE_ENTRY_ERROR'
+        assert error in text and 'unsupported' in text
+        if summary.get('real_production_entry_verified'):
+            assert 'FS_CHECKPOINT_ENTRY_CONFIGURED' not in text
+    if bound and not public:
         assert summary['runtime_compatibility_rejections']==['memory','horizon','host-delay','seed','loaded-library','preload-hook']
         for label in summary['runtime_compatibility_rejections']:
             text=process(out/'runtime-negative'/label/'run.log')
@@ -200,14 +202,45 @@ def main():
             assert 'PRODUCTION_AGGREGATE_LOADED' not in text and 'PRODUCTION_BOOTSTRAP' not in text
         text=(out/'negative/target-cycle/run.log').read_text()
         assert 'target cycle disagrees with bound counter' in text
-    assert len(set(pids))==len(pids)==(42 if bound else 34)
+    public_rejections=0
+    if public:
+        inputs=json.loads((out/'native-build-inputs.json').read_text())
+        assert 'tools/checkpoint_formats/durable_restore_entry.cc' in inputs['translation_units']
+        assert 'tools/checkpoint_formats/durable_restore.cc' in inputs['translation_units']
+        for case in summary['cases']:
+            path=out/case['timing']/f'cut-{case["cut"]}'
+            text=(path/'restore.log').read_text()
+            argv=json.loads(text.splitlines()[1].removeprefix('argv='))
+            assert f'+fs-restore={path/"capture.fsckpt"}' in argv
+            assert not any(a.startswith('+test-aggregate=') for a in argv)
+            assert text.index('FS_DURABLE_RESTORE_VALIDATED before_platform=1')<text.index('FS_CHECKPOINT_ENTRY_CONFIGURED')
+        for case in summary['public_restore_rejections']:
+            text=process(Path(case['log']))
+            assert text.endswith('exit=1\n')
+            assert 'PRODUCTION_AGGREGATE_LOADED' not in text and 'PRODUCTION_BOOTSTRAP' not in text
+            if case['stage']=='native':
+                assert 'native_loads=0 deposits=0' in text and 'PRODUCTION_REJECTION zero_edges=1' in text
+            else: assert 'FS_CHECKPOINT_ENTRY_CONFIGURED' not in text
+            public_rejections+=1
+        for name in summary['public_runtime_rejections']:
+            text=process(out/'public-runtime-negative'/name/'run.log')
+            assert text.endswith('exit=1\n') and 'native_loads=0 deposits=0' in text
+            assert 'PRODUCTION_REJECTION zero_edges=1' in text;public_rejections+=1
+        for index in range(summary['public_dispatch_rejections']):
+            text=process(out/'public-dispatch-negative'/str(index)/'run.log')
+            assert text.endswith('exit=1\n') and 'FS_CHECKPOINT_ENTRY_CONFIGURED' not in text;public_rejections+=1
+        for name in ('symlink','fifo','directory'):
+            text=process(out/'public-special-negative'/name/'run.log')
+            assert text.endswith('exit=1\n') and 'FS_CHECKPOINT_ENTRY_CONFIGURED' not in text;public_rejections+=1
+    assert len(set(pids))==len(pids)==(12+public_rejections if public else 42 if bound else 34)
     result=dict(cases=results,fresh_processes=len(pids),generated_word_comparisons=5*13507456,
                 native_owner_comparisons=5*owner_count,malformed_processes=len(summary['malformed_processes']),all_transaction_ports=40,
-                runtime_compatibility_rejections=6 if bound else 0,
+                runtime_compatibility_rejections=len(summary['public_runtime_rejections']) if public else 6 if bound else 0,
                 real_production_entry_verified=summary.get('real_production_entry_verified',False),
-                production_plusargs_enabled=False,physical_fpga_validated=False)
+                production_plusargs_enabled=False,public_durable_restore_enabled=public,
+                public_restore_rejections=public_rejections,physical_fpga_validated=False)
     (out/'independent-evidence.json').write_bytes(canonical(result))
-    print('PASS: independently audited full production aggregate test-entry restart',json.dumps(result))
+    print('PASS: independently audited full production aggregate '+('public durable restore' if public else 'test-entry restart'),json.dumps(result))
 
 
 if __name__=='__main__':main()

@@ -40,6 +40,19 @@ std::string section(std::istream &input, const char *expected) {
 }
 
 void aggregate_restore_t::prepare(const std::string &filename, const owners_t &list) {
+  try {
+    require(phase==phase_t::fresh, "aggregate destination already consumed");
+    std::ifstream file(filename,std::ios::binary); require(bool(file), "cannot open aggregate staging");
+    const std::string bytes{std::istreambuf_iterator<char>(file),std::istreambuf_iterator<char>()};
+    require(file.eof() || !file.fail(), "cannot read aggregate staging");
+    prepare_text(bytes, list);
+  } catch (...) {
+    phase=phase_t::poisoned; // Includes allocation and interrupted-file errors.
+    throw;
+  }
+}
+
+void aggregate_restore_t::prepare_text(const std::string &bytes, const owners_t &list) {
   const auto previous=phase;
   phase=phase_t::poisoned; // Any validation/load interruption is terminal.
   require(previous==phase_t::fresh, "aggregate destination already consumed");
@@ -50,9 +63,6 @@ void aggregate_restore_t::prepare(const std::string &filename, const owners_t &l
             list[i].second->checkpoint_schema()==native_identities[i].schema &&
             pointers.insert(list[i].second).second, "unsupported/changed native owner or schema");
   }
-  std::ifstream file(filename,std::ios::binary); require(bool(file), "cannot open aggregate staging");
-  const std::string bytes{std::istreambuf_iterator<char>(file),std::istreambuf_iterator<char>()};
-  require(file.eof() || !file.fail(), "cannot read aggregate staging");
   std::istringstream input(bytes);
   std::string line, magic, hash, cycle, sample, count, extra;
   require(bool(std::getline(input,line)), "missing aggregate header");
@@ -90,7 +100,7 @@ void aggregate_restore_t::commit_native() {
   const auto previous=phase;
   phase=phase_t::poisoned;
   require(previous==phase_t::prepared, "aggregate native commit without preparation");
-  for(size_t i=0;i<owners.size();++i) owners[i].second->load_checkpoint(payloads[i]);
+  for(size_t i=0;i<owners.size();++i) { ++native_loads; owners[i].second->load_checkpoint(payloads[i]); }
   for(size_t i=0;i<owners.size();++i)
     require(owners[i].second->save_checkpoint()==payloads[i], "aggregate native readback mismatch");
   phase=phase_t::native_loaded;

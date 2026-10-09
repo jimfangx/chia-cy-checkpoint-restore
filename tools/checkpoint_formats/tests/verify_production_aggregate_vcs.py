@@ -1,7 +1,8 @@
-"""Full production-entry FCFS/FASED aggregate VCS restart with a test capability.
+"""Full production-entry FCFS/FASED aggregate VCS restart.
 
 Uses the generated registry and actual driver, MMIO, native memories, harness
-and dispatcher. Durable production plusargs remain disabled. Source env.sh,
+and dispatcher. The default capability is restricted; --public-restore links
+the concrete native durable restore consumer. Public capture remains disabled. Source env.sh,
 FireSim env.sh and vcs-env.sh LAST. No FPGA validation is claimed.
 """
 import argparse
@@ -16,6 +17,7 @@ import struct
 from tools.checkpoint_formats import aggregate_packed as packed
 from tools.checkpoint_formats.aggregate import build_identity, prepare_aggregate_loader
 from tools.checkpoint_formats.codec import canonical, require
+from tools.checkpoint_formats.durable_restore import prepare_durable_loader
 from tools.checkpoint_formats.generated_restore import generated_build_identity, prepare_generated_loader
 from tools.checkpoint_formats.harness_restore import harness_layout, harness_capture, prepare_harness_loader
 from tools.checkpoint_formats.simulator import prepare_settled_generated_probe
@@ -147,9 +149,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--build', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--public-restore', action='store_true',
+                        help='Link the concrete native durable restore capability and use +fs-restore')
     parser.add_argument('--resume-after-continuations', action='store_true',
                         help='Recheck this run\'s completed continuations and rerun every rejection/sanitizer scope')
     args = parser.parse_args()
+    require(not (args.public_restore and args.resume_after_continuations),
+            'public restoration must run its full verification, without restricted resumption')
     out = args.out.resolve(); out.mkdir(parents=True, exist_ok=True)
     require(os.environ['VCS_HOME'] == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'source vcs-env.sh LAST')
     require(os.environ['CXX'] == '/usr/bin/g++-13', 'preserve VCS compiler setup')
@@ -209,7 +215,8 @@ def main():
                   if schema and name != 'diagnostic/harness-banks']
     compatibility = dict(owner='runtime/compatibility', schema='firesim.runtime.fcfs-config-and-loaded-elf.v1')
     owner_rows.append(compatibility)
-    sources = [cc/'entry.cc', tests/'production_aggregate_checkpoint.cc', cc/'simif_emul_all.cc', *sorted((cc/'core').glob('*.cc')),
+    capability = ROOT/'tools/checkpoint_formats/durable_restore_entry.cc' if args.public_restore else tests/'production_aggregate_checkpoint.cc'
+    sources = [cc/'entry.cc', capability, cc/'simif_emul_all.cc', *sorted((cc/'core').glob('*.cc')),
                *[cc/p for p in ('emul/simif_emul.cc', 'emul/dpi.cc', 'emul/mm.cc', 'emul/mmio.cc',
                                'emul/qsfp.cc', 'emul/host_timing.cc', 'bridges/master.cc', 'bridges/clock.cc',
                                'bridges/loadmem.cc', 'bridges/peek_poke.cc', 'bridges/reset_pulse.cc',
@@ -219,11 +226,15 @@ def main():
                ROOT/'tools/checkpoint_formats/runtime_identity.cc',
                ROOT/'tools/checkpoint_formats/generated_restore.cc',
                ROOT/'tools/checkpoint_formats/harness_restore.cc']
+    if args.public_restore: sources.append(ROOT/'tools/checkpoint_formats/durable_restore.cc')
     dependencies = sorted({*sources, *cc.rglob('*.h'), *cc.rglob('*.cc'),
                            ROOT/'tools/checkpoint_formats/aggregate_restore.h',
                            ROOT/'tools/checkpoint_formats/runtime_identity.h', generated/'FireSim-generated.const.h'})
+    if args.public_restore:
+        dependencies += [ROOT/'tools/checkpoint_formats/durable_restore.h',
+                         ROOT/'tools/checkpoint_formats/durable_restore.py',Path('/usr/include/boost/json/src.hpp')]
     native_inputs = dict(
-        sources={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in dependencies},
+        sources={str(p.relative_to(ROOT)) if p.is_relative_to(ROOT) else str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in dependencies},
         compiler='/usr/bin/g++-13', vcs_home=os.environ['VCS_HOME'],
         cflags='-std=c++20 -DVCS -DFS_CHECKPOINT_ENTRY',
         translation_units=[str(p.relative_to(ROOT)) for p in sources],
@@ -233,6 +244,7 @@ def main():
     runtime = packed.runtime_manifest('fcfs-fased-production-entry-v3', manifest, layout, owner_rows, native_hash,
                                      'FPGATop.FASEDMemoryTimingModel_0.model.tCycle')
     prepare_aggregate_loader(runtime, out)
+    if args.public_restore: prepare_durable_loader(runtime,manifest,layout,out)
     for name, value in [('generated-manifest', manifest), ('harness-layout', layout), ('runtime-manifest', runtime)]:
         (out/(name+'.json')).write_bytes(canonical(value))
     prefix = 'emul.FPGATop.FASEDMemoryTimingModel_0.'
@@ -262,14 +274,15 @@ def main():
         'if(edges || target_edges || emul.clock || refreshes) harness_restore_fail("bootstrap refresh phase");',
         'refreshes=refreshes+1; end',
         'initial begin',
-        'restoring=$value$plusargs("test-aggregate=%s",bundle);',
+        'restoring=$value$plusargs("'+('fs-restore' if args.public_restore else 'test-aggregate')+'=%s",bundle);',
         'if($value$plusargs("target_port_trace=%s",filename)) begin fd=$fopen(filename,"w"); if(!fd) harness_restore_fail("trace open"); end',
         'if(restoring) begin', 'if(harness_restore_initialize()) harness_restore_fail("initialize");',
         '#2002;',
         'if(edges || target_edges || emul.clock || !emul.checkpoint_restore_waiting) harness_restore_fail("reservation edge");',
         'status=production_aggregate_load();',
         'if(status==2) begin if(edges || target_edges) harness_restore_fail("negative edge"); $display("PRODUCTION_NEGATIVE zero_edges=1"); $finish; end',
-        'else begin', 'if(status) harness_restore_fail("aggregate loading");',
+        'else begin',
+        'if(status) begin if(edges || target_edges) harness_restore_fail("failed restore advanced time"); $display("PRODUCTION_REJECTION zero_edges=1"); harness_restore_fail("aggregate loading"); end',
         '#1; if(harness_restore_verify() || generated_restore_verify() || edges || target_edges) harness_restore_fail("pre-edge readback");',
         '$display("PRODUCTION_PRE_EDGE owners_loaded=1 host_edges=0 target_edges=0");',
         'emul.checkpoint_resume_restored();',
@@ -334,7 +347,8 @@ def main():
             # the capture process's original in-memory container.
             packed.prepare_aggregate_restore((case/'capture.fsckpt').read_bytes(), build, runtime,
                                              manifest, layout, case/'aggregate.load')
-            restored = run([*common, *timing, f'+test-aggregate={case/"aggregate.load"}',
+            request = f'+fs-restore={case/"capture.fsckpt"}' if args.public_restore else f'+test-aggregate={case/"aggregate.load"}'
+            restored = run([*common, *timing, request,
                             f'+test-loaded-native={case/"loaded-native.txt"}',
                             f'+target_port_trace={case/"restore.trace"}'], case/'restore.log', case)
             require('PRODUCTION_PRE_EDGE owners_loaded=1 host_edges=0 target_edges=0' in restored
@@ -362,13 +376,17 @@ def main():
                 results.sort(key=lambda r:(r['timing'],r['cut']))
                 (out/'partial-results.json').write_bytes(canonical(results))
                 print('PASS:', result, flush=True)
-    rejections=verify_rejections(common, out, owner_rows, manifest)
+    if args.public_restore:
+        from tools.checkpoint_formats.tests.verify_public_durable_restore import verify_rejections as public_rejections
+        rejections=public_rejections(common,out,build,runtime,manifest,layout)
+    else: rejections=verify_rejections(common, out, owner_rows, manifest)
     summary = dict(cases=results, **rejections,
                    test_entry_production_continuation_verified=True, real_production_entry_verified=True,
                    production_plusargs_enabled=False,
+                   public_durable_restore_enabled=args.public_restore,
                    physical_fpga_validated=False)
     (out/'summary.json').write_bytes(canonical(summary))
-    print('PASS: fresh production entry aggregate continuation with a test capability', flush=True)
+    print('PASS: fresh production entry aggregate continuation with '+('public durable restore' if args.public_restore else 'a test capability'), flush=True)
 
 
 if __name__=='__main__': main()

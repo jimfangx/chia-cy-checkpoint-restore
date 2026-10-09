@@ -232,18 +232,37 @@ The full production aggregate verifier captures
 the complete parked low-clock cut, writes a bound `.fsckpt`, loads all owners
 in fresh VCS processes and compares every target FASED transaction port against
 uninterrupted execution. It exercises native and late generated/harness
-rejections before loading or clock advancement. Production `+fs-checkpoint`
-and `+fs-restore` remain unsupported; the durable runtime entry still requires
-integration before milestone acceptance. The capability's immutable
+rejections before loading or clock advancement. Its default test capability
+rejects public requests. With `--public-restore`, it instead links the concrete
+`durable_restore_entry.cc` capability and feeds `.fsckpt` directly to public
+`+fs-restore=PATH`. Public capture publication and normal Make integration
+remain prerequisites for milestone acceptance. The capability's immutable
 `runtime/compatibility` owner binds the explicit memory size, cycle horizon,
 host delay/seed, zero VCS initialization, and SHA-256 of the executable and
 every file-backed ELF object reported by `dl_iterate_phdr`. Unknown arguments
 and preload/audit library hooks fail closed. Hashes and library membership are
 rechecked at the cut, native
-prevalidation/readback and exit. This test-only owner uses OpenSSL libcrypto;
+prevalidation/readback and exit. This compatibility owner uses OpenSSL libcrypto;
 it does not capture library internal state or authorize arbitrary plugins.
 `verify_runtime_identity` checks it with native ASan/UBSan and an independent
 SHA-256 oracle, including changed library contents at the same pathname.
+
+`durable_restore.py` compiles the v3 profile's complete generated/harness/native
+membership, shapes, schemas and build identities into the native consumer.
+`durable_restore.cc` uses Boost.JSON compiled into the executable and OpenSSL
+to validate one regular-file image: magic/size/SHA-256, canonical JSON and key
+order, exact running-executable identity, all owners, every memory word's
+padding, low clock/reset/finish values and the manifested FASED cycle counter.
+Symlinks, special files and images over this audited profile's 256 MiB limit
+fail explicitly. It produces an in-memory staging image; no external helper,
+profile file or staging pathname is consumed by public restore. The capability
+validates the container before platform construction, reserves fresh clocks,
+and runs aggregate native/VPI prevalidation, complete readback and zero-edge
+bootstrap. Capture requests and private staging bypasses remain fail closed.
+`verify_durable_restore` compares native staging with the Python oracle under
+ASan/UBSan; the full public verifier retains every continuation and transaction
+comparison. The feature is opt-in for this audited VCS profile. Default builds,
+other drivers and physical FPGA transport remain unsupported.
 
 `aggregate_restore.cc` consumes trusted local staging produced by the validated
 container, using a compiled profile table. It validates every native payload
