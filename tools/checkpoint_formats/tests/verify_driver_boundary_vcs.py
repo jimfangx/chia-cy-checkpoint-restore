@@ -15,6 +15,7 @@ import struct
 
 from tools.checkpoint_formats.codec import require
 from tools.checkpoint_formats.tests.widget_inventory import check_widget_inventory
+from tools.checkpoint_formats.tests.simulation_inventory import check_simulation_base
 from tools.checkpoint_formats.tests.verify_semantic_vcs import ROOT, run
 
 CC = ROOT / 'sims/firesim/sim/midas/src/main/cc'
@@ -99,6 +100,7 @@ def main():
             digest = hasher.hexdigest()
         require(digest == reference['capture_sha256'], 'hook changed complete generated-state observations')
         observed_cut, owners = read_diagnostic(diagnostic)
+        check_simulation_base(owners)
         require(observed_cut == cut, 'wrong operation cut')
         unsupported = [key for key, (schema, _) in owners.items() if not schema]
         supported = {key: payload for key, (schema, payload) in owners.items() if schema}
@@ -107,6 +109,7 @@ def main():
         require(set(('runtime/simulation', 'generated/rtl', 'runtime/harness',
                      'runtime/execution-context')) <= set(unsupported), 'unaudited owners omitted')
         require(set(supported) == {'runtime/mmio', 'runtime/host-timing', 'runtime/scheduler',
+                                  'runtime/simulation/base',
                                   'runtime/simulation/fased-run-loop',
                                   *audited_widgets,
                                   *[f'runtime/functional-memory/{i}' for i in range(4)]},

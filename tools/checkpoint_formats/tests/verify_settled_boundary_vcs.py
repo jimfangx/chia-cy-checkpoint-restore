@@ -15,6 +15,7 @@ import struct
 
 from tools.checkpoint_formats.codec import require
 from tools.checkpoint_formats.tests.widget_inventory import check_widget_inventory
+from tools.checkpoint_formats.tests.simulation_inventory import check_simulation_base
 from tools.checkpoint_formats.simulator import (prepare_generated_stream_probe,
     prepare_settled_generated_probe, validate_generated_stream)
 from tools.checkpoint_formats.tests.verify_driver_boundary_vcs import read_diagnostic, words
@@ -66,7 +67,9 @@ def verify_terminal(binary, out):
             'completed dispatcher did not resume through finalization')
     cut, owners = read_diagnostic(diagnostic)
     require(cut == 1 and 'diagnostic/harness-banks' in owners, 'terminal boundary capture missing')
-    result = dict(cut=cut, finalized_timeout=True, diagnostic=str(diagnostic))
+    simulation_base = check_simulation_base(owners)
+    require(simulation_base['run_done'], 'terminal base did not retain completed step')
+    result = dict(cut=cut, finalized_timeout=True, simulation_base=simulation_base, diagnostic=str(diagnostic))
     (out / 'summary.json').write_text(json.dumps(result, indent=2) + '\n')
     print('PASS: terminal dispatcher settled capture precedes normal timeout finalization')
     return result
@@ -131,6 +134,7 @@ def main():
             require(digest(trace) == expected_trace, 'target token/AXI cycle trace changed')
             require(digest(rtl_capture) == expected_rtl, 'full outstanding generated-state observations changed')
             actual_cut, owners = read_diagnostic(diagnostic)
+            simulation_base = check_simulation_base(owners)
             require(actual_cut == cut, 'operation cut changed')
             require(words(owners['runtime/host-timing'][1])[5] == 0, 'suspended delay captured')
             harness_schema, harness = owners['diagnostic/harness-banks']
@@ -163,7 +167,7 @@ def main():
             return dict(timing=label, cut=cut, target_cycles=target_cycles, target_port_sha256=expected_trace,
                 generated_sha256=expected_rtl, settled_generated_sha256=digest(parked),
                 generated_words=sample['words'], host_sample=sample['host_sample'], harness_bits=bits,
-                memories=memories, audited_widgets=sorted(audited_widgets), unsupported_widgets=sorted(unsupported_widgets), diagnostic=str(diagnostic), settled_generated=str(parked))
+                simulation_base=simulation_base, memories=memories, audited_widgets=sorted(audited_widgets), unsupported_widgets=sorted(unsupported_widgets), diagnostic=str(diagnostic), settled_generated=str(parked))
         # Unique processes/output trees; the shared executable remains fixed.
         with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
             for future in concurrent.futures.as_completed([pool.submit(verify_cut, cut) for cut in cuts]):
