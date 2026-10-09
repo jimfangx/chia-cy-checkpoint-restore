@@ -2,6 +2,7 @@
 // by simulation_t are fixtures; this is component integration, not .fsckpt.
 #include "emul/simif_emul.h"
 #include "core/simulation.h"
+#include "entry.h"
 #include "bridges/master.h"
 #include "bridges/clock.h"
 #include <vpi_user.h>
@@ -17,7 +18,8 @@ static aggregate_restore_t aggregate;
 static std::string aggregate_file, aggregate_negative;
 #endif
 
-simif_emul_t *simulator = nullptr;
+std::unique_ptr<simif_t> simulator;
+static simif_emul_t *emulator = nullptr;
 static midas_time_t now = 1000000;
 midas_time_t timestamp() { return now += 100; }
 double diff_secs(midas_time_t e, midas_time_t s) { return (e-s)/1000000.0; }
@@ -89,8 +91,8 @@ struct driver_t : simulation_t {
 std::unique_ptr<widget_registry_t> registry;
 std::unique_ptr<driver_t> driver;
 std::vector<std::pair<std::string,checkpoint_owner_t *>> owners() {
-  auto list=simulator->checkpoint_axi_owners();
-  list.push_back(simulator->checkpoint_host_timing_owner());
+  auto list=emulator->checkpoint_axi_owners();
+  list.push_back(emulator->checkpoint_host_timing_owner());
   const auto d=driver->checkpoint_driver_owners(), w=driver->checkpoint_widget_owners();
   list.insert(list.end(),d.begin(),d.end());list.insert(list.end(),w.begin(),w.end());return list;
 }
@@ -114,7 +116,7 @@ int entry(int argc,char **argv) {
       args.push_back("+fs-driver-diagnostic="+(output/"software.diag").string());
       args.push_back("+fs-driver-settled"); args.push_back("+fs-driver-lowclock");
     }
-    auto *p=new platform_t(args); simulator=p;
+    auto *p=new platform_t(args); simulator.reset(p); emulator=p;
     registry=std::make_unique<widget_registry_t>();
     registry->add_widget(new master_t(*p,{0,4,8},0,{}));
     registry->add_widget(new clockmodule_t(*p,{16,20,24,28,32,36},0,{}));
@@ -166,7 +168,7 @@ int entry(int argc,char **argv) {
 #ifdef AGGREGATE_RESTORE
 extern "C" int harness_dispatcher_prepare_aggregate() {
   try {
-    auto *p=static_cast<platform_t *>(simulator);
+    auto *p=static_cast<platform_t *>(simulator.get());
     uint32_t banks[3]={0,0,0};
     rejects([&]{ p->resume_restored_driver(67,banks); });
     rejects([&]{ p->arm_restored_driver(*driver); });
@@ -215,8 +217,8 @@ extern "C" int harness_dispatcher_commit_aggregate() {
 extern "C" void harness_dispatcher_check_native() {
   try {
     // A terminal bootstrap has already joined/deleted the native simulator.
-    auto mmio=simulator ? simulator->master->save_checkpoint() : read_file(output/"final.mmio");
-    auto memory=simulator ? simulator->slave.at(0)->save_checkpoint() : read_file(output/"final.memory");
+    auto mmio=simulator ? emulator->master->save_checkpoint() : read_file(output/"final.mmio");
+    auto memory=simulator ? emulator->slave.at(0)->save_checkpoint() : read_file(output/"final.memory");
     check(mmio==read_file(output/"initial.mmio") && memory==read_file(output/"initial.memory"));
     trace.flush();
     puts("HARNESS_DISPATCHER_NATIVE_UNCHANGED");

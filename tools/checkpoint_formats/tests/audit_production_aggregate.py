@@ -47,6 +47,12 @@ def main():
         assert native_inputs['compiler']=='/usr/bin/g++-13'
         assert native_inputs['vcs_home']=='/ecad/tools/synopsys/vcs/Y-2026.03-SP1'
         assert native_inputs['generated_build']==layout['generated_build_hash']
+        if summary.get('real_production_entry_verified'):
+            assert '-DFS_CHECKPOINT_ENTRY' in native_inputs['cflags']
+            assert 'sims/firesim/sim/midas/src/main/cc/entry.cc' in native_inputs['translation_units']
+            command=json.loads((out/'build.log').read_text().splitlines()[1].removeprefix('argv='))
+            assert str(root/'sims/firesim/sim/midas/src/main/cc/entry.cc') in command
+            assert '-DFS_CHECKPOINT_ENTRY' in command[command.index('-CFLAGS')+1]
         assert all(sha((root/name).read_bytes())==value for name,value in native_inputs['sources'].items())
         assert runtime['cut_contract']==dict(
             target_cycle_owner='FPGATop.FASEDMemoryTimingModel_0.model.tCycle',
@@ -74,6 +80,13 @@ def main():
         assert 'Y-2026.03-SP1_Full64' in capture and 'Y-2026.03-SP1_Full64' in restored
         assert 'PRODUCTION_PRE_EDGE owners_loaded=1 host_edges=0 target_edges=0' in restored
         assert 'PRODUCTION_BOOTSTRAP zero_edges=1' in restored and '*** PASSED ***' in restored
+        if summary.get('real_production_entry_verified'):
+            assert restored.index('FS_CHECKPOINT_ENTRY_CONFIGURED before_platform=1') < restored.index(
+                'FS_CHECKPOINT_ENTRY_CONSTRUCTED before_run=1') < restored.index(
+                'PRODUCTION_AGGREGATE_RESERVED no_workers=1') < restored.index(
+                'FS_CHECKPOINT_ENTRY_RESERVED before_run=1') < restored.index(
+                'prepared 29 words without deposits')
+            assert 'FS_CHECKPOINT_ENTRY_RESERVED' not in capture
         assert restored.index('prepared 29 words without deposits') < restored.index('deposited 29 words')
         assert restored.index('verified 13507456 words before next edge') < restored.index('PRODUCTION_BOOTSTRAP')
         assert restored.index('verified 29 words before next edge') < restored.index('PRODUCTION_BOOTSTRAP')
@@ -165,7 +178,10 @@ def main():
         assert 'PRODUCTION_AGGREGATE_LOADED' not in text and 'PRODUCTION_BOOTSTRAP' not in text
         if label=='late-harness-shape': assert 'prepared 13507456 words without deposits' in text
     text=process(out/'unsupported/run.log')
-    assert 'PRODUCTION_AGGREGATE_ENTRY_ERROR' in text and 'unsupported' in text
+    error='FS_CHECKPOINT_ENTRY_ERROR' if summary.get('real_production_entry_verified') else 'PRODUCTION_AGGREGATE_ENTRY_ERROR'
+    assert error in text and 'unsupported' in text
+    if summary.get('real_production_entry_verified'):
+        assert 'FS_CHECKPOINT_ENTRY_CONFIGURED' not in text
     if bound:
         assert summary['runtime_compatibility_rejections']==['memory','horizon','host-delay','seed','loaded-library','preload-hook']
         for label in summary['runtime_compatibility_rejections']:
@@ -188,6 +204,7 @@ def main():
     result=dict(cases=results,fresh_processes=len(pids),generated_word_comparisons=5*13507456,
                 native_owner_comparisons=5*owner_count,malformed_processes=len(summary['malformed_processes']),all_transaction_ports=40,
                 runtime_compatibility_rejections=6 if bound else 0,
+                real_production_entry_verified=summary.get('real_production_entry_verified',False),
                 production_plusargs_enabled=False,physical_fpga_validated=False)
     (out/'independent-evidence.json').write_bytes(canonical(result))
     print('PASS: independently audited full production aggregate test-entry restart',json.dumps(result))

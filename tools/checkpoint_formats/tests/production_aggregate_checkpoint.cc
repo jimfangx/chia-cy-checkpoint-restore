@@ -1,8 +1,10 @@
-// Test-only entry using the generated registry and unmodified FCFS driver.
+// Test-only checkpoint capability linked to the real production entry.cc.
 // Production +fs-restore remains fail closed until its durable runtime API is
 // audited. This adapter exercises the real harness/DPI/dispatcher, not MMIO
 // fixtures, and reserves clocks before any owner loading.
 #include "core/simulation.h"
+#include "core/checkpoint_entry.h"
+#include "entry.h"
 #include "emul/simif_emul.h"
 #include "../aggregate_restore.h"
 #include "../runtime_identity.h"
@@ -10,20 +12,8 @@
 #include <memory>
 #include <dlfcn.h>
 
-#define GET_INCLUDES
-#include "FireSim-generated.const.h"
-#undef GET_INCLUDES
-#include "bridges/loadmem.h"
-#define GET_METASIM_INTERFACE_CONFIG
-#define GET_SUBSTRUCT_CHECKS
-#include "FireSim-generated.const.h"
-#undef GET_SUBSTRUCT_CHECKS
-
-extern std::unique_ptr<simulation_t> create_simulation(
-    simif_t &, widget_registry_t &, const std::vector<std::string> &);
-extern std::unique_ptr<simif_t> create_simif(const TargetConfig &, int, char **);
-simif_emul_t *simulator = nullptr;
-static std::unique_ptr<simulation_t> simulation;
+extern std::unique_ptr<simulation_t> simulation;
+static simif_emul_t *emulator = nullptr;
 static aggregate_restore_t aggregate;
 static std::string bundle;
 static std::string negative;
@@ -40,8 +30,8 @@ struct observed_owner_t : checkpoint_owner_t {
   void load_checkpoint(const std::vector<uint8_t> &b) override { ++loads; owner.load_checkpoint(b); }
 };
 static aggregate_restore_t::owners_t owners() {
-  auto result = simulator->checkpoint_axi_owners();
-  result.push_back(simulator->checkpoint_host_timing_owner());
+  auto result = emulator->checkpoint_axi_owners();
+  result.push_back(emulator->checkpoint_host_timing_owner());
   auto widgets = simulation->checkpoint_widget_owners();
   auto drivers = simulation->checkpoint_driver_owners();
   result.insert(result.end(), widgets.begin(), widgets.end());
@@ -52,9 +42,9 @@ static aggregate_restore_t::owners_t owners() {
 extern "C" uint64_t generated_restore_deposit_count();
 extern "C" uint64_t harness_restore_deposit_count();
 
-int entry(int argc, char **argv) {
-  try {
-    std::vector<std::string> args(argv+1, argv+argc);
+class production_checkpoint_entry_t final : public checkpoint_entry_t {
+public:
+  explicit production_checkpoint_entry_t(const std::vector<std::string> &args) {
     runtime_identity = std::make_unique<runtime_identity_t>(args);
     for (const auto &arg : args) {
       if (arg.rfind("+test-aggregate=", 0)==0) bundle=arg.substr(16);
@@ -71,30 +61,20 @@ int entry(int argc, char **argv) {
     }
     if (!extra_library.empty() && (bundle.empty() || negative.empty()))
       throw std::runtime_error("unsupported test library outside a negative fresh restore");
-    auto platform = create_simif(conf_target, argc, argv);
-    simulator = dynamic_cast<simif_emul_t *>(platform.release());
-    if (!simulator) throw std::runtime_error("production profile requires VCS metasim");
-    auto &simif = *simulator;
-    auto &registry = *new widget_registry_t;
-    // Same generated construction order as production entry.cc.
-#define GET_CORE_CONSTRUCTOR
-#include "FireSim-generated.const.h"
-#undef GET_CORE_CONSTRUCTOR
-#define GET_MANAGED_STREAM_CONSTRUCTOR
-#include "FireSim-generated.const.h"
-#undef GET_MANAGED_STREAM_CONSTRUCTOR
-#define GET_BRIDGE_CONSTRUCTOR
-#include "FireSim-generated.const.h"
-#undef GET_BRIDGE_CONSTRUCTOR
-    simulation = create_simulation(simif, registry, args);
-    if (bundle.empty()) return simif.run(*simulation);
-    simulator->begin_restored_load(*simulation);
-    puts("PRODUCTION_AGGREGATE_RESERVED no_workers=1");
-    return 0;
-  } catch (const std::exception &error) {
-    fprintf(stderr, "PRODUCTION_AGGREGATE_ENTRY_ERROR: %s\n", error.what());
-    std::exit(1);
   }
+  action_t prepare(simif_t &platform, simulation_t &sim) override {
+    emulator = dynamic_cast<simif_emul_t *>(&platform);
+    if (!emulator) throw std::runtime_error("production profile requires VCS metasim");
+    if (bundle.empty()) return action_t::run;
+    emulator->begin_restored_load(sim);
+    puts("PRODUCTION_AGGREGATE_RESERVED no_workers=1");
+    return action_t::restore_reserved;
+  }
+};
+
+std::unique_ptr<checkpoint_entry_t>
+create_checkpoint_entry(const std::vector<std::string> &args) {
+  return std::make_unique<production_checkpoint_entry_t>(args);
 }
 
 extern "C" void production_runtime_identity_verify() {
@@ -146,7 +126,7 @@ extern "C" int production_aggregate_load() {
       file.close();
       if (!file) throw std::runtime_error("native evidence write failed");
     }
-    simulator->arm_restored_driver(*simulation);
+    emulator->arm_restored_driver(*simulation);
     aggregate.commit_rtl();
     printf("PRODUCTION_AGGREGATE_LOADED owners=%zu target_cycle=%llu host_sample=%llu\n",
            list.size(), (unsigned long long)aggregate.target_cycle,

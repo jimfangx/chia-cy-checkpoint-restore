@@ -1,4 +1,4 @@
-"""Test-only full production FCFS/FASED aggregate VCS restart.
+"""Full production-entry FCFS/FASED aggregate VCS restart with a test capability.
 
 Uses the generated registry and actual driver, MMIO, native memories, harness
 and dispatcher. Durable production plusargs remain disabled. Source env.sh,
@@ -90,7 +90,8 @@ def verify_rejections(common, out, owner_rows, manifest):
     unsupported=out/'unsupported';unsupported.mkdir(exist_ok=True)
     text=run([*common,f'+test-aggregate={first/"aggregate.load"}','+profile-interval=250000'],
              unsupported/'run.log',unsupported,expected=1)
-    require('PRODUCTION_AGGREGATE_ENTRY_ERROR' in text and 'unsupported' in text,
+    require('FS_CHECKPOINT_ENTRY_ERROR' in text and 'unsupported' in text and
+            'FS_CHECKPOINT_ENTRY_CONFIGURED' not in text,
             'unaudited production callback did not fail closed')
     # Real fresh processes with changed configuration or an extra loaded ELF
     # must reject during all-owner prevalidation before ANY native/VPI state loads.
@@ -122,7 +123,7 @@ def verify_rejections(common, out, owner_rows, manifest):
     text=run(['env',f'LD_PRELOAD={out/"preload.so"}',*common,f'+test-aggregate={first/"aggregate.load"}'],
              case/'run.log',case,expected=1)
     require('unsupported LD_PRELOAD/LD_AUDIT library hooks' in text and
-            'PRODUCTION_AGGREGATE_RESERVED' not in text, 'unaudited preload hook accepted')
+            'FS_CHECKPOINT_ENTRY_CONFIGURED' not in text, 'unaudited preload hook accepted')
     runtime_rejections.append('preload-hook')
     # Sanitize both staging encodings, with wide registers and memory padding.
     native_rejections = verify_native(out)
@@ -182,6 +183,7 @@ def main():
         common=[out/'simv','-no_save','+vcs+initreg+0','+vcs+initmem+0','+memsize=4194304','+max-cycles=1000000']
         rejections=verify_rejections(common,out,runtime['native_owners'],manifest)
         summary=dict(cases=results,**rejections,test_entry_production_continuation_verified=True,
+                     real_production_entry_verified=True,
                      production_plusargs_enabled=False,physical_fpga_validated=False)
         (out/'summary.json').write_bytes(canonical(summary))
         print('PASS: rechecked all five fresh continuations and reran every rejection/sanitizer scope',flush=True)
@@ -207,7 +209,7 @@ def main():
                   if schema and name != 'diagnostic/harness-banks']
     compatibility = dict(owner='runtime/compatibility', schema='firesim.runtime.fcfs-config-and-loaded-elf.v1')
     owner_rows.append(compatibility)
-    sources = [tests/'production_aggregate_checkpoint.cc', cc/'simif_emul_all.cc', *sorted((cc/'core').glob('*.cc')),
+    sources = [cc/'entry.cc', tests/'production_aggregate_checkpoint.cc', cc/'simif_emul_all.cc', *sorted((cc/'core').glob('*.cc')),
                *[cc/p for p in ('emul/simif_emul.cc', 'emul/dpi.cc', 'emul/mm.cc', 'emul/mmio.cc',
                                'emul/qsfp.cc', 'emul/host_timing.cc', 'bridges/master.cc', 'bridges/clock.cc',
                                'bridges/loadmem.cc', 'bridges/peek_poke.cc', 'bridges/reset_pulse.cc',
@@ -222,11 +224,13 @@ def main():
                            ROOT/'tools/checkpoint_formats/runtime_identity.h', generated/'FireSim-generated.const.h'})
     native_inputs = dict(
         sources={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in dependencies},
-        compiler='/usr/bin/g++-13', vcs_home=os.environ['VCS_HOME'], cflags='-std=c++20 -DVCS',
+        compiler='/usr/bin/g++-13', vcs_home=os.environ['VCS_HOME'],
+        cflags='-std=c++20 -DVCS -DFS_CHECKPOINT_ENTRY',
+        translation_units=[str(p.relative_to(ROOT)) for p in sources],
         generated_build=identity)
     native_hash = hashlib.sha256(canonical(native_inputs)).hexdigest()
     (out/'native-build-inputs.json').write_bytes(canonical(native_inputs))
-    runtime = packed.runtime_manifest('fcfs-fased-production-test-entry-v3', manifest, layout, owner_rows, native_hash,
+    runtime = packed.runtime_manifest('fcfs-fased-production-entry-v3', manifest, layout, owner_rows, native_hash,
                                      'FPGATop.FASEDMemoryTimingModel_0.model.tCycle')
     prepare_aggregate_loader(runtime, out)
     for name, value in [('generated-manifest', manifest), ('harness-layout', layout), ('runtime-manifest', runtime)]:
@@ -278,7 +282,7 @@ def main():
         generated/'FireSim-generated.const.vh', generated/'FireSim-generated.defines.vh', verilog/'top.sv')))
     run([Path(os.environ['VCS_HOME'])/'bin/vcs', '-full64', '-sverilog', '-debug_access+all', '+vpi',
          '+vcs+initreg+random', '+define+VCS', '+define+CLOCK_PERIOD=1', '-timescale=1ps/1ps', '-top', 'emul',
-         '-cc', os.environ['CC'], '-cpp', os.environ['CXX'], '-CFLAGS', f'-std=c++20 -DVCS -I{cc} -I{out} -I{generated}',
+         '-cc', os.environ['CC'], '-cpp', os.environ['CXX'], '-CFLAGS', f'-std=c++20 -DVCS -DFS_CHECKPOINT_ENTRY -I{cc} -I{out} -I{generated}',
          '-LDFLAGS', '-Wl,--no-as-needed -pthread -lgmp -lcrypto -ldl', f'-Mdir={out/"csrc"}', '-o', out/'simv',
          out/'harness.sv', out/'monitor.sv', out/'settled-generated-probe.sv',
          generated/'FireSim-generated.sv', verilog/'BUFGCE.v', *sources], out/'build.log')
@@ -360,10 +364,11 @@ def main():
                 print('PASS:', result, flush=True)
     rejections=verify_rejections(common, out, owner_rows, manifest)
     summary = dict(cases=results, **rejections,
-                   test_entry_production_continuation_verified=True, production_plusargs_enabled=False,
+                   test_entry_production_continuation_verified=True, real_production_entry_verified=True,
+                   production_plusargs_enabled=False,
                    physical_fpga_validated=False)
     (out/'summary.json').write_bytes(canonical(summary))
-    print('PASS: fresh production aggregate test entry continuation', flush=True)
+    print('PASS: fresh production entry aggregate continuation with a test capability', flush=True)
 
 
 if __name__=='__main__': main()

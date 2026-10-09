@@ -208,14 +208,20 @@ an unchanged previous checkpoint. A killed writer may leave a private
 removed by another writer. These APIs do not implement production entry
 plusargs, rolling retention, FPGA transport, or Level-2 publication.
 
-`verify_production_aggregate_vcs` uses a test entry that constructs the actual
-generated production registry, metasim platform and FCFS driver. It captures
+`verify_production_aggregate_vcs` links the actual production `entry.cc` with an
+explicit `FS_CHECKPOINT_ENTRY` test capability. Entry constructs the generated
+registry, metasim platform and FCFS driver once, using its normal construction
+order. The capability factory validates configuration/libraries before platform
+creation; its prepare hook runs before ordinary startup and can reserve the
+fresh harness clock hold. A missing factory fails at link time and a null or
+throwing capability fails the process. Default builds have no capability hook.
+It captures
 the complete parked low-clock cut, writes a bound `.fsckpt`, loads all owners
 in fresh VCS processes and compares every target FASED transaction port against
 uninterrupted execution. It exercises native and late generated/harness
 rejections before loading or clock advancement. Production `+fs-checkpoint`
 and `+fs-restore` remain unsupported; the durable runtime entry still requires
-integration before milestone acceptance. The test entry's immutable
+integration before milestone acceptance. The capability's immutable
 `runtime/compatibility` owner binds the explicit memory size, cycle horizon,
 host delay/seed, zero VCS initialization, and SHA-256 of the executable and
 every file-backed ELF object reported by `dl_iterate_phdr`. Unknown arguments
