@@ -66,7 +66,7 @@ def main():
                           ("save", f"+fs-checkpoint={out / 'must-not-exist.fsckpt'}"),
                           ("restore", f"+fs-restore={out / 'absent.fsckpt'}")):
         result = run([binary, "+vcs+initreg+0", "+vcs+initmem+0", option], out / f"unsupported-{label}.log", expected=1)
-        require("FS_CHECKPOINT_UNSUPPORTED: unsupported host checkpoint owner widget/0" in result,
+        require("FS_CHECKPOINT_UNSUPPORTED: unsupported metasim runtime checkpoint cut/restore" in result,
                 "unsupported driver was not explicitly rejected")
         require("FireSim fingerprint:" not in result and "*** PASSED ***" not in result,
                 "driver initialization or execution occurred after checkpoint rejection")

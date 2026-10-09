@@ -14,6 +14,7 @@ import re
 import struct
 
 from tools.checkpoint_formats.codec import require
+from tools.checkpoint_formats.tests.widget_inventory import check_widget_inventory
 from tools.checkpoint_formats.tests.verify_semantic_vcs import ROOT, run
 
 CC = ROOT / 'sims/firesim/sim/midas/src/main/cc'
@@ -101,10 +102,13 @@ def main():
         require(observed_cut == cut, 'wrong operation cut')
         unsupported = [key for key, (schema, _) in owners.items() if not schema]
         supported = {key: payload for key, (schema, payload) in owners.items() if schema}
-        require(set(('widget/0', 'runtime/simulation', 'generated/rtl', 'runtime/harness',
+        audited_widgets, unsupported_widgets = check_widget_inventory(owners, (binary.parent / 'FireSim-generated.const.h').read_text())
+        require(unsupported_widgets == {'widget/2'}, 'FASED ownership changed')
+        require(set(('widget/2', 'runtime/simulation', 'generated/rtl', 'runtime/harness',
                      'runtime/execution-context')) <= set(unsupported), 'unaudited owners omitted')
         require(set(supported) == {'runtime/mmio', 'runtime/host-timing', 'runtime/scheduler',
                                   'runtime/simulation/fased-run-loop',
+                                  *audited_widgets,
                                   *[f'runtime/functional-memory/{i}' for i in range(4)]},
                 'unexpected supported software inventory')
         loop, scheduler, timing = (words(supported[key]) for key in

@@ -101,7 +101,7 @@ def main():
                           ("save", f"+fs-checkpoint={out / 'must-not-exist.fsckpt'}"),
                           ("restore", f"+fs-restore={out / 'absent.fsckpt'}")):
         result = run([binary, "+memsize=4194304", option], out / f"unsupported-{label}.log", out, expected=1)
-        require("FS_CHECKPOINT_UNSUPPORTED: unsupported host checkpoint owner widget/0" in result
+        require("FS_CHECKPOINT_UNSUPPORTED: unsupported host checkpoint owner widget/2" in result
                 and "FireSim fingerprint:" not in result, "unsupported driver initialized/executed")
         rejected.append(label)
     require(not (out / "must-not-exist.fsckpt").exists(), "incomplete checkpoint published")

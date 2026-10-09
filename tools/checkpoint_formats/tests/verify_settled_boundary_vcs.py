@@ -14,6 +14,7 @@ import re
 import struct
 
 from tools.checkpoint_formats.codec import require
+from tools.checkpoint_formats.tests.widget_inventory import check_widget_inventory
 from tools.checkpoint_formats.simulator import (prepare_generated_stream_probe,
     prepare_settled_generated_probe, validate_generated_stream)
 from tools.checkpoint_formats.tests.verify_driver_boundary_vcs import read_diagnostic, words
@@ -155,12 +156,14 @@ def main():
                         'late cut lost outstanding native memory traffic')
                 require(sample['scalars'][prefix + '.model.SatUpDownCounter_1.value'] > 0,
                         'late settled cut lost outstanding target write')
+            audited_widgets, unsupported_widgets = check_widget_inventory(owners, (generated / 'FireSim-generated.const.h').read_text())
+            require(len(audited_widgets) == 5 and unsupported_widgets == {'widget/2'}, 'incomplete concrete widget inventory')
             require(all(not owners[key][0] for key in ('runtime/harness','runtime/execution-context',
-                    'generated/rtl','runtime/simulation','widget/0')), 'unaudited owner declared restorable')
+                    'generated/rtl','runtime/simulation','widget/2')), 'unaudited owner declared restorable')
             return dict(timing=label, cut=cut, target_cycles=target_cycles, target_port_sha256=expected_trace,
                 generated_sha256=expected_rtl, settled_generated_sha256=digest(parked),
                 generated_words=sample['words'], host_sample=sample['host_sample'], harness_bits=bits,
-                memories=memories, diagnostic=str(diagnostic), settled_generated=str(parked))
+                memories=memories, audited_widgets=sorted(audited_widgets), unsupported_widgets=sorted(unsupported_widgets), diagnostic=str(diagnostic), settled_generated=str(parked))
         # Unique processes/output trees; the shared executable remains fixed.
         with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
             for future in concurrent.futures.as_completed([pool.submit(verify_cut, cut) for cut in cuts]):
