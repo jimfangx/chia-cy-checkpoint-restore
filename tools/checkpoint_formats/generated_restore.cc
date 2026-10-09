@@ -13,6 +13,19 @@
 #include <string>
 #include <vector>
 
+// Harness banks use the same all-handles-before-deposit implementation with
+// their own table, format and DPI symbols. Runtime coordination is separate.
+#ifndef RESTORE_TABLE
+#define RESTORE_TABLE "generated-restore-table.h"
+#define RESTORE_MAGIC "FSGRTL1"
+#define RESTORE_PHASE "settled_host_negedge"
+#define RESTORE_LOG "GENERATED_RESTORE"
+#endif
+#ifndef RESTORE_ACCEPTED_TYPE
+#define RESTORE_ACCEPTED_TYPE(entry, type) \
+  ((type) == vpiReg || ((entry).memory && (type) == vpiMemoryWord))
+#endif
+
 namespace {
 struct Entry {
   const char *path;
@@ -21,7 +34,7 @@ struct Entry {
   bool memory;
   bool clock_output;
 };
-#include "generated-restore-table.h"
+#include RESTORE_TABLE
 
 struct Deposit {
   vpiHandle handle;
@@ -31,7 +44,7 @@ struct Deposit {
 std::vector<Deposit> pending;
 
 int fail(const char *reason, const std::string &path) {
-  vpi_printf("GENERATED_RESTORE_ERROR: %s %s\n", reason, path.c_str());
+  vpi_printf(RESTORE_LOG "_ERROR: %s %s\n", reason, path.c_str());
   return 1;
 }
 
@@ -61,7 +74,7 @@ bool equal(const Deposit &deposit) {
 }
 
 extern "C" void generated_restore_fail(const char *message) {
-  vpi_printf("GENERATED_RESTORE_ERROR: %s\n", message);
+  vpi_printf(RESTORE_LOG "_ERROR: %s\n", message);
   std::fflush(nullptr);
   std::exit(EXIT_FAILURE);
 }
@@ -77,8 +90,8 @@ extern "C" int generated_restore(const char *filename) {
   if (!std::getline(input, line)) return fail("missing header", filename);
   std::istringstream header(line);
   if (!(header >> magic >> manifest >> build >> phase >> count) || (header >> extra) ||
-      magic != "FSGRTL1" || manifest != manifest_hash || build != build_hash ||
-      phase != "settled_host_negedge" || count != expected)
+      magic != RESTORE_MAGIC || manifest != manifest_hash || build != build_hash ||
+      phase != RESTORE_PHASE || count != expected)
     return fail("incompatible header", filename);
 
   std::vector<Deposit> deposits;
@@ -108,8 +121,8 @@ extern "C" int generated_restore(const char *filename) {
       // kind/depth to the compiled table. Nets remain unsupported.
       const int type = handle ? vpi_get(vpiType, handle) : -1;
       if (!handle || vpi_get(vpiSize, handle) != static_cast<int>(width) ||
-          (type != vpiReg && !(entry.memory && type == vpiMemoryWord))) {
-        vpi_printf("GENERATED_RESTORE_HANDLE: type=%d size=%d expected_width=%u memory=%d\n",
+          !RESTORE_ACCEPTED_TYPE(entry, type)) {
+        vpi_printf(RESTORE_LOG "_HANDLE: type=%d size=%d expected_width=%u memory=%d\n",
                    handle ? vpi_get(vpiType, handle) : -1,
                    handle ? vpi_get(vpiSize, handle) : -1, width, entry.memory);
         return fail("missing/reshaped/wrong-kind handle", path);
@@ -129,7 +142,7 @@ extern "C" int generated_restore(const char *filename) {
     value.value.vector = deposit.value.data();
     vpi_put_value(deposit.handle, &value, nullptr, vpiNoDelay);
   }
-  vpi_printf("GENERATED_RESTORE: deposited %zu words with host clock low\n", pending.size());
+  vpi_printf(RESTORE_LOG ": deposited %zu words with host clock low\n", pending.size());
   return 0;
 }
 
@@ -138,7 +151,7 @@ extern "C" int generated_restore_verify() {
   if (!low_clock()) return fail("host clock advanced during load", clock_path);
   for (const auto &deposit : pending)
     if (!equal(deposit)) return fail("post-settlement readback mismatch", deposit.path);
-  vpi_printf("GENERATED_RESTORE: verified %zu words before next edge\n", pending.size());
+  vpi_printf(RESTORE_LOG ": verified %zu words before next edge\n", pending.size());
   pending.clear();
   return 0;
 }

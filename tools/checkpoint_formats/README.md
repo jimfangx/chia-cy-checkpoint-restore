@@ -123,3 +123,11 @@ The emitted checkpoint values are deterministic test data, not a captured execut
 The clean VCS testbench is `tests/InventoryDUT_tb.sv`; it exercises the emitted
 pre-FAME RTL. Verification outcomes and current tool blockers are recorded in
 `docs/checkpointing/progress.md`.
+
+`harness_restore.py`/`.cc` provide a separate fresh non-debug VCS harness
+component loader at a settled low-clock cut, with exact source/geometry binding,
+all-handle validation before deposits, first-edge guards and poisoned readback
+failure. `verify_harness_restore_vcs` tests the actual harness and generated RTL
+with recorded native DPI outputs. This is independent of semantic replay and
+does not reconstruct the driver/DPI context or load a whole `.fsckpt`. Scope
+and evidence are in `docs/checkpointing/m4-harness-bank-load.md`.
