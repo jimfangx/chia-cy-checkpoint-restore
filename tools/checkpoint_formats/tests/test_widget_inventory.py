@@ -4,6 +4,7 @@ from tools.checkpoint_formats.codec import FormatError
 from tools.checkpoint_formats.tests.verify_widget_checkpoint_vcs import oracle
 from tools.checkpoint_formats.tests.widget_inventory import check_widget_inventory, constructor_inventory
 from tools.checkpoint_formats.tests.verify_fased_checkpoint_vcs import configuration, text, words
+from tools.checkpoint_formats.tests.verify_stream_checkpoint_vcs import configuration as stream_configuration
 
 
 def fixture():
@@ -34,6 +35,48 @@ def fixture():
 
 
 class WidgetInventoryTest(unittest.TestCase):
+    def stream_fixture(self):
+        owners, header = fixture()
+        vectors = []
+        for direction, names in enumerate((('push0','push1'),('pull0','pull1'))):
+            values=[]
+            for i, name in enumerate(names):
+                q=direction*2+i
+                values.append(f'CPUManagedStreams::StreamParameters(std::string(R"ESC({name})ESC"), '
+                              f'{(q+1)*4096}ULL, {256+q*4}ULL, {(3,5)[i]}, {8*(i+1)})')
+            vectors.append('std::vector<CPUManagedStreams::StreamParameters>{'+','.join(values)+'}')
+        header += '#ifdef GET_MANAGED_STREAM_CONSTRUCTOR\nregistry.add_widget(new CPUManagedStreamWidget(\n'
+        header += 'simif,0,args,'+','.join(vectors)+'));\n#endif\n.cpu_managed = AXI4Config{4,40,64}\n'
+        owners = {f'widget/{int(key.split("/")[1]) + (int(key.split("/")[1])>=2)}': value
+                  for key,value in owners.items()}
+        owners['widget/2'] = ('firesim.widget.cpu-managed-stream.v1', stream_configuration(8)+words(1))
+        return owners, header
+
+    def test_stream_configuration_direction_order_and_lifecycle(self):
+        owners, header = self.stream_fixture()
+        self.assertEqual(check_widget_inventory(owners,header),
+                         ({f'widget/{i}' for i in range(6)}, {'widget/6'}))
+        schema, payload = owners['widget/2']
+        owners['widget/2'] = (schema, payload[:-8]+words(0))
+        check_widget_inventory(owners,header)
+
+    def test_stream_mismatch_and_unknown_peer_engine_fail_closed(self):
+        owners, header = self.stream_fixture()
+        for changed in (header.replace('4096ULL','4097ULL'),
+                        header.replace('256ULL','257ULL'),
+                        header.replace('ESC(push0)ESC','ESC(renamed)ESC'),
+                        header.replace('3, 8','4, 8'),
+                        header.replace('5, 16','5, 32'),
+                        header.replace('AXI4Config{4,40,64}','AXI4Config{4,40,128}'),
+                        header.replace('simif,0,args','simif,1,args'),
+                        header.replace('CPUManagedStreamWidget','FPGAManagedStreamWidget'),
+                        header.replace('4096ULL','not_a_literal')):
+            with self.assertRaises(FormatError): check_widget_inventory(owners,changed)
+        schema, payload = owners['widget/2']
+        for bad in (b'',payload[:-1],payload+b'\0',payload[:-8]+words(2)):
+            current=owners.copy(); current['widget/2']=(schema,bad)
+            with self.assertRaises(FormatError): check_widget_inventory(current,header)
+
     def fased_fixture(self):
         owners, header = fixture()
         block = '''#ifdef GET_BRIDGE_CONSTRUCTOR

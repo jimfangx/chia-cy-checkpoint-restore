@@ -1,7 +1,7 @@
 """Independent checks of concrete widget payloads against generated constructors.
 
 Registry identities follow entry.cc's core/stream/bridge passes, not the header's
-text order. This audit checker is deliberately limited to the six supported
+text order. This audit checker is deliberately limited to the seven supported
 widget classes; it never infers checkpoint support for an unfamiliar driver.
 """
 import re
@@ -64,6 +64,10 @@ def check_widget_inventory(owners, header):
         identity = f'widget/{index}'
         require(identity in owners, f'missing actual widget owner {identity}')
         schema, payload = owners[identity]
+        if kind == 'CPUManagedStreamWidget':
+            check_cpu_stream_widget(schema, payload, block, header)
+            supported.append(identity)
+            continue
         if kind == 'FASEDMemoryTimingModel':
             check_fased_widget(schema, payload, block)
             supported.append(identity)
@@ -109,3 +113,29 @@ def check_widget_inventory(owners, header):
     require({k for k in owners if k.startswith('widget/')} == set(supported + unsupported),
             'extra widget identity')
     return set(supported), set(unsupported)
+
+
+def check_cpu_stream_widget(schema, payload, block, header):
+    """Bind ordered stream vectors and bus width to the exact emitter syntax."""
+    from tools.checkpoint_formats.tests.verify_stream_checkpoint_vcs import words
+    bus = re.search(r'\.cpu_managed\s*=\s*AXI4Config\{(\d+),\s*(\d+),\s*(\d+)\}', header)
+    index = re.search(r'simif\s*,\s*(\d+)\s*,\s*args', block)
+    require(bus is not None and index is not None, 'missing stream bus/index configuration')
+    bits = int(bus[3]); require(bits > 0 and bits % 8 == 0, 'invalid CPU stream bus width')
+    expected = words(0x3154504B43474457, 1, 7, 2, int(index[1]), bits//8)
+    vectors = re.findall(r'std::vector<CPUManagedStreams::StreamParameters>\{([^{}]*)\}', block, re.S)
+    require(len(vectors) == 2, 'missing/changed CPU stream directions')
+    pattern = (r'CPUManagedStreams::StreamParameters\(\s*std::string\(R"ESC\((.*?)\)ESC"\)\s*,\s*'
+               r'(\d+)ULL\s*,\s*(\d+)ULL\s*,\s*(\d+)\s*,\s*(\d+)\s*\)')
+    for vector in vectors:
+        streams = re.findall(pattern, vector, re.S)
+        require(not re.sub(pattern, '', vector, flags=re.S).strip(' \t\n\r,'),
+                'unrecognized CPU stream parameter encoding')
+        expected += words(len(streams))
+        for name, *values in streams:
+            name = name.encode()
+            expected += words(len(name)) + name + words(*map(int, values))
+    require(len(payload) == len(expected)+8, 'incomplete CPU stream host payload')
+    flags, = struct.unpack_from('<Q', payload, len(expected))
+    require(flags <= 1 and schema == 'firesim.widget.cpu-managed-stream.v1' and
+            payload == expected+words(flags), 'CPU stream configuration/lifecycle mismatch')
