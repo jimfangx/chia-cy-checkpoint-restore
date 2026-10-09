@@ -191,6 +191,23 @@ counter and records the separate host-sample indexing contract. Both the
 container decoder and compiled coordinator check that counter before loading
 any owner. The existing v1/v2 profiles and Level-2 formats remain independent.
 
+Both aggregate APIs expose `publish_aggregate(...)` for validated durable
+`.fsckpt` publication. `prepare_aggregate_restore(...)` also publishes staging
+atomically. Complete container validation precedes temporary-file creation.
+Each writer uses an exclusive private mode-0600 file in the destination
+directory, flushes and fsyncs its contents, atomically replaces the destination,
+then fsyncs that directory. Existing regular files are replaced; symlinks and
+special files reject. Readers open once and validate those bytes. Concurrent
+writers expose complete snapshots, with the last rename winning.
+
+I/O errors propagate and never indicate success. `PublicationError.published`
+is true if rename completed but directory durability was not confirmed;
+the complete replacement may already be visible and must not be treated as
+an unchanged previous checkpoint. A killed writer may leave a private
+`.pending-*` file; it is neither a committed checkpoint nor automatically
+removed by another writer. These APIs do not implement production entry
+plusargs, rolling retention, FPGA transport, or Level-2 publication.
+
 `verify_production_aggregate_vcs` uses a test entry that constructs the actual
 generated production registry, metasim platform and FCFS driver. It captures
 the complete parked low-clock cut, writes a bound `.fsckpt`, loads all owners

@@ -325,8 +325,11 @@ def main():
             require(sample==int(re.search(r'PRODUCTION_CUT host_edges=(\d+)',log)[1]), 'cut host sample disagrees with independent edge count')
             payloads = {r['owner']:native[r['owner']][1] for r in owner_rows}
             container = packed.encode_aggregate(build, runtime, manifest, layout, sample, entries, h, payloads, target_cycle)
-            (case/'capture.fsckpt').write_bytes(container)
-            packed.prepare_aggregate_restore(container, build, runtime, manifest, layout, case/'aggregate.load')
+            packed.publish_aggregate(container, build, runtime, manifest, layout, case/'capture.fsckpt')
+            # Fresh loading consumes the reopened durable artifact, rather than
+            # the capture process's original in-memory container.
+            packed.prepare_aggregate_restore((case/'capture.fsckpt').read_bytes(), build, runtime,
+                                             manifest, layout, case/'aggregate.load')
             restored = run([*common, *timing, f'+test-aggregate={case/"aggregate.load"}',
                             f'+test-loaded-native={case/"loaded-native.txt"}',
                             f'+target_port_trace={case/"restore.trace"}'], case/'restore.log', case)

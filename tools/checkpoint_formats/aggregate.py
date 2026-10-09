@@ -13,6 +13,7 @@ from pathlib import Path
 import re
 
 from .codec import HASH, canonical, decode, encode, keys, require
+from .durable import atomic_output
 from .generated_restore import generated_restore_text
 from .harness_restore import harness_capture, harness_restore_text
 from .simulator import generated_capture, generated_words, validate_generated_manifest
@@ -126,6 +127,14 @@ def decode_aggregate(data, expected_build, manifest, generated, layout):
     return doc
 
 
+def publish_aggregate(data, expected_build, manifest, generated, layout, destination):
+    """Validate the complete bound container before durable atomic publication."""
+    doc = decode_aggregate(data, expected_build, manifest, generated, layout)
+    with atomic_output(destination, binary=True) as stream:
+        stream.write(data)
+    return doc
+
+
 def prepare_aggregate_restore(data, expected_build, manifest, generated, layout, destination):
     doc = decode_aggregate(data, expected_build, manifest, generated, layout)
     native, g, h, sample = _components(doc, manifest, generated, layout)
@@ -134,7 +143,8 @@ def prepare_aggregate_restore(data, expected_build, manifest, generated, layout,
         text += f"HOST {row['owner']} {row['schema']} {len(payload)} {payload.hex()}\n"
     for name, component in (('GENERATED', g), ('HARNESS', h)):
         text += f'{name} {len(component.encode("ascii"))}\n'+component
-    Path(destination).write_text(text, encoding='ascii')
+    with atomic_output(destination) as stream:
+        stream.write(text)
     return doc
 
 

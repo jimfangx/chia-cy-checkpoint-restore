@@ -12,6 +12,7 @@ import re
 
 from .aggregate import digest, runtime_manifest as word_manifest
 from .codec import HEX, decode, encode, keys, natural, require, unique_object
+from .durable import atomic_output
 from .harness_restore import harness_capture, harness_restore_text
 
 ENCODING = 'ascending_nibble_padded_words_v1'
@@ -154,6 +155,14 @@ def decode_aggregate(data, build, manifest, generated, layout):
     return doc
 
 
+def publish_aggregate(data, build, manifest, generated, layout, destination):
+    """Validate every packed word/owner/cycle before durable atomic publication."""
+    doc = decode_aggregate(data, build, manifest, generated, layout)
+    with atomic_output(destination, binary=True) as stream:
+        stream.write(data)
+    return doc
+
+
 def prepare_aggregate_restore(data, build, manifest, generated, layout, destination):
     doc = decode_aggregate(data, build, manifest, generated, layout)
     rows, native, h, sample = _components(doc, manifest, generated, layout)
@@ -165,8 +174,9 @@ def prepare_aggregate_restore(data, build, manifest, generated, layout, destinat
         lines.append(f'{path} {entry["width"]} {entry["depth"]} {rows["generated-entry/"+entry["hierarchy"]]["value"]}\n')
     g = ''.join(lines)
     h = harness_restore_text(layout, h)
-    # Every semantic check above precedes opening/overwriting the destination.
-    with Path(destination).open('w', encoding='ascii') as stream:
+    # Every semantic check precedes temporary creation; readers see one complete
+    # staging file, even on interrupted writes or replacement of an older cut.
+    with atomic_output(destination) as stream:
         stream.write(f'FSAGG1 {digest(manifest)} {doc["target_cycle"]} {sample} {len(native)}\n')
         for row, payload in zip(manifest['native_owners'], native):
             stream.write(f'HOST {row["owner"]} {row["schema"]} {len(payload)} {payload.hex()}\n')
