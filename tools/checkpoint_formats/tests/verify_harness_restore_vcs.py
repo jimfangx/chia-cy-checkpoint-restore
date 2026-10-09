@@ -90,6 +90,8 @@ def main():
 #include <vector>
 static std::ifstream output;
 extern "C" void simulator_entry() {}
+extern "C" svBit simulator_restore_pending() { return 0; }
+extern "C" void simulator_restore_bootstrap(unsigned,const svBitVecVal*,svBit*,svBitVecVal*,svBitVecVal*,svBitVecVal*,svBitVecVal*,svBitVecVal*,svBitVecVal*,svBitVecVal*,svBitVecVal*,svBitVecVal*) { std::exit(1); }
 extern "C" svBit simulator_checkpoint_pending() { return 0; }
 extern "C" svBit simulator_checkpoint_lowclock() { return 0; }
 extern "C" void simulator_checkpoint_settled(unsigned,const svBitVecVal*,svBit*,svBitVecVal*,svBitVecVal*,svBitVecVal*,svBitVecVal*,svBitVecVal*,svBitVecVal*,svBitVecVal*,svBitVecVal*,svBitVecVal*) { std::exit(1); }

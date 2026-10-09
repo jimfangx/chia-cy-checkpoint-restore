@@ -36,6 +36,8 @@ static void zero(svBitVecVal **out) {
  for(unsigned i=0;i<9;i++) for(unsigned j=0;j<(widths[i]+31)/32;j++) out[i][j]=0;
 }
 extern "C" void simulator_entry() {}
+extern "C" svBit simulator_restore_pending() { return 0; }
+extern "C" void simulator_restore_bootstrap(unsigned,const svBitVecVal*,svBit*,svBitVecVal*,svBitVecVal*,svBitVecVal*,svBitVecVal*,svBitVecVal*,svBitVecVal*,svBitVecVal*,svBitVecVal*,svBitVecVal*) { std::exit(1); }
 extern "C" svBit simulator_checkpoint_pending() { return ticks==12 && !done; }
 extern "C" svBit simulator_checkpoint_lowclock() { return 1; }
 extern "C" void simulator_tick(svBit,svBit *fin,const svBitVecVal*,const svBitVecVal*,const svBitVecVal*,const svBitVecVal*,const svBitVecVal*,const svBitVecVal*,const svBitVecVal*,const svBitVecVal*,const svBitVecVal*,svBitVecVal*a,svBitVecVal*b,svBitVecVal*c,svBitVecVal*d,svBitVecVal*e,svBitVecVal*f,svBitVecVal*g,svBitVecVal*h,svBitVecVal*i) {

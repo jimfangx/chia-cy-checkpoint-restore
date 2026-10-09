@@ -153,3 +153,13 @@ banks before the first rising edge. Full checkpoint requests remain unsupported.
 fixture MMIO/RTL services, native sanitizers and fresh VCS DPI processes,
 including outstanding native traffic and terminal zero-edge completion. See
 `docs/checkpointing/m4-dispatcher-bootstrap.md`.
+
+`simif_emul_t::arm_restored_driver` and the VCS harness task
+`checkpoint_resume_restored` connect component loading to the actual DPI
+publisher. The harness holds its clock low while armed, reconstructs the worker,
+publishes its outgoing banks, and refreshes incoming latches before allowing the
+first edge. Terminal bootstrap finishes with zero edges. Unsupported/repeated
+startup and invalid phases fail explicitly. `verify_harness_dispatcher_vcs`
+compares actual harness/generated/native/DPI continuations with a small audited
+driver using fixture MMIO services. No production `.fsckpt` loader is enabled.
+See `docs/checkpointing/m4-harness-dispatcher-integration.md`.
