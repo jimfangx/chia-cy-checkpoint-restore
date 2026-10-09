@@ -215,7 +215,20 @@ order. The capability factory validates configuration/libraries before platform
 creation; its prepare hook runs before ordinary startup and can reserve the
 fresh harness clock hold. A missing factory fails at link time and a null or
 throwing capability fails the process. Default builds have no capability hook.
-It captures
+`checkpoint_request_t` parses public Level-1 requests before any factory or
+platform construction. Empty paths, malformed options, duplicates and mixed
+save/restore/preflight requests fail explicitly. A capability must override
+`authorize_request` to support public durable requests; the test capability
+inherits rejection. Entry checks generated widgets and concrete driver schemas
+before passing the parsed request to `prepare`. Public restores must return
+`restore_reserved`, so they cannot fall through to ordinary initialization;
+captures must return `run`. This is a dispatch contract, not a durable runtime
+implementation. `verify_checkpoint_entry` compiles actual entry with observer
+platform/registry/driver declarations and verifies the dispatch paths with
+native ASan/UBSan and VCS DPI. Its observers do not establish generated-state
+restore correctness.
+
+The full production aggregate verifier captures
 the complete parked low-clock cut, writes a bound `.fsckpt`, loads all owners
 in fresh VCS processes and compares every target FASED transaction port against
 uninterrupted execution. It exercises native and late generated/harness

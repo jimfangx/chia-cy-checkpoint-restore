@@ -62,7 +62,10 @@ public:
     if (!extra_library.empty() && (bundle.empty() || negative.empty()))
       throw std::runtime_error("unsupported test library outside a negative fresh restore");
   }
-  action_t prepare(simif_t &platform, simulation_t &sim) override {
+  action_t prepare(simif_t &platform, simulation_t &sim,
+                   const checkpoint_request_t &request) override {
+    if (request.durable())
+      throw std::runtime_error("test capability cannot service public durable requests");
     emulator = dynamic_cast<simif_emul_t *>(&platform);
     if (!emulator) throw std::runtime_error("production profile requires VCS metasim");
     if (bundle.empty()) return action_t::run;
