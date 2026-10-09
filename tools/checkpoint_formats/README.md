@@ -173,6 +173,26 @@ leading zeros. The cut records actual target time separately from host samples
 and completed driver operations. Invalid checksum/build/membership/shape/phase
 or reset/finish/clock values reject before staging publication.
 
+`aggregate_packed.py` adds the explicitly bound v2 runtime encoding
+`ascending_nibble_padded_words_v1` for large generated memories. Each
+`generated-entry/<hierarchy>` record contains every address in ascending order,
+with exactly ceil(word_width/4) hexadecimal digits per word. Its container
+width includes that per-word padding; padding is checked at every address.
+The manifest supplies actual word width/depth and rejects mixed encodings.
+Native payloads and harness records retain their independent namespaces.
+`FSGRTL2` local staging uses the same complete compiled entry table and VPI
+prevalidation/readback as `FSGRTL1`, without millions of repeated path strings
+in the durable file. Retained VPI handles/values still scale with word count.
+
+`verify_production_aggregate_vcs` uses a test entry that constructs the actual
+generated production registry, metasim platform and FCFS driver. It captures
+the complete parked low-clock cut, writes a bound `.fsckpt`, loads all owners
+in fresh VCS processes and compares every target FASED transaction port against
+uninterrupted execution. It exercises native and late generated/harness
+rejections before loading or clock advancement. Production `+fs-checkpoint`
+and `+fs-restore` remain unsupported; the durable runtime entry and full
+configuration/library binding require integration before milestone acceptance.
+
 `aggregate_restore.cc` consumes trusted local staging produced by the validated
 container, using a compiled profile table. It validates every native payload
 and both complete VPI tables before any native load or RTL deposit. Prepared

@@ -1,0 +1,280 @@
+"""Test-only full production FCFS/FASED aggregate VCS restart.
+
+Uses the generated registry and actual driver, MMIO, native memories, harness
+and dispatcher. Durable production plusargs remain disabled. Source env.sh,
+FireSim env.sh and vcs-env.sh LAST. No FPGA validation is claimed.
+"""
+import argparse
+import concurrent.futures
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import struct
+
+from tools.checkpoint_formats import aggregate_packed as packed
+from tools.checkpoint_formats.aggregate import build_identity, prepare_aggregate_loader
+from tools.checkpoint_formats.codec import canonical, require
+from tools.checkpoint_formats.generated_restore import generated_build_identity, prepare_generated_loader
+from tools.checkpoint_formats.harness_restore import harness_layout, harness_capture, prepare_harness_loader
+from tools.checkpoint_formats.simulator import prepare_settled_generated_probe
+from tools.checkpoint_formats.tests.verify_driver_boundary_vcs import read_diagnostic
+from tools.checkpoint_formats.tests.verify_generated_restore_vcs import verify_native
+from tools.checkpoint_formats.tests.verify_semantic_vcs import ROOT, run
+
+
+def compare_target_trace(expected, observed, fields, cut, sample):
+    """Report the first target-cycle/port difference, including inactive ports."""
+    for index in range(max(len(expected), len(observed))):
+        e = expected[index] if index < len(expected) else None
+        a = observed[index] if index < len(observed) else None
+        if e == a:
+            continue
+        cycle = (e or a).split()[0]
+        signal, ev, av = 'trace_length', len(expected), len(observed)
+        if e is not None and a is not None:
+            ec, ef, eb = e.split(); ac, af, ab = a.split()
+            if ec != ac: signal, ev, av = 'FASED.model.tCycle', ec, ac
+            elif ef != af: signal, ev, av = 'FASED.targetFire', ef, af
+            else:
+                ev, av = int(eb, 16), int(ab, 16)
+                offset = 0
+                signal = 'trace_format'
+                for shape, name in reversed(fields):
+                    width = 1 if not shape else int(shape[1:-1].split(':')[0])-int(shape[1:-1].split(':')[1])+1
+                    mask = (1 << width)-1
+                    if ((ev ^ av) >> offset) & mask:
+                        signal, ev, av = name, (ev >> offset)&mask, (av >> offset)&mask
+                        break
+                    offset += width
+        require(False, f'FIRST_MISMATCH cut={cut} host_sample={sample+index+1} target_cycle={cycle} '
+                       f'signal={signal} expected={ev} actual={av}')
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--build', type=Path, required=True)
+    parser.add_argument('--out', type=Path, required=True)
+    args = parser.parse_args()
+    out = args.out.resolve(); out.mkdir(parents=True, exist_ok=True)
+    require(os.environ['VCS_HOME'] == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'source vcs-env.sh LAST')
+    require(os.environ['CXX'] == '/usr/bin/g++-13', 'preserve VCS compiler setup')
+    generated = args.build.resolve()/'f2/f2-fasedtests-AXI4Fuzzer-FCFSConfig-FCFS16GBQuadRank_DefaultF1Config'
+    cc = ROOT/'sims/firesim/sim/midas/src/main/cc'
+    verilog = ROOT/'sims/firesim/sim/midas/src/main/verilog'
+    tests = Path(__file__).resolve().parent
+    manifest = json.loads((generated/'FireSim-generated.simulator-state.json').read_text())
+    rtl = (generated/'FireSim-generated.sv').read_text()
+    identity = generated_build_identity(manifest, (generated/'FireSim-generated.simulator-reference.fir').read_text(),
+                                        rtl, (verilog/'BUFGCE.v').read_text())
+    layout = harness_layout((verilog/'top.sv').read_text(), (generated/'FireSim-generated.const.vh').read_text(),
+                            (generated/'FireSim-generated.defines.vh').read_text(), identity)
+    prepare_generated_loader(manifest, identity, out, 'emul.FPGATop', rtl=rtl)
+    prepare_harness_loader(layout, out)
+    prepare_settled_generated_probe(manifest, out, lowclock=True)
+    # Concrete owner enumeration is pinned to this generated production profile.
+    # It is checked against the real registry and diagnostic at every cut.
+    old = ROOT/'automations/checkpoint_loop/runs/m4-iteration28/lowclock-final/default/cut-699275/software.diag'
+    _, inventory = read_diagnostic(old)
+    owner_rows = [dict(owner=name, schema=schema) for name, (schema, _) in inventory.items()
+                  if schema and name != 'diagnostic/harness-banks']
+    sources = [tests/'production_aggregate_checkpoint.cc', cc/'simif_emul_all.cc', *sorted((cc/'core').glob('*.cc')),
+               *[cc/p for p in ('emul/simif_emul.cc', 'emul/dpi.cc', 'emul/mm.cc', 'emul/mmio.cc',
+                               'emul/qsfp.cc', 'emul/host_timing.cc', 'bridges/master.cc', 'bridges/clock.cc',
+                               'bridges/loadmem.cc', 'bridges/peek_poke.cc', 'bridges/reset_pulse.cc',
+                               'bridges/fased_memory_timing_model.cc')],
+               ROOT/'sims/firesim/sim/src/main/cc/fasedtests/fasedtests_top.cc',
+               ROOT/'tools/checkpoint_formats/aggregate_restore.cc',
+               ROOT/'tools/checkpoint_formats/generated_restore.cc',
+               ROOT/'tools/checkpoint_formats/harness_restore.cc']
+    dependencies = sorted({*sources, *cc.rglob('*.h'), *cc.rglob('*.cc'),
+                           ROOT/'tools/checkpoint_formats/aggregate_restore.h', generated/'FireSim-generated.const.h'})
+    native_hash = hashlib.sha256(canonical(dict(
+        sources={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in dependencies},
+        compiler='/usr/bin/g++-13', vcs_home=os.environ['VCS_HOME'], cflags='-std=c++20 -DVCS',
+        generated_build=identity))).hexdigest()
+    runtime = packed.runtime_manifest('fcfs-fased-production-test-entry-v2', manifest, layout, owner_rows, native_hash)
+    prepare_aggregate_loader(runtime, out)
+    for name, value in [('generated-manifest', manifest), ('harness-layout', layout), ('runtime-manifest', runtime)]:
+        (out/(name+'.json')).write_bytes(canonical(value))
+    prefix = 'emul.FPGATop.FASEDMemoryTimingModel_0.'
+    header = re.search(r'module FASEDMemoryTimingModel\((.*?)\n\);', rtl, re.S)
+    fields = re.findall(r'(?:input|output)\s*(\[[^]]+\])?\s*(hPort_\w+)(?=\s*(?:,|//|$))', header[1], re.M)
+    require(len(fields) == 40, 'changed FASED target ports')
+    paths = [prefix+name for _, name in fields]
+    (out/'target-port-layout.json').write_bytes(canonical(fields))
+    monitor = [
+        '`timescale 1ps/1ps', 'module production_aggregate_monitor();',
+        'import "DPI-C" context function int harness_restore_initialize();',
+        'import "DPI-C" context function int harness_restore_verify();',
+        'import "DPI-C" context function int generated_restore_verify();',
+        'import "DPI-C" context function int production_aggregate_load();',
+        'import "DPI-C" context function void harness_restore_fail(input string message);',
+        'integer fd=0, status=0, refreshes=0; longint unsigned edges=0, target_edges=0;',
+        'bit restoring=0; string filename, bundle;',
+        'always @(posedge emul.clock) begin', 'edges=edges+1;',
+        f'if(fd) $fdisplay(fd,"%0d %b %h",{prefix}model.tCycle,{prefix}targetFire,{{'+','.join(paths)+'});',
+        'end',
+        # Independent gate edge accounting, without forcing its enable.
+        *['always @(posedge emul.'+e['hierarchy']+') target_edges=target_edges+1;'
+          for e in manifest['state'] if e['adapter']=='metasim-bufgce-v1'],
+        'always @(emul.checkpoint_settled_event) $display("PRODUCTION_CUT host_edges=%0d target_edges=%0d",edges,target_edges);',
+        'always @(emul.checkpoint_input_refresh) if(restoring) begin',
+        'if(edges || target_edges || emul.clock || refreshes) harness_restore_fail("bootstrap refresh phase");',
+        'refreshes=refreshes+1; end',
+        'initial begin',
+        'restoring=$value$plusargs("test-aggregate=%s",bundle);',
+        'if($value$plusargs("target_port_trace=%s",filename)) begin fd=$fopen(filename,"w"); if(!fd) harness_restore_fail("trace open"); end',
+        'if(restoring) begin', 'if(harness_restore_initialize()) harness_restore_fail("initialize");',
+        '#2002;',
+        'if(edges || target_edges || emul.clock || !emul.checkpoint_restore_waiting) harness_restore_fail("reservation edge");',
+        'status=production_aggregate_load();',
+        'if(status==2) begin if(edges || target_edges) harness_restore_fail("negative edge"); $display("PRODUCTION_NEGATIVE zero_edges=1"); $finish; end',
+        'else begin', 'if(status) harness_restore_fail("aggregate loading");',
+        '#1; if(harness_restore_verify() || generated_restore_verify() || edges || target_edges) harness_restore_fail("pre-edge readback");',
+        '$display("PRODUCTION_PRE_EDGE owners_loaded=1 host_edges=0 target_edges=0");',
+        'emul.checkpoint_resume_restored();',
+        'if(edges || target_edges || emul.clock || refreshes!=1) harness_restore_fail("bootstrap advanced time");',
+        '$display("PRODUCTION_BOOTSTRAP zero_edges=1");',
+        'end end end', 'final if(fd) $fclose(fd);', 'endmodule',
+        'bind FPGATop production_aggregate_monitor aggregate_monitor();']
+    (out/'monitor.sv').write_text('\n'.join(monitor)+'\n')
+    (out/'harness.sv').write_text(''.join(f'`include "{p}"\n' for p in (
+        generated/'FireSim-generated.const.vh', generated/'FireSim-generated.defines.vh', verilog/'top.sv')))
+    run([Path(os.environ['VCS_HOME'])/'bin/vcs', '-full64', '-sverilog', '-debug_access+all', '+vpi',
+         '+vcs+initreg+random', '+define+VCS', '+define+CLOCK_PERIOD=1', '-timescale=1ps/1ps', '-top', 'emul',
+         '-cc', os.environ['CC'], '-cpp', os.environ['CXX'], '-CFLAGS', f'-std=c++20 -DVCS -I{cc} -I{out} -I{generated}',
+         '-LDFLAGS', '-Wl,--no-as-needed -pthread -lgmp', f'-Mdir={out/"csrc"}', '-o', out/'simv',
+         out/'harness.sv', out/'monitor.sv', out/'settled-generated-probe.sv',
+         generated/'FireSim-generated.sv', verilog/'BUFGCE.v', *sources], out/'build.log')
+    build = build_identity(runtime, manifest, layout, out/'simv')
+    (out/'aggregate-build.json').write_bytes(canonical(build))
+    # Preserve linked library provenance with the executable binding.
+    run(['ldd', out/'simv'], out/'linked-libraries.log')
+    common = [out/'simv', '-no_save', '+vcs+initreg+0', '+vcs+initmem+0', '+memsize=4194304', '+max-cycles=1000000']
+    results = []
+    for label, timing, cuts in [('default', [], (3, 11, 699275, 699276)),
+                              ('randomized', ['+fuzz-host-timing=7', '+fuzz-seed=18446744073709551615'], (101,))]:
+        ref = out/label/'reference'; ref.mkdir(parents=True, exist_ok=True)
+        text = run([*common, *timing, f'+target_port_trace={ref/"ports.trace"}'], ref/'run.log', ref)
+        require('*** PASSED ***' in text, 'production reference failed')
+        cycles = int(re.search(r'Target Cycles Emulated: (\d+)', text)[1])
+        reference = (ref/'ports.trace').read_text().splitlines(keepends=True)
+        def verify_cut(cut):
+            case = out/label/f'cut-{cut}'; case.mkdir(parents=True, exist_ok=True)
+            diagnostic = case/'software.diag'; diagnostic.unlink(missing_ok=True)
+            log = run([*common, *timing, f'+fs-driver-cut={cut}', '+fs-driver-settled', '+fs-driver-lowclock',
+                       f'+fs-driver-diagnostic={diagnostic}', f'+settled_generated_capture={case/"generated.jsonl"}',
+                       f'+target_port_trace={case/"capture.trace"}'], case/'capture.log', case)
+            require('*** PASSED ***' in log and (case/'capture.trace').read_bytes()==(ref/'ports.trace').read_bytes(),
+                    'capture changed production target output/transaction timing')
+            operation, native = read_diagnostic(diagnostic)
+            require(operation==cut, 'wrong operation cut')
+            require([dict(owner=name, schema=schema) for name,(schema,_) in native.items()
+                     if schema and name!='diagnostic/harness-banks']==owner_rows, 'changed production owner inventory')
+            sample, entries = packed.read_generated_cut(manifest, case/'generated.jsonl')
+            magic, bits = struct.unpack_from('<QQ', native['diagnostic/harness-banks'][1])
+            require(magic==0x3153424F534E5248, 'wrong packed harness diagnostic')
+            packed_banks = int.from_bytes(native['diagnostic/harness-banks'][1][16:], 'little')
+            bank_bits = sum(r['width'] for r in layout['records'][:-2])
+            require(bits==bank_bits+67 and packed_banks>>bank_bits==0, 'high clock/reset/finish harness cut')
+            values = []; offset = bank_bits
+            for row in layout['records'][:-2]:
+                offset -= row['width']; v = (packed_banks>>offset)&((1<<row['width'])-1)
+                values.append(f'{v:0{(row["width"]+3)//4}x}')
+            h = harness_capture(layout, [*values, '0', '0'], sample)
+            scalar = {e['owner']:e['value'] for e in entries}
+            target_cycle = int(scalar['generated-entry/'+prefix[5:]+'model.tCycle'],16)
+            require(sample==int(re.search(r'PRODUCTION_CUT host_edges=(\d+)',log)[1]), 'cut host sample disagrees with independent edge count')
+            payloads = {r['owner']:native[r['owner']][1] for r in owner_rows}
+            container = packed.encode_aggregate(build, runtime, manifest, layout, sample, entries, h, payloads, target_cycle)
+            (case/'capture.fsckpt').write_bytes(container)
+            packed.prepare_aggregate_restore(container, build, runtime, manifest, layout, case/'aggregate.load')
+            restored = run([*common, *timing, f'+test-aggregate={case/"aggregate.load"}',
+                            f'+test-loaded-native={case/"loaded-native.txt"}',
+                            f'+target_port_trace={case/"restore.trace"}'], case/'restore.log', case)
+            require('PRODUCTION_PRE_EDGE owners_loaded=1 host_edges=0 target_edges=0' in restored
+                    and 'PRODUCTION_BOOTSTRAP zero_edges=1' in restored and '*** PASSED ***' in restored,
+                    'fresh production continuation failed')
+            require(f'Target Cycles Emulated: {cycles}\n' in restored, 'changed target completion cycle')
+            loaded = dict(line.split() for line in (case/'loaded-native.txt').read_text().splitlines())
+            require(loaded == {name:b.hex() for name,b in payloads.items()}, 'incomplete native pre-edge readback evidence')
+            observed = (case/'restore.trace').read_text().splitlines(keepends=True)
+            expected = reference[sample:]
+            compare_target_trace(expected, observed, fields, cut, sample)
+            memories = [struct.unpack_from('<13Q', payloads[f'runtime/functional-memory/{i}']) for i in range(4)]
+            if cut==699275:
+                require(any(r[8] for r in memories), 'missing in-flight native write')
+                require(int(scalar['generated-entry/'+prefix[5:]+'model.SatUpDownCounter_1.value'],16)>0,
+                        'missing outstanding FASED write')
+            result = dict(timing=label, cut=cut, target_cycle=target_cycle, host_sample=sample, target_completion=cycles,
+                          native_owners=len(owner_rows), generated_entries=len(entries), generated_words=sum(e['depth'] for e in manifest['state']),
+                          continuation_rows=len(observed), container_bytes=len(container), zero_edges_before_load_and_bootstrap=True)
+            return result
+        # Shared executable is immutable; simulator processes and artifacts are distinct.
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
+            for future in concurrent.futures.as_completed([pool.submit(verify_cut, cut) for cut in cuts]):
+                result = future.result(); results.append(result)
+                results.sort(key=lambda r:(r['timing'],r['cut']))
+                (out/'partial-results.json').write_bytes(canonical(results))
+                print('PASS:', result, flush=True)
+    # Native payload and late complete generated/harness preparation failures
+    # must leave ALL owners unmodified, with no loads/deposits or rising edge.
+    first = out/'default/cut-3'
+    good = (first/'aggregate.load').read_text().splitlines(keepends=True)
+    failures = []
+    for index, row in enumerate(owner_rows, 1):
+        altered = good.copy(); fields = altered[index].split()
+        fields[3] = str(int(fields[3])-1); fields[4] = fields[4][:-2]
+        altered[index] = ' '.join(fields)+'\n'
+        failures.append(('native-'+row['owner'].replace('/','-'), altered))
+    altered = good.copy(); fields=altered[1].split(); fields[2]='unsupported'; altered[1]=' '.join(fields)+'\n'
+    failures.append(('native-schema',altered))
+    altered = good.copy(); altered[1],altered[2]=altered[2],altered[1]
+    failures.append(('native-order',altered))
+    gi = 1+len(owner_rows)
+    hi = gi+2+len(manifest['state'])
+    for label, index, section_start, section_end in [
+            ('late-generated-shape', hi-1, gi+1, hi),
+            ('late-harness-shape', len(good)-1, hi+1, len(good))]:
+        altered=good.copy();fields=altered[index].split();fields[1]=str(int(fields[1])+1)
+        altered[index]=' '.join(fields)+'\n'
+        altered[section_start-1]=good[section_start-1].split()[0]+' '+str(sum(len(s) for s in altered[section_start:section_end]))+'\n'
+        failures.append((label,altered))
+    failures.append(('trailing-section', [*good,'extra\n']))
+    negative_results=[]
+    for label, lines in failures:
+        case=out/'negative'/label;case.mkdir(parents=True,exist_ok=True)
+        (case/'aggregate.load').write_text(''.join(lines))
+        text=run([*common,f'+test-aggregate={case/"aggregate.load"}',f'+test-negative={label}'],case/'run.log',case)
+        require('native_loads=0 deposits=0' in text and 'PRODUCTION_NEGATIVE zero_edges=1' in text,
+                'production rejection mutated an owner or advanced clocks')
+        negative_results.append(label)
+    unsupported=out/'unsupported';unsupported.mkdir(exist_ok=True)
+    text=run([*common,f'+test-aggregate={first/"aggregate.load"}','+profile-interval=250000'],
+             unsupported/'run.log',unsupported,expected=1)
+    require('PRODUCTION_AGGREGATE_ENTRY_ERROR' in text and 'unsupported' in text,
+            'unaudited production callback did not fail closed')
+    # Sanitize both staging encodings, with wide registers and memory padding.
+    native_rejections = verify_native(out)
+    native_out = out/'native'
+    old = (native_out/'wide.load').read_text().splitlines()
+    lines = [old[0].replace('FSGRTL1','FSGRTL2')]
+    from tools.checkpoint_formats.tests.test_simulator import fixture
+    index = 1
+    for entry in fixture()['state']:
+        bits = ''.join(line.split()[2] for line in old[index:index+entry['depth']])
+        lines.append(f'generated_tb.{entry["hierarchy"]} {entry["width"]} {entry["depth"]} {bits}')
+        index += entry['depth']
+    (native_out/'wide-packed.load').write_text('\n'.join(lines)+'\n')
+    run([native_out/'verify',native_out/'wide-packed.load'], native_out/'packed.log')
+    summary = dict(cases=results, malformed_processes=negative_results, unsupported_callback_rejected=True,
+                   fixture_word_sanitizer_rejections=native_rejections,
+                   test_entry_production_continuation_verified=True, production_plusargs_enabled=False,
+                   physical_fpga_validated=False)
+    (out/'summary.json').write_bytes(canonical(summary))
+    print('PASS: fresh production aggregate test entry continuation', flush=True)
+
+
+if __name__=='__main__': main()

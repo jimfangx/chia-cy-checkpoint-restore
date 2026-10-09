@@ -68,6 +68,35 @@ int main(int argc, char **argv) {
     reject(bad_path.c_str());
   }
   reject("/nonexistent/generated-restore-staging");
+  if (good.rfind("FSGRTL2 ", 0) == 0) {
+    std::istringstream input(good);
+    std::string line;
+    std::getline(input, line);
+    const std::string header = line + "\n";
+    std::vector<std::string> rows;
+    while (std::getline(input, line)) rows.push_back(line);
+    // Final entry, including the final RAM address: all errors must be
+    // found before depositing even the first wide register.
+    for (size_t index = 0; index < rows.size(); ++index) {
+      std::istringstream row(rows[index]);
+      std::string path, width, depth, bits;
+      assert(row >> path >> width >> depth >> bits);
+      std::vector<std::string> bad_rows{
+          path + " " + width + " " + std::to_string(std::stoul(depth)+1) + " " + bits,
+          path + ".absent " + width + " " + depth + " " + bits,
+          path + " " + width + " " + depth + " " + bits.substr(0,bits.size()-1) + "x"};
+      const size_t digits = (std::stoul(width)+3)/4;
+      if (std::stoul(width)%4) {
+        bits[bits.size()-digits]='f';
+        bad_rows.push_back(path+" "+width+" "+depth+" "+bits);
+      }
+      for (const auto &bad_row : bad_rows) {
+        { std::ofstream bad(bad_path); bad << header;
+          for (size_t i=0;i<rows.size();++i) bad << (i==index ? bad_row : rows[i]) << '\n'; }
+        reject(bad_path.c_str());
+      }
+    }
+  }
   auto &clock = handles.at(clock_path);
   clock.value[0].aval = 1; reject(argv[1]); clock.value[0].aval = 0;
   clock.value[0].bval = 1; reject(argv[1]); clock.value[0].bval = 0;

@@ -15,7 +15,7 @@ import re
 from .codec import HASH, canonical, decode, encode, keys, require
 from .generated_restore import generated_restore_text
 from .harness_restore import harness_capture, harness_restore_text
-from .simulator import generated_capture, generated_words
+from .simulator import generated_capture, generated_words, validate_generated_manifest
 
 TOKEN = re.compile(r'[A-Za-z0-9_./-]+\Z')
 
@@ -37,8 +37,14 @@ def runtime_manifest(profile, generated, layout, native_owners, native_build_has
         names.append(row['owner'])
     require(len(set(names)) == len(names), 'duplicate native owner')
     # Validate the complete component inventories without publishing files.
-    g = generated_capture(generated, ['0'*((w['width']+3)//4) for w in generated_words(generated)], 0)
-    generated_restore_text(generated, g, layout['generated_build_hash'], layout['root']+'.'+generated['root_module'])
+    # Manifest construction validates geometry, not invented RAM contents.
+    # Enumerating millions of zero words here is unnecessary and prevents
+    # entry-bounded profiles from using this common identity builder.
+    validate_generated_manifest(generated)
+    require(type(layout['generated_build_hash']) is str and HASH.fullmatch(layout['generated_build_hash']),
+            'invalid generated build hash')
+    require(all(re.fullmatch(r'[A-Za-z_][A-Za-z0-9_$]*', p)
+                for p in layout['root'].split('.')), 'invalid generated loader root')
     harness_restore_text(layout, harness_capture(layout, ['0'*((r['width']+3)//4) for r in layout['records']], 0))
     return dict(schema='firesim.aggregate.lowclock.v1', profile=profile,
                 phase='settled_host_negedge_parked_driver_pre_bootstrap',

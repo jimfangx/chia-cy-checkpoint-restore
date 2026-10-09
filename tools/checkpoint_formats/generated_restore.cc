@@ -11,6 +11,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 // Harness banks use the same all-handles-before-deposit implementation with
@@ -20,6 +21,7 @@
 #define RESTORE_MAGIC "FSGRTL1"
 #define RESTORE_PHASE "settled_host_negedge"
 #define RESTORE_LOG "GENERATED_RESTORE"
+#define RESTORE_ENTRY_MAGIC "FSGRTL2"
 #endif
 #ifndef RESTORE_ACCEPTED_TYPE
 #define RESTORE_ACCEPTED_TYPE(entry, type) \
@@ -91,22 +93,54 @@ int prepare(std::istream &input, const char *filename) {
   if (!std::getline(input, line)) return fail("missing header", filename);
   std::istringstream header(line);
   if (!(header >> magic >> manifest >> build >> phase >> count) || (header >> extra) ||
-      magic != RESTORE_MAGIC || manifest != manifest_hash || build != build_hash ||
+      (magic != RESTORE_MAGIC
+#ifdef RESTORE_ENTRY_MAGIC
+       && magic != RESTORE_ENTRY_MAGIC
+#endif
+       ) || manifest != manifest_hash || build != build_hash ||
       phase != RESTORE_PHASE || count != expected)
     return fail("incompatible header", filename);
 
+  const bool entry_encoded =
+#ifdef RESTORE_ENTRY_MAGIC
+      magic == RESTORE_ENTRY_MAGIC;
+#else
+      false; // Packed harness banks retain their independent format.
+#endif
+
   std::vector<Deposit> deposits;
+  deposits.reserve(expected);
   for (const auto &entry : entries) {
+    std::string packed;
+    const size_t digits = (entry.width + 3ULL) / 4;
+    if (entry_encoded) {
+      if (!std::getline(input, line)) return fail("incomplete entry", entry.path);
+      std::istringstream row(line);
+      std::string path;
+      uint64_t width = 0, depth = 0;
+      if (!(row >> path >> width >> depth >> packed) || (row >> extra) ||
+          path != entry.path || width != entry.width || depth != entry.depth ||
+          packed.size() != digits * entry.depth)
+        return fail("wrong entry membership/order/shape", entry.path);
+    }
     for (unsigned address = 0; address < entry.depth; ++address) {
       const std::string expected_path = std::string(entry.path) +
           (entry.memory ? "[" + std::to_string(address) + "]" : "");
-      if (!std::getline(input, line)) return fail("incomplete state", expected_path);
-      std::istringstream row(line);
-      std::string path, bits;
-      unsigned width = 0;
-      if (!(row >> path >> width >> bits) || (row >> extra) ||
-          path != expected_path || width != entry.width)
-        return fail("wrong state membership/order/shape", expected_path);
+      std::string word;
+      if (!entry_encoded) {
+        if (!std::getline(input, line)) return fail("incomplete state", expected_path);
+        std::istringstream row(line);
+        std::string path;
+        unsigned width = 0;
+        if (!(row >> path >> width >> word) || (row >> extra) ||
+            path != expected_path || width != entry.width)
+          return fail("wrong state membership/order/shape", expected_path);
+      }
+      const std::string &path = expected_path;
+      const unsigned width = entry.width;
+      const std::string_view bits = entry_encoded
+          ? std::string_view(packed).substr(size_t(address) * digits, digits)
+          : std::string_view(word);
       if (bits.size() != (width + 3ULL) / 4 ||
           bits.find_first_not_of("0123456789abcdef") != std::string::npos)
         return fail("invalid bit vector", path);
