@@ -151,9 +151,12 @@ def main():
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--public-restore', action='store_true',
                         help='Link the concrete native durable restore capability and use +fs-restore')
+    parser.add_argument('--live-capture', action='store_true',
+                        help='Collect/publish the complete live cut natively; verify every byte against Python')
     parser.add_argument('--resume-after-continuations', action='store_true',
                         help='Recheck this run\'s completed continuations and rerun every rejection/sanitizer scope')
     args = parser.parse_args()
+    require(not args.live_capture or args.public_restore, 'live capture requires the durable capability')
     require(not (args.public_restore and args.resume_after_continuations),
             'public restoration must run its full verification, without restricted resumption')
     out = args.out.resolve(); out.mkdir(parents=True, exist_ok=True)
@@ -226,12 +229,16 @@ def main():
                ROOT/'tools/checkpoint_formats/runtime_identity.cc',
                ROOT/'tools/checkpoint_formats/generated_restore.cc',
                ROOT/'tools/checkpoint_formats/harness_restore.cc']
-    if args.public_restore: sources.append(ROOT/'tools/checkpoint_formats/durable_restore.cc')
+    if args.public_restore:
+        sources += [ROOT/'tools/checkpoint_formats/durable_restore.cc',
+                    ROOT/'tools/checkpoint_formats/durable_publish.cc',
+                    ROOT/'tools/checkpoint_formats/durable_capture.cc']
     dependencies = sorted({*sources, *cc.rglob('*.h'), *cc.rglob('*.cc'),
                            ROOT/'tools/checkpoint_formats/aggregate_restore.h',
                            ROOT/'tools/checkpoint_formats/runtime_identity.h', generated/'FireSim-generated.const.h'})
     if args.public_restore:
         dependencies += [ROOT/'tools/checkpoint_formats/durable_restore.h',
+                         ROOT/'tools/checkpoint_formats/durable_capture.h',
                          ROOT/'tools/checkpoint_formats/durable_restore.py',Path('/usr/include/boost/json/src.hpp')]
     native_inputs = dict(
         sources={str(p.relative_to(ROOT)) if p.is_relative_to(ROOT) else str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in dependencies},
@@ -290,6 +297,16 @@ def main():
         '$display("PRODUCTION_BOOTSTRAP zero_edges=1");',
         'end end end', 'final begin production_runtime_identity_verify(); if(fd) $fclose(fd); end', 'endmodule',
         'bind FPGATop production_aggregate_monitor aggregate_monitor();']
+    if args.live_capture:
+        monitor[1:1] = [
+            'module durable_live_capture_observer();',
+            'import "DPI-C" context function int production_durable_live_capture(input longint unsigned host_sample);',
+            'import "DPI-C" context function void harness_restore_fail(input string message);',
+            'longint unsigned edges=0; string destination;',
+            'always @(posedge emul.clock) edges=edges+1;',
+            'always @(emul.checkpoint_settled_event) if($value$plusargs("test-live-capture=%s",destination)) begin',
+            'if(production_durable_live_capture(edges)) harness_restore_fail("live capture");',
+            'end', 'endmodule', 'bind FPGATop durable_live_capture_observer live_capture_observer();']
     (out/'monitor.sv').write_text('\n'.join(monitor)+'\n')
     (out/'harness.sv').write_text(''.join(f'`include "{p}"\n' for p in (
         generated/'FireSim-generated.const.vh', generated/'FireSim-generated.defines.vh', verilog/'top.sv')))
@@ -316,6 +333,7 @@ def main():
             case = out/label/f'cut-{cut}'; case.mkdir(parents=True, exist_ok=True)
             diagnostic = case/'software.diag'; diagnostic.unlink(missing_ok=True)
             log = run([*common, *timing, f'+fs-driver-cut={cut}', '+fs-driver-settled', '+fs-driver-lowclock',
+                       *([f'+test-live-capture={case/"capture.fsckpt"}'] if args.live_capture else []),
                        f'+test-runtime-identity={case/"runtime-identity.bin"}',
                        f'+fs-driver-diagnostic={diagnostic}', f'+settled_generated_capture={case/"generated.jsonl"}',
                        f'+target_port_trace={case/"capture.trace"}'], case/'capture.log', case)
@@ -342,7 +360,12 @@ def main():
             require(sample==int(re.search(r'PRODUCTION_CUT host_edges=(\d+)',log)[1]), 'cut host sample disagrees with independent edge count')
             payloads = {r['owner']:native[r['owner']][1] for r in owner_rows}
             container = packed.encode_aggregate(build, runtime, manifest, layout, sample, entries, h, payloads, target_cycle)
-            packed.publish_aggregate(container, build, runtime, manifest, layout, case/'capture.fsckpt')
+            if args.live_capture:
+                require('FS_DURABLE_LIVE_CAPTURE_PUBLISHED' in log and
+                        (case/'capture.fsckpt').read_bytes()==container,
+                        'live snapshot differs from the independent complete Python oracle')
+            else:
+                packed.publish_aggregate(container, build, runtime, manifest, layout, case/'capture.fsckpt')
             # Fresh loading consumes the reopened durable artifact, rather than
             # the capture process's original in-memory container.
             packed.prepare_aggregate_restore((case/'capture.fsckpt').read_bytes(), build, runtime,
@@ -368,6 +391,7 @@ def main():
             result = dict(timing=label, cut=cut, target_cycle=target_cycle, host_sample=sample, target_completion=cycles,
                           native_owners=len(owner_rows), generated_entries=len(entries), generated_words=sum(e['depth'] for e in manifest['state']),
                           continuation_rows=len(observed), container_bytes=len(container), zero_edges_before_load_and_bootstrap=True)
+            result['native_live_capture_verified'] = args.live_capture
             return result
         # Shared executable is immutable; simulator processes and artifacts are distinct.
         with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
@@ -384,6 +408,7 @@ def main():
                    test_entry_production_continuation_verified=True, real_production_entry_verified=True,
                    production_plusargs_enabled=False,
                    public_durable_restore_enabled=args.public_restore,
+                   native_live_capture_verified=args.live_capture,
                    physical_fpga_validated=False)
     (out/'summary.json').write_bytes(canonical(summary))
     print('PASS: fresh production entry aggregate continuation with '+('public durable restore' if args.public_restore else 'a test capability'), flush=True)

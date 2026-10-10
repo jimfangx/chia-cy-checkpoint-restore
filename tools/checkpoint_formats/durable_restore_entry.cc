@@ -5,6 +5,8 @@
 #include "emul/simif_emul.h"
 #include "aggregate_restore.h"
 #include "durable_restore.h"
+#include "durable_capture.h"
+#include "core/driver_boundary_diagnostic.h"
 #include "runtime_identity.h"
 #include <fstream>
 #include <memory>
@@ -19,6 +21,8 @@ class durable_restore_entry_t final : public checkpoint_entry_t {
   mutable std::string staging;
   aggregate_restore_t aggregate;
   std::string loaded_native;
+  std::string live_capture;
+  bool captured=false;
   bool consumed=false;
   aggregate_restore_t::owners_t owners() {
     auto result=emulator->checkpoint_axi_owners();
@@ -35,6 +39,12 @@ public:
     std::vector<std::string> configuration;
     for(const auto &arg:args) {
       if(arg.rfind("+fs-restore=",0)==0) continue; // Already parsed by entry.
+      if(arg.rfind("+test-live-capture",0)==0) {
+        if(arg.rfind("+test-live-capture=",0)!=0 || arg.size()==19 || !live_capture.empty() ||
+           request.kind!=checkpoint_request_t::kind_t::none)
+          throw std::runtime_error("unsupported/duplicate live capture test control");
+        live_capture=arg.substr(19); continue;
+      }
       if(arg.rfind("+test-aggregate",0)==0 || arg.rfind("+test-negative",0)==0 ||
          arg.rfind("+test-extra-library",0)==0)
         throw std::runtime_error("unsupported private staging request in public capability");
@@ -45,6 +55,11 @@ public:
         throw std::runtime_error("unsupported capture controls during public restore");
       configuration.push_back(arg);
       if(arg.rfind("+test-loaded-native=",0)==0) loaded_native=arg.substr(20);
+    }
+    if(!live_capture.empty()) {
+      const driver_boundary_diagnostic_t cut(args);
+      if(!cut.requested() || !cut.lowclock() || !cut.settled())
+        throw std::runtime_error("live capture test requires a complete settled low-clock cut");
     }
     identity=std::make_unique<runtime_identity_t>(configuration);
     // Diagnostic owner output is available for the uninterrupted/capture
@@ -72,6 +87,22 @@ public:
     return action_t::restore_reserved;
   }
   void verify_identity() { identity->save_checkpoint(); }
+  int capture(uint64_t host_sample) {
+    try {
+      if(live_capture.empty() || captured || consumed || !emulator || !simulation)
+        throw std::runtime_error("missing/consumed live capture test request");
+      captured=true; // A failed capture may never be retried or published.
+      emulator->require_settled_checkpoint_capture();
+      const auto snapshot=capture_durable_snapshot(owners(),host_sample);
+      emulator->require_settled_checkpoint_capture();
+      publish_durable_capture(live_capture,snapshot);
+      printf("FS_DURABLE_LIVE_CAPTURE_PUBLISHED host_sample=%llu no_loads=1 no_deposits=1\n",
+             (unsigned long long)host_sample);
+      return 0;
+    } catch(const std::exception &error) {
+      fprintf(stderr,"FS_DURABLE_LIVE_CAPTURE_ERROR: %s\n",error.what()); return 1;
+    }
+  }
   int load() {
     try {
       if(consumed || !emulator || !simulation || staging.empty())
@@ -116,4 +147,17 @@ extern "C" void production_runtime_identity_verify() {
 extern "C" int production_aggregate_load() {
   if(!capability) return 1;
   return capability->load();
+}
+// Verification-only entry to the collector, called by a context DPI observer
+// at checkpoint_settled_event. Public +fs-checkpoint remains fail closed.
+extern "C" int production_durable_live_capture(uint64_t host_sample) {
+  if(!capability)
+    fputs("FS_DURABLE_LIVE_CAPTURE_ERROR: missing durable capability\n",stderr);
+  if(!capability || capability->capture(host_sample)) {
+    // The worker is still parked. VCS/exit handlers must not tear down this
+    // suspended DPI execution context or run any fallback startup path.
+    std::fflush(nullptr);
+    std::_Exit(EXIT_FAILURE);
+  }
+  return 0;
 }

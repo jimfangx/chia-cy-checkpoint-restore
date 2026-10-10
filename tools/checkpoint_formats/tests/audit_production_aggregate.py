@@ -41,6 +41,7 @@ def main():
     assert runtime['schema'] in ('firesim.aggregate.lowclock.v2','firesim.aggregate.lowclock.v3')
     bound=runtime['schema']=='firesim.aggregate.lowclock.v3'
     owner_count=17 if bound else 16
+    live=summary.get('native_live_capture_verified',False)
     if bound:
         native_inputs=json.loads((out/'native-build-inputs.json').read_text())
         assert sha(canonical(native_inputs))==runtime['native_build_hash']
@@ -55,6 +56,9 @@ def main():
             assert str(root/'sims/firesim/sim/midas/src/main/cc/entry.cc') in command
             assert '-DFS_CHECKPOINT_ENTRY' in command[command.index('-CFLAGS')+1]
         assert all(sha((root/name).read_bytes())==value for name,value in native_inputs['sources'].items())
+        if live:
+            for name in ('durable_capture.cc','durable_publish.cc'):
+                assert 'tools/checkpoint_formats/'+name in native_inputs['translation_units']
         assert runtime['cut_contract']==dict(
             target_cycle_owner='FPGATop.FASEDMemoryTimingModel_0.model.tCycle',
             target_cycle_path='emul.FPGATop.FASEDMemoryTimingModel_0.model.tCycle',
@@ -78,6 +82,13 @@ def main():
     for case in summary['cases']:
         path=out/case['timing']/f'cut-{case["cut"]}'
         capture=process(path/'capture.log');restored=process(path/'restore.log')
+        if live:
+            assert case['native_live_capture_verified']
+            command=json.loads(capture.splitlines()[1].removeprefix('argv='))
+            assert command.count('+test-live-capture='+str(path/'capture.fsckpt'))==1
+            publications=re.findall(r'FS_DURABLE_LIVE_CAPTURE_PUBLISHED host_sample=(\d+) no_loads=1 no_deposits=1',capture)
+            assert publications==[str(case['host_sample'])]
+            assert 'deposited' not in capture and 'PRODUCTION_AGGREGATE_LOADED' not in capture
         assert 'Y-2026.03-SP1_Full64' in capture and 'Y-2026.03-SP1_Full64' in restored
         assert 'PRODUCTION_PRE_EDGE owners_loaded=1 host_edges=0 target_edges=0' in restored
         assert 'PRODUCTION_BOOTSTRAP zero_edges=1' in restored and '*** PASSED ***' in restored
@@ -251,6 +262,7 @@ def main():
                 native_owner_comparisons=5*owner_count,malformed_processes=len(summary['malformed_processes']),all_transaction_ports=40,
                 runtime_compatibility_rejections=len(summary['public_runtime_rejections']) if public else 6 if bound else 0,
                 real_production_entry_verified=summary.get('real_production_entry_verified',False),
+                native_live_capture_verified=live,live_publications=5 if live else 0,
                 production_plusargs_enabled=False,public_durable_restore_enabled=public,
                 public_restore_rejections=public_rejections,physical_fpga_validated=False)
     (out/'independent-evidence.json').write_bytes(canonical(result))
