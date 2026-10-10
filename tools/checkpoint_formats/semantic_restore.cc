@@ -66,3 +66,48 @@ extern "C" int semantic_restore(const char *filename, unsigned expected_words) {
   vpi_printf("RESTORE: deposited %zu semantic words before first DUT edge\n", deposits.size());
   return 0;
 }
+
+// Stream complete post-settle readback without generating one SV assertion per
+// memory word. The validated Level-2 restore file remains the independent oracle.
+extern "C" int semantic_verify(const char *filename, unsigned expected_words) {
+  std::ifstream input(filename);
+  if (!input) { fail("cannot open readback oracle", filename); return 1; }
+  std::unordered_set<std::string> seen;
+  std::string path, expected, line, extra;
+  unsigned width, words = 0;
+  while (std::getline(input, line)) {
+    std::istringstream row(line);
+    if (!(row >> path >> width >> expected) || (row >> extra) || !width ||
+        expected.size() != (width + 3) / 4 ||
+        expected.find_first_not_of("0123456789abcdef") != std::string::npos) {
+      fail("malformed readback oracle", line); return 1;
+    }
+    auto handle = vpi_handle_by_name(const_cast<char *>(path.c_str()), nullptr);
+    if (!handle || vpi_get(vpiSize, handle) != static_cast<int>(width) || !seen.insert(path).second ||
+        (vpi_get(vpiType, handle) != vpiReg && vpi_get(vpiType, handle) != vpiMemoryWord)) {
+      fail("missing/reshaped/duplicate readback handle", path); return 1;
+    }
+    unsigned first = expected.front() <= '9' ? expected.front() - '0' : expected.front() - 'a' + 10;
+    if (width % 4 && first >= (1u << (width % 4))) {
+      fail("nonzero readback padding", path); return 1;
+    }
+    s_vpi_value actual{};
+    actual.format = vpiVectorVal;
+    vpi_get_value(handle, &actual);
+    for (unsigned bit = 0; bit < width; ++bit) {
+      char digit = expected[expected.size() - 1 - bit / 4];
+      unsigned nibble = digit <= '9' ? digit - '0' : digit - 'a' + 10;
+      unsigned mask = 1u << (bit % 32);
+      if ((actual.value.vector[bit / 32].bval & mask) ||
+          bool(actual.value.vector[bit / 32].aval & mask) != bool(nibble & (1u << (bit % 4)))) {
+        fail("semantic readback mismatch", path); return 1;
+      }
+    }
+    ++words;
+  }
+  if (!input.eof() || !words || words != expected_words) {
+    fail("incomplete readback oracle", filename); return 1;
+  }
+  vpi_printf("RESTORE_VERIFY: matched %u semantic words before first DUT edge\n", words);
+  return 0;
+}

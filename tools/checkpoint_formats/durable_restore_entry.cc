@@ -11,6 +11,7 @@
 #include "progress_watchdog.h"
 #include "core/driver_boundary_diagnostic.h"
 #include "runtime_identity.h"
+#include "shadow_controls.h"
 #include <fstream>
 #include <memory>
 extern "C" uint64_t generated_restore_deposit_count();
@@ -45,6 +46,7 @@ class durable_restore_entry_t final : public checkpoint_entry_t {
 public:
   explicit durable_restore_entry_t(const std::vector<std::string> &args) {
     const auto request=checkpoint_request_t::parse(args);
+    const auto shadow=checkpoint_shadow_controls_t::parse(args, request.kind==checkpoint_request_t::kind_t::restore);
     watchdog_configuration=request;
     if(request.kind==checkpoint_request_t::kind_t::capture) {
       if(!request.operation)
@@ -54,6 +56,7 @@ public:
     }
     std::vector<std::string> configuration;
     for(const auto &arg:args) {
+      if(shadow.contains(arg)) continue; // Validated, restore-only observer controls.
       if(arg.rfind("+fs-restore=",0)==0) continue; // Already parsed by entry.
       if(arg.rfind("+fs-checkpoint=",0)==0 || arg.rfind("+fs-checkpoint-operation=",0)==0) continue;
       if(arg.rfind("+fs-checkpoint-directory=",0)==0 || arg.rfind("+fs-checkpoint-interval=",0)==0 ||

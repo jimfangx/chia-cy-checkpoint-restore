@@ -29,6 +29,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--build', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--live', action='store_true', help='also run restored schema-2 lockstep and state corruption')
     args = parser.parse_args()
     require(os.environ.get('VCS_HOME') == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'source vcs-env.sh LAST')
     args.out.mkdir(parents=True, exist_ok=True)
@@ -61,6 +62,10 @@ def main():
             'unexpected full FCFS semantic inventory')
     probe = out / 'probe'
     prepare_paired_probe(manifest, mapping, probe)
+    live = out / 'live'
+    if args.live:
+        from tools.checkpoint_formats.bridge_live_shadow import prepare_bridge_authority
+        prepare_bridge_authority(manifest, boundary, mapping, erased_boundary, live)
     source_files = [ROOT / 'tools/checkpoint_formats/bridge_semantic.py', Path(__file__),
                     ROOT / 'tools/checkpoint_formats/tests/audit_bridge_semantic.py',
                     ROOT / 'tools/checkpoint_formats/semantic_restore.cc', bufgce,
@@ -73,9 +78,18 @@ def main():
                        'sim/midas/src/main/scala/midas/passes/MidasTransforms.scala',
                        'sim/midas/src/main/scala/midas/stage/GoldenGateCli.scala')]]
     hashes = {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in source_files}
+    extra_verilog = str(probe / 'paired-probe.sv')
+    extra_driver = []
+    if args.live:
+        extra_verilog += ' ' + str(live / 'authority.sv')
+        transport = ROOT / 'tools/checkpoint_formats/live_shadow_transport.cc'
+        extra_driver = ['FS_CHECKPOINT_SHADOW=1']
+        hashes.update({str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in [
+            transport, ROOT / 'tools/checkpoint_formats/bridge_live_shadow.py',
+            ROOT / 'tools/checkpoint_formats/tests/verify_bridge_live_vcs.py', live / 'authority.sv']})
     (out / 'source-inputs.json').write_bytes(canonical(hashes))
     run(make + ['FS_CHECKPOINT_PROFILE=fcfs-fased-v1', 'VCS_FLAGS=-Mupdate',
-                f'VCS={os.environ["VCS_HOME"]}/bin/vcs -full64', f'VCS_EXTRA_V={probe / "paired-probe.sv"}', 'vcs'],
+                f'VCS={os.environ["VCS_HOME"]}/bin/vcs -full64', f'VCS_EXTRA_V={extra_verilog}', *extra_driver, 'vcs'],
         out / 'metasim-build.log', ROOT / 'sims/firesim/sim')
     executable = generated / 'checkpoint-vcs/AXI4Fuzzer-checkpoint'
     shutil.copy2(executable, out / executable.name)
@@ -189,6 +203,9 @@ def main():
                    live_shadow_acceptance=False, output=str(out))
     (out / 'summary.json').write_bytes(canonical(summary))
     print(json.dumps(summary, indent=2), flush=True)
+    if args.live:
+        from tools.checkpoint_formats.tests.verify_bridge_live_vcs import verify_live
+        verify_live(out, manifest, boundary, mapping, erased_boundary, CONFIGURATION)
 
 
 if __name__ == '__main__':

@@ -26,6 +26,10 @@ std::string socket_path, received;
 std::vector<unsigned> widths;
 size_t maximum = 0;
 constexpr int timeout_ms = 30000;
+// Complete production restore/readback precedes the first boundary. It can
+// exceed one cycle's ACK timeout for large memories. Keep that ACK timeout
+// strict while allowing the same bounded startup as the VCS verifier.
+constexpr int startup_timeout_ms = 600000;
 
 [[noreturn]] void fail(const std::string &message) {
   std::fprintf(stderr, "SHADOW_PROTOCOL_ERROR: target_cycle=%llu pending=%u %s\n",
@@ -140,7 +144,7 @@ extern "C" void shadow_open(const char *path, int is_server, const char *identit
     std::strcpy(address.sun_path, path);
     peer = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
     require(peer >= 0, "socket creation failed");
-    auto deadline = Clock::now() + std::chrono::milliseconds(timeout_ms);
+    auto deadline = Clock::now() + std::chrono::milliseconds(startup_timeout_ms);
     if (server) {
       require(bind(peer, reinterpret_cast<sockaddr *>(&address), sizeof(address)) == 0,
               "socket bind failed (existing paths are never replaced)");
@@ -167,6 +171,10 @@ extern "C" void shadow_open(const char *path, int is_server, const char *identit
     }
   } catch (const std::exception &e) { fail(e.what()); }
 }
+
+// Explicit simulator errors must use the same bounded termination as transport
+// errors: a parked FireSim worker cannot participate in VCS atexit teardown.
+extern "C" void shadow_fail(const char *message) { fail(message); }
 
 extern "C" void shadow_send(const char *message) {
   try {
