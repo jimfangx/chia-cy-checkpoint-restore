@@ -75,8 +75,18 @@ def main():
                                       ['+fs-checkpoint-preflight', restore], [restore, capture],
                                       ['+fs-checkpoint-preflight', '+fs-checkpoint-preflight'])):
             cases.append((f'conflict-{i}', options, 1, 'duplicate or conflicting', 'parse'))
+        schedule = '+fs-checkpoint-operation='
+        invalid_schedules = [[capture, schedule+value] for value in
+                             ('', '0', '-1', '+1', '1x', '18446744073709551616')]
+        invalid_schedules += [[capture, schedule+'3', schedule+'3'], [schedule+'3'],
+                              [restore, schedule+'3'], ['+fs-checkpoint-preflight', schedule+'3'],
+                              [capture, '+fs-checkpoint-operation'], [capture, '+fs-checkpoint-operation-typo=3']]
+        for i, options in enumerate(invalid_schedules):
+            cases.append((f'schedule-invalid-{i}', options, 1, 'checkpoint operation schedule', 'parse'))
         if enabled:
             cases += [('capture', [capture], 0, None, 'capture'), ('restore', [restore], 0, None, 'restore')]
+            cases += [('schedule-before', [schedule+'3', capture], 0, None, 'capture'),
+                      ('schedule-after', [capture, schedule+'18446744073709551615'], 0, None, 'capture')]
             for mode, error, phase in [
                 ('deny', 'unsupported public durable', 'authorize'),
                 ('authorize-error', 'fixture authorize failure', 'authorize'),

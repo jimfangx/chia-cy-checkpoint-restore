@@ -153,9 +153,13 @@ def main():
                         help='Link the concrete native durable restore capability and use +fs-restore')
     parser.add_argument('--live-capture', action='store_true',
                         help='Collect/publish the complete live cut natively; verify every byte against Python')
+    parser.add_argument('--public-capture', action='store_true',
+                        help='Use public operation scheduling and the ordinary opt-in harness capture callback')
     parser.add_argument('--resume-after-continuations', action='store_true',
                         help='Recheck this run\'s completed continuations and rerun every rejection/sanitizer scope')
     args = parser.parse_args()
+    if args.public_capture:
+        args.public_restore = args.live_capture = True
     require(not args.live_capture or args.public_restore, 'live capture requires the durable capability')
     require(not (args.public_restore and args.resume_after_continuations),
             'public restoration must run its full verification, without restricted resumption')
@@ -297,7 +301,7 @@ def main():
         '$display("PRODUCTION_BOOTSTRAP zero_edges=1");',
         'end end end', 'final begin production_runtime_identity_verify(); if(fd) $fclose(fd); end', 'endmodule',
         'bind FPGATop production_aggregate_monitor aggregate_monitor();']
-    if args.live_capture:
+    if args.live_capture and not args.public_capture:
         monitor[1:1] = [
             'module durable_live_capture_observer();',
             'import "DPI-C" context function int production_durable_live_capture(input longint unsigned host_sample);',
@@ -311,6 +315,7 @@ def main():
     (out/'harness.sv').write_text(''.join(f'`include "{p}"\n' for p in (
         generated/'FireSim-generated.const.vh', generated/'FireSim-generated.defines.vh', verilog/'top.sv')))
     run([Path(os.environ['VCS_HOME'])/'bin/vcs', '-full64', '-sverilog', '-debug_access+all', '+vpi',
+         *(['+define+FS_CHECKPOINT_DURABLE'] if args.public_capture else []),
          '+vcs+initreg+random', '+define+VCS', '+define+CLOCK_PERIOD=1', '-timescale=1ps/1ps', '-top', 'emul',
          '-cc', os.environ['CC'], '-cpp', os.environ['CXX'], '-CFLAGS', f'-std=c++20 -DVCS -DFS_CHECKPOINT_ENTRY -I{cc} -I{out} -I{generated}',
          '-LDFLAGS', '-Wl,--no-as-needed -pthread -lgmp -lcrypto -ldl', f'-Mdir={out/"csrc"}', '-o', out/'simv',
@@ -333,7 +338,8 @@ def main():
             case = out/label/f'cut-{cut}'; case.mkdir(parents=True, exist_ok=True)
             diagnostic = case/'software.diag'; diagnostic.unlink(missing_ok=True)
             log = run([*common, *timing, f'+fs-driver-cut={cut}', '+fs-driver-settled', '+fs-driver-lowclock',
-                       *([f'+test-live-capture={case/"capture.fsckpt"}'] if args.live_capture else []),
+                       *([f'+fs-checkpoint={case/"capture.fsckpt"}', f'+fs-checkpoint-operation={cut}']
+                         if args.public_capture else [f'+test-live-capture={case/"capture.fsckpt"}'] if args.live_capture else []),
                        f'+test-runtime-identity={case/"runtime-identity.bin"}',
                        f'+fs-driver-diagnostic={diagnostic}', f'+settled_generated_capture={case/"generated.jsonl"}',
                        f'+target_port_trace={case/"capture.trace"}'], case/'capture.log', case)
@@ -409,6 +415,7 @@ def main():
                    production_plusargs_enabled=False,
                    public_durable_restore_enabled=args.public_restore,
                    native_live_capture_verified=args.live_capture,
+                   public_durable_capture_enabled=args.public_capture,
                    physical_fpga_validated=False)
     (out/'summary.json').write_bytes(canonical(summary))
     print('PASS: fresh production entry aggregate continuation with '+('public durable restore' if args.public_restore else 'a test capability'), flush=True)

@@ -24,8 +24,11 @@ def main():
     text=run([case/'verify',case],case/'run.log')
     require('PASS: live capture guard cuts=1' in text and 'unchanged_native=3 added_edges=0' in text,
             'capture guard did not preserve native owners and edge count')
+    require('PASS: public schedule missing_callback_rejected=1 publication_acknowledged=1 added_edges=0' in text,
+            'public scheduling did not guard publication before worker release')
     (out/'summary.json').write_bytes(canonical(dict(invocation=str(case),settled_cuts=1,
-        unchanged_native_owners=3,added_edges=0,sanitizers='ASan/UBSan')))
+        unchanged_native_owners=3,added_edges=0,sanitizers='ASan/UBSan',
+        public_schedule_missing_callback_rejected=True,publication_acknowledged=True)))
     print('PASS: real parked-worker capture guard, unsupported topology and unchanged native state',flush=True)
 
 

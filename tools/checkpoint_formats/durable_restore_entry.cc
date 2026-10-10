@@ -1,5 +1,5 @@
 // Explicitly linked public restore capability for the audited FCFS/FASED VCS
-// profile. Capture publication is not enabled by this restore-only factory.
+// profile. Public capture uses completed-operation scheduling at a settled cut.
 #include "core/checkpoint_entry.h"
 #include "core/simulation.h"
 #include "emul/simif_emul.h"
@@ -22,6 +22,7 @@ class durable_restore_entry_t final : public checkpoint_entry_t {
   aggregate_restore_t aggregate;
   std::string loaded_native;
   std::string live_capture;
+  bool public_capture=false;
   bool captured=false;
   bool consumed=false;
   aggregate_restore_t::owners_t owners() {
@@ -34,11 +35,16 @@ class durable_restore_entry_t final : public checkpoint_entry_t {
 public:
   explicit durable_restore_entry_t(const std::vector<std::string> &args) {
     const auto request=checkpoint_request_t::parse(args);
-    if(request.kind==checkpoint_request_t::kind_t::capture)
-      throw std::runtime_error("unsupported public durable capture publication");
+    if(request.kind==checkpoint_request_t::kind_t::capture) {
+      if(!request.operation)
+        throw std::runtime_error("public capture requires +fs-checkpoint-operation=N");
+      live_capture=request.path;
+      public_capture=true;
+    }
     std::vector<std::string> configuration;
     for(const auto &arg:args) {
       if(arg.rfind("+fs-restore=",0)==0) continue; // Already parsed by entry.
+      if(arg.rfind("+fs-checkpoint=",0)==0 || arg.rfind("+fs-checkpoint-operation=",0)==0) continue;
       if(arg.rfind("+test-live-capture",0)==0) {
         if(arg.rfind("+test-live-capture=",0)!=0 || arg.size()==19 || !live_capture.empty() ||
            request.kind!=checkpoint_request_t::kind_t::none)
@@ -56,7 +62,10 @@ public:
       configuration.push_back(arg);
       if(arg.rfind("+test-loaded-native=",0)==0) loaded_native=arg.substr(20);
     }
-    if(!live_capture.empty()) {
+    if(public_capture) {
+      driver_boundary_diagnostic_t cut(args);
+      cut.arm_checkpoint_operation(request.operation);
+    } else if(!live_capture.empty()) {
       const driver_boundary_diagnostic_t cut(args);
       if(!cut.requested() || !cut.lowclock() || !cut.settled())
         throw std::runtime_error("live capture test requires a complete settled low-clock cut");
@@ -75,11 +84,16 @@ public:
     if(request.kind==checkpoint_request_t::kind_t::restore) {
       staging=read_durable_restore(request.path);
       puts("FS_DURABLE_RESTORE_VALIDATED before_platform=1");
-    } else checkpoint_entry_t::authorize_request(request);
+    } else if(request.kind!=checkpoint_request_t::kind_t::capture)
+      checkpoint_entry_t::authorize_request(request);
   }
   action_t prepare(simif_t &platform, simulation_t &sim, const checkpoint_request_t &request) override {
     emulator=dynamic_cast<simif_emul_t *>(&platform); simulation=&sim;
     if(!emulator) throw std::runtime_error("durable restore requires VCS metasim");
+    if(public_capture) {
+      emulator->schedule_checkpoint_operation(request.operation);
+      puts("FS_DURABLE_CAPTURE_SCHEDULED before_run=1 units=completed_driver_operations");
+    }
     if(request.kind!=checkpoint_request_t::kind_t::restore) return action_t::run;
     if(staging.empty()) throw std::runtime_error("missing validated durable restore image");
     emulator->begin_restored_load(sim);
@@ -87,15 +101,17 @@ public:
     return action_t::restore_reserved;
   }
   void verify_identity() { identity->save_checkpoint(); }
+  bool public_capture_requested() const { return public_capture && !captured; }
   int capture(uint64_t host_sample) {
     try {
       if(live_capture.empty() || captured || consumed || !emulator || !simulation)
-        throw std::runtime_error("missing/consumed live capture test request");
+        throw std::runtime_error("missing/consumed live capture request");
       captured=true; // A failed capture may never be retried or published.
       emulator->require_settled_checkpoint_capture();
       const auto snapshot=capture_durable_snapshot(owners(),host_sample);
       emulator->require_settled_checkpoint_capture();
       publish_durable_capture(live_capture,snapshot);
+      if(public_capture) emulator->acknowledge_checkpoint_publication();
       printf("FS_DURABLE_LIVE_CAPTURE_PUBLISHED host_sample=%llu no_loads=1 no_deposits=1\n",
              (unsigned long long)host_sample);
       return 0;
@@ -148,8 +164,8 @@ extern "C" int production_aggregate_load() {
   if(!capability) return 1;
   return capability->load();
 }
-// Verification-only entry to the collector, called by a context DPI observer
-// at checkpoint_settled_event. Public +fs-checkpoint remains fail closed.
+// Collector shared by the verification observer and the opt-in public harness
+// callback. Both enter with the worker parked at the settled low-clock cut.
 extern "C" int production_durable_live_capture(uint64_t host_sample) {
   if(!capability)
     fputs("FS_DURABLE_LIVE_CAPTURE_ERROR: missing durable capability\n",stderr);
@@ -160,4 +176,12 @@ extern "C" int production_durable_live_capture(uint64_t host_sample) {
     std::_Exit(EXIT_FAILURE);
   }
   return 0;
+}
+// Called by the ordinary opt-in harness before the parked worker is released.
+extern "C" void production_durable_capture_if_requested(uint64_t host_sample) {
+  if(!capability) {
+    fputs("FS_DURABLE_LIVE_CAPTURE_ERROR: missing durable capability\n",stderr);
+    std::fflush(nullptr); std::_Exit(EXIT_FAILURE);
+  }
+  if(capability->public_capture_requested()) production_durable_live_capture(host_sample);
 }

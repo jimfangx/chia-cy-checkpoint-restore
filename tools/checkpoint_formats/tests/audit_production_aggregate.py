@@ -85,7 +85,14 @@ def main():
         if live:
             assert case['native_live_capture_verified']
             command=json.loads(capture.splitlines()[1].removeprefix('argv='))
-            assert command.count('+test-live-capture='+str(path/'capture.fsckpt'))==1
+            if summary.get('public_durable_capture_enabled'):
+                assert command.count('+fs-checkpoint='+str(path/'capture.fsckpt'))==1
+                assert command.count('+fs-checkpoint-operation='+str(case['cut']))==1
+                assert not any(str(a).startswith('+test-live-capture') for a in command)
+                assert 'FS_DURABLE_CAPTURE_SCHEDULED before_run=1 units=completed_driver_operations' in capture
+                assert 'durable_live_capture_observer' not in (out/'monitor.sv').read_text()
+            else:
+                assert command.count('+test-live-capture='+str(path/'capture.fsckpt'))==1
             publications=re.findall(r'FS_DURABLE_LIVE_CAPTURE_PUBLISHED host_sample=(\d+) no_loads=1 no_deposits=1',capture)
             assert publications==[str(case['host_sample'])]
             assert 'deposited' not in capture and 'PRODUCTION_AGGREGATE_LOADED' not in capture
