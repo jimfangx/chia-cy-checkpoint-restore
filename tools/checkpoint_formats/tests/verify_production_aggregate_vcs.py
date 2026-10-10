@@ -13,6 +13,8 @@ import os
 from pathlib import Path
 import re
 import struct
+import shutil
+import tempfile
 
 from tools.checkpoint_formats import aggregate_packed as packed
 from tools.checkpoint_formats.aggregate import build_identity, prepare_aggregate_loader
@@ -24,6 +26,16 @@ from tools.checkpoint_formats.simulator import prepare_settled_generated_probe
 from tools.checkpoint_formats.tests.verify_driver_boundary_vcs import read_diagnostic
 from tools.checkpoint_formats.tests.verify_generated_restore_vcs import verify_native
 from tools.checkpoint_formats.tests.verify_semantic_vcs import ROOT, run
+
+
+def prepare_output(path, normal_make):
+    out = path.resolve(); out.mkdir(parents=True, exist_ok=True)
+    if normal_make and ((out/'simv').exists() or (out/'simv').is_symlink()):
+        # Keep the executable, companion libraries, checkpoints and old source
+        # bindings together. A repeated verification runs every check afresh.
+        out = Path(tempfile.mkdtemp(prefix='invocation-', dir=out))
+        print('NORMAL_MAKE_VERIFICATION_OUTPUT '+str(out), flush=True)
+    return out
 
 
 def compare_target_trace(expected, observed, fields, cut, sample):
@@ -155,15 +167,19 @@ def main():
                         help='Collect/publish the complete live cut natively; verify every byte against Python')
     parser.add_argument('--public-capture', action='store_true',
                         help='Use public operation scheduling and the ordinary opt-in harness capture callback')
+    parser.add_argument('--normal-make', action='store_true',
+                        help='Build the public capability and production restore coordinator through ordinary Make')
     parser.add_argument('--resume-after-continuations', action='store_true',
                         help='Recheck this run\'s completed continuations and rerun every rejection/sanitizer scope')
     args = parser.parse_args()
+    if args.normal_make:
+        args.public_capture = True
     if args.public_capture:
         args.public_restore = args.live_capture = True
     require(not args.live_capture or args.public_restore, 'live capture requires the durable capability')
     require(not (args.public_restore and args.resume_after_continuations),
             'public restoration must run its full verification, without restricted resumption')
-    out = args.out.resolve(); out.mkdir(parents=True, exist_ok=True)
+    out = prepare_output(args.out, args.normal_make)
     require(os.environ['VCS_HOME'] == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'source vcs-env.sh LAST')
     require(os.environ['CXX'] == '/usr/bin/g++-13', 'preserve VCS compiler setup')
     if args.resume_after_continuations:
@@ -314,13 +330,45 @@ def main():
     (out/'monitor.sv').write_text('\n'.join(monitor)+'\n')
     (out/'harness.sv').write_text(''.join(f'`include "{p}"\n' for p in (
         generated/'FireSim-generated.const.vh', generated/'FireSim-generated.defines.vh', verilog/'top.sv')))
-    run([Path(os.environ['VCS_HOME'])/'bin/vcs', '-full64', '-sverilog', '-debug_access+all', '+vpi',
+    if args.normal_make:
+        # The monitor only observes. Make generates, compiles and runs the real
+        # coordinator; no test loader may perform the production restore.
+        begin = monitor.index('if(restoring) begin')
+        end = monitor.index('end end end', begin)
+        monitor[begin:end+1] = ['end']
+        (out/'monitor.sv').write_text('\n'.join(monitor)+'\n')
+        command = ['make', 'TARGET_PROJECT=fasedtests', 'DESIGN=AXI4Fuzzer', 'TARGET_CONFIG=FCFSConfig',
+                   'PLATFORM_CONFIG=FCFS16GBQuadRank_DefaultF1Config', f'BUILD_DIR={args.build.resolve()}',
+                   'FS_CHECKPOINT_PROFILE=fcfs-fased-v1', 'VCS_FLAGS=-Mupdate',
+                   f'VCS={Path(os.environ["VCS_HOME"])/"bin/vcs"} -full64',
+                   f'VCS_EXTRA_V={out/"monitor.sv"} {out/"settled-generated-probe.sv"}', 'vcs']
+        run(command, out/'build.log', ROOT/'sims/firesim/sim')
+        executable = generated/'checkpoint-vcs/AXI4Fuzzer-checkpoint'
+        require(executable.is_file(), 'Make did not produce the checkpoint executable')
+        shutil.copy2(executable, out/executable.name)
+        (out/'simv').symlink_to(executable.name)
+        shutil.copytree(Path(str(executable)+'.daidir'), out/(executable.name+'.daidir'))
+        (out/'simv.daidir').symlink_to(executable.name+'.daidir', target_is_directory=True)
+        for library in executable.parent.glob('*.so'):
+            shutil.copy2(library, out/library.name)
+        compiled = generated/'checkpoint-native'
+        for name in ('native-build-inputs', 'runtime-manifest', 'generated-manifest', 'harness-layout'):
+            (out/(name+'.json')).write_bytes((compiled/(name+'.json')).read_bytes())
+        (out/'checkpoint-coordinator.sv').write_bytes((compiled/'checkpoint-coordinator.sv').read_bytes())
+        native_inputs = json.loads((out/'native-build-inputs.json').read_text())
+        runtime = json.loads((out/'runtime-manifest.json').read_text())
+        require(runtime['native_owners'] == owner_rows and
+                json.loads((out/'generated-manifest.json').read_text()) == manifest and
+                json.loads((out/'harness-layout.json').read_text()) == layout,
+                'Make inventory differs from independent production oracle')
+    else:
+        run([Path(os.environ['VCS_HOME'])/'bin/vcs', '-full64', '-sverilog', '-debug_access+all', '+vpi',
          *(['+define+FS_CHECKPOINT_DURABLE'] if args.public_capture else []),
          '+vcs+initreg+random', '+define+VCS', '+define+CLOCK_PERIOD=1', '-timescale=1ps/1ps', '-top', 'emul',
          '-cc', os.environ['CC'], '-cpp', os.environ['CXX'], '-CFLAGS', f'-std=c++20 -DVCS -DFS_CHECKPOINT_ENTRY -I{cc} -I{out} -I{generated}',
          '-LDFLAGS', '-Wl,--no-as-needed -pthread -lgmp -lcrypto -ldl', f'-Mdir={out/"csrc"}', '-o', out/'simv',
          out/'harness.sv', out/'monitor.sv', out/'settled-generated-probe.sv',
-         generated/'FireSim-generated.sv', verilog/'BUFGCE.v', *sources], out/'build.log')
+             generated/'FireSim-generated.sv', verilog/'BUFGCE.v', *sources], out/'build.log')
     build = build_identity(runtime, manifest, layout, out/'simv')
     (out/'aggregate-build.json').write_bytes(canonical(build))
     # Preserve linked library provenance with the executable binding.
@@ -410,7 +458,7 @@ def main():
         from tools.checkpoint_formats.tests.verify_public_durable_restore import verify_rejections as public_rejections
         rejections=public_rejections(common,out,build,runtime,manifest,layout)
     else: rejections=verify_rejections(common, out, owner_rows, manifest)
-    summary = dict(cases=results, **rejections,
+    summary = dict(cases=results, **rejections, normal_make_build=args.normal_make,
                    test_entry_production_continuation_verified=True, real_production_entry_verified=True,
                    production_plusargs_enabled=False,
                    public_durable_restore_enabled=args.public_restore,

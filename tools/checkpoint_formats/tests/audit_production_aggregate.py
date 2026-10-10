@@ -53,8 +53,20 @@ def main():
             assert '-DFS_CHECKPOINT_ENTRY' in native_inputs['cflags']
             assert 'sims/firesim/sim/midas/src/main/cc/entry.cc' in native_inputs['translation_units']
             command=json.loads((out/'build.log').read_text().splitlines()[1].removeprefix('argv='))
-            assert str(root/'sims/firesim/sim/midas/src/main/cc/entry.cc') in command
-            assert '-DFS_CHECKPOINT_ENTRY' in command[command.index('-CFLAGS')+1]
+            if summary.get('normal_make_build'):
+                assert command[0]=='make' and 'FS_CHECKPOINT_PROFILE=fcfs-fased-v1' in command
+                text=(out/'build.log').read_text()
+                assert 'CHECKPOINT_BUILD_INVENTORY profile=fcfs-fased-v1' in text
+                assert str(root/'sims/firesim/sim/midas/src/main/cc/entry.cc') in text
+                assert '-DFS_CHECKPOINT_ENTRY' in text and '+define+FS_CHECKPOINT_DURABLE' in text
+                coordinator=(out/'checkpoint-coordinator.sv').read_text()
+                assert 'wait(emul.checkpoint_entry_done)' in coordinator
+                assert 'production_aggregate_load()' in coordinator
+                assert 'status=production_aggregate_load();' not in (out/'monitor.sv').read_text()
+                assert native_inputs['make_profile']=='fcfs-fased-v1'
+            else:
+                assert str(root/'sims/firesim/sim/midas/src/main/cc/entry.cc') in command
+                assert '-DFS_CHECKPOINT_ENTRY' in command[command.index('-CFLAGS')+1]
         assert all(sha((root/name).read_bytes())==value for name,value in native_inputs['sources'].items())
         if live:
             for name in ('durable_capture.cc','durable_publish.cc'):
@@ -134,7 +146,7 @@ def main():
                 assert Path(filename).is_absolute() and hashlib.sha256(Path(filename).read_bytes()).digest()==digest
                 elf_files.append(filename)
             assert pos==len(identity) and elf_files==sorted(set(elf_files))
-            assert str(out/'simv') in elf_files and any('_archive_' in f for f in elf_files)
+            assert str((out/'simv').resolve()) in elf_files and any('_archive_' in f for f in elf_files)
             assert any('libcrypto.so' in f for f in elf_files) and any('libvcsnew.so' in f for f in elf_files)
             owners['runtime/compatibility']=('firesim.runtime.fcfs-config-and-loaded-elf.v1',identity)
         expected={'cut/host_sample'}
