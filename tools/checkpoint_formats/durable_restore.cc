@@ -12,6 +12,9 @@
 #include <stdexcept>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <algorithm>
+#include <charconv>
+#include <iomanip>
 
 namespace {
 struct DurableEntry { const char *owner, *path; uint64_t width, depth; bool low; };
@@ -97,8 +100,12 @@ void entry(const rows_t &rows, const DurableEntry &e, bool packed) {
 }
 
 std::string read_durable_restore(const std::string &filename) {
+  return validate_durable_restore(read_regular(filename));
+}
+
+std::string validate_durable_restore(std::string bytes) {
   // One immutable file image feeds integrity, schema and native preparation.
-  auto bytes=read_regular(filename);
+  require(bytes.size()<=256ULL*1024*1024, "unsupported image size for audited profile");
   require(bytes.size()>=48 && bytes.compare(0,8,std::string("FSCKPT\0\1",8))==0, "wrong magic/type/version");
   uint64_t size=0; for(size_t i=8;i<16;++i) size=(size<<8)|uint8_t(bytes[i]);
   require(size==bytes.size()-48, "container size mismatch");
@@ -162,4 +169,97 @@ std::string read_durable_restore(const std::string &filename) {
   for(const auto &[name,text]:{std::pair{"GENERATED",g.str()},std::pair{"HARNESS",h.str()}})
     result<<name<<' '<<text.size()<<'\n'<<text;
   return result.str();
+}
+
+std::string encode_durable_capture(const std::string &snapshot) {
+  require(snapshot.size()<=256ULL*1024*1024, "unsupported snapshot size for audited profile");
+  std::istringstream input(snapshot);
+  auto number=[](const std::string &text) {
+    uint64_t n=0;
+    const auto parsed=std::from_chars(text.data(),text.data()+text.size(),n);
+    require(parsed.ec==std::errc{} && parsed.ptr==text.data()+text.size() &&
+            std::to_string(n)==text, "noncanonical snapshot number");
+    return n;
+  };
+  auto line=[&]() {
+    std::string text; require(bool(std::getline(input,text)), "missing snapshot row");
+    return std::istringstream(text);
+  };
+  std::string magic,hash,cycle_text,sample_text,count_text,extra;
+  auto header=line();
+  require(bool(header>>magic>>hash>>cycle_text>>sample_text>>count_text) && !(header>>extra) &&
+          magic=="FSAGG1" && hash==durable_runtime_hash && number(count_text)==std::size(durable_native),
+          "incompatible capture snapshot");
+  const auto cycle=number(cycle_text),sample=number(sample_text);
+  std::map<std::string,boost::json::value> records;
+  auto add=[&](const std::string &owner,uint64_t width,const std::string &value) {
+    require(width>0 && width/4+(width%4!=0)==value.size() &&
+            value.find_first_not_of("0123456789abcdef")==std::string::npos,
+            "invalid capture bit vector");
+    require(records.emplace(owner,boost::json::object{{"owner",owner},{"value",value},{"width",width}}).second,
+            "duplicate capture owner");
+  };
+  std::ostringstream sample_hex; sample_hex<<std::hex<<std::setw(16)<<std::setfill('0')<<sample;
+  add("cut/host_sample",64,sample_hex.str());
+  for(const auto &e:durable_native) {
+    std::string kind,owner,schema,length,value;
+    auto row=line();
+    require(bool(row>>kind>>owner>>schema>>length>>value) && !(row>>extra) && kind=="HOST" &&
+            owner==e.owner && schema==e.schema && number(length)>0 &&
+            number(length)<=snapshot.size()/2 && value.size()==number(length)*2,
+            "incompatible capture native owner/schema/length");
+    add("host/"+owner,number(length)*8,value);
+  }
+  auto section=[&](const char *expected) {
+    std::string kind,length; auto row=line();
+    require(bool(row>>kind>>length) && !(row>>extra) && kind==expected, "wrong capture section");
+    const auto n=number(length);
+    const auto offset=input.tellg();
+    require(offset>=0 && n<=snapshot.size()-size_t(offset), "truncated capture section");
+    std::string text(size_t(n),'\0'); input.read(text.data(),text.size());
+    require(bool(input) && text.find('\0')==std::string::npos, "invalid capture section bytes");
+    return std::istringstream(text);
+  };
+  auto generated=section("GENERATED");
+  std::string build_hash,phase;
+  require(bool(generated>>magic>>hash>>build_hash>>phase>>count_text) &&
+          magic=="FSGRTL2" && hash==durable_generated_hash && build_hash==durable_build_hash &&
+          phase=="settled_host_negedge", "incompatible capture generated header");
+  uint64_t words=0; for(const auto &e:durable_generated) words+=e.depth;
+  require(number(count_text)==words, "incomplete capture generated words");
+  for(const auto &e:durable_generated) {
+    std::string path,width,depth,value;
+    require(bool(generated>>path>>width>>depth>>value) && path==e.path &&
+            number(width)==e.width && number(depth)==e.depth, "changed capture generated shape/order");
+    add(e.owner,4*((e.width+3)/4)*e.depth,value);
+  }
+  require(!(generated>>extra), "trailing capture generated state");
+  auto harness=section("HARNESS");
+  require(bool(harness>>magic>>hash>>build_hash>>phase>>count_text) &&
+          magic=="FSHRNS1" && hash==durable_harness_hash && build_hash==durable_harness_source_hash &&
+          phase=="settled_host_negedge" && number(count_text)==std::size(durable_harness),
+          "incompatible capture harness header");
+  for(const auto &e:durable_harness) {
+    std::string path,width,value;
+    require(bool(harness>>path>>width>>value) && path==e.path && number(width)==e.width,
+            "changed capture harness shape/order");
+    add(e.owner,e.width,value);
+  }
+  require(!(harness>>extra) && input.peek()==std::char_traits<char>::eof(), "trailing capture state");
+  std::array<char,4096> path{}; const auto size=readlink("/proc/self/exe",path.data(),path.size());
+  require(size>0 && size_t(size)<path.size(), "cannot resolve capture executable");
+  boost::json::object build{{"golden_gate_build_hash",durable_build_hash},{"rtl_build_hash",durable_rtl_hash},
+    {"simulator_build_hash",hex(sha256(read_regular(std::string(path.data(),size))))},
+    {"state_manifest_hash",durable_runtime_hash},{"target_configuration",durable_profile}};
+  boost::json::array rows; for(auto &[owner,row]:records) rows.push_back(std::move(row));
+  const auto payload=boost::json::serialize(boost::json::object{{"build",std::move(build)},
+    {"checkpoint_type","fsckpt"},{"format_version",1},{"records",std::move(rows)},
+    {"target_clock_phase","before_rising_edge"},{"target_cycle",cycle}});
+  std::string image("FSCKPT\0\1",8);
+  for(int i=7;i>=0;--i) image.push_back(uint64_t(payload.size())>>(8*i));
+  image+=payload; image+=sha256(image);
+  // Reuse the consumer's complete membership, padding, low-clock, target-cycle
+  // and executable checks. Reject alternative whitespace/order in staging too.
+  require(validate_durable_restore(image)==snapshot, "noncanonical capture snapshot");
+  return image;
 }
