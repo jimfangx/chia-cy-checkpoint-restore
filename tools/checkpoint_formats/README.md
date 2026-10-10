@@ -114,6 +114,30 @@ This prototype covers the small InventoryFixture, including its target SRAM.
 It does not establish Rocket/BOOM, multi-model/threaded FAME mappings, physical
 FPGA capture, ASIC gate-level activity, or power estimation.
 
+`live_shadow.py` extends that same strict semantic oracle to two concurrent VCS
+processes. It validates a standalone `.rtlckpt` and both complete RTL inventories,
+then generates an authoritative gated-clock observer and an ordinary clean DUT
+bench. For each actual target edge, the observer sends every boundary input and
+output over `live_shadow_transport.cc`. The clean bench applies inputs, settles,
+compares outputs, advances exactly one clock edge and acknowledges that cycle.
+The authoritative edge remains blocked until acknowledgment. Clean outputs are
+used only for comparison. No finite trace supplies future inputs.
+
+The host transport binds the session to the checkpoint, manifests, configuration,
+both RTL files and logical origin. It rejects malformed/unknown/padded values,
+skipped cycles, incorrect acknowledgments, premature disconnects and existing
+socket destinations; each peer operation has a 30-second deadline. A mismatch
+exits immediately with its original target cycle and signal. The sustained
+fixture option `+inventory-shadow-rounds=N` runs after all original directed
+checks and alternates held responses and active traffic. Its default is disabled.
+`tests.verify_live_shadow_vcs` exercises 1024 rounds and an actual clean-DUT
+register corruption at cycle 29; `tests.verify_live_shadow_transport` checks the
+native protocol with independent socket peers under ASan/UBSan.
+
+This increment uses a freshly booted authoritative InventoryFixture. It does not
+yet connect the semantic adapter to the audited FCFS/FASED Level-1 restored
+metasim, and therefore does not establish the live restore milestone acceptance.
+
 For real compiler-artifact verification, run the Scala inventory suite with
 `CHECKPOINT_TEST_ARTIFACT_DIR` set to a directory, then from the Chipyard root run:
 
