@@ -3,7 +3,9 @@ import copy
 import hashlib
 import json
 import os
+from pathlib import Path
 import struct
+import tempfile
 
 from tools.checkpoint_formats.codec import canonical, decode, require
 from tools.checkpoint_formats.tests.verify_semantic_vcs import run
@@ -85,19 +87,24 @@ def verify_rejections(common,out,build,runtime,manifest,layout):
         text=run([*common,*request],case/'run.log',case,expected=1)
         require('FS_CHECKPOINT_ENTRY_ERROR' in text and 'FS_CHECKPOINT_ENTRY_CONFIGURED' not in text,
                 'unsupported public request reached platform')
+    special_inputs={}
     for name in ('symlink','fifo','directory'):
         case=out/'public-special-negative'/name;case.mkdir(parents=True,exist_ok=True)
-        path=case/'input'
+        # A repeated verification must exercise fresh special files without
+        # removing or following any previous run's fixture.
+        path=Path(tempfile.mkdtemp(prefix='inputs-',dir=case))/'input'
         if name=='symlink':path.symlink_to(first)
         if name=='fifo':os.mkfifo(path)
         if name=='directory':path.mkdir()
-        text=run([*common,f'+fs-restore={path}'],case/'run.log',case,expected=1)
+        text=run([*common,f'+fs-restore={path}'],path.parent/'run.log',case,expected=1)
         require('FS_CHECKPOINT_ENTRY_ERROR' in text and 'FS_CHECKPOINT_ENTRY_CONFIGURED' not in text,
                 'special public input reached platform')
+        special_inputs[name]=str(path)
     require(not (out/'absent.fsckpt').exists() and hashlib.sha256(first.read_bytes()).hexdigest()==digest,
             'public rejection modified checkpoint files')
     result=dict(public_restore_rejections=results,public_runtime_rejections=runtime_results,
                 public_dispatch_rejections=len(options),public_special_file_rejections=3,
+                public_special_file_inputs=special_inputs,
                 malformed_processes=[],runtime_compatibility_rejections=[])
     (out/'public-rejection-summary.json').write_bytes(canonical(result))
     print(f'PASS: {len(cases)+len(runtime_results)+len(options)+3} full-size public restore rejections',flush=True)

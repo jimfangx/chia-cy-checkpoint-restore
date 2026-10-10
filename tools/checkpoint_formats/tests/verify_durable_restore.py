@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import struct
+import tempfile
 
 from tools.checkpoint_formats import aggregate, aggregate_packed as packed
 from tools.checkpoint_formats.codec import canonical, decode, encode, require
@@ -71,16 +72,24 @@ def main():
         text=run([out/'verify',path,output],out/(name+'.log'),expected=1)
         require('REJECT no_publication=1' in text and output.read_bytes()==b'unchanged\n','failed consumer published state')
         rejected.append(name)
+    # Retain earlier fixtures and diagnostics when the loop repeats --out.
+    # In particular, never follow or unlink a stale symlink to make a rerun pass.
+    special=Path(tempfile.mkdtemp(prefix='special-files-',dir=out))
+    special_inputs={}
     for name in ('symlink','fifo','directory','missing','oversized'):
-        path=out/name
+        path=special/name
         if name=='symlink':path.symlink_to(good)
         if name=='fifo':os.mkfifo(path)
         if name=='directory':path.mkdir()
         if name=='oversized':
             with path.open('wb') as stream:stream.truncate(256*1024*1024+1)
-        text=run([out/'verify',path,out/'unchanged.load'],out/(name+'.log'),expected=1)
-        require('REJECT no_publication=1' in text,'special file accepted');rejected.append(name)
-    summary=dict(sanitizers='ASan/UBSan',python_staging_byte_comparison=True,rejections=rejected)
+        output=out/'unchanged.load';output.write_bytes(b'unchanged\n')
+        text=run([out/'verify',path,output],special/(name+'.log'),expected=1)
+        require('REJECT no_publication=1' in text and output.read_bytes()==b'unchanged\n',
+                'special file accepted or rejection published state')
+        special_inputs[name]=str(path);rejected.append(name)
+    summary=dict(sanitizers='ASan/UBSan',python_staging_byte_comparison=True,rejections=rejected,
+                 special_file_inputs=special_inputs)
     (out/'summary.json').write_bytes(canonical(summary))
     print(f'PASS: native durable consumer matches Python oracle; {len(rejected)} ASan/UBSan rejections')
 

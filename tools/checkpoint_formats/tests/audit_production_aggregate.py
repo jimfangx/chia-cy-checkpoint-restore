@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import stat
 import struct
 
 
@@ -230,7 +231,20 @@ def main():
             text=process(out/'public-dispatch-negative'/str(index)/'run.log')
             assert text.endswith('exit=1\n') and 'FS_CHECKPOINT_ENTRY_CONFIGURED' not in text;public_rejections+=1
         for name in ('symlink','fifo','directory'):
-            text=process(out/'public-special-negative'/name/'run.log')
+            special_inputs=summary.get('public_special_file_inputs')
+            if special_inputs is None:
+                log=out/'public-special-negative'/name/'run.log'
+            else:
+                path=Path(special_inputs[name])
+                assert path.parent.parent==out/'public-special-negative'/name
+                mode=path.lstat().st_mode
+                assert {'symlink':stat.S_ISLNK, 'fifo':stat.S_ISFIFO,
+                        'directory':stat.S_ISDIR}[name](mode)
+                log=path.parent/'run.log'
+            text=process(log)
+            if special_inputs is not None:
+                argv=json.loads(text.splitlines()[1].removeprefix('argv='))
+                assert f'+fs-restore={path}' in argv
             assert text.endswith('exit=1\n') and 'FS_CHECKPOINT_ENTRY_CONFIGURED' not in text;public_rejections+=1
     assert len(set(pids))==len(pids)==(12+public_rejections if public else 42 if bound else 34)
     result=dict(cases=results,fresh_processes=len(pids),generated_word_comparisons=5*13507456,
