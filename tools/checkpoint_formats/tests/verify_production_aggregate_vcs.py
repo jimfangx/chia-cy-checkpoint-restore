@@ -253,6 +253,7 @@ def main():
         sources += [ROOT/'tools/checkpoint_formats/durable_restore.cc',
                     ROOT/'tools/checkpoint_formats/durable_publish.cc',
                     ROOT/'tools/checkpoint_formats/durable_history.cc',
+                    ROOT/'tools/checkpoint_formats/progress_watchdog.cc',
                     ROOT/'tools/checkpoint_formats/durable_capture.cc']
     dependencies = sorted({*sources, *cc.rglob('*.h'), *cc.rglob('*.cc'),
                            ROOT/'tools/checkpoint_formats/aggregate_restore.h',
@@ -260,6 +261,7 @@ def main():
     if args.public_restore:
         dependencies += [ROOT/'tools/checkpoint_formats/durable_restore.h',
                          ROOT/'tools/checkpoint_formats/durable_history.h',
+                         ROOT/'tools/checkpoint_formats/progress_watchdog.h',
                          ROOT/'tools/checkpoint_formats/durable_capture.h',
                          ROOT/'tools/checkpoint_formats/durable_restore.py',Path('/usr/include/boost/json/src.hpp')]
     native_inputs = dict(
@@ -301,7 +303,7 @@ def main():
         # Full capture validates runtime identity when a target deadline is
         # due. Poll-only callbacks must not hash the executable or emit a log
         # row on every completed operation; this observer is optional.
-        'always @(emul.checkpoint_settled_event) if(!$test$plusargs("test-live-periodic=") && !$test$plusargs("fs-checkpoint-directory=")) begin production_runtime_identity_verify(); $display("PRODUCTION_CUT host_edges=%0d target_edges=%0d",edges,target_edges); end',
+        'always @(emul.checkpoint_settled_event) if(!$test$plusargs("test-live-periodic=") && !$test$plusargs("fs-checkpoint-directory=") && !$test$plusargs("fs-checkpoint-host-timeout-ms=") && !$test$plusargs("fs-checkpoint-cycle-timeout-ms=")) begin production_runtime_identity_verify(); $display("PRODUCTION_CUT host_edges=%0d target_edges=%0d",edges,target_edges); end',
         'always @(emul.checkpoint_input_refresh) if(restoring && !emul.checkpoint_restore_complete) begin',
         'if(edges || target_edges || emul.clock || refreshes) harness_restore_fail("bootstrap refresh phase");',
         'refreshes=refreshes+1; end',

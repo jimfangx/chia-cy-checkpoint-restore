@@ -29,6 +29,8 @@ def main():
     parser.add_argument('--production', type=Path, required=True)
     parser.add_argument('--reference-production', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--watchdog-ms',type=int,default=0,
+                        help='Exercise production host/cycle monitor and bounded capture accounting')
     args = parser.parse_args()
     require(os.environ.get('VCS_HOME') == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'source vcs-env.sh LAST')
     production = args.production.resolve()
@@ -55,6 +57,10 @@ def main():
         return ['+fs-checkpoint-directory='+str(history), '+fs-checkpoint-interval='+str(interval),
                 '+fs-checkpoint-retention=2', '+fs-checkpoint-level=1']
 
+    watchdog_options = ([f'+fs-checkpoint-host-timeout-ms={args.watchdog_ms}',
+                         f'+fs-checkpoint-cycle-timeout-ms={args.watchdog_ms}',
+                         '+fs-checkpoint-capture-timeout-ms=600000'] if args.watchdog_ms else [])
+
     bad_directory = out/'invalid-output'
     good_options = options(bad_directory, 10)
     invalid = [good_options[:i]+good_options[i+1:] for i in range(4)] + [good_options+[o] for o in good_options]
@@ -80,7 +86,7 @@ def main():
     def capture(directory, *, interval, origin, expected, restore=None):
         directory.mkdir(); history = directory/'history'; history.mkdir(); observed = directory/'observed'; observed.mkdir()
         trace = directory/'ports.trace'; native = directory/'loaded-native.txt'
-        argv = [*common, *options(history, interval), '+target_port_trace='+str(trace)]
+        argv = [*common, *options(history, interval), *watchdog_options, '+target_port_trace='+str(trace)]
         if restore: argv += ['+fs-restore='+str(restore), '+test-loaded-native='+str(native)]
         store = NativeRollingHistory(history, **history_args)
         captures, observations = {}, []
@@ -121,6 +127,16 @@ def main():
         require(trace.read_bytes() == expected, 'history capture changed target ports/timing')
         published = re.findall(r'FS_DURABLE_PERIODIC_CAPTURE_PUBLISHED target_cycle=(\d+) host_sample=(\d+) history_committed=1', text)
         require(len(published) == len(captures) > 1, 'observer missed a live history commit')
+        if args.watchdog_ms:
+            accounted=re.findall(r'FS_CHECKPOINT_WATCHDOG_CAPTURE_ACCOUNTED target_cycle=(\d+) elapsed_ns=(\d+) total_ns=(\d+) captures=(\d+)',text)
+            require('FS_CHECKPOINT_WATCHDOG_ARMED' in text and len(accounted)==len(published) and
+                    [int(r[0]) for r in accounted]==[int(r[0]) for r in published] and
+                    any(int(r[1])>args.watchdog_ms*1000000 for r in accounted),
+                    'runtime capture exclusion not exercised beyond the progress timeout')
+            total=0
+            for number,(_,elapsed,accumulated,count) in enumerate(accounted,1):
+                total+=int(elapsed)
+                require(int(accumulated)==total and int(count)==number,'incorrect capture time accounting')
         policy = CycleSchedule(interval, origin)
         cuts = [captures[c] for c in sorted(captures)]
         for i, (cut, (cycle, sample)) in enumerate(zip(cuts, published)):
@@ -199,7 +215,8 @@ def main():
                    reference_production=str(reference_production), native_owners=len(native),
                    generated_words=sum(e['depth'] for e in generated['state']), early_reset_restore_rejected=True,
                    public_periodic_configuration=True, live_retained_history_commit=True,
-                   production_watchdog_sampling=False, host_stall_injection='external SIGSTOP', physical_fpga_validated=False)
+                   production_watchdog_sampling=bool(args.watchdog_ms), watchdog_ms=args.watchdog_ms,
+                   host_stall_injection='external SIGSTOP', physical_fpga_validated=False)
     (out/'summary.json').write_bytes(canonical(summary))
     (args.out/'latest.json').write_bytes(canonical(dict(invocation=str(out), summary=str(out/'summary.json'))))
     print('PASS: public live target-cycle history commits/retention, two late-stall retained replays, '

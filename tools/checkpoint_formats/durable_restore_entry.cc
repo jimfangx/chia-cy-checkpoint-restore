@@ -8,6 +8,7 @@
 #include "durable_capture.h"
 #include "cycle_schedule.h"
 #include "durable_history.h"
+#include "progress_watchdog.h"
 #include "core/driver_boundary_diagnostic.h"
 #include "runtime_identity.h"
 #include <fstream>
@@ -32,6 +33,8 @@ class durable_restore_entry_t final : public checkpoint_entry_t {
   uint64_t periodic_interval=0;
   std::unique_ptr<durable_history_t> history;
   std::unique_ptr<checkpoint_cycle_schedule_t> periodic_schedule;
+  checkpoint_request_t watchdog_configuration;
+  std::unique_ptr<checkpoint_progress_watchdog_t> watchdog;
   aggregate_restore_t::owners_t owners() {
     auto result=emulator->checkpoint_axi_owners();
     result.push_back(emulator->checkpoint_host_timing_owner());
@@ -42,6 +45,7 @@ class durable_restore_entry_t final : public checkpoint_entry_t {
 public:
   explicit durable_restore_entry_t(const std::vector<std::string> &args) {
     const auto request=checkpoint_request_t::parse(args);
+    watchdog_configuration=request;
     if(request.kind==checkpoint_request_t::kind_t::capture) {
       if(!request.operation)
         throw std::runtime_error("public capture requires +fs-checkpoint-operation=N");
@@ -54,6 +58,9 @@ public:
       if(arg.rfind("+fs-checkpoint=",0)==0 || arg.rfind("+fs-checkpoint-operation=",0)==0) continue;
       if(arg.rfind("+fs-checkpoint-directory=",0)==0 || arg.rfind("+fs-checkpoint-interval=",0)==0 ||
          arg.rfind("+fs-checkpoint-retention=",0)==0 || arg=="+fs-checkpoint-level=1") continue;
+      if(arg.rfind("+fs-checkpoint-host-timeout-ms=",0)==0 ||
+         arg.rfind("+fs-checkpoint-cycle-timeout-ms=",0)==0 ||
+         arg.rfind("+fs-checkpoint-capture-timeout-ms=",0)==0) continue;
       if(arg.rfind("+test-live-periodic",0)==0) {
         const std::string prefix="+test-live-periodic=";
         if(arg.rfind(prefix,0)!=0 || arg.size()==prefix.size() || !periodic_prefix.empty())
@@ -137,7 +144,7 @@ public:
       emulator->schedule_checkpoint_operation(request.operation);
       puts("FS_DURABLE_CAPTURE_SCHEDULED before_run=1 units=completed_driver_operations");
     }
-    if(periodic_capture_requested()) {
+    if(polling_requested()) {
       emulator->schedule_checkpoint_polling();
     }
     if(request.kind!=checkpoint_request_t::kind_t::restore) return action_t::run;
@@ -149,27 +156,37 @@ public:
   void verify_identity() { identity->save_checkpoint(); }
   bool public_capture_requested() const { return public_capture && !captured; }
   bool periodic_capture_requested() const { return history || !periodic_prefix.empty(); }
+  bool polling_requested() const { return periodic_capture_requested() || watchdog_configuration.watchdog(); }
   int poll_periodic(uint64_t host_sample) {
     try {
       if(!emulator || !simulation)
         throw std::runtime_error("missing periodic runtime");
       emulator->require_settled_checkpoint_capture();
       const bool reset_complete=durable_capture_reset_complete();
-      if(!periodic_schedule) {
+      if(!periodic_schedule && !watchdog) {
         // The manifested FASED counter resets during the initial target reset
         // pulse. Ignore that startup epoch explicitly; later resets reject.
         if(!reset_complete) { emulator->acknowledge_checkpoint_publication(); return 0; }
-        periodic_schedule=std::make_unique<checkpoint_cycle_schedule_t>(periodic_interval);
+        if(periodic_capture_requested())
+          periodic_schedule=std::make_unique<checkpoint_cycle_schedule_t>(periodic_interval);
       } else if(!reset_complete)
         throw std::runtime_error("target reset after periodic schedule initialization");
       const auto cycle=durable_capture_target_cycle();
-      if(periodic_schedule->due(cycle)) {
+      if(watchdog_configuration.watchdog()) {
+        if(!watchdog) watchdog=std::make_unique<checkpoint_progress_watchdog_t>(
+            watchdog_configuration.host_timeout_ms,watchdog_configuration.cycle_timeout_ms,
+            watchdog_configuration.capture_timeout_ms);
+        watchdog->sample(cycle);
+      }
+      if(periodic_schedule && periodic_schedule->due(cycle)) {
+        if(watchdog) watchdog->begin_capture();
         const auto snapshot=capture_durable_snapshot(owners(),host_sample);
         if(durable_capture_target_cycle()!=cycle)
           throw std::runtime_error("target cycle changed at parked periodic cut");
         if(history) history->publish(snapshot);
         else publish_durable_capture(periodic_prefix+"."+std::to_string(cycle)+".fsckpt",snapshot);
         periodic_schedule->committed(cycle);
+        if(watchdog) watchdog->end_capture();
         printf("FS_DURABLE_PERIODIC_CAPTURE_PUBLISHED target_cycle=%llu host_sample=%llu history_committed=%d\n",
                (unsigned long long)cycle,(unsigned long long)host_sample,int(bool(history)));
       }
@@ -217,10 +234,11 @@ public:
       }
       emulator->arm_restored_driver(*simulation);
       aggregate.commit_rtl();
-      if(periodic_capture_requested()) {
+      if(polling_requested()) {
         if(!durable_capture_reset_complete())
           throw std::runtime_error("periodic restore during initial target reset is unsupported");
-        periodic_schedule=std::make_unique<checkpoint_cycle_schedule_t>(periodic_interval,aggregate.target_cycle);
+        if(periodic_capture_requested())
+          periodic_schedule=std::make_unique<checkpoint_cycle_schedule_t>(periodic_interval,aggregate.target_cycle);
       }
       printf("PRODUCTION_AGGREGATE_LOADED owners=%zu target_cycle=%llu host_sample=%llu\n",list.size(),
              (unsigned long long)aggregate.target_cycle,(unsigned long long)aggregate.host_sample);
@@ -267,7 +285,7 @@ extern "C" void production_durable_capture_if_requested(uint64_t host_sample) {
     std::fflush(nullptr); std::_Exit(EXIT_FAILURE);
   }
   if(capability->public_capture_requested()) production_durable_live_capture(host_sample);
-  if(capability->periodic_capture_requested() && capability->poll_periodic(host_sample)) {
+  if(capability->polling_requested() && capability->poll_periodic(host_sample)) {
     std::fflush(nullptr); std::_Exit(EXIT_FAILURE);
   }
 }
