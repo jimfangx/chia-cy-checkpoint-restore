@@ -84,3 +84,42 @@ bridge's final reported cycle is not a substitute for actual gated DUT edges.
 
 Both plans remain read-only; the loop's M6 still corresponds to Phase 8 / M7
 in the agent input plan. No physical FPGA or ASIC validation is claimed.
+
+
+## Iteration 53 — healthy END acceptance
+
+`checkpoint_vcs_runtime_warmup()` now loads the two exact release-specific
+VCS diagnostic table paths before the public capability constructs its immutable
+compatibility owner. It requires `VCS_HOME=/ecad/tools/synopsys/vcs/Y-2026.03-SP1`,
+retains both handles for process lifetime and fails explicitly on loader errors.
+The ordinary complete ELF inventory binds both table bytes and dependencies;
+no late-load exemption or post-entry identity refresh is used.
+
+The new source-bound invocation is
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m6-iteration53/paired-semantic/invocation-t4usmy06/`.
+Fresh capture and ordinary public restore both pass at reported cycle 774628.
+Full semantic readback still verifies all 1,543 entries / 13,503,308 words before
+any clean edge; Level-1 restore retains all 17 owners and zero-edge bootstrap.
+
+The healthy live pair matches C=524453..774637: **250,185 target cycles** and
+**8,506,290 output comparisons**. Both actors exchange END at C=774638,
+report exactly 250,185 actual DUT edges and exit 0. A second fresh pair flips
+bit 0 of the real clean AR queue word at C=524553; `ep_axi4_ar_bits_qos` first
+changes there, after exactly 100 acknowledged cycles. Both actors exit 1 with
+cycle 524553 pending. No later boundary is acknowledged.
+
+The complete scope and independent audit pass: 81 Python / 24 Scala tests,
+complete M2/M3, 46 runtime-identity rejections, 24 transport sanitizer cases
+including the real 30-second timeout, 21 shadow-control cases, eight VCS
+readback cases and five actual public-entry rejections. The schema-1 fixture
+matches 107,531 cycles and detects its real fault at cycle 29. The native oracle
+checks all 14 warmed ELF hashes and fresh load; the production container audit
+checks all 43 captured ELF hashes, including both diagnostic tables. All held
+ready/valid payloads are checked across the five AXI channels.
+
+`verification-commands.json`, `independent-evidence.json`, `summary.json` and
+`artifact-manifest.json` under the iteration-53 directory contain exact argv,
+complete acceptance evidence and the full-path artifact catalog. The invocation's
+`live/summary.json` has `live_shadow_acceptance=true`. Both plan hashes and
+staging are preserved. M6 is ready for this supported FCFS profile; unknown
+state/topologies remain explicit rejections. No FPGA or ASIC validation is claimed.

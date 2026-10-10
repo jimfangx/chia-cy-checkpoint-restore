@@ -2,6 +2,7 @@
 #include <array>
 #include <charconv>
 #include <cstdlib>
+#include <dlfcn.h>
 #include <filesystem>
 #include <fstream>
 #include <limits>
@@ -78,6 +79,33 @@ std::map<std::string,std::array<uint8_t,32>> elf_records(const std::vector<uint8
   }
   require(offset==bytes.size(),"trailing internal ELF identity"); return result;
 }
+}
+
+void checkpoint_vcs_runtime_warmup() {
+  constexpr const char *release="/ecad/tools/synopsys/vcs/Y-2026.03-SP1";
+  const char *home=std::getenv("VCS_HOME");
+  require(home && std::string(home)==release, "unsupported VCS_HOME for diagnostic warmup");
+  // VCS opens these tables on its first diagnostic (including healthy $finish).
+  // Load exact absolute files, never an environment-selected search-path alias.
+  // Do not close them: capture and fresh restore must retain the same ELF set
+  // through finalization. current_identity() hashes both files and dependencies;
+  // no library is excluded and no identity is refreshed after construction.
+  static const auto handles=[release] {
+    std::array<void *,2> result{};
+    unsigned i=0;
+    for(const char *name:{"liberrindex.so", "libsystemcerror.so"}) {
+      const std::string path=std::string(release)+"/linux64/lib/"+name;
+      result[i]=dlopen(path.c_str(),RTLD_NOW|RTLD_LOCAL);
+      if(!result[i]) {
+        const char *error=dlerror();
+        throw std::runtime_error("runtime identity: VCS diagnostic warmup failed: "+path+
+                                 ": "+(error ? error : "unknown loader error"));
+      }
+      ++i;
+    }
+    return result;
+  }();
+  (void)handles;
 }
 
 runtime_identity_t::runtime_identity_t(const std::vector<std::string> &args) {

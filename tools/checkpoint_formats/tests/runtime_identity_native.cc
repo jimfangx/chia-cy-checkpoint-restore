@@ -6,12 +6,18 @@
 
 int main(int argc, char **argv) {
   if (argc<4) return 2;
-  const std::string mode=argv[1], filename=argv[2], preload=argv[3];
+  std::string mode=argv[1];
+  const std::string filename=argv[2], preload=argv[3];
   void *library=nullptr;
   if (preload!="-" && mode!="late-add") {
     library=dlopen(preload.c_str(),RTLD_NOW|RTLD_LOCAL); if(!library) return 3;
   }
   try {
+    if(mode.rfind("warm-",0)==0) {
+      mode=mode.substr(5);
+      checkpoint_vcs_runtime_warmup();
+      checkpoint_vcs_runtime_warmup(); // Repeated entry keeps the same handles.
+    }
     runtime_identity_t owner({argv+4,argv+argc});
     auto initial=owner.save_checkpoint();
     if(mode=="late-add" || mode=="late-remove") {

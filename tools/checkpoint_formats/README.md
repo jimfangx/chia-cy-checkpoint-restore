@@ -270,6 +270,12 @@ prevalidation/readback and exit. This compatibility owner uses OpenSSL libcrypto
 it does not capture library internal state or authorize arbitrary plugins.
 `verify_runtime_identity` checks it with native ASan/UBSan and an independent
 SHA-256 oracle, including changed library contents at the same pathname.
+The public VCS capability loads Y-2026.03-SP1's `liberrindex.so` and
+`libsystemcerror.so` before constructing this owner, retaining their handles
+through shutdown. Both diagnostic tables are included in the complete hashed
+ELF inventory for capture and fresh restore; any later ELF change still rejects.
+Warmup requires the exact supported `VCS_HOME` and fails explicitly if either
+absolute library path cannot be loaded.
 
 `durable_restore.py` compiles the v3 profile's complete generated/harness/native
 membership, shapes, schemas and build identities into the native consumer.

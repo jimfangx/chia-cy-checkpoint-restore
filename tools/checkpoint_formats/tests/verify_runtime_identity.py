@@ -84,8 +84,36 @@ def main():
         text=run([out/'verify',mode,good,lib,*common],out/(mode+'.log'))
         require('REJECT changed ELF inventory' in text,'late library change lacked explicit diagnosis')
         rejections+=1
+    # Real release tables are bound before identity, including on fresh load.
+    # Independent byte decoding verifies both paths/hashes; late-add/remove
+    # above still reject, so warmup cannot refresh or relax the immutable owner.
+    warm=out/'warm-identity.bin'
+    run([out/'verify','warm-save',warm,'-',*common],out/'warm-save.log')
+    run([out/'verify','warm-load',warm,'-',*common],out/'warm-load.log')
+    cold=data
+    data=warm.read_bytes();pos=0
+    require(string()=='FCFS_RUNTIME1','warm configuration schema')
+    require([u64() for _ in range(4)]==[4194304,1000000,1,0],'warm configuration oracle')
+    warm_paths=[]
+    for _ in range(u64()):
+        path=string();digest=data[pos:pos+32];pos+=32
+        require(hashlib.sha256(Path(path).read_bytes()).digest()==digest,'warm ELF hash differs from oracle')
+        warm_paths.append(path)
+    tables=[f'/ecad/tools/synopsys/vcs/Y-2026.03-SP1/linux64/lib/{name}'
+            for name in ('liberrindex.so','libsystemcerror.so')]
+    require(pos==len(data) and set(warm_paths)==set(paths)|set(tables),
+            'warmup did not bind exactly the audited tables and original ELF set')
+    text=run([out/'verify','reject',warm,'-',*common],out/'warm-required.log')
+    require('REJECT unchanged_owner=1' in text,'missing pinned tables accepted');rejections+=1
+    for home in ('/tmp/unsupported-vcs', ''):
+        text=run(['env',f'VCS_HOME={home}',out/'verify','warm-bad-args',warm,'-',*common],
+                 out/('warm-home-missing.log' if not home else 'warm-home-wrong.log'))
+        require('unsupported VCS_HOME for diagnostic warmup' in text,'unsupported release accepted')
+        rejections+=1
     summary=dict(rejections=rejections,elf_sha256_comparisons=len(paths),sanitizers='ASan/UBSan',
-                 same_path_changed_library_rejected=True,late_library_change_diagnostics=True,unchanged_owner=True)
+                 same_path_changed_library_rejected=True,late_library_change_diagnostics=True,unchanged_owner=True,
+                 vcs_warmup_tables=tables, warm_elf_sha256_comparisons=len(warm_paths),
+                 warmup_fresh_load_verified=True)
     (out/'summary.json').write_bytes(canonical(summary));print('PASS:',json.dumps(summary))
 
 

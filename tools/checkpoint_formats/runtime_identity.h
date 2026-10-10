@@ -4,6 +4,10 @@
 #define FS_RUNTIME_IDENTITY_H
 #include "core/checkpoint.h"
 
+// Load the audited release's lazily opened diagnostic tables before pinning
+// the immutable ELF inventory. Handles remain owned for the process lifetime.
+void checkpoint_vcs_runtime_warmup();
+
 class runtime_identity_t final : public checkpoint_owner_t {
 public:
   explicit runtime_identity_t(const std::vector<std::string> &args);

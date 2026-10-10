@@ -1,7 +1,7 @@
 """Full FCFS semantic cut beside public Level-1 capture/fresh VCS restore.
 
-The clean process verifies every semantic word before any target edge. Live
-boundary synchronization is still unsupported; this is an M6 prerequisite.
+The clean process verifies every semantic word before any target edge. --live
+then checks a sustained restored shadow and exact first output divergence.
 Source both repository environments and vcs-env.sh LAST before invoking.
 """
 import argparse

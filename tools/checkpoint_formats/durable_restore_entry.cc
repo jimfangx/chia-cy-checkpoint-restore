@@ -121,6 +121,8 @@ public:
       if(!cut.requested() || !cut.lowclock() || !cut.settled())
         throw std::runtime_error("live capture test requires a complete settled low-clock cut");
     }
+    checkpoint_vcs_runtime_warmup();
+    puts("FS_VCS_DIAGNOSTICS_PINNED before_identity=1");
     identity=std::make_unique<runtime_identity_t>(configuration);
     // Constructor pins/validates/recover-prunes history before platform startup.
     // This never releases a worker or loads target state.
