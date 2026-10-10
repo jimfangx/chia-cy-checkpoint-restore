@@ -6,6 +6,7 @@
 #include "aggregate_restore.h"
 #include "durable_restore.h"
 #include "durable_capture.h"
+#include "cycle_schedule.h"
 #include "core/driver_boundary_diagnostic.h"
 #include "runtime_identity.h"
 #include <fstream>
@@ -25,6 +26,11 @@ class durable_restore_entry_t final : public checkpoint_entry_t {
   bool public_capture=false;
   bool captured=false;
   bool consumed=false;
+  // Verification adapter for repeated live images. Public retained history
+  // configuration is enabled only once its commit/retention adapter is wired.
+  std::string periodic_prefix;
+  uint64_t periodic_interval=0;
+  std::unique_ptr<checkpoint_cycle_schedule_t> periodic_schedule;
   aggregate_restore_t::owners_t owners() {
     auto result=emulator->checkpoint_axi_owners();
     result.push_back(emulator->checkpoint_host_timing_owner());
@@ -45,6 +51,22 @@ public:
     for(const auto &arg:args) {
       if(arg.rfind("+fs-restore=",0)==0) continue; // Already parsed by entry.
       if(arg.rfind("+fs-checkpoint=",0)==0 || arg.rfind("+fs-checkpoint-operation=",0)==0) continue;
+      if(arg.rfind("+test-live-periodic",0)==0) {
+        const std::string prefix="+test-live-periodic=";
+        if(arg.rfind(prefix,0)!=0 || arg.size()==prefix.size() || !periodic_prefix.empty())
+          throw std::runtime_error("invalid/duplicate periodic capture destination");
+        periodic_prefix=arg.substr(prefix.size()); continue;
+      }
+      if(arg.rfind("+test-live-interval",0)==0) {
+        const std::string prefix="+test-live-interval=";
+        if(arg.rfind(prefix,0)!=0 || periodic_interval)
+          throw std::runtime_error("invalid/duplicate target interval");
+        const auto value=arg.substr(prefix.size());
+        const auto parsed=std::from_chars(value.data(),value.data()+value.size(),periodic_interval);
+        if(parsed.ec!=std::errc{} || parsed.ptr!=value.data()+value.size() || !periodic_interval)
+          throw std::runtime_error("invalid target interval");
+        continue;
+      }
       if(arg.rfind("+test-live-capture",0)==0) {
         if(arg.rfind("+test-live-capture=",0)!=0 || arg.size()==19 || !live_capture.empty() ||
            request.kind!=checkpoint_request_t::kind_t::none)
@@ -61,6 +83,14 @@ public:
         throw std::runtime_error("unsupported capture controls during public restore");
       configuration.push_back(arg);
       if(arg.rfind("+test-loaded-native=",0)==0) loaded_native=arg.substr(20);
+    }
+    if(periodic_prefix.empty() != (periodic_interval==0) ||
+       (!periodic_prefix.empty() && (!live_capture.empty() ||
+        (request.kind!=checkpoint_request_t::kind_t::none && request.kind!=checkpoint_request_t::kind_t::restore))))
+      throw std::runtime_error("periodic capture requires paired controls and no single capture/preflight");
+    if(!periodic_prefix.empty()) {
+      const driver_boundary_diagnostic_t cut(args);
+      if(cut.requested()) throw std::runtime_error("periodic capture conflicts with diagnostic cut");
     }
     if(public_capture) {
       driver_boundary_diagnostic_t cut(args);
@@ -94,6 +124,9 @@ public:
       emulator->schedule_checkpoint_operation(request.operation);
       puts("FS_DURABLE_CAPTURE_SCHEDULED before_run=1 units=completed_driver_operations");
     }
+    if(!periodic_prefix.empty()) {
+      emulator->schedule_checkpoint_polling();
+    }
     if(request.kind!=checkpoint_request_t::kind_t::restore) return action_t::run;
     if(staging.empty()) throw std::runtime_error("missing validated durable restore image");
     emulator->begin_restored_load(sim);
@@ -102,6 +135,40 @@ public:
   }
   void verify_identity() { identity->save_checkpoint(); }
   bool public_capture_requested() const { return public_capture && !captured; }
+  bool periodic_capture_requested() const { return !periodic_prefix.empty(); }
+  int poll_periodic(uint64_t host_sample) {
+    try {
+      if(!emulator || !simulation)
+        throw std::runtime_error("missing periodic runtime");
+      emulator->require_settled_checkpoint_capture();
+      const bool reset_complete=durable_capture_reset_complete();
+      if(!periodic_schedule) {
+        // The manifested FASED counter resets during the initial target reset
+        // pulse. Ignore that startup epoch explicitly; later resets reject.
+        if(!reset_complete) { emulator->acknowledge_checkpoint_publication(); return 0; }
+        periodic_schedule=std::make_unique<checkpoint_cycle_schedule_t>(periodic_interval);
+      } else if(!reset_complete)
+        throw std::runtime_error("target reset after periodic schedule initialization");
+      const auto cycle=durable_capture_target_cycle();
+      if(periodic_schedule->due(cycle)) {
+        const auto snapshot=capture_durable_snapshot(owners(),host_sample);
+        if(durable_capture_target_cycle()!=cycle)
+          throw std::runtime_error("target cycle changed at parked periodic cut");
+        const auto destination=periodic_prefix+"."+std::to_string(cycle)+".fsckpt";
+        // Every live cut has its own destination. This adapter does not prune
+        // history or authorize a retained-history commit.
+        publish_durable_capture(destination,snapshot);
+        periodic_schedule->committed(cycle);
+        printf("FS_DURABLE_PERIODIC_CAPTURE_PUBLISHED target_cycle=%llu host_sample=%llu\n",
+               (unsigned long long)cycle,(unsigned long long)host_sample);
+      }
+      emulator->require_settled_checkpoint_capture();
+      emulator->acknowledge_checkpoint_publication();
+      return 0;
+    } catch(const std::exception &error) {
+      fprintf(stderr,"FS_DURABLE_PERIODIC_CAPTURE_ERROR: %s\n",error.what()); return 1;
+    }
+  }
   int capture(uint64_t host_sample) {
     try {
       if(live_capture.empty() || captured || consumed || !emulator || !simulation)
@@ -139,6 +206,11 @@ public:
       }
       emulator->arm_restored_driver(*simulation);
       aggregate.commit_rtl();
+      if(!periodic_prefix.empty()) {
+        if(!durable_capture_reset_complete())
+          throw std::runtime_error("periodic restore during initial target reset is unsupported");
+        periodic_schedule=std::make_unique<checkpoint_cycle_schedule_t>(periodic_interval,aggregate.target_cycle);
+      }
       printf("PRODUCTION_AGGREGATE_LOADED owners=%zu target_cycle=%llu host_sample=%llu\n",list.size(),
              (unsigned long long)aggregate.target_cycle,(unsigned long long)aggregate.host_sample);
       return 0;
@@ -184,4 +256,7 @@ extern "C" void production_durable_capture_if_requested(uint64_t host_sample) {
     std::fflush(nullptr); std::_Exit(EXIT_FAILURE);
   }
   if(capability->public_capture_requested()) production_durable_live_capture(host_sample);
+  if(capability->periodic_capture_requested() && capability->poll_periodic(host_sample)) {
+    std::fflush(nullptr); std::_Exit(EXIT_FAILURE);
+  }
 }

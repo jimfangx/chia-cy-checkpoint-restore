@@ -2,6 +2,7 @@
 #define main original_dispatcher_main
 #include "dispatcher_checkpoint.cc"
 #undef main
+#include "../cycle_schedule.h"
 
 int main(int argc, char **argv) {
   try {
@@ -68,6 +69,51 @@ int main(int argc, char **argv) {
     fixture.reset();
     check(!std::filesystem::exists(output/"public-diagnostic"));
     puts("PASS: public schedule missing_callback_rejected=1 publication_acknowledged=1 added_edges=0");
+    for (bool consecutive : {false,true}) {
+      finished=false;
+      fixture=std::make_unique<fixture_t>(0);
+      auto &poll=fixture->platform;
+      poll.schedule_checkpoint_polling();
+      rejects([&]{ poll.schedule_checkpoint_polling(); });
+      rejects([&]{ poll.schedule_checkpoint_operation(1); });
+      poll.start_driver(fixture->driver);
+      rejects([&]{ poll.schedule_checkpoint_polling(); });
+      unsigned repeated_cuts=0;
+      while(!finished) {
+        if(!poll.checkpoint_pending()) tick();
+        while(poll.checkpoint_pending()) {
+          ++repeated_cuts;
+          poll.require_settled_checkpoint_capture();
+          const auto ticks=poll.ticks, calls=poll.calls;
+          const auto memory=poll.slave.at(0)->save_checkpoint();
+          uint32_t banks[3]={0,0,0};
+          // A prior cut's acknowledgment cannot authorize this new callback.
+          rejects([&]{ poll.checkpoint_settled(67,banks); });
+          check(poll.checkpoint_pending() && poll.ticks==ticks && poll.calls==calls &&
+                poll.slave.at(0)->save_checkpoint()==memory);
+          poll.acknowledge_checkpoint_publication();
+          rejects([&]{ poll.acknowledge_checkpoint_publication(); });
+          if(consecutive) poll.yield=false;
+          finished=poll.checkpoint_settled(67,banks);
+          check(poll.ticks==ticks);
+        }
+      }
+      check(repeated_cuts==4 && poll.end()==0);
+      fixture.reset();
+      printf("PASS: repeated settled callbacks cuts=%u consecutive=%u per_cut_ack=1 added_edges=0\n",
+             repeated_cuts,consecutive);
+    }
+    checkpoint_cycle_schedule_t schedule(10,7);
+    check(!schedule.due(16) && schedule.due(17) && schedule.due(17));
+    schedule.committed(17); check(!schedule.due(26) && schedule.due(48));
+    schedule.committed(48); check(!schedule.due(56) && schedule.due(57));
+    rejects([&]{ schedule.due(56); });
+    constexpr auto maximum=std::numeric_limits<uint64_t>::max();
+    checkpoint_cycle_schedule_t overflow(10,maximum-10);
+    check(overflow.due(maximum)); overflow.committed(maximum); check(!overflow.due(maximum));
+    checkpoint_cycle_schedule_t exhausted(10,maximum-9); check(!exhausted.due(maximum));
+    rejects([&]{ checkpoint_cycle_schedule_t invalid(0); });
+    puts("PASS: native target deadlines restored_origin=1 skipped_deadlines=1 retry=1 overflow=1");
     return 0;
   } catch(const std::exception &error) {
     fprintf(stderr,"capture guard failure: %s\n",error.what()); std::_Exit(1);

@@ -13,7 +13,7 @@ import re
 from .codec import HASH, bit_value, canonical, keys, natural, require
 from .replay import IDENT
 
-AUDITED_TOP = 'ff1a76a3bf251037e9add817ec7f5477ad4fdd6bd5c3bcbbfdbabfe66c0120e8'
+AUDITED_TOP = '659a38a7d574e3f01e8944e2c9e9ba7dc268b3c6d1da601b433a857a23a25463'
 
 
 def harness_layout(top, constants, defines, generated_build_hash, root='emul'):

@@ -9,4 +9,9 @@
 // FSAGG1 staging for encode_durable_capture/publish_durable_capture.
 std::string capture_durable_snapshot(const aggregate_restore_t::owners_t &owners,
                                     uint64_t host_sample);
+// Fast read of the same compiled, manifested counter used by full collection.
+// The caller must hold the worker at the settled low-clock cut.
+uint64_t durable_capture_target_cycle();
+// Audited FCFS profile only: the initial target reset pulse has drained.
+bool durable_capture_reset_complete();
 #endif

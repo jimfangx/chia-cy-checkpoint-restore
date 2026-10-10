@@ -26,9 +26,13 @@ def main():
             'capture guard did not preserve native owners and edge count')
     require('PASS: public schedule missing_callback_rejected=1 publication_acknowledged=1 added_edges=0' in text,
             'public scheduling did not guard publication before worker release')
+    require(all(f'PASS: repeated settled callbacks cuts=4 consecutive={int(c)} per_cut_ack=1 added_edges=0' in text
+                for c in (False,True)) and 'PASS: native target deadlines restored_origin=1' in text,
+            'repeated callbacks or target-cycle policy failed')
     (out/'summary.json').write_bytes(canonical(dict(invocation=str(case),settled_cuts=1,
         unchanged_native_owners=3,added_edges=0,sanitizers='ASan/UBSan',
-        public_schedule_missing_callback_rejected=True,publication_acknowledged=True)))
+        public_schedule_missing_callback_rejected=True,publication_acknowledged=True,
+        repeated_cuts=8,consecutive_cuts_without_yield=4,target_cycle_policy=True)))
     print('PASS: real parked-worker capture guard, unsupported topology and unchanged native state',flush=True)
 
 

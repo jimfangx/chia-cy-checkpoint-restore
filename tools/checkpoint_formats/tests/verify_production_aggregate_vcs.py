@@ -296,8 +296,11 @@ def main():
         # Independent gate edge accounting, without forcing its enable.
         *['always @(posedge emul.'+e['hierarchy']+') target_edges=target_edges+1;'
           for e in manifest['state'] if e['adapter']=='metasim-bufgce-v1'],
-        'always @(emul.checkpoint_settled_event) begin production_runtime_identity_verify(); $display("PRODUCTION_CUT host_edges=%0d target_edges=%0d",edges,target_edges); end',
-        'always @(emul.checkpoint_input_refresh) if(restoring) begin',
+        # Full capture validates runtime identity when a target deadline is
+        # due. Poll-only callbacks must not hash the executable or emit a log
+        # row on every completed operation; this observer is optional.
+        'always @(emul.checkpoint_settled_event) if(!$test$plusargs("test-live-periodic=")) begin production_runtime_identity_verify(); $display("PRODUCTION_CUT host_edges=%0d target_edges=%0d",edges,target_edges); end',
+        'always @(emul.checkpoint_input_refresh) if(restoring && !emul.checkpoint_restore_complete) begin',
         'if(edges || target_edges || emul.clock || refreshes) harness_restore_fail("bootstrap refresh phase");',
         'refreshes=refreshes+1; end',
         'initial begin',

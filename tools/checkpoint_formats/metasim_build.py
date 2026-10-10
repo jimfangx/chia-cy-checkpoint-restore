@@ -80,8 +80,10 @@ def coordinator(manifest):
         'longint unsigned edges=0, target_edges=0; integer refreshes=0; bit restoring=0; string bundle;',
         'always @(posedge emul.clock) edges=edges+1;',
         *[f'always @(posedge emul.{gate}) target_edges=target_edges+1;' for gate in gates],
-        'always @(emul.checkpoint_settled_event) production_runtime_identity_verify();',
-        'always @(emul.checkpoint_input_refresh) if(restoring) begin',
+        # A due full capture revalidates identity through its native owner.
+        # Poll-only callbacks must not hash every ELF on every operation.
+        'always @(emul.checkpoint_settled_event) if(!$test$plusargs("test-live-periodic=")) production_runtime_identity_verify();',
+        'always @(emul.checkpoint_input_refresh) if(restoring && !emul.checkpoint_restore_complete) begin',
         'if(edges || target_edges || emul.clock || refreshes) harness_restore_fail("bootstrap refresh phase");',
         'refreshes=refreshes+1; end',
         'initial begin',
