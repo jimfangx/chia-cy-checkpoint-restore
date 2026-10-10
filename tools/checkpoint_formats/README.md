@@ -114,6 +114,23 @@ This prototype covers the small InventoryFixture, including its target SRAM.
 It does not establish Rocket/BOOM, multi-model/threaded FAME mappings, physical
 FPGA capture, ASIC gate-level activity, or power estimation.
 
+`finite_replay.py` supplies the independent DESSERT consumer for schema-1 and
+schema-2 boundaries. Its `package` command converts complete recorded `DATA C
+...` boundary rows to the checksummed `.trace` container beside an independent
+`.rtlckpt`. Its `replay` command validates both containers, the complete state
+and boundary inventories, and proven forwarded clock aliases, then generates
+`replay.sv`, DUT-only `clean.sv`, `restore.txt`, `trace.txt` and hash metadata.
+Trace rows remain data; the generated SV size does not grow with trace length.
+All words are read back before the first edge. VPD captures the full hierarchy
+and every semantic RAM address through explicit `$vcdplusmemon` calls. Convert
+with `vpd2vcd -full64 +includemda` to retain memory visibility in VCD. Replay
+requires the original RTL/manifests and finite Level-2 inputs; it does not load
+a Level-1 image, link FireSim, or connect to FASED. Deliberate debug RTL variants
+must retain the original state/port shapes and single-clock emitter grammar;
+their RTL hash is recorded separately from the capture build identity.
+Commands, acceptance scope and limitations are documented in
+[M7 finite replay](../../docs/checkpointing/m7-dessert-replay.md).
+
 `live_shadow.py` extends that same strict semantic oracle to two concurrent VCS
 processes. It validates a standalone `.rtlckpt` and both complete RTL inventories,
 then generates an authoritative gated-clock observer and an ordinary clean DUT
