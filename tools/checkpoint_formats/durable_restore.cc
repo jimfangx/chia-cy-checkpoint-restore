@@ -103,6 +103,15 @@ std::string read_durable_restore(const std::string &filename) {
   return validate_durable_restore(read_regular(filename));
 }
 
+std::string durable_build_identity_json() {
+  std::array<char,4096> path{}; const auto size=readlink("/proc/self/exe",path.data(),path.size());
+  require(size>0 && size_t(size)<path.size(), "cannot resolve history executable");
+  return boost::json::serialize(boost::json::object{{"golden_gate_build_hash",durable_build_hash},
+    {"rtl_build_hash",durable_rtl_hash},
+    {"simulator_build_hash",hex(sha256(read_regular(std::string(path.data(),size))))},
+    {"state_manifest_hash",durable_runtime_hash},{"target_configuration",durable_profile}});
+}
+
 std::string validate_durable_restore(std::string bytes) {
   // One immutable file image feeds integrity, schema and native preparation.
   require(bytes.size()<=256ULL*1024*1024, "unsupported image size for audited profile");

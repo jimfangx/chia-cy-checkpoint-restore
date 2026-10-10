@@ -7,6 +7,7 @@
 #include "durable_restore.h"
 #include "durable_capture.h"
 #include "cycle_schedule.h"
+#include "durable_history.h"
 #include "core/driver_boundary_diagnostic.h"
 #include "runtime_identity.h"
 #include <fstream>
@@ -26,10 +27,10 @@ class durable_restore_entry_t final : public checkpoint_entry_t {
   bool public_capture=false;
   bool captured=false;
   bool consumed=false;
-  // Verification adapter for repeated live images. Public retained history
-  // configuration is enabled only once its commit/retention adapter is wired.
+  // Host policy is independent of the checkpointed simulator state.
   std::string periodic_prefix;
   uint64_t periodic_interval=0;
+  std::unique_ptr<durable_history_t> history;
   std::unique_ptr<checkpoint_cycle_schedule_t> periodic_schedule;
   aggregate_restore_t::owners_t owners() {
     auto result=emulator->checkpoint_axi_owners();
@@ -51,6 +52,8 @@ public:
     for(const auto &arg:args) {
       if(arg.rfind("+fs-restore=",0)==0) continue; // Already parsed by entry.
       if(arg.rfind("+fs-checkpoint=",0)==0 || arg.rfind("+fs-checkpoint-operation=",0)==0) continue;
+      if(arg.rfind("+fs-checkpoint-directory=",0)==0 || arg.rfind("+fs-checkpoint-interval=",0)==0 ||
+         arg.rfind("+fs-checkpoint-retention=",0)==0 || arg=="+fs-checkpoint-level=1") continue;
       if(arg.rfind("+test-live-periodic",0)==0) {
         const std::string prefix="+test-live-periodic=";
         if(arg.rfind(prefix,0)!=0 || arg.size()==prefix.size() || !periodic_prefix.empty())
@@ -92,6 +95,13 @@ public:
       const driver_boundary_diagnostic_t cut(args);
       if(cut.requested()) throw std::runtime_error("periodic capture conflicts with diagnostic cut");
     }
+    if(request.periodic()) {
+      if(!periodic_prefix.empty() || periodic_interval || !live_capture.empty())
+        throw std::runtime_error("public periodic history conflicts with private capture controls");
+      const driver_boundary_diagnostic_t cut(args);
+      if(cut.requested()) throw std::runtime_error("public periodic history conflicts with diagnostic cut");
+      periodic_interval=request.interval;
+    }
     if(public_capture) {
       driver_boundary_diagnostic_t cut(args);
       cut.arm_checkpoint_operation(request.operation);
@@ -101,6 +111,9 @@ public:
         throw std::runtime_error("live capture test requires a complete settled low-clock cut");
     }
     identity=std::make_unique<runtime_identity_t>(configuration);
+    // Constructor pins/validates/recover-prunes history before platform startup.
+    // This never releases a worker or loads target state.
+    if(request.periodic()) history=std::make_unique<durable_history_t>(request.directory,request.retention);
     // Diagnostic owner output is available for the uninterrupted/capture
     // verifier. It never substitutes for the durable Level-1 container.
     for(const auto &arg:args) if(arg.rfind("+test-runtime-identity=",0)==0) {
@@ -114,7 +127,7 @@ public:
     if(request.kind==checkpoint_request_t::kind_t::restore) {
       staging=read_durable_restore(request.path);
       puts("FS_DURABLE_RESTORE_VALIDATED before_platform=1");
-    } else if(request.kind!=checkpoint_request_t::kind_t::capture)
+    } else if(request.kind!=checkpoint_request_t::kind_t::capture && !request.periodic())
       checkpoint_entry_t::authorize_request(request);
   }
   action_t prepare(simif_t &platform, simulation_t &sim, const checkpoint_request_t &request) override {
@@ -124,7 +137,7 @@ public:
       emulator->schedule_checkpoint_operation(request.operation);
       puts("FS_DURABLE_CAPTURE_SCHEDULED before_run=1 units=completed_driver_operations");
     }
-    if(!periodic_prefix.empty()) {
+    if(periodic_capture_requested()) {
       emulator->schedule_checkpoint_polling();
     }
     if(request.kind!=checkpoint_request_t::kind_t::restore) return action_t::run;
@@ -135,7 +148,7 @@ public:
   }
   void verify_identity() { identity->save_checkpoint(); }
   bool public_capture_requested() const { return public_capture && !captured; }
-  bool periodic_capture_requested() const { return !periodic_prefix.empty(); }
+  bool periodic_capture_requested() const { return history || !periodic_prefix.empty(); }
   int poll_periodic(uint64_t host_sample) {
     try {
       if(!emulator || !simulation)
@@ -154,13 +167,11 @@ public:
         const auto snapshot=capture_durable_snapshot(owners(),host_sample);
         if(durable_capture_target_cycle()!=cycle)
           throw std::runtime_error("target cycle changed at parked periodic cut");
-        const auto destination=periodic_prefix+"."+std::to_string(cycle)+".fsckpt";
-        // Every live cut has its own destination. This adapter does not prune
-        // history or authorize a retained-history commit.
-        publish_durable_capture(destination,snapshot);
+        if(history) history->publish(snapshot);
+        else publish_durable_capture(periodic_prefix+"."+std::to_string(cycle)+".fsckpt",snapshot);
         periodic_schedule->committed(cycle);
-        printf("FS_DURABLE_PERIODIC_CAPTURE_PUBLISHED target_cycle=%llu host_sample=%llu\n",
-               (unsigned long long)cycle,(unsigned long long)host_sample);
+        printf("FS_DURABLE_PERIODIC_CAPTURE_PUBLISHED target_cycle=%llu host_sample=%llu history_committed=%d\n",
+               (unsigned long long)cycle,(unsigned long long)host_sample,int(bool(history)));
       }
       emulator->require_settled_checkpoint_capture();
       emulator->acknowledge_checkpoint_publication();
@@ -206,7 +217,7 @@ public:
       }
       emulator->arm_restored_driver(*simulation);
       aggregate.commit_rtl();
-      if(!periodic_prefix.empty()) {
+      if(periodic_capture_requested()) {
         if(!durable_capture_reset_complete())
           throw std::runtime_error("periodic restore during initial target reset is unsupported");
         periodic_schedule=std::make_unique<checkpoint_cycle_schedule_t>(periodic_interval,aggregate.target_cycle);

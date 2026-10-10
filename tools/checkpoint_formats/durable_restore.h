@@ -12,6 +12,8 @@ std::string validate_durable_restore(std::string bytes);
 // Encode a complete canonical FSAGG1 settled-cut snapshot. This does not itself
 // establish a cut: the caller must collect every owner while clocks are held.
 std::string encode_durable_capture(const std::string &snapshot);
+// Canonical complete build identity for binding native retained history.
+std::string durable_build_identity_json();
 class durable_publication_error_t : public std::runtime_error {
 public:
   const bool published;

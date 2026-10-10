@@ -118,6 +118,7 @@ class HistoryError(RuntimeError):
 
 
 class RollingHistory:
+    schema = SCHEMA
     def __init__(self, directory, *, retention, build, manifest, generated, layout):
         require(type(retention) is int and 0 < retention <= MAX_CYCLE, 'invalid checkpoint retention')
         require(manifest.get('schema') == 'firesim.aggregate.lowclock.v3' and
@@ -174,10 +175,10 @@ class RollingHistory:
         try:
             data = self._read(directory, INDEX)
         except FileNotFoundError:
-            return dict(schema=SCHEMA, binding=self.binding, retention=self.retention, records=[])
+            return dict(schema=self.schema, binding=self.binding, retention=self.retention, records=[])
         doc = json.loads(data, object_pairs_hook=unique_object)
         keys(doc, {'schema', 'binding', 'retention', 'records'})
-        require(data == canonical(doc) and doc['schema'] == SCHEMA and doc['binding'] == self.binding and
+        require(data == canonical(doc) and doc['schema'] == self.schema and doc['binding'] == self.binding and
                 type(doc['retention']) is int and doc['retention'] == self.retention and
                 type(doc['records']) is list and 0 < len(doc['records']) <= self.retention,
                 'incompatible/noncanonical history index')
@@ -286,3 +287,20 @@ class RollingHistory:
             require(bool(candidates), 'no retained checkpoint before requested target cycle')
             record = candidates[-1]
             return dict(record), self._image(directory, record)
+
+
+class NativeRollingHistory(RollingHistory):
+    """Interop with the production native publisher's build-bound index.
+
+    Complete build identity already binds runtime manifest and the executable.
+    Full Python manifest/state validation still applies to every image. Both
+    implementations use the same lock, immutable names and commit protocol.
+    The separate schema prevents silently reinterpreting an older policy index.
+    """
+    schema = 'firesim.rolling.native.level1.v1'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.binding = digest(self.build)
+        self.prefix = 'snapshot-' + self.binding + '-'
+        self.pattern = re.compile(re.escape(self.prefix) + r'([0-9]{20})-([0-9a-f]{64})\.fsckpt\Z')
