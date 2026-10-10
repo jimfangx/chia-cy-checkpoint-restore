@@ -1,10 +1,45 @@
-# M6 FCFS paired semantic cut — iteration 49
+# M6 FCFS paired semantic cut and artifact audit — iterations 49–50
 
 M6 remains in progress. The complete FCFS target now has an independent
 Level-2 inventory, a same-cut hardware readout beside public Level-1 capture,
 and full state correspondence in a fresh Level-1 restored VCS metasim and an
 ordinary clean RTL VCS process. Clean RTL stops before its first edge. These
 processes do **not** yet perform live per-cycle boundary comparison.
+
+Iteration 50 corrects the reproducibility failure in the loop's iteration-49
+verification. That repeated invocation omitted `production-build-metadata/`;
+the earlier manually archived invocation passed, but the saved verifier could
+not recreate its audit inputs. The verifier now copies its own complete
+`checkpoint-native/` directory immediately after Make, binds the exported
+executable and VCS shared libraries, writes `aggregate-build.json`, and decodes
+the actual public Level-1 capture against that binding. It also checks that
+the native image's cycle agrees with the independent parked observation.
+
+`tools/checkpoint_formats/tests/audit_bridge_semantic.py` replaces the
+invocation-specific diagnostic audit script with a reproducible CLI. It
+checks every native image record, source binding, complete semantic mapping,
+hardware/image/restored/clean word correspondence, both cycle domains, the
+zero-edge single-bit corruption, fresh process identities and the iteration's
+read-only plan/staging baseline. Unit tests exercise the original missing
+metadata failure and changed metadata, executable, native source and image.
+
+`audit_erased_boundary_outputs` verifies seven erased output definitions in
+both the selected pre-FAME FIRRTL module and clean SV: six zero constants
+(AR/AW region/user, W id/user) and `ep_reset = reset`. The latter binds to the
+actual semantic DUT input, not a similarly named outer FASED reset channel.
+Changed sources, membership, widths, conflicting/multiple drivers and
+unsupported expressions reject. Four erased inputs remain unresolved:
+`ep_axi4_b_bits_resp`, `ep_axi4_b_bits_user`, `ep_axi4_r_bits_resp` and
+`ep_axi4_r_bits_user`. The audit does not invent those values or enable the
+live adapter. This narrows the boundary work; it proves output definitions,
+not formal noninterference of the missing inputs or live timing equivalence.
+
+Iteration-50 evidence and exact verification commands are under
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m6-iteration50/`.
+Use `paired-semantic/latest.json` to locate that run's exact invocation and
+pass it to the reusable audit along with `--preservation` naming the iteration
+directory. `independent-evidence.json` and `artifact-manifest.json` catalog the
+results. The final status and checks are recorded in `progress.md`.
 
 `SEMANTIC_BRIDGE_CHECKPOINT_ROOT=AXI4Fuzzer.fuzzer_` selects the explicit
 bridge-extracted, resolved LowForm boundary before AutoCounter, assertion/

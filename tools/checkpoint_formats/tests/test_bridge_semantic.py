@@ -6,7 +6,7 @@ import tempfile
 import unittest
 
 from tools.checkpoint_formats.bridge_semantic import (
-    audit_bridge_mapping, bridge_ports, package_snapshot, prepare_clean_readback,
+    audit_bridge_mapping, audit_erased_boundary_outputs, bridge_ports, package_snapshot, prepare_clean_readback,
     prepare_paired_probe, read_snapshot,
 )
 from tools.checkpoint_formats.codec import FormatError, canonical
@@ -94,6 +94,43 @@ class BridgeSemanticTests(unittest.TestCase):
         boundary['clock_aliases'].append(dict(name='ep_clock', source='clock', direction='output'))
         with self.assertRaises(FormatError):
             self.audit(boundary=boundary)
+
+    def erased_fixture(self, constant="2'h0", driver='UInt<2>("h0")', alias='data', alias_driver='data'):
+        boundary = copy.deepcopy(self.boundary)
+        boundary['ports'] += [dict(name='ignored', direction='input', width=1),
+                              dict(name='erased', direction='output', width=2),
+                              dict(name='echoed', direction='output', width=9)]
+        clean = self.clean.replace('output ep_clock)',
+                    'output ep_clock, input ignored, output [1:0] erased, output [8:0] echoed)')
+        clean = clean.replace('endmodule', f'assign erased = {constant};\nassign echoed = {alias};\nendmodule')
+        reference = f'  module DUT :\n    erased <= {driver}\n    echoed <= {alias_driver}\n'
+        manifest = copy.deepcopy(self.manifest)
+        manifest['reference_sha256'] = hashlib.sha256(reference.encode()).hexdigest()
+        mapping = self.audit(manifest=manifest, boundary=boundary, reference=reference, clean=clean)
+        return boundary, reference, clean, mapping
+
+    def test_erased_outputs_require_both_definitions_and_inputs_stay_unresolved(self):
+        boundary, reference, clean, mapping = self.erased_fixture()
+        audit = audit_erased_boundary_outputs(boundary, reference, clean, self.transformed, mapping)
+        self.assertEqual([e['kind'] for e in audit['erased_outputs']], ['target_input_alias', 'constant'])
+        self.assertEqual(audit['erased_outputs'][0]['target_path'], 'FPGATop.dut.data')
+        self.assertEqual(audit['unresolved_inputs'], [dict(name='ignored', direction='input', width=1)])
+        self.assertFalse(audit['live_boundary_adapter_complete'])
+        with self.assertRaisesRegex(FormatError, 'changed erased-boundary source'):
+            audit_erased_boundary_outputs(boundary, reference, clean + ' ', self.transformed, mapping)
+        with self.assertRaisesRegex(FormatError, 'changed erased-boundary membership'):
+            altered = dict(mapping, missing_transformed_ports=[])
+            audit_erased_boundary_outputs(boundary, reference, clean, self.transformed, altered)
+
+    def test_unsupported_or_disagreeing_erased_output_definitions_reject(self):
+        for changes in [dict(driver='UInt<2>("h1")'), dict(constant="1'h0"),
+                        dict(constant="2'hx"), dict(alias='saved', alias_driver='saved'),
+                        dict(alias_driver='saved'), dict(alias='data[0]', alias_driver='data[0]'),
+                        dict(driver='UInt<2>("h0")\n    erased <= UInt<2>("h1")')]:
+            with self.subTest(changes=changes):
+                boundary, reference, clean, mapping = self.erased_fixture(**changes)
+                with self.assertRaises(FormatError):
+                    audit_erased_boundary_outputs(boundary, reference, clean, self.transformed, mapping)
 
     def test_independent_snapshot_roundtrip_and_streamed_restore_before_edges(self):
         mapping = self.audit()

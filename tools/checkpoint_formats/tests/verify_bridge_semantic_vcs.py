@@ -12,8 +12,10 @@ from pathlib import Path
 import shutil
 import tempfile
 
+from tools.checkpoint_formats.aggregate import build_identity
+from tools.checkpoint_formats.aggregate_packed import decode_aggregate
 from tools.checkpoint_formats.bridge_semantic import (
-    audit_bridge_mapping, prepare_paired_probe, package_snapshot,
+    audit_bridge_mapping, audit_erased_boundary_outputs, prepare_paired_probe, package_snapshot,
     prepare_clean_readback, read_snapshot,
 )
 from tools.checkpoint_formats.codec import canonical, require
@@ -51,11 +53,15 @@ def main():
                                    path('.semantic-clean.sv').read_text(), inventory,
                                    path('.simulator-reference.fir').read_text(), path('.sv').read_text(),
                                    bufgce.read_text(), 'FPGATop.sim.target.AXI4Fuzzer_.fuzzer_')
+    erased_boundary = audit_erased_boundary_outputs(boundary, path('.semantic-reference.fir').read_text(),
+                        path('.semantic-clean.sv').read_text(), path('.sv').read_text(), mapping)
+    (out / 'erased-boundary-audit.json').write_bytes(canonical(erased_boundary))
     require(mapping['semantic_entries'] == 1543 and mapping['semantic_words'] == 13503308,
             'unexpected full FCFS semantic inventory')
     probe = out / 'probe'
     prepare_paired_probe(manifest, mapping, probe)
     source_files = [ROOT / 'tools/checkpoint_formats/bridge_semantic.py', Path(__file__),
+                    ROOT / 'tools/checkpoint_formats/tests/audit_bridge_semantic.py',
                     ROOT / 'tools/checkpoint_formats/semantic_restore.cc', bufgce,
                     *[path(suffix) for suffix in ('.semantic-state.json', '.semantic-boundary.json',
                                                  '.semantic-reference.fir', '.semantic-clean.sv',
@@ -75,9 +81,34 @@ def main():
     shutil.copytree(Path(str(executable) + '.daidir'), out / (executable.name + '.daidir'))
     for library in executable.parent.glob('*.so'):
         shutil.copy2(library, out / library.name)
+    # Archive the metadata produced by THIS Make invocation, beside the copied
+    # executable. Auditing a later/reused checkpoint-native directory can bind
+    # the image to a different binary or silently lose its native provenance.
+    metadata = out / 'production-build-metadata'
+    shutil.copytree(generated / 'checkpoint-native', metadata)
+    native_inputs, runtime, native_generated, layout = [
+        json.loads((metadata / (name + '.json')).read_text()) for name in
+        ('native-build-inputs', 'runtime-manifest', 'generated-manifest', 'harness-layout')]
+    require(native_inputs['vcs_home'] == os.environ['VCS_HOME']
+            and native_inputs['compiler'] == os.environ['CXX']
+            and hashlib.sha256(canonical(native_inputs)).hexdigest() == runtime['native_build_hash']
+            and native_generated == inventory, 'Make metadata does not bind this production inventory/build')
+    native_build = build_identity(runtime, native_generated, layout, out / executable.name)
+    (metadata / 'aggregate-build.json').write_bytes(canonical(native_build))
+    # Include all exported metadata, libraries and the actual executable in
+    # the source/artifact binding checked after the complete fresh-process run.
+    hashes.update({str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in
+                   [out / executable.name, *metadata.iterdir(), *out.glob('*.so'),
+                    *(out / (executable.name + '.daidir')).rglob('*.so')] if p.is_file()})
+    (out / 'source-inputs.json').write_bytes(canonical(hashes))
     for suffix in ('.semantic-state.json', '.semantic-boundary.json', '.semantic-reference.fir', '.semantic-clean.sv',
                    '.simulator-state.json', '.simulator-reference.fir', '.sv'):
         shutil.copy2(path(suffix), out / path(suffix).name)
+        archived = out / path(suffix).name
+        hashes[str(archived)] = hashlib.sha256(archived.read_bytes()).hexdigest()
+    for archived in (probe / 'paired-probe.sv', probe / 'mapping.json', out / 'erased-boundary-audit.json'):
+        hashes[str(archived)] = hashlib.sha256(archived.read_bytes()).hexdigest()
+    (out / 'source-inputs.json').write_bytes(canonical(hashes))
     common = [out / executable.name, '-no_save', '+vcs+initreg+0', '+vcs+initmem+0',
               '+memsize=4194304', '+max-cycles=1000000']
     image = out / 'capture.fsckpt'
@@ -86,6 +117,10 @@ def main():
     require('*** PASSED ***' in text and 'PAIRED_SEMANTIC_SNAPSHOT' in text and image.is_file(),
             'public Level-1 capture/semantic observation failed')
     capture_header, capture_records = read_snapshot(probe / 'captured.jsonl', manifest, mapping)
+    native_cut = decode_aggregate(image.read_bytes(), native_build, runtime, native_generated, layout)
+    require(native_cut['target_cycle'] == capture_header['target_cycle'],
+            'independent semantic observation and public Level-1 capture differ in cut label')
+    del native_cut
     require(524288 < capture_header['target_cycle'] < 774628, 'paired cut lacks initialized active target state')
     before = hashlib.sha256(image.read_bytes()).hexdigest()
     text = run(common + [f'+fs-restore={image}'], out / 'restore.log', out)
@@ -142,6 +177,8 @@ def main():
                    pre_edge_corruption_detected=dict(signal='fuzzer.num_resps', cycle=semantic_cycle, target_edges=0),
                    level1_restore_integrated=True, live_boundary_adapter_complete=False,
                    missing_transformed_ports=mapping['missing_transformed_ports'],
+                   erased_output_semantics_verified=len(erased_boundary['erased_outputs']),
+                   unresolved_boundary_inputs=erased_boundary['unresolved_inputs'],
                    live_shadow_acceptance=False, output=str(out))
     (out / 'summary.json').write_bytes(canonical(summary))
     print(json.dumps(summary, indent=2), flush=True)

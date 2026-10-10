@@ -96,6 +96,61 @@ def audit_bridge_mapping(manifest, boundary, reference, clean, generated,
                 emitted_boundary_ports_complete=not missing, live_boundary_adapter_complete=False)
 
 
+def audit_erased_boundary_outputs(boundary, reference, clean, transformed, mapping):
+    """Resolve erased constants/input aliases from both semantic definitions.
+
+    This supplies comparator expressions for erased outputs only. An erased
+    input is still an obligation: no value is invented from its name or from
+    the clean simulator, and this audit alone never enables live execution.
+    """
+    ports = bridge_ports(boundary)
+    for name, source in dict(reference=reference, clean=clean, transformed=transformed).items():
+        require(hashlib.sha256(source.encode()).hexdigest() == mapping['source_hashes'][name],
+                'changed erased-boundary source: ' + name)
+    clean_header, body = modules(clean)[boundary['dut_module']]
+    actual_header = modules(transformed)[boundary['dut_module']][0]
+    def declarations(header):
+        return {n: dict(name=n, direction=d, width=int(w) + 1 if w else 1)
+                for d, w, n in re.findall(rf'\b(input|output)\s+{RANGE}({IDENT})', header)}
+    actual, original = declarations(actual_header), declarations(clean_header)
+    missing = [p for p in ports if p['name'] not in actual]
+    require(missing == mapping['missing_transformed_ports'], 'changed erased-boundary membership')
+    # Use only the selected LowForm module, never an identically named port in
+    # another module. Unsupported FIRRTL/SV drivers reject instead of guessing.
+    definitions = re.findall(r'^  module ' + re.escape(boundary['dut_module']) +
+                             r' :\n(.*?)(?=^  (?:module|extmodule) |\Z)', reference, re.M | re.S)
+    require(len(definitions) == 1, 'missing/ambiguous erased-boundary reference module')
+    firrtl = re.sub(r'\s+@\[[^\n]*', '', definitions[0])
+    outputs, unresolved = [], []
+    for p in missing:
+        if p['direction'] == 'input':
+            unresolved.append(p)
+            continue
+        assignments = re.findall(r'\bassign\s+' + re.escape(p['name']) + r'\s*=\s*([^;]+);', body)
+        drivers = re.findall(r'^    ' + re.escape(p['name']) + r' <= ([^\n]+)', firrtl, re.M)
+        require(len(assignments) == len(drivers) == 1, 'unsupported erased output driver: ' + p['name'])
+        expression, driver = assignments[0].strip(), drivers[0].strip()
+        constant = re.fullmatch(r"(\d+)'h([0-9a-f]+)", expression)
+        if constant:
+            width, value = int(constant[1]), int(constant[2], 16)
+            reference_constant = re.fullmatch(r'UInt<(\d+)>\("h([0-9a-f]+)"\)', driver)
+            require(width == p['width'] and value < 2**width and reference_constant is not None
+                    and (int(reference_constant[1]), int(reference_constant[2], 16)) == (width, value),
+                    'unverified erased output constant: ' + p['name'])
+            outputs.append(dict(port=p, kind='constant', expression=expression, value=value))
+        else:
+            require(expression == driver and expression in actual
+                    and original[expression] == actual[expression]
+                    and actual[expression]['direction'] == 'input' and actual[expression]['width'] == p['width'],
+                    'unsupported erased output alias: ' + p['name'])
+            outputs.append(dict(port=p, kind='target_input_alias', expression=expression,
+                                target_path=mapping['target_root'] + '.' + expression))
+    return dict(audit_version=1, source_hashes={n: mapping['source_hashes'][n]
+                for n in ('reference', 'clean', 'transformed')}, erased_outputs=outputs,
+                unresolved_inputs=unresolved, live_boundary_adapter_complete=False,
+                erased_output_semantics_verified=True)
+
+
 def _records(manifest, prefix):
     source = []
     for e in manifest['state']:
