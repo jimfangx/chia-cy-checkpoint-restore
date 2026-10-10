@@ -90,6 +90,8 @@ def audit_bridge_mapping(manifest, boundary, reference, clean, generated,
                 target_root=target_root, entries=entries,
                 semantic_entries=len(entries), semantic_words=sum(e['depth'] for e in entries),
                 ports=ports, missing_transformed_ports=missing,
+                boundary_input_bindings=[dict(port=p, target_path=target_root + '.' + p['name'])
+                                         for p in ports if p['direction'] == 'input' and p['name'] in actual],
                 source_hashes={k: hashlib.sha256(v.encode()).hexdigest() for k, v in
                                dict(reference=reference, clean=clean, transformed=transformed,
                                     generated_reference=generated_reference, bufgce=bufgce).items()},
@@ -182,6 +184,11 @@ def prepare_paired_probe(manifest, mapping, out):
     prefix = canonical(header).decode()[:-1] + ',"target_cycle":%0d,"observed_target_edges":%0d}'
     root = 'emul.' + mapping['target_root']
     cycle_path = 'emul.FPGATop.FASEDMemoryTimingModel_0.model.tCycle'
+    bindings = mapping['boundary_input_bindings']
+    input_observation = canonical(dict(boundary_input_version=1, mapping_sha256=digest)).decode()[:-1]
+    input_observation += ',"target_cycle":%0d,"observed_target_edges":%0d,"ports":['
+    input_observation += ','.join(canonical(dict(name=b['port']['name'], width=b['port']['width'])).decode()[:-1]
+                                 + ',"value":"%h"}' for b in bindings) + ']}'
     source = ['`timescale 1ps/1ps', 'module paired_semantic_probe();',
               'import "DPI-C" context function void harness_restore_fail(input string message);',
               'integer fd=0, address; bit captured=0, restoring=0;',
@@ -196,6 +203,12 @@ def prepare_paired_probe(manifest, mapping, out):
               '  if(!fd) harness_restore_fail("semantic snapshot output");',
               '  $fdisplay(fd, ' + json.dumps(prefix) + f', {cycle_path}, target_edges);',
               *_records(manifest, root + '.'),
+              '  $fflush(fd); $fclose(fd);',
+              '  fd=$fopen(restoring ? ' + json.dumps(str(out / 'boundary-restored.json')) + ' : ' +
+              json.dumps(str(out / 'boundary-captured.json')) + ', "w");',
+              '  if(!fd) harness_restore_fail("semantic boundary observation output");',
+              '  $fdisplay(fd, ' + json.dumps(input_observation) + f', {cycle_path}, target_edges' +
+              ''.join(', emul.' + b['target_path'] for b in bindings) + ');',
               '  $fflush(fd); $fclose(fd); captured=1;',
               f'  $display("PAIRED_SEMANTIC_SNAPSHOT cycle=%0d entries={len(manifest["state"])} words={mapping["semantic_words"]} host_edges=%0d target_edges=%0d restoring=%0d", {cycle_path}, host_edges, target_edges, restoring);',
               'end endtask',
@@ -205,6 +218,27 @@ def prepare_paired_probe(manifest, mapping, out):
               'endmodule', 'bind FPGATop paired_semantic_probe semantic_paired_observer();']
     (out / 'paired-probe.sv').write_text('\n'.join(source) + '\n')
     (out / 'mapping.json').write_bytes(canonical(mapping))
+
+
+def read_boundary_inputs(path, mapping, target_cycle, target_edges):
+    """Validate every directly bound authoritative input at a parked cut."""
+    observation = json.loads(Path(path).read_text(), object_pairs_hook=unique_object)
+    keys(observation, {'boundary_input_version', 'mapping_sha256', 'target_cycle', 'observed_target_edges', 'ports'})
+    require(type(observation['boundary_input_version']) is int and observation['boundary_input_version'] == 1
+            and observation['mapping_sha256'] == hashlib.sha256(canonical(mapping)).hexdigest(),
+            'incompatible authoritative input observation')
+    for field, expected in [('target_cycle', target_cycle), ('observed_target_edges', target_edges)]:
+        natural(observation[field])
+        require(observation[field] == expected, 'authoritative input observation cycle mismatch')
+    records = observation['ports']
+    bindings = mapping['boundary_input_bindings']
+    require(type(records) is list and len(records) == len(bindings), 'incomplete authoritative input observation')
+    for record, binding in zip(records, bindings):
+        keys(record, {'name', 'width', 'value'})
+        require(record['name'] == binding['port']['name'] and type(record['width']) is int
+                and record['width'] == binding['port']['width'], 'changed authoritative input membership/shape')
+        bit_value(dict(width=record['width'], value=record['value']))
+    return records
 
 
 def read_snapshot(path, manifest, mapping):

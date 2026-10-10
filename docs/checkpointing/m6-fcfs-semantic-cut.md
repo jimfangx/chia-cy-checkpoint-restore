@@ -1,10 +1,52 @@
-# M6 FCFS paired semantic cut and artifact audit — iterations 49–50
+# M6 FCFS paired semantic cut and artifact audit — iterations 49–51
 
 M6 remains in progress. The complete FCFS target now has an independent
 Level-2 inventory, a same-cut hardware readout beside public Level-1 capture,
 and full state correspondence in a fresh Level-1 restored VCS metasim and an
 ordinary clean RTL VCS process. Clean RTL stops before its first edge. These
 processes do **not** yet perform live per-cycle boundary comparison.
+
+Iteration 51 resolves the four erased response-input obligations by preserving
+the selected bridge-extracted DUT's data inputs with `DontTouchAnnotation`
+before FAME and subsequent optimization. This applies only to the opt-in
+bridge inventory path. The pre-FAME circuit/reference and semantic StateIDs
+remain unchanged; no state, ports or target logic are added. Response status
+feeds real queued state/error handling and cannot be assumed noninterfering.
+The adapter can now read it from the actual authoritative DUT input instead
+of reconstructing a value. Ordinary inventory and banked capture retain their
+existing behavior.
+
+The independent mapping records concrete paths and widths for all **14** data
+inputs, including reset and every ready/valid/payload field. Seven erased
+outputs retain their separately audited constant/alias definitions. No input
+obligation remains in the fresh FCFS build. The parked observer writes
+`probe/boundary-captured.json` and `probe/boundary-restored.json`, bound to the
+complete mapping hash and both actual edge/cycle labels. All 14 defined values
+match before the restored metasim takes any host or target edge. The four
+response fields read zero at this particular cut; that is an observation of
+the preserved ports, not a future-value rule. Missing/reordered/reshaped
+records, unknown/padded values and changed mapping/cycle labels reject.
+
+The full fresh VCS scope still compares every one of the 13,503,308 semantic
+words between hardware readout, independent Level-2 image, fresh public
+Level-1 restore and ordinary clean pre-edge readback. Both native processes
+pass at reported cycle 774628. The real clean `num_resps` bit flip changes
+exactly one word at semantic cycle 524453, with zero edges. All 77 Python
+tests, 24 Scala tests, complete M2 and complete M3 pass. The initial new Scala
+fixture omitted its harness input connections; the diagnostic is retained
+as `scala-unconnected-fixture.log`, and the corrected complete scope passes.
+
+Iteration-51 evidence and exact argv live under
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m6-iteration51/`.
+The paired invocation is `paired-semantic/invocation-pdu2jojj/`; the reusable
+independent audit checks the newly repeated invocation through `latest.json`.
+`verification-commands.json`, `independent-evidence.json`, `summary.json` and
+`artifact-manifest.json` provide reproducible checks and full artifact paths.
+This resolves input visibility and paired-cut observation, not live delivery:
+schema-2 synchronization at actual gated DUT edges, restored semantic-origin
+initialization, sustained concurrent shadow execution and first **output**
+divergence injection remain unfinished. The schema-1 live adapter continues
+to reject this boundary. No FPGA, formal or ASIC validation is claimed.
 
 Iteration 50 corrects the reproducibility failure in the loop's iteration-49
 verification. That repeated invocation omitted `production-build-metadata/`;
@@ -28,7 +70,7 @@ both the selected pre-FAME FIRRTL module and clean SV: six zero constants
 (AR/AW region/user, W id/user) and `ep_reset = reset`. The latter binds to the
 actual semantic DUT input, not a similarly named outer FASED reset channel.
 Changed sources, membership, widths, conflicting/multiple drivers and
-unsupported expressions reject. Four erased inputs remain unresolved:
+unsupported expressions reject. At iteration 50, four erased inputs remained unresolved:
 `ep_axi4_b_bits_resp`, `ep_axi4_b_bits_user`, `ep_axi4_r_bits_resp` and
 `ep_axi4_r_bits_user`. The audit does not invent those values or enable the
 live adapter. This narrows the boundary work; it proves output definitions,
@@ -55,7 +97,7 @@ Extracted `ep_clock` is accepted only as a resolved alias of the incoming
 target clock, with a second emitted-RTL alias check. Boundary schema 2 records
 this clock separately from data. The current schema-1 live adapter rejects
 this boundary. The audit records all 11 erased data ports as unresolved
-obligations, including response status/user inputs and constant or forwarded
+obligations at iteration 49, including response status/user inputs and constant or forwarded
 outputs. It does not reconstruct values or silently drop them.
 
 `tools/checkpoint_formats/bridge_semantic.py` emits compact, read-only VCS
@@ -105,8 +147,8 @@ logs, three original/restored/clean readouts and corruption readout are
 preserved. `independent-evidence.json`, `verification-commands.json`,
 `summary.json` and `artifact-manifest.json` provide the audit and full paths.
 
-Next: audit the erased boundary fields against their pre-FAME drivers and
-FAME channels; extend the live adapter for the complete schema-2 boundary;
+Next: use all 14 preserved input bindings and the seven audited output
+definitions to extend the live adapter for the complete schema-2 boundary;
 initialize the restored observer from the paired semantic origin and check
 actual gated target edges. Load/read back clean state before allowing the
 authority to send its first boundary. Then run both VCS processes concurrently,

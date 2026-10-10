@@ -7,7 +7,7 @@ import unittest
 
 from tools.checkpoint_formats.bridge_semantic import (
     audit_bridge_mapping, audit_erased_boundary_outputs, bridge_ports, package_snapshot, prepare_clean_readback,
-    prepare_paired_probe, read_snapshot,
+    prepare_paired_probe, read_snapshot, read_boundary_inputs,
 )
 from tools.checkpoint_formats.codec import FormatError, canonical
 from tools.checkpoint_formats.semantic import manifest_hash
@@ -67,6 +67,8 @@ class BridgeSemanticTests(unittest.TestCase):
         self.assertEqual([p['name'] for p in bridge_ports(self.boundary)], ['data', 'result'])
         self.assertTrue(m['emitted_boundary_ports_complete'])
         self.assertFalse(m['live_boundary_adapter_complete'])
+        self.assertEqual(m['boundary_input_bindings'], [dict(
+            port=dict(name='data', direction='input', width=9), target_path='FPGATop.dut.data')])
         self.assertTrue(all(e['path'].startswith('FPGATop.dut.') for e in m['entries']))
         prepare_paired_probe(self.manifest, m, self.out)
         source = (self.out / 'paired-probe.sv').read_text()
@@ -82,6 +84,7 @@ class BridgeSemanticTests(unittest.TestCase):
         self.assertEqual(m['missing_transformed_ports'], [dict(name='ignored', direction='input', width=2)])
         self.assertFalse(m['emitted_boundary_ports_complete'])
         self.assertFalse(m['live_boundary_adapter_complete'])
+        self.assertNotIn('ignored', [b['port']['name'] for b in m['boundary_input_bindings']])
 
     def test_changed_state_boundary_root_and_reference_reject(self):
         for changes in (dict(reference='wrong'), dict(target_root='FPGATop.other'),
@@ -94,6 +97,24 @@ class BridgeSemanticTests(unittest.TestCase):
         boundary['clock_aliases'].append(dict(name='ep_clock', source='clock', direction='output'))
         with self.assertRaises(FormatError):
             self.audit(boundary=boundary)
+
+    def test_authoritative_input_observation_rejects_incomplete_unknown_or_changed_cut(self):
+        mapping = self.audit()
+        observation = dict(boundary_input_version=1, mapping_sha256=hashlib.sha256(canonical(mapping)).hexdigest(),
+                           target_cycle=41, observed_target_edges=0,
+                           ports=[dict(name='data', width=9, value='101')])
+        path = self.out / 'boundary.json'
+        path.write_bytes(canonical(observation))
+        self.assertEqual(read_boundary_inputs(path, mapping, 41, 0), observation['ports'])
+        alternatives = [dict(ports=[]), dict(mapping_sha256='a'*64), dict(target_cycle=True),
+                        dict(target_cycle=42), dict(observed_target_edges=1), dict(boundary_input_version=True)]
+        alternatives += [dict(ports=[dict(observation['ports'][0], **change)]) for change in
+                         [dict(name='other'), dict(width=True), dict(width=8), dict(value='xxx'), dict(value='fff')]]
+        for change in alternatives:
+            with self.subTest(change=change):
+                path.write_bytes(canonical(dict(observation, **change)))
+                with self.assertRaises(FormatError):
+                    read_boundary_inputs(path, mapping, 41, 0)
 
     def erased_fixture(self, constant="2'h0", driver='UInt<2>("h0")', alias='data', alias_driver='data'):
         boundary = copy.deepcopy(self.boundary)

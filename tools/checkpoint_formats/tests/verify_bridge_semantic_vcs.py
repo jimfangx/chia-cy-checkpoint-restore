@@ -16,7 +16,7 @@ from tools.checkpoint_formats.aggregate import build_identity
 from tools.checkpoint_formats.aggregate_packed import decode_aggregate
 from tools.checkpoint_formats.bridge_semantic import (
     audit_bridge_mapping, audit_erased_boundary_outputs, prepare_paired_probe, package_snapshot,
-    prepare_clean_readback, read_snapshot,
+    prepare_clean_readback, read_snapshot, read_boundary_inputs,
 )
 from tools.checkpoint_formats.codec import canonical, require
 from tools.checkpoint_formats.tests.verify_semantic_vcs import ROOT, run
@@ -55,6 +55,7 @@ def main():
                                    bufgce.read_text(), 'FPGATop.sim.target.AXI4Fuzzer_.fuzzer_')
     erased_boundary = audit_erased_boundary_outputs(boundary, path('.semantic-reference.fir').read_text(),
                         path('.semantic-clean.sv').read_text(), path('.sv').read_text(), mapping)
+    require(not erased_boundary['unresolved_inputs'], 'authoritative boundary inputs were erased')
     (out / 'erased-boundary-audit.json').write_bytes(canonical(erased_boundary))
     require(mapping['semantic_entries'] == 1543 and mapping['semantic_words'] == 13503308,
             'unexpected full FCFS semantic inventory')
@@ -117,6 +118,8 @@ def main():
     require('*** PASSED ***' in text and 'PAIRED_SEMANTIC_SNAPSHOT' in text and image.is_file(),
             'public Level-1 capture/semantic observation failed')
     capture_header, capture_records = read_snapshot(probe / 'captured.jsonl', manifest, mapping)
+    captured_inputs = read_boundary_inputs(probe / 'boundary-captured.json', mapping,
+                                          capture_header['target_cycle'], capture_header['observed_target_edges'])
     native_cut = decode_aggregate(image.read_bytes(), native_build, runtime, native_generated, layout)
     require(native_cut['target_cycle'] == capture_header['target_cycle'],
             'independent semantic observation and public Level-1 capture differ in cut label')
@@ -127,6 +130,8 @@ def main():
     require('*** PASSED ***' in text and 'PRODUCTION_PRE_EDGE owners_loaded=1 host_edges=0 target_edges=0' in text
             and 'PRODUCTION_BOOTSTRAP zero_edges=1' in text, 'fresh public Level-1 continuation failed')
     restored_header, restored_records = read_snapshot(probe / 'restored.jsonl', manifest, mapping)
+    require(read_boundary_inputs(probe / 'boundary-restored.json', mapping, restored_header['target_cycle'], 0)
+            == captured_inputs, 'fresh Level-1 authoritative boundary inputs differ at the paired cut')
     require(restored_header['target_cycle'] == capture_header['target_cycle']
             and restored_header['observed_target_edges'] == 0 and restored_records == capture_records,
             'fresh Level-1 semantic state differs from independent Level-2 cut')
@@ -178,6 +183,8 @@ def main():
                    level1_restore_integrated=True, live_boundary_adapter_complete=False,
                    missing_transformed_ports=mapping['missing_transformed_ports'],
                    erased_output_semantics_verified=len(erased_boundary['erased_outputs']),
+                   authoritative_boundary_input_bindings=mapping['boundary_input_bindings'],
+                   authoritative_boundary_input_values=captured_inputs,
                    unresolved_boundary_inputs=erased_boundary['unresolved_inputs'],
                    live_shadow_acceptance=False, output=str(out))
     (out / 'summary.json').write_bytes(canonical(summary))

@@ -11,7 +11,9 @@ import subprocess
 
 from tools.checkpoint_formats.aggregate import build_identity
 from tools.checkpoint_formats.aggregate_packed import decode_aggregate
-from tools.checkpoint_formats.bridge_semantic import audit_bridge_mapping, audit_erased_boundary_outputs, read_snapshot
+from tools.checkpoint_formats.bridge_semantic import (
+    audit_bridge_mapping, audit_erased_boundary_outputs, read_snapshot, read_boundary_inputs,
+)
 from tools.checkpoint_formats.codec import canonical, require, unique_object
 from tools.checkpoint_formats.replay import builds
 from tools.checkpoint_formats.semantic import decode_semantic
@@ -86,12 +88,20 @@ def audit(out, preservation):
         (out / 'FireSim-generated.semantic-clean.sv').read_text(),
         (out / 'FireSim-generated.sv').read_text(), mapping)
     require(erased_boundary == load(out / 'erased-boundary-audit.json')
-            and len(erased_boundary['erased_outputs']) == 7 and len(erased_boundary['unresolved_inputs']) == 4,
+            and len(erased_boundary['erased_outputs']) == 7 and not erased_boundary['unresolved_inputs'],
             'erased boundary audit changed/incomplete')
+    bindings = mapping['boundary_input_bindings']
+    require([b['port'] for b in bindings] == [p for p in mapping['ports'] if p['direction'] == 'input']
+            and all(b['target_path'] == mapping['target_root'] + '.' + b['port']['name'] for b in bindings)
+            and summary['authoritative_boundary_input_bindings'] == bindings,
+            'incomplete/changed authoritative input bindings')
     build, _ = builds(manifest, boundary, 'AXI4Fuzzer-FCFSConfig-FCFS16GBQuadRank_DefaultF1Config')
     image = decode_semantic((out / 'capture.rtlckpt').read_bytes(), build, manifest)
     origin, original = read_snapshot(out / 'probe/captured.jsonl', manifest, mapping)
     semantic_cycle = origin['observed_target_edges']
+    inputs = read_boundary_inputs(out / 'probe/boundary-captured.json', mapping, native_cycle, semantic_cycle)
+    require(inputs == read_boundary_inputs(out / 'probe/boundary-restored.json', mapping, native_cycle, 0)
+            == summary['authoritative_boundary_input_values'], 'independent authoritative input values differ')
     require(native_cycle == origin['target_cycle'] == 524402 and semantic_cycle == 524453
             and image['target_cycle'] == semantic_cycle and len(image['records']) == 1543,
             'wrong paired cut or cycle origin')
@@ -146,7 +156,7 @@ def audit(out, preservation):
             == (preservation / 'staged-start.txt').read_text().splitlines(), 'staging changed')
     require(summary['live_shadow_acceptance'] is False and summary['live_cycle_alignment_verified'] is False
             and summary['live_boundary_adapter_complete'] is False
-            and len(summary['missing_transformed_ports']) == 11, 'live acceptance overclaim')
+            and len(summary['missing_transformed_ports']) == 7, 'live acceptance overclaim')
     return dict(status='pass', milestone_status='in_progress', level1_cycle=native_cycle,
                 semantic_cycle=semantic_cycle, semantic_entries=1543, semantic_words=13503308,
                 level1_generated_words=13507456, harness_records=29, native_owners=17,
@@ -154,6 +164,7 @@ def audit(out, preservation):
                 complete_fresh_level1_and_clean_state_readback=True,
                 pre_edge_single_bit_corruption_detected=True, live_shadow_acceptance=False,
                 erased_output_definitions_verified=7, unresolved_boundary_inputs=erased_boundary['unresolved_inputs'],
+                authoritative_boundary_inputs_verified=len(bindings),
                 plans_preserved=True, staging_preserved=True, output=str(out),
                 level1_sha256=sha(out / 'capture.fsckpt'), level2_sha256=sha(out / 'capture.rtlckpt'))
 
