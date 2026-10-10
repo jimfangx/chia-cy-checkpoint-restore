@@ -19,11 +19,11 @@ uint64_t ns(uint64_t ms) {
           "timeout exceeds steady-clock range");
   return ms*1000000;
 }
-void report_failure(const char *reason,uint64_t cycle,uint64_t samples,uint64_t captures,uint64_t capture_ns) {
+void report_failure(const char *reason,uint64_t cycle,uint64_t samples,uint64_t captures,uint64_t capture_ns,uint64_t progress) {
   char message[512];
-  const int length=snprintf(message,sizeof(message),"FS_CHECKPOINT_WATCHDOG_FAILURE reason=%s target_cycle=%llu samples=%llu captures=%llu capture_ns=%llu\n",
+  const int length=snprintf(message,sizeof(message),"FS_CHECKPOINT_WATCHDOG_FAILURE reason=%s target_cycle=%llu samples=%llu captures=%llu capture_ns=%llu target_progress=%llu\n",
           reason,(unsigned long long)cycle,(unsigned long long)samples,
-          (unsigned long long)captures,(unsigned long long)capture_ns);
+          (unsigned long long)captures,(unsigned long long)capture_ns,(unsigned long long)progress);
   // Do not acquire stdio locks potentially held by the stalled simulator.
   if(length>0 && size_t(length)<sizeof(message)) {
     const auto ignored=write(STDERR_FILENO,message,size_t(length)); (void)ignored;
@@ -31,9 +31,9 @@ void report_failure(const char *reason,uint64_t cycle,uint64_t samples,uint64_t 
   std::_Exit(EXIT_FAILURE);
 }
 }
-checkpoint_progress_policy_t::checkpoint_progress_policy_t(uint64_t host_ns, uint64_t cycle_ns, uint64_t capture_ns)
-  : host_timeout(host_ns),cycle_timeout(cycle_ns),capture_timeout(capture_ns) {
-  require((host_timeout || cycle_timeout) && capture_timeout,"missing progress/capture timeout");
+checkpoint_progress_policy_t::checkpoint_progress_policy_t(uint64_t host_ns, uint64_t cycle_ns, uint64_t capture_ns, uint64_t target_cycles)
+  : host_timeout(host_ns),cycle_timeout(cycle_ns),capture_timeout(capture_ns),target_timeout(target_cycles) {
+  require((host_timeout || cycle_timeout || target_timeout) && capture_timeout,"missing progress/capture timeout");
 }
 void checkpoint_progress_policy_t::time(uint64_t now) {
   require(!initialized || now>=last_time,"monotonic time regressed"); last_time=now;
@@ -44,6 +44,12 @@ void checkpoint_progress_policy_t::sample(uint64_t now, uint64_t target_cycle) {
   host_time=now;
   if(!initialized || cycle!=target_cycle) cycle_time=now;
   cycle=target_cycle; initialized=true;
+}
+void checkpoint_progress_policy_t::target_progress(uint64_t completed) {
+  require(target_timeout && initialized && !capturing,"target progress requires an enabled settled sample");
+  require(!progress_initialized || completed>=progress,"target progress regressed; initialize after restore");
+  if(!progress_initialized || completed!=progress) progress_cycle=cycle;
+  progress=completed; progress_initialized=true;
 }
 void checkpoint_progress_policy_t::begin_capture(uint64_t now) {
   time(now); require(initialized && !capturing,"uninitialized/nested capture");
@@ -62,12 +68,14 @@ const char *checkpoint_progress_policy_t::failure(uint64_t now) {
   if(capturing) return now-capture_time>=capture_timeout ? "capture_stall" : nullptr;
   if(host_timeout && now-host_time>=host_timeout) return "host_progress_stall";
   if(cycle_timeout && now-cycle_time>=cycle_timeout) return "target_cycle_stall";
+  if(target_timeout && progress_initialized && cycle-progress_cycle>=target_timeout)
+    return "target_progress_stall";
   return nullptr;
 }
 
-checkpoint_progress_watchdog_t::checkpoint_progress_watchdog_t(uint64_t host_ms, uint64_t cycle_ms, uint64_t capture_ms)
-  : policy(ns(host_ms),ns(cycle_ms),ns(capture_ms)),
-    host_ns(ns(host_ms)),cycle_ns(ns(cycle_ms)),capture_limit_ns(ns(capture_ms)) {
+checkpoint_progress_watchdog_t::checkpoint_progress_watchdog_t(uint64_t host_ms, uint64_t cycle_ms, uint64_t capture_ms, uint64_t target_cycles)
+  : policy(ns(host_ms),ns(cycle_ms),ns(capture_ms),target_cycles),
+    host_ns(ns(host_ms)),cycle_ns(ns(cycle_ms)),capture_limit_ns(ns(capture_ms)),target_limit(target_cycles) {
   policy.sample(now_ns(),0);
   monitor=std::thread(&checkpoint_progress_watchdog_t::watch,this);
 }
@@ -79,13 +87,13 @@ void checkpoint_progress_watchdog_t::check(uint64_t now) {
   if(const auto *reason=policy.failure(now)) {
     // Avoid VCS exit handlers tearing down a parked DPI worker. Failure does
     // not publish/prune history, acknowledge capture, or run target edges.
-    report_failure(reason,cycle,samples,captures,capture_ns);
+    report_failure(reason,cycle,samples,captures,capture_ns,progress);
   }
 }
 void checkpoint_progress_watchdog_t::watch() {
-  checkpoint_progress_policy_t cached(host_ns,cycle_ns,capture_limit_ns);
+  checkpoint_progress_policy_t cached(host_ns,cycle_ns,capture_limit_ns,target_limit);
   cached.sample(now_ns(),0);
-  uint64_t observed_cycle=0,observed_samples=0,observed_captures=0,observed_capture_ns=0;
+  uint64_t observed_cycle=0,observed_samples=0,observed_captures=0,observed_capture_ns=0,observed_progress=0;
   std::unique_lock<std::mutex> wait_lock(wait_mutex);
   while(!stopping) {
     {
@@ -94,18 +102,21 @@ void checkpoint_progress_watchdog_t::watch() {
       std::unique_lock<std::mutex> sample_lock(mutex,std::try_to_lock);
       if(sample_lock.owns_lock()) {
         cached=policy; observed_cycle=cycle; observed_samples=samples;
-        observed_captures=captures; observed_capture_ns=capture_ns;
+        observed_captures=captures; observed_capture_ns=capture_ns; observed_progress=progress;
       }
     }
     if(const auto *reason=cached.failure(now_ns()))
-      report_failure(reason,observed_cycle,observed_samples,observed_captures,observed_capture_ns);
+      report_failure(reason,observed_cycle,observed_samples,observed_captures,observed_capture_ns,observed_progress);
     wake.wait_for(wait_lock,std::chrono::milliseconds(1),[&]{ return stopping.load(); });
   }
 }
-void checkpoint_progress_watchdog_t::sample(uint64_t target_cycle) {
+void checkpoint_progress_watchdog_t::sample(uint64_t target_cycle, std::optional<uint64_t> completed) {
   std::lock_guard<std::mutex> lock(mutex);
+  require(bool(completed)==bool(target_limit),"missing/unrequested audited target progress");
   const auto now=now_ns(); check(now); policy.sample(now,target_cycle);
   cycle=target_cycle;
+  if(completed) { policy.target_progress(*completed); progress=*completed; }
+  check(now);
   if(++samples==1) {
     printf("FS_CHECKPOINT_WATCHDOG_ARMED target_cycle=%llu sampler=settled_operation clock=steady_clock\n",
            (unsigned long long)cycle); std::fflush(stdout);

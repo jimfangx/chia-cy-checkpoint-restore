@@ -7,10 +7,25 @@
 int main(int argc, char **argv) {
   if (argc<4) return 2;
   const std::string mode=argv[1], filename=argv[2], preload=argv[3];
-  if (preload!="-" && !dlopen(preload.c_str(),RTLD_NOW|RTLD_LOCAL)) return 3;
+  void *library=nullptr;
+  if (preload!="-" && mode!="late-add") {
+    library=dlopen(preload.c_str(),RTLD_NOW|RTLD_LOCAL); if(!library) return 3;
+  }
   try {
     runtime_identity_t owner({argv+4,argv+argc});
     auto initial=owner.save_checkpoint();
+    if(mode=="late-add" || mode=="late-remove") {
+      if(mode=="late-add") {
+        library=dlopen(preload.c_str(),RTLD_NOW|RTLD_LOCAL); if(!library) return 3;
+      } else if(dlclose(library)) return 3;
+      try { owner.save_checkpoint(); return 8; }
+      catch(const std::runtime_error &error) {
+        const std::string message=error.what();
+        if(message.find(mode=="late-add" ? "added ELF: " : "removed ELF: ")==std::string::npos ||
+           message.find(preload)==std::string::npos) return 9;
+        std::cout<<"REJECT changed ELF inventory "<<message<<'\n'; return 0;
+      }
+    }
     if (mode=="save") {
       std::ofstream output(filename,std::ios::binary);
       output.write(reinterpret_cast<const char *>(initial.data()),initial.size());

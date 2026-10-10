@@ -7,6 +7,7 @@
 #include <limits>
 #include <link.h>
 #include <memory>
+#include <map>
 #include <openssl/evp.h>
 #include <set>
 
@@ -54,6 +55,28 @@ std::array<uint8_t,32> sha256(const std::string &path) {
   require(EVP_DigestFinal_ex(hash.get(), result.data(), &length)==1 && length==result.size(),
           "SHA256 finalization failed");
   return result;
+}
+// Decode only our own freshly built compatibility identities for diagnostics.
+// This never admits a changed ELF set or changes the serialized owner schema.
+std::map<std::string,std::array<uint8_t,32>> elf_records(const std::vector<uint8_t> &bytes,size_t offset) {
+  auto integer=[&] {
+    require(offset<=bytes.size() && bytes.size()-offset>=8,"invalid internal ELF identity");
+    uint64_t value=0;
+    for(unsigned i=0;i<8;++i) value|=uint64_t(bytes[offset++])<<(8*i);
+    return value;
+  };
+  const auto count=integer();
+  std::map<std::string,std::array<uint8_t,32>> result;
+  for(uint64_t i=0;i<count;++i) {
+    const auto size=integer();
+    require(offset<=bytes.size() && size<=bytes.size()-offset && bytes.size()-offset-size>=32,
+            "invalid internal ELF record");
+    std::string path(bytes.begin()+offset,bytes.begin()+offset+size); offset+=size;
+    std::array<uint8_t,32> hash{};
+    for(auto &byte:hash) byte=bytes[offset++];
+    require(result.emplace(path,hash).second,"duplicate internal ELF record");
+  }
+  require(offset==bytes.size(),"trailing internal ELF identity"); return result;
 }
 }
 
@@ -114,7 +137,18 @@ std::vector<uint8_t> runtime_identity_t::current_identity() const {
 }
 
 std::vector<uint8_t> runtime_identity_t::save_checkpoint() const {
-  require(current_identity()==identity, "configuration/loaded ELF changed after entry");
+  const auto current=current_identity();
+  if(current!=identity) {
+    const auto before=elf_records(identity,configuration.size()),after=elf_records(current,configuration.size());
+    std::string detail;
+    for(const auto &[path,hash]:before) {
+      const auto found=after.find(path);
+      if(found==after.end()) detail+="; removed ELF: "+path;
+      else if(found->second!=hash) detail+="; changed ELF: "+path;
+    }
+    for(const auto &[path,hash]:after) if(!before.count(path)) detail+="; added ELF: "+path;
+    throw std::runtime_error("runtime identity: configuration/loaded ELF changed after entry"+detail);
+  }
   return identity;
 }
 void runtime_identity_t::validate_checkpoint(const std::vector<uint8_t> &bytes) const {

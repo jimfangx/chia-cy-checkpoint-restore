@@ -5,19 +5,23 @@
 #include <atomic>
 #include <cstdint>
 #include <mutex>
+#include <optional>
 #include <thread>
 
 // Nanosecond policy with an injectable monotonic clock for boundary checks.
 // Zero disables a progress deadline; capture_timeout is always bounded.
 class checkpoint_progress_policy_t {
-  uint64_t host_timeout, cycle_timeout, capture_timeout;
+  uint64_t host_timeout, cycle_timeout, capture_timeout, target_timeout;
+  uint64_t progress=0, progress_cycle=0;
+  bool progress_initialized=false;
   uint64_t last_time=0, host_time=0, cycle_time=0, capture_time=0;
   uint64_t cycle=0;
   bool initialized=false, capturing=false;
   void time(uint64_t now);
 public:
-  checkpoint_progress_policy_t(uint64_t host_ns, uint64_t cycle_ns, uint64_t capture_ns);
+  checkpoint_progress_policy_t(uint64_t host_ns, uint64_t cycle_ns, uint64_t capture_ns, uint64_t target_cycles=0);
   void sample(uint64_t now, uint64_t target_cycle);
+  void target_progress(uint64_t completed);
   void begin_capture(uint64_t now);
   void end_capture(uint64_t now);
   const char *failure(uint64_t now);
@@ -32,14 +36,14 @@ class checkpoint_progress_watchdog_t {
   checkpoint_progress_policy_t policy;
   std::thread monitor;
   std::atomic<bool> stopping{false};
-  const uint64_t host_ns, cycle_ns, capture_limit_ns;
-  uint64_t samples=0, cycle=0, captures=0, capture_start=0, capture_ns=0;
+  const uint64_t host_ns, cycle_ns, capture_limit_ns, target_limit;
+  uint64_t samples=0, cycle=0, captures=0, capture_start=0, capture_ns=0, progress=0;
   void check(uint64_t now);
   void watch();
 public:
-  checkpoint_progress_watchdog_t(uint64_t host_ms, uint64_t cycle_ms, uint64_t capture_ms);
+  checkpoint_progress_watchdog_t(uint64_t host_ms, uint64_t cycle_ms, uint64_t capture_ms, uint64_t target_cycles=0);
   ~checkpoint_progress_watchdog_t();
-  void sample(uint64_t target_cycle);
+  void sample(uint64_t target_cycle, std::optional<uint64_t> completed=std::nullopt);
   void begin_capture();
   void end_capture();
 };

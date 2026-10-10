@@ -80,8 +80,12 @@ def main():
         else:
             text=run([out/'verify','reject',out/'library-identity.bin',lib,*common],out/'library-reject.log')
             require('REJECT unchanged_owner=1' in text,'same-path changed ELF accepted');rejections+=1
+    for mode in ('late-add','late-remove'):
+        text=run([out/'verify',mode,good,lib,*common],out/(mode+'.log'))
+        require('REJECT changed ELF inventory' in text,'late library change lacked explicit diagnosis')
+        rejections+=1
     summary=dict(rejections=rejections,elf_sha256_comparisons=len(paths),sanitizers='ASan/UBSan',
-                 same_path_changed_library_rejected=True,unchanged_owner=True)
+                 same_path_changed_library_rejected=True,late_library_change_diagnostics=True,unchanged_owner=True)
     (out/'summary.json').write_bytes(canonical(summary));print('PASS:',json.dumps(summary))
 
 

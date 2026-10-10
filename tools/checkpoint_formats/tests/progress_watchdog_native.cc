@@ -35,11 +35,48 @@ int main(int argc,char **argv) {
     reject([&]{regress.failure(9);}); reject([&]{regress.end_capture(12);});
     reject([]{checkpoint_progress_policy_t invalid(0,0,100);});
     reject([]{checkpoint_progress_policy_t invalid(10,0,0);});
+    checkpoint_progress_policy_t target(0,0,100,20);
+    reject([&]{target.target_progress(7);});
+    target.sample(1,500002); target.target_progress(7000);
+    target.sample(2,500021); target.target_progress(7000); assert(!target.failure(2));
+    target.begin_capture(3); target.end_capture(102);
+    assert(!target.failure(102)); // Capture wall time never consumes target cycles.
+    target.sample(103,500022); target.target_progress(7000);
+    assert(std::string(target.failure(103))=="target_progress_stall");
+    checkpoint_progress_policy_t healthy_target(0,0,100,20);
+    healthy_target.sample(1,500002); healthy_target.target_progress(7000);
+    healthy_target.sample(2,500022); healthy_target.target_progress(7001);
+    assert(!healthy_target.failure(2)); // A completion on the deadline refreshes it.
+    healthy_target.sample(3,500041); healthy_target.target_progress(7001);
+    assert(!healthy_target.failure(3));
+    reject([&]{healthy_target.target_progress(7000);});
+    healthy_target.begin_capture(4); reject([&]{healthy_target.target_progress(7002);});
+    healthy_target.end_capture(5);
+    checkpoint_progress_policy_t overflow(0,0,100,20);
+    overflow.sample(1,UINT64_MAX-20); overflow.target_progress(0);
+    overflow.sample(2,UINT64_MAX-1); overflow.target_progress(0); assert(!overflow.failure(2));
+    overflow.sample(3,UINT64_MAX); overflow.target_progress(0);
+    assert(std::string(overflow.failure(3))=="target_progress_stall");
+    reject([&]{p.target_progress(1);});
     // Public parsing before platform construction, including unsupported use.
     const std::vector<std::string> restore={"+fs-restore=image","+fs-checkpoint-host-timeout-ms=100",
                                            "+fs-checkpoint-capture-timeout-ms=1000"};
     assert(checkpoint_request_t::parse(restore).watchdog());
+    const std::string target_key="+fs-checkpoint-target-timeout-cycles=";
+    assert(checkpoint_request_t::parse({"+fs-restore=image",target_key+"18446744073709551615",
+                                      "+fs-checkpoint-capture-timeout-ms=1000"}).target_timeout_cycles==UINT64_MAX);
     unsigned rejected=0;
+    for(const auto &value:{"","0","-1","+1","1x","18446744073709551616"}) {
+      reject([&]{checkpoint_request_t::parse({"+fs-restore=image",target_key+value,
+                                            "+fs-checkpoint-capture-timeout-ms=1000"});}); ++rejected;
+    }
+    for(const auto &args:std::vector<std::vector<std::string>>{
+      {"+fs-restore=image",target_key+"20"},
+      {"+fs-restore=image",target_key+"20",target_key+"20","+fs-checkpoint-capture-timeout-ms=1000"},
+      {"+fs-restore=image","+fs-checkpoint-target-timeout-ms=20","+fs-checkpoint-capture-timeout-ms=1000"},
+      {target_key+"20","+fs-checkpoint-capture-timeout-ms=1000"}}) {
+      reject([&]{checkpoint_request_t::parse(args);}); ++rejected;
+    }
     for(const auto &key:{"host","cycle","capture"}) {
       const auto prefix=std::string("+fs-checkpoint-")+key+"-timeout-ms=";
       for(const auto &value:{"","0","-1","+1","1x","9223372036855","18446744073709551616"}) {
@@ -60,6 +97,18 @@ int main(int argc,char **argv) {
       reject([&]{checkpoint_request_t::parse(args);}); ++rejected;
     }
     printf("PASS: policy boundaries capture_exclusion_preserves_age=1 parser_rejections=%u\n",rejected);
+    return 0;
+  }
+  if(mode=="target" || mode=="target-healthy" || mode=="target-capture") {
+    checkpoint_progress_watchdog_t semantic(100,100,500,20);
+    reject([&]{semantic.sample(500002);});
+    semantic.sample(500002,7000);
+    semantic.begin_capture(); std::this_thread::sleep_for(250ms); semantic.end_capture();
+    for(unsigned i=1;i<=25;++i) {
+      std::this_thread::sleep_for(2ms);
+      semantic.sample(500002+i,mode=="target-healthy" ? 7000+i : 7000);
+    }
+    puts("PASS: completed-work progress with advancing cycles and bounded capture exclusion");
     return 0;
   }
   const bool cycle=mode=="cycle";

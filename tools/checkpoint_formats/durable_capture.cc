@@ -136,6 +136,35 @@ uint64_t durable_capture_target_cycle() {
   return std::stoull(word(AGGREGATE_TARGET_CYCLE_PATH,64,false,false,false),nullptr,16);
 }
 
+uint64_t durable_capture_target_progress() {
+#if defined(AGGREGATE_TARGET_PROGRESS_PATH) && defined(AGGREGATE_TARGET_INITIALIZATION_PATH)
+  polling_low_clocks();
+  static const bool valid = [] {
+    unsigned found=0,init_found=0;
+    for(const auto &e:generated::entries) {
+      if(std::string(e.path)==AGGREGATE_TARGET_PROGRESS_PATH) {
+        require(e.width==14 && e.depth==1 && !e.memory && !e.clock_output,
+                "unsupported target-progress counter shape"); ++found;
+      }
+      if(std::string(e.path)==AGGREGATE_TARGET_INITIALIZATION_PATH) {
+        require(e.width==20 && e.depth==1 && !e.memory && !e.clock_output,
+                "unsupported target initialization counter shape"); ++init_found;
+      }
+    }
+    require(found==1 && init_found==1,"missing/duplicate target-progress inventory"); return true;
+  }();
+  require(valid,"invalid target-progress inventory");
+  const auto remaining=std::stoull(word(AGGREGATE_TARGET_PROGRESS_PATH,14,false,false,false),nullptr,16);
+  require(remaining<=10000,"target-progress counter outside audited transaction range");
+  const auto initialized=std::stoull(word(AGGREGATE_TARGET_INITIALIZATION_PATH,20,false,false,false),nullptr,16);
+  require(initialized<=524288,"target initialization counter outside audited range");
+  require(initialized==524288 || remaining==10000,"responses before target initialization completed");
+  return initialized+10000-remaining;
+#else
+  throw std::runtime_error("durable capture: unsupported target-progress inventory");
+#endif
+}
+
 bool durable_capture_reset_complete() {
   polling_low_clocks();
   // Both reset-pulse registers are in the compiled generated inventory. The

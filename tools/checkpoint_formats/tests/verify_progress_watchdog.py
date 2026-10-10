@@ -21,15 +21,16 @@ def main():
     results=[]
     for mode,reason in [('policy',None),('healthy',None),('host','host_progress_stall'),
                         ('cycle','target_cycle_stall'),('capture','capture_stall'),
-                        ('sample-lock','host_progress_stall')]:
+                        ('sample-lock','host_progress_stall'),('target','target_progress_stall'),
+                        ('target-healthy',None)]:
         text=run([case/'verify',mode],case/(mode+'.log'),expected=1 if reason else 0)
         require((f'reason={reason}' in text) if reason else 'PASS:' in text,'wrong deadline classification')
         require('AddressSanitizer' not in text and 'runtime error:' not in text,'sanitizer failure')
         results.append(dict(mode=mode,reason=reason,log=str(case/(mode+'.log'))))
     (args.out/'summary.json').write_bytes(canonical(dict(invocation=str(case),results=results,
         sanitizers='ASan/UBSan',capture_time_excluded_but_bounded=True,
-        cycle_stall_with_live_host_samples=True)))
-    print('PASS: independent host/cycle monitor, bounded capture exclusion, regressions and public parser')
+        cycle_stall_with_live_host_samples=True,semantic_stall_with_advancing_cycles=True)))
+    print('PASS: independent host/cycle monitor, semantic target-cycle deadline, bounded capture exclusion and public parser')
 
 
 if __name__=='__main__': main()

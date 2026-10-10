@@ -31,6 +31,8 @@ def main():
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--watchdog-ms',type=int,default=0,
                         help='Exercise production host/cycle monitor and bounded capture accounting')
+    parser.add_argument('--target-watchdog-cycles',type=int,default=0,
+                        help='Also monitor audited completed response transactions')
     args = parser.parse_args()
     require(os.environ.get('VCS_HOME') == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'source vcs-env.sh LAST')
     production = args.production.resolve()
@@ -60,6 +62,9 @@ def main():
     watchdog_options = ([f'+fs-checkpoint-host-timeout-ms={args.watchdog_ms}',
                          f'+fs-checkpoint-cycle-timeout-ms={args.watchdog_ms}',
                          '+fs-checkpoint-capture-timeout-ms=600000'] if args.watchdog_ms else [])
+    if args.target_watchdog_cycles:
+        watchdog_options += [f'+fs-checkpoint-target-timeout-cycles={args.target_watchdog_cycles}']
+        if not args.watchdog_ms: watchdog_options += ['+fs-checkpoint-capture-timeout-ms=600000']
 
     bad_directory = out/'invalid-output'
     good_options = options(bad_directory, 10)
@@ -216,6 +221,8 @@ def main():
                    generated_words=sum(e['depth'] for e in generated['state']), early_reset_restore_rejected=True,
                    public_periodic_configuration=True, live_retained_history_commit=True,
                    production_watchdog_sampling=bool(args.watchdog_ms), watchdog_ms=args.watchdog_ms,
+                   production_semantic_sampling=bool(args.target_watchdog_cycles),
+                   target_watchdog_cycles=args.target_watchdog_cycles,
                    host_stall_injection='external SIGSTOP', physical_fpga_validated=False)
     (out/'summary.json').write_bytes(canonical(summary))
     (args.out/'latest.json').write_bytes(canonical(dict(invocation=str(out), summary=str(out/'summary.json'))))

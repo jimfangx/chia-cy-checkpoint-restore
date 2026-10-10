@@ -58,7 +58,8 @@ public:
       if(arg.rfind("+fs-checkpoint=",0)==0 || arg.rfind("+fs-checkpoint-operation=",0)==0) continue;
       if(arg.rfind("+fs-checkpoint-directory=",0)==0 || arg.rfind("+fs-checkpoint-interval=",0)==0 ||
          arg.rfind("+fs-checkpoint-retention=",0)==0 || arg=="+fs-checkpoint-level=1") continue;
-      if(arg.rfind("+fs-checkpoint-host-timeout-ms=",0)==0 ||
+      if(arg.rfind("+fs-checkpoint-target-timeout-cycles=",0)==0 ||
+         arg.rfind("+fs-checkpoint-host-timeout-ms=",0)==0 ||
          arg.rfind("+fs-checkpoint-cycle-timeout-ms=",0)==0 ||
          arg.rfind("+fs-checkpoint-capture-timeout-ms=",0)==0) continue;
       if(arg.rfind("+test-live-periodic",0)==0) {
@@ -175,8 +176,9 @@ public:
       if(watchdog_configuration.watchdog()) {
         if(!watchdog) watchdog=std::make_unique<checkpoint_progress_watchdog_t>(
             watchdog_configuration.host_timeout_ms,watchdog_configuration.cycle_timeout_ms,
-            watchdog_configuration.capture_timeout_ms);
-        watchdog->sample(cycle);
+            watchdog_configuration.capture_timeout_ms,watchdog_configuration.target_timeout_cycles);
+        watchdog->sample(cycle,watchdog_configuration.target_timeout_cycles
+            ? std::optional<uint64_t>(durable_capture_target_progress()) : std::nullopt);
       }
       if(periodic_schedule && periodic_schedule->due(cycle)) {
         if(watchdog) watchdog->begin_capture();

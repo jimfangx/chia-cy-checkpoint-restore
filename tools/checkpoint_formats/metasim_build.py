@@ -22,6 +22,13 @@ from .harness_restore import harness_layout, prepare_harness_loader
 ROOT = Path(__file__).resolve().parents[2]
 PROFILE = 'fcfs-fased-v1'
 TARGET_CYCLE = 'FPGATop.FASEDMemoryTimingModel_0.model.tCycle'
+TARGET_PROGRESS = 'FPGATop.sim.target.AXI4Fuzzer_.fuzzer_.fuzzer.num_resps'
+# This profile implements one finite 10,000-operation TLFuzzer. Pin its entire
+# lowered module, ignoring source locations, rather than inferring retirement
+# from traffic, arbitrary changing state, or an unfamiliar response protocol.
+TARGET_PROGRESS_MODULE_SHA256 = 'dc94bd5753df7f43ccb2bb192eaca6b0f63c236a39453b1b547e1762f6f3823c'
+TARGET_INITIALIZATION = 'FPGATop.sim.target.AXI4Fuzzer_.fuzzer_.model.wipeIndex'
+TARGET_INITIALIZATION_MODULE_SHA256 = 'abbd7733daff5e1d4dcfcce050a44d515c06569dde315443815ea53c1f83851d'
 WIDGETS = {
     'master_t': 'firesim.widget.master.v1',
     'loadmem_t': 'firesim.widget.loadmem.v1',
@@ -66,6 +73,41 @@ def native_inventory(header, constants):
     return [dict(owner=owner, schema=schema) for owner, schema in pairs]
 
 
+def audit_target_progress(manifest, fir):
+    entries = [e for e in manifest['state'] if e['module'] == 'TLFuzzer' and
+               e['hierarchy'].endswith('.num_resps')]
+    require(len(entries) == 1, 'unsupported target-progress fuzzer membership')
+    entry = entries[0]
+    require(entry['hierarchy'] == TARGET_PROGRESS and entry['kind'] == 'register' and
+            entry['adapter'] == 'firrtl-register-v1' and entry['width'] == 14 and
+            entry['depth'] == 1 and not entry['signed'] and entry['clock_expression'] == 'clock' and
+            entry['reset_expression'] == 'UInt<1>("h0")', 'unsupported target-progress register')
+    blocks = re.findall(r'^  module TLFuzzer\b.*?(?=^  (?:module|extmodule)\b|\Z)', fir, re.M | re.S)
+    require(len(blocks) == 1, 'unsupported target-progress module membership')
+    normalized = '\n'.join(re.sub(r'\s*@\[.*', '', line).strip() for line in blocks[0].splitlines())
+    digest = hashlib.sha256(normalized.encode()).hexdigest()
+    require(digest == TARGET_PROGRESS_MODULE_SHA256, 'unsupported target-progress update semantics')
+    wipes = [e for e in manifest['state'] if e['module'] == 'TLRAMModel' and e['hierarchy'].endswith('.wipeIndex')]
+    require(len(wipes) == 1, 'unsupported target initialization membership')
+    wipe = wipes[0]
+    require(wipe['hierarchy'] == TARGET_INITIALIZATION and wipe['kind'] == 'register' and
+            wipe['adapter'] == 'firrtl-register-v1' and wipe['width'] == 20 and wipe['depth'] == 1 and
+            not wipe['signed'] and wipe['clock_expression'] == 'clock' and
+            wipe['reset_expression'] == 'UInt<1>("h0")', 'unsupported target initialization register')
+    blocks = re.findall(r'^  module TLRAMModel\b.*?(?=^  (?:module|extmodule)\b|\Z)', fir, re.M | re.S)
+    require(len(blocks) == 1, 'unsupported target initialization module membership')
+    normalized = '\n'.join(re.sub(r'\s*@\[.*', '', line).strip() for line in blocks[0].splitlines())
+    wipe_digest = hashlib.sha256(normalized.encode()).hexdigest()
+    require(wipe_digest == TARGET_INITIALIZATION_MODULE_SHA256, 'unsupported target initialization semantics')
+    return dict(path='emul.'+TARGET_PROGRESS, state_id=entry['state_id'], width=14,
+                initialization_path='emul.'+TARGET_INITIALIZATION, initialization_state_id=wipe['state_id'],
+                initialization_width=20, initialization_limit=524288,
+                initialization_module_sha256=wipe_digest,
+                initial_remaining=10000, completed_expression='wipeIndex + 10000 - num_resps',
+                semantics='completed_shadow_memory_initialization_and_TileLink_responses_at_settled_cut',
+                module_sha256=digest, checkpoint_level=1)
+
+
 def coordinator(manifest):
     """Reserve, validate, load, read back and bootstrap before the first edge."""
     gates = [e['hierarchy'] for e in manifest['state'] if e['adapter'] == 'metasim-bufgce-v1']
@@ -82,7 +124,7 @@ def coordinator(manifest):
         *[f'always @(posedge emul.{gate}) target_edges=target_edges+1;' for gate in gates],
         # A due full capture revalidates identity through its native owner.
         # Poll-only callbacks must not hash every ELF on every operation.
-        'always @(emul.checkpoint_settled_event) if(!$test$plusargs("test-live-periodic=") && !$test$plusargs("fs-checkpoint-directory=") && !$test$plusargs("fs-checkpoint-host-timeout-ms=") && !$test$plusargs("fs-checkpoint-cycle-timeout-ms=")) production_runtime_identity_verify();',
+        'always @(emul.checkpoint_settled_event) if(!$test$plusargs("test-live-periodic=") && !$test$plusargs("fs-checkpoint-directory=") && !$test$plusargs("fs-checkpoint-host-timeout-ms=") && !$test$plusargs("fs-checkpoint-cycle-timeout-ms=") && !$test$plusargs("fs-checkpoint-target-timeout-cycles=")) production_runtime_identity_verify();',
         'always @(emul.checkpoint_input_refresh) if(restoring && !emul.checkpoint_restore_complete) begin',
         'if(edges || target_edges || emul.clock || refreshes) harness_restore_fail("bootstrap refresh phase");',
         'refreshes=refreshes+1; end',
@@ -167,16 +209,21 @@ def main():
                   make_profile=PROFILE)
     runtime = runtime_manifest('fcfs-fased-production-entry-v3', manifest, layout, owners,
                                hashlib.sha256(canonical(inputs)).hexdigest(), TARGET_CYCLE)
+    progress = audit_target_progress(manifest, base.with_suffix('.simulator-reference.fir').read_text())
     # All input, RTL coverage, profile and owner checks precede output access.
     out.mkdir(parents=True, exist_ok=True)
     prepare_generated_loader(manifest, identity, out, 'emul.FPGATop', rtl=rtl)
     prepare_harness_loader(layout, out)
     prepare_aggregate_loader(runtime, out)
+    with (out/'aggregate-restore-table.h').open('a') as table:
+        table.write('\n#define AGGREGATE_TARGET_PROGRESS_PATH '+json.dumps(progress['path'])+'\n')
+        table.write('#define AGGREGATE_TARGET_INITIALIZATION_PATH '+json.dumps(progress['initialization_path'])+'\n')
     prepare_durable_loader(runtime, manifest, layout, out)
     for name, value in (('generated-manifest', manifest), ('harness-layout', layout),
                         ('runtime-manifest', runtime), ('native-build-inputs', inputs)):
         (out/(name+'.json')).write_bytes(canonical(value))
     (out/'checkpoint-coordinator.sv').write_text(coordinator(manifest))
+    (out/'target-progress-inventory.json').write_bytes(canonical(progress))
     # VCS's cached external-C Makefile can miss included table/header changes.
     # Remove only checkpoint objects with a newer recorded dependency. The
     # ordinary simulator's cache and all saved executables remain untouched.

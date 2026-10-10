@@ -22,6 +22,7 @@ from tools.checkpoint_formats.codec import canonical, require
 from tools.checkpoint_formats.durable_restore import prepare_durable_loader
 from tools.checkpoint_formats.generated_restore import generated_build_identity, prepare_generated_loader
 from tools.checkpoint_formats.harness_restore import harness_layout, harness_capture, prepare_harness_loader
+from tools.checkpoint_formats.metasim_build import audit_target_progress
 from tools.checkpoint_formats.simulator import prepare_settled_generated_probe
 from tools.checkpoint_formats.tests.verify_driver_boundary_vcs import read_diagnostic
 from tools.checkpoint_formats.tests.verify_generated_restore_vcs import verify_native
@@ -275,6 +276,12 @@ def main():
     runtime = packed.runtime_manifest('fcfs-fased-production-entry-v3', manifest, layout, owner_rows, native_hash,
                                      'FPGATop.FASEDMemoryTimingModel_0.model.tCycle')
     prepare_aggregate_loader(runtime, out)
+    if args.public_restore:
+        progress=audit_target_progress(manifest,(generated/'FireSim-generated.simulator-reference.fir').read_text())
+        with (out/'aggregate-restore-table.h').open('a') as table:
+            table.write('\n#define AGGREGATE_TARGET_PROGRESS_PATH '+json.dumps(progress['path'])+'\n')
+            table.write('#define AGGREGATE_TARGET_INITIALIZATION_PATH '+json.dumps(progress['initialization_path'])+'\n')
+        (out/'target-progress-inventory.json').write_bytes(canonical(progress))
     if args.public_restore: prepare_durable_loader(runtime,manifest,layout,out)
     for name, value in [('generated-manifest', manifest), ('harness-layout', layout), ('runtime-manifest', runtime)]:
         (out/(name+'.json')).write_bytes(canonical(value))
@@ -303,7 +310,7 @@ def main():
         # Full capture validates runtime identity when a target deadline is
         # due. Poll-only callbacks must not hash the executable or emit a log
         # row on every completed operation; this observer is optional.
-        'always @(emul.checkpoint_settled_event) if(!$test$plusargs("test-live-periodic=") && !$test$plusargs("fs-checkpoint-directory=") && !$test$plusargs("fs-checkpoint-host-timeout-ms=") && !$test$plusargs("fs-checkpoint-cycle-timeout-ms=")) begin production_runtime_identity_verify(); $display("PRODUCTION_CUT host_edges=%0d target_edges=%0d",edges,target_edges); end',
+        'always @(emul.checkpoint_settled_event) if(!$test$plusargs("test-live-periodic=") && !$test$plusargs("fs-checkpoint-directory=") && !$test$plusargs("fs-checkpoint-host-timeout-ms=") && !$test$plusargs("fs-checkpoint-cycle-timeout-ms=") && !$test$plusargs("fs-checkpoint-target-timeout-cycles=")) begin production_runtime_identity_verify(); $display("PRODUCTION_CUT host_edges=%0d target_edges=%0d",edges,target_edges); end',
         'always @(emul.checkpoint_input_refresh) if(restoring && !emul.checkpoint_restore_complete) begin',
         'if(edges || target_edges || emul.clock || refreshes) harness_restore_fail("bootstrap refresh phase");',
         'refreshes=refreshes+1; end',
@@ -338,11 +345,33 @@ def main():
     (out/'harness.sv').write_text(''.join(f'`include "{p}"\n' for p in (
         generated/'FireSim-generated.const.vh', generated/'FireSim-generated.defines.vh', verilog/'top.sv')))
     if args.normal_make:
-        # The monitor only observes. Make generates, compiles and runs the real
-        # coordinator; no test loader may perform the production restore.
+        # Make runs the real coordinator. The optional fault injector below
+        # belongs only to this verification observer, never the capability.
         begin = monitor.index('if(restoring) begin')
         end = monitor.index('end end end', begin)
         monitor[begin:end+1] = ['end']
+        # External test-only fault injection. A fixed invocation-local control
+        # file arms the observer before launch; it is sampled exactly once at
+        # the late cycle. The production coordinator and sampler only read.
+        (out/'inject-target-hang.control').write_text('0\n')
+        target = 'emul.FPGATop.sim.target.AXI4Fuzzer_.fuzzer_.fuzzer.'
+        injection_index=monitor.index('always @(posedge emul.clock) begin')
+        monitor[injection_index:injection_index] = [
+            'bit fault_checked=0, fault_injected=0; integer fault_fd=0, fault_arm=0, fault_status=0; logic [13:0] hung_remaining;',
+            f'always @(negedge emul.clock) if({prefix}model.tCycle>=600000) begin',
+            'if(!fault_checked) begin fault_checked=1;',
+            'fault_fd=$fopen('+json.dumps(str(out/'inject-target-hang.control'))+',"r");',
+            'if(!fault_fd) harness_restore_fail("fault control open");',
+            'fault_status=$fscanf(fault_fd,"%d",fault_arm); $fclose(fault_fd);',
+            'if(fault_status!=1 || (fault_arm!=0 && fault_arm!=1)) harness_restore_fail("fault control contents");',
+            'if(fault_arm) begin fault_injected=1;',
+            f'hung_remaining={target}num_resps; force {target}auto_out_d_valid=1\'b0;',
+            f'$display("TEST_TARGET_HANG target_cycle=%0d remaining=%0d",{prefix}model.tCycle,hung_remaining);',
+            '$fflush(); end end',
+            f'if(fault_injected && {target}num_resps!=hung_remaining) harness_restore_fail("target hang allowed response completion");',
+            'end',
+            'always @(posedge emul.clock) if(fault_injected && fd) $fflush(fd);',
+        ]
         (out/'monitor.sv').write_text('\n'.join(monitor)+'\n')
         command = ['make', 'TARGET_PROJECT=fasedtests', 'DESIGN=AXI4Fuzzer', 'TARGET_CONFIG=FCFSConfig',
                    'PLATFORM_CONFIG=FCFS16GBQuadRank_DefaultF1Config', f'BUILD_DIR={args.build.resolve()}',
@@ -359,7 +388,7 @@ def main():
         for library in executable.parent.glob('*.so'):
             shutil.copy2(library, out/library.name)
         compiled = generated/'checkpoint-native'
-        for name in ('native-build-inputs', 'runtime-manifest', 'generated-manifest', 'harness-layout'):
+        for name in ('native-build-inputs', 'runtime-manifest', 'generated-manifest', 'harness-layout', 'target-progress-inventory'):
             (out/(name+'.json')).write_bytes((compiled/(name+'.json')).read_bytes())
         (out/'checkpoint-coordinator.sv').write_bytes((compiled/'checkpoint-coordinator.sv').read_bytes())
         native_inputs = json.loads((out/'native-build-inputs.json').read_text())

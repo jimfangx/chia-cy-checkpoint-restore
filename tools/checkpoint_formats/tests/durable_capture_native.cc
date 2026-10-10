@@ -81,6 +81,8 @@ extern "C" void vpi_get_value(vpiHandle handle, p_vpi_value value) {
 int main(int argc, char **argv) {
   try {
     check(argc==4); mode=argv[3];
+    const bool poll=mode.rfind("poll-",0)==0;
+    if(poll) mode=mode.substr(5);
     std::ifstream input(argv[1]); check(bool(input));
     std::string line; std::getline(input,line);
     std::istringstream header(line); std::string magic,hash; uint64_t cycle,sample,count;
@@ -131,7 +133,23 @@ int main(int argc, char **argv) {
     if(mode=="alias") owners.back().second=owners.front().second;
     if(mode=="null") owners.back().second=nullptr;
     if(mode=="schema") storage.back()->schema="unsupported";
+    if(mode=="range") state.at("emul.Top.progress").bits[0].aval=10001;
+    if(mode=="initialization-range") state.at("emul.Top.initialization").bits[0].aval=524289;
+    if(mode=="bad-epoch") state.at("emul.Top.initialization").bits[0].aval=0;
     try {
+      if(poll) {
+        if(mode=="initialization") {
+          state.at("emul.Top.progress").bits[0].aval=10000;
+          for(const unsigned value:{0u,1u,524287u,524288u}) {
+            state.at("emul.Top.initialization").bits[0].aval=value;
+            check(durable_capture_target_progress()==value);
+          }
+          state.at("emul.Top.progress").bits[0].aval=9999;
+          check(durable_capture_target_progress()==524289);
+        } else check(durable_capture_target_progress()==529288 && mode=="valid");
+        check(loads==0 && saves==0);
+        puts("PASS: audited target-progress sampling no_loads=1 no_native_reads=1"); return 0;
+      }
       const auto snapshot=capture_durable_snapshot(owners,sample);
       check(mode=="valid");
       std::ofstream output(argv[2],std::ios::binary); output.write(snapshot.data(),snapshot.size());

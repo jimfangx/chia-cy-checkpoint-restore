@@ -12,6 +12,9 @@ std::string capture_durable_snapshot(const aggregate_restore_t::owners_t &owners
 // Fast read of the same compiled, manifested counter used by full collection.
 // The caller must hold the worker at the settled low-clock cut.
 uint64_t durable_capture_target_cycle();
+// Manifest-bound initialization work plus completed responses for the FCFS profile.
+// Unsupported inventories and unknown/out-of-range values reject.
+uint64_t durable_capture_target_progress();
 // Audited FCFS profile only: the initial target reset pulse has drained.
 bool durable_capture_reset_complete();
 #endif
