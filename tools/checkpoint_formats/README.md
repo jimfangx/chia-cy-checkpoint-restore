@@ -114,8 +114,16 @@ Covered assertion antecedents, two-sample relation coverage and both values of
 every physical bit prevent vacuous acceptance. The checkpoint loader enforces
 the relation at initialization, including agreement among merged sources.
 Every original and physical bit must be represented; missing aliases/copies,
-bounded proofs and changed scripts/miter/input identities reject. Composition
-of this adapter with unread/constant elimination currently rejects explicitly.
+bounded proofs and changed scripts/miter/input identities reject. Add
+`--optimize-registers` for version-6 maps that also retain eliminated original
+register bits. These bits are absent from the relation, so preservation and
+output equality must hold for their arbitrary values and evolution. Both values
+of every omitted bit must be covered under the relation. The map records proven
+unread state with empty gate destinations; the verifier flips every unread
+checkpoint bit and checks fresh RTL replay and identical gate deposits. A fresh
+proof with that state connected to an output or a register's next-state update
+must produce a counterexample.
+Relational constant elimination currently rejects explicitly.
 These fixtures use flip-flops
 for logical RAM; SRAM macros still require a complete storage adapter.
 
@@ -126,7 +134,7 @@ healthy uninterrupted/restored comparisons and real formal/simulation failures.
 containers, captured state, netlist inventory and every replay boundary without
 importing the exporter or codec. Recovery and current M8 scope are recorded in
 `docs/checkpointing/m8-formal-state-map.md`.
-Use `tests.audit_relational_state_map --run <invocation>` for version-5 profiles;
+Use `tests.audit_relational_state_map --run <invocation>` for version-5/6 profiles;
 it checks the miter, individual raw engine results, inventories and replay.
 
 `python -m tools.checkpoint_formats.tests.verify_formal_missing_proof --out <runs-directory>`

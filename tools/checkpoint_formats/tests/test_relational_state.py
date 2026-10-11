@@ -14,17 +14,18 @@ from tools.checkpoint_formats.tests.verify_formal_state_map import fixture_manif
 from tools.checkpoint_formats.tests.verify_relational_state_map import candidate_spec
 
 
-def fixture():
+def fixture(optimized=False):
     base = Path(__file__).with_name("fixtures") / "formal"
-    manifest, boundary = fixture_manifest(base / "merged/dut.v", merge_registers=True)
+    rtl_path = base / ("merged/optimized/dut.v" if optimized else "merged/dut.v")
+    manifest, boundary = fixture_manifest(rtl_path, merge_registers=True, optimize_registers=optimized)
     adapter = json.loads((base / "cell-adapter.json").read_text())
-    spec = candidate_spec("direct", True)
+    spec = candidate_spec("direct", True, optimized)
     gates = sorted({r["gate"].split(".")[0] for r in spec["relations"]})
     netlist = ("module StateMapDUT(input clock, input reset, input enable, input write, "
                "input [1:0] address, input [3:0] data, output [3:0] held_out, "
                "output [3:0] count_out, output [3:0] read_out); wire q;\n" +
                "\n".join(f"CKDFF \\{g} (.CP(clock),.D(1'b0),.Q(q));" for g in gates) + "\nendmodule\n").encode()
-    artifacts = dict(rtl=(base / "merged/dut.v").read_bytes(), netlist=netlist, models=(base / "cells.v").read_bytes(),
+    artifacts = dict(rtl=rtl_path.read_bytes(), netlist=netlist, models=(base / "cells.v").read_bytes(),
                      library=(base / "cells.lib").read_bytes(), synthesis_script=b"retime false",
                      relation_spec=(json.dumps(spec, indent=2) + "\n").encode(), relation_script=SCRIPT.encode())
     artifacts["relation_miter"] = miter(spec, artifacts["rtl"].decode(), netlist.decode())
@@ -114,6 +115,50 @@ class RelationalStateTests(unittest.TestCase):
         for changed in (b"\n".join(r for r in raw.split(b"\n") if b'The property "checkpoint_relation_miter.step_0"' not in r),
                         raw.replace(b"CHECKPOINT_RELATION_INPUT\trtl\t", b"CHECKPOINT_RELATION_INPUT\tother\t")):
             with self.assertRaises(FormatError): self.export(dict(self.artifacts, relation_log=changed))
+
+    def test_unread_induction_keeps_inventory_and_accepts_arbitrary_unread_values(self):
+        manifest, adapter, artifacts, build, checkpoint = fixture(True)
+        mapping = export_state_map(manifest, "StateMapDUT", adapter, artifacts)
+        self.assertEqual((mapping["map_version"], mapping["semantic_bits"], mapping["gate_storage_bits"]), (6, 32, 28))
+        unread = [e for e in mapping["entries"] if not e["gates"]]
+        self.assertEqual({e["original_rtl"] for e in unread}, {f"unused[{bit}]" for bit in range(4)})
+        self.assertTrue(all(e["optimization"] == dict(kind="unread", proof_status="proven", report="relation_results") for e in unread))
+        baseline = gate_deposits(mapping, manifest, adapter, artifacts, encode_semantic(checkpoint, manifest), build, "tb.dut")
+        record = next(r for r in checkpoint["records"] if r["state_id"] == unread[0]["state_id"])
+        for value in ("0", "f"):
+            record["values"] = [value]
+            self.assertEqual(gate_deposits(mapping, manifest, adapter, artifacts, encode_semantic(checkpoint, manifest), build, "tb.dut"), baseline)
+
+    def test_unread_candidates_missing_outside_inventory_or_overlap_reject(self):
+        manifest, adapter, artifacts, _, _ = fixture(True)
+        for case in ("missing", "outside", "overlap", "duplicate", "unsupported"):
+            spec = json.loads(artifacts["relation_spec"])
+            if case == "missing": spec["unread"].pop()
+            elif case == "outside": spec["unread"][-1] = "unknown[0]"
+            elif case == "overlap": spec["unread"][-1] = "held[0]"
+            elif case == "duplicate": spec["unread"][-1] = spec["unread"][0]
+            else: spec["unread"][-1] = "ram[0][0]"
+            with self.subTest(case=case), self.assertRaises(FormatError):
+                changed = dict(artifacts, relation_spec=json.dumps(spec).encode(),
+                               relation_miter=miter(spec, artifacts["rtl"].decode(), artifacts["netlist"].decode()))
+                export_state_map(manifest, "StateMapDUT", adapter, changed)
+
+    def test_unread_coverage_or_output_engine_evidence_missing_rejects(self):
+        manifest, adapter, artifacts, _, _ = fixture(True)
+        for role, needle in (("relation_results", b".unread_0_0\t"),
+                             ("relation_log", b'The cover property "checkpoint_relation_miter.unread_0_1"'),
+                             ("relation_results", b".output_held\t")):
+            changed = dict(artifacts, **{role: b"\n".join(row for row in artifacts[role].split(b"\n") if needle not in row)})
+            with self.subTest(role=role, needle=needle), self.assertRaises(FormatError):
+                export_state_map(manifest, "StateMapDUT", adapter, changed)
+
+    def test_malformed_relational_schema_fails_explicitly(self):
+        spec = json.loads(self.artifacts["relation_spec"])
+        for changed in (None, [], 1, dict(spec, relation_version=True),
+                        dict(spec, relation_version=2.0), dict(spec, relation_version=9),
+                        dict(spec, unread=["unused[0]"])):
+            with self.subTest(spec=changed), self.assertRaises(FormatError):
+                miter(changed, self.artifacts["rtl"].decode(), self.artifacts["netlist"].decode())
 
 
 if __name__ == "__main__":

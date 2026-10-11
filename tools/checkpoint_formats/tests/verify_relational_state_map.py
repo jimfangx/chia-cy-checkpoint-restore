@@ -11,12 +11,12 @@ import tempfile
 from tools.checkpoint_formats.codec import FormatError
 from tools.checkpoint_formats.formal_state_map import export_state_map, gate_deposits
 from tools.checkpoint_formats.relational_state import SCRIPT, miter
-from tools.checkpoint_formats.replay import builds, package_capture, prepare_capture
+from tools.checkpoint_formats.replay import builds, package_capture, prepare_capture, prepare_replay
 from tools.checkpoint_formats.semantic import encode_semantic, state_id
 from .verify_formal_state_map import FIXTURE, GENUS, JASPER, ROOT, VCS, fixture_manifest, testbench
 
 
-def candidate_spec(profile, reordered):
+def candidate_spec(profile, reordered, optimized=False):
     slots = (2, 0, 3, 1) if reordered else (0, 1, 2, 3)
     rows = []
     for name in ("held", "held_copy", "count"):
@@ -30,16 +30,17 @@ def candidate_spec(profile, reordered):
         for bit in range(4):
             rows.append(dict(original_rtl=f"ram[{address}][{bit}]",
                              gate=f"ram_reg[{address}][{bit}].state", xor=int(profile == "inverted")))
-    return dict(relation_version=1, top="StateMapDUT", relations=rows)
+    return dict(relation_version=2 if optimized else 1, top="StateMapDUT", relations=rows,
+                **(dict(unread=[f"unused[{bit}]" for bit in range(4)]) if optimized else {}))
 
 
-def verify(out, profile="direct", reordered=False):
+def verify(out, profile="direct", reordered=False, optimized=False):
     run = Path(tempfile.mkdtemp(prefix="invocation-", dir=out)).resolve()
     cells = FIXTURE if profile == "direct" else FIXTURE / "inverted"
-    rtl_path = FIXTURE / "merged/dut.v"
-    manifest, boundary = fixture_manifest(rtl_path, merge_registers=True)
+    rtl_path = FIXTURE / ("merged/optimized/dut.v" if optimized else "merged/dut.v")
+    manifest, boundary = fixture_manifest(rtl_path, merge_registers=True, optimize_registers=optimized)
     adapter = json.loads((cells / "cell-adapter.json").read_text())
-    spec = candidate_spec(profile, reordered)
+    spec = candidate_spec(profile, reordered, optimized)
     slots = (2, 0, 3, 1) if reordered else (0, 1, 2, 3)
     counter = lambda bit: f"{'gate_count' if reordered else 'count'}_reg[{slots[bit]}]"
     commands = []
@@ -65,18 +66,18 @@ def verify(out, profile="direct", reordered=False):
     invoke([GENUS, "-no_gui", "-batch", "-files", FIXTURE / "synth.tcl"], synth, "synth.log", env)
     netlist = synth / "netlist.v"
 
-    def prove(directory, candidates=spec, implementation=netlist):
+    def prove(directory, candidates=spec, implementation=netlist, reference=rtl_path):
         directory.mkdir()
         (directory / "spec.json").write_text(json.dumps(candidates, indent=2) + "\n")
-        (directory / "miter.sv").write_bytes(miter(candidates, rtl_path.read_text(), implementation.read_text()))
+        (directory / "miter.sv").write_bytes(miter(candidates, reference.read_text(), implementation.read_text()))
         (directory / "prove.tcl").write_text(SCRIPT)
-        env = dict(cad_env, CHECKPOINT_RTL=str(rtl_path), CHECKPOINT_NETLIST=str(implementation),
+        env = dict(cad_env, CHECKPOINT_RTL=str(reference), CHECKPOINT_NETLIST=str(implementation),
                    CHECKPOINT_CELLS=str(cells / "cells.v"), CHECKPOINT_RELATION_SPEC=str(directory / "spec.json"),
                    CHECKPOINT_RELATION_MITER=str(directory / "miter.sv"),
                    CHECKPOINT_RELATION_SCRIPT=str(directory / "prove.tcl"))
         invoke([JASPER, "-allow_unsupported_OS", "-batch", "-tcl", directory / "prove.tcl"],
                directory, "jasper.log", env)
-        paths = dict(rtl=rtl_path, netlist=implementation, models=cells / "cells.v", library=cells / "cells.lib",
+        paths = dict(rtl=reference, netlist=implementation, models=cells / "cells.v", library=cells / "cells.lib",
                      synthesis_script=FIXTURE / "synth.tcl", synthesis_log=synth / "synth.log",
                      relation_spec=directory / "spec.json", relation_miter=directory / "miter.sv",
                      relation_script=directory / "prove.tcl", relation_log=directory / "jasper.log",
@@ -85,7 +86,8 @@ def verify(out, profile="direct", reordered=False):
 
     artifacts, paths = prove(run / "relation")
     mapping = export_state_map(manifest, "StateMapDUT", adapter, artifacts)
-    assert mapping["semantic_bits"] == mapping["gate_storage_bits"] == 28
+    assert mapping["semantic_bits"] == 28 + 4 * optimized and mapping["gate_storage_bits"] == 28
+    assert mapping["map_version"] == (6 if optimized else 5)
     assert sum(len(e["gates"]) for e in mapping["entries"]) == 32
     assert len([e for e in mapping["entries"] if len(e["gates"]) == 2]) == 4
     for filename, value in (("asic_state_map.json", mapping), ("manifest.json", manifest),
@@ -174,6 +176,26 @@ def verify(out, profile="direct", reordered=False):
     else:
         raise AssertionError("inconsistent checkpoint accepted")
 
+    unread_checks = {}
+    if optimized:
+        altered = copy.deepcopy(checkpoint)
+        unused_id = state_id("Harness.dut.unused", "register")
+        unused_record = next(r for r in altered["records"] if r["state_id"] == unused_id)
+        unused_record["values"][0] = f"{int(unused_record['values'][0], 16) ^ 15:x}"
+        altered_data = encode_semantic(altered, manifest)
+        altered_path = run / "altered-unread.rtlckpt"
+        altered_path.write_bytes(altered_data)
+        assert gate_deposits(mapping, manifest, adapter, artifacts, altered_data, expected_build, "tb.dut") == (cycle, deposits)
+        replay = run / "rtl-altered-unread"
+        replay.mkdir()
+        prepare_replay(manifest, boundary, "formal-small-dut-v1", altered_data,
+                       (capture / "capture.trace").read_bytes(), replay)
+        replay_simv = build(replay, [rtl_path, replay / "replay.sv"])
+        replay_log = invoke([replay_simv, f"+restore={replay / 'restore.txt'}",
+                             f"+waveform={replay / 'replay.vcd'}"], replay, "simulation.log")
+        assert "PASS: fresh clean RTL replay cycles=17..95 samples=79" in replay_log
+        unread_checks["altered-checkpoint"] = "all four unread bits flipped; identical deposits and fresh RTL replay"
+
     # Each adversarial candidate is proved against the same actual RTL/netlist.
     negatives = {}
     for name in ("wrong-polarity", "wrong-alias", "wrong-permutation"):
@@ -197,6 +219,44 @@ def verify(out, profile="direct", reordered=False):
         bad_artifacts, _ = prove(run / name, implementation=path)
         assert b"\tcex\n" in bad_artifacts["relation_results"], name
         negatives[name] = "real Jasper counterexample on changed synthesized D connection"
+    if optimized:
+        connected = run / "connected-unread.v"
+        connected.write_text(rtl.replace("assign held_out = held & held_copy;",
+                                         "assign held_out = (held & held_copy) ^ unused;"))
+        bad_artifacts, _ = prove(run / "connected-unread", reference=connected)
+        assert b"\tassert\tcex\n" in bad_artifacts["relation_results"]
+        assert b"checkpoint_relation_miter.output_held\tassert\tcex" in bad_artifacts["relation_results"]
+        # Check the proof adapter itself; changed reference is intentionally not
+        # claimed as the output of the original synthesis invocation.
+        from tools.checkpoint_formats.formal_state_map import flat_inventory
+        from tools.checkpoint_formats.relational_state import validate_relations
+        refs = {e["formal_reference"]: e for e in mapping["entries"]}
+        gates = flat_inventory(netlist.read_text(), artifacts["models"].decode(), adapter, "StateMapDUT")
+        try: validate_relations(bad_artifacts, refs, gates)
+        except FormatError as error:
+            assert str(error) == "unproven or vacuous state correspondence"
+            negatives["connected-unread"] = str(error)
+        else: raise AssertionError("observable omitted state accepted")
+        connected_next = run / "connected-unread-next.v"
+        connected_next.write_text(rtl.replace("count <= count + 1'b1;", "count <= count + unused;"))
+        bad_next, _ = prove(run / "connected-unread-next", reference=connected_next)
+        assert any(b".step_" in row and row.endswith(b"\tassert\tcex")
+                   for row in bad_next["relation_results"].splitlines())
+        try: validate_relations(bad_next, refs, gates)
+        except FormatError as error:
+            assert str(error) == "unproven or vacuous state correspondence"
+            negatives["connected-unread-next"] = str(error)
+        else: raise AssertionError("future observable omitted state accepted")
+        for name in ("missing-unread", "wrong-unread"):
+            wrong = copy.deepcopy(spec)
+            if name == "missing-unread": wrong["unread"].pop()
+            else: wrong["unread"][-1] = "unknown[0]"
+            missing = dict(artifacts, relation_spec=(json.dumps(wrong, indent=2) + "\n").encode(),
+                           relation_miter=miter(wrong, rtl, netlist.read_text()))
+            try: export_state_map(manifest, "StateMapDUT", adapter, missing)
+            except FormatError as error: negatives[name] = str(error)
+            else: raise AssertionError(name + " accepted")
+            (run / (name + "-spec.json")).write_bytes(missing["relation_spec"])
     impossible = copy.deepcopy(spec)
     impossible["relations"] += [
         dict(original_rtl="held[0]", gate="held_copy_reg[1].state", xor=int(profile == "inverted")),
@@ -219,8 +279,10 @@ def verify(out, profile="direct", reordered=False):
         except FormatError as error: negatives[name] = str(error)
         else: raise AssertionError(name + " accepted")
         (run / (name + "-spec.json")).write_bytes(missing["relation_spec"])
-    summary = dict(status="passed", profile=profile, reorder_registers=reordered, map_version=5,
-                   merge_registers=True, duplicate_registers=True, semantic_bits=28, gate_bits=28,
+    summary = dict(status="passed", profile=profile, reorder_registers=reordered, map_version=mapping["map_version"],
+                   merge_registers=True, duplicate_registers=True, optimize_registers=optimized,
+                   unread_semantic_bits=4 * optimized, unread_checks=unread_checks,
+                   semantic_bits=28 + 4 * optimized, gate_bits=28,
                    proven_relationships=32, inverted_gate_bits=28 * int(profile == "inverted"),
                    duplicated_semantic_bits=4, merged_gate_bits=4, ram_words=4,
                    ram_implementation="synthesized flip-flops; no SRAM macro acceptance",
@@ -228,7 +290,7 @@ def verify(out, profile="direct", reordered=False):
                    zero_edge_readback=True, loader_rejections=failures, formal_negatives=negatives,
                    conflicting_merged_checkpoint_rejected=True, clone_fault_cycle=29, shared_fault_cycle=29,
                    initial_state="complete mapped relation; merged sources must agree",
-                   remaining=["SRAM macro initialization", "relational unread/constant composition"])
+                   remaining=["SRAM macro initialization", "relational constant composition"])
     (run / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     print(json.dumps(dict(run=str(run), **summary), indent=2))
     return run

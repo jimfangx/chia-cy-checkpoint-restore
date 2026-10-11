@@ -13,6 +13,8 @@ arbitrary state after one edge, with raw results and nonvacuity coverage. Every
 checkpoint must satisfy both their horizon and values before any gate deposits.
 Complete relational induction supports simultaneous merging and duplication;
 all original/gate bits, output equivalence and nonvacuity covers are mandatory.
+It can also prove unread original state irrelevant: the complete relation never
+constrains omitted bits, and both values must be covered under that relation.
 """
 
 import hashlib
@@ -201,8 +203,8 @@ def export_state_map(manifest, top, adapter, artifacts):
             refs[ref] = dict(state_id=word["state_id"], address=word["address"], bit=bit,
                              original_rtl=path + (f"[{bit}]" if width > 1 else ""))
     if has_relations:
-        proven = validate_relations(artifacts, refs, gates)
-        reversed_proof, optimized = False, {}
+        proven, optimized = validate_relations(artifacts, refs, gates)
+        reversed_proof = False
     else:
         registers, proven, proof_inputs, reversed_proof, optimized = parse_evidence(artifacts["evidence"])
         require(proof_inputs == {role: sha(artifacts[role]) for role in
@@ -213,7 +215,7 @@ def export_state_map(manifest, top, adapter, artifacts):
     constants = validate_constants(artifacts, manifest, top) if has_constants else {}
     require(set(constants) <= set(refs) and not (set(constants) & set(optimized)),
             "constant state outside inventory or classified unread")
-    if optimized:
+    if optimized and not has_relations:
         # Read the tool's independently retained human report, including its
         # filter and total. A global PASS or a hand-added machine row is never
         # sufficient to classify omitted state. Only original unread DFFs are
@@ -248,8 +250,8 @@ def export_state_map(manifest, top, adapter, artifacts):
     require(all(e["gates"] or ref in optimized or ref in constants for ref, e in entries.items()),
             "unproven or unmappable semantic state")
     for ref in optimized:
-        entries[ref]["optimization"] = dict(kind="unread", proof_status="tool_classified",
-                                             report="optimization_report")
+        entries[ref]["optimization"] = dict(kind="unread", proof_status="proven" if has_relations else "tool_classified",
+                                             report="relation_results" if has_relations else "optimization_report")
     for ref, proof in constants.items():
         entries[ref]["optimization"] = proof
     ordered = sorted(entries.values(), key=lambda e: (e["state_id"], e["address"], e["bit"]))
@@ -265,7 +267,7 @@ def export_state_map(manifest, top, adapter, artifacts):
                   assumptions=[], reset="unconstrained synchronous input",
                   **(dict(constant_tool="Jasper", constant_horizon="one unconstrained target edge")
                      if constants else {})))
-    return dict(map_version=5 if has_relations else 4 if constants else 3 if optimized else 2 if reversed_proof else 1, map_type="asic_state_map", top=top,
+    return dict(map_version=(6 if optimized else 5) if has_relations else 4 if constants else 3 if optimized else 2 if reversed_proof else 1, map_type="asic_state_map", top=top,
                 state_manifest_hash=manifest_hash(manifest), retiming=False,
                 build={role: sha(data) for role, data in sorted(artifacts.items())},
                 cell_adapter_hash=sha(canonical(adapter)), entries=ordered,

@@ -23,9 +23,11 @@ def audit(run):
     assert set(artifacts) == {"rtl", "netlist", "models", "library", "synthesis_script", "synthesis_log",
                               "relation_spec", "relation_miter", "relation_script", "relation_log", "relation_results"}
     assert mapping["build"] == {k: digest(v) for k, v in artifacts.items()}
-    assert mapping["map_version"] == 5 and mapping["retiming"] is False
+    optimized = summary.get("optimize_registers", False)
+    assert type(optimized) is bool
+    assert mapping["map_version"] == (6 if optimized else 5) and mapping["retiming"] is False
     assert summary["status"] == "passed" and summary["merge_registers"] and summary["duplicate_registers"]
-    assert mapping["semantic_bits"] == mapping["gate_storage_bits"] == 28
+    assert mapping["semantic_bits"] == 28 + 4 * optimized and mapping["gate_storage_bits"] == 28
     assert mapping["proof"] == dict(tool="Jasper", export="complete state relation induction and output equivalence",
                                   assumptions=[], reset="unconstrained synchronous input",
                                   initial_state="complete map relation; loader enforces merged source consistency")
@@ -67,14 +69,16 @@ def audit(run):
         for bit in range(4):
             expected_rows.append(dict(original_rtl=f"ram[{address}][{bit}]", gate=f"ram_reg[{address}][{bit}].state", xor=polarity))
     spec = json.loads(artifacts["relation_spec"])
-    assert spec == dict(relation_version=1, top="StateMapDUT", relations=expected_rows)
+    omitted = [f"unused[{bit}]" for bit in range(4)] if optimized else []
+    assert spec == dict(relation_version=2 if optimized else 1, top="StateMapDUT", relations=expected_rows,
+                        **(dict(unread=omitted) if optimized else {}))
     physical = {r["gate"] for r in expected_rows}
     instances = re.findall(rf"\b{cell}\s+\\([^\s]+)\s+\(", artifacts["netlist"].decode())
     assert len(instances) == len(set(instances)) == 28
     assert {i + ".state" for i in instances} == physical
     expected_state = {(s["state_id"], a, b) for s in manifest["state"] for a in range(s["depth"]) for b in range(s["width"])}
     assert {(e["state_id"], e["address"], e["bit"]) for e in mapping["entries"]} == expected_state
-    assert len(mapping["entries"]) == 28
+    assert len(mapping["entries"]) == 28 + 4 * optimized
     pairs = []
     for entry in mapping["entries"]:
         state = next(s for s in manifest["state"] if s["state_id"] == entry["state_id"])
@@ -82,6 +86,10 @@ def audit(run):
         path = name + (f"[{entry['address']}]" if name == "ram" else "") + f"[{entry['bit']}]"
         assert path == entry["original_rtl"]
         assert entry["formal_reference"] == "r:/WORK/StateMapDUT/" + path.replace(name, name + "_reg", 1)
+        if path in omitted:
+            assert not entry["gates"] and entry["optimization"] == dict(kind="unread", proof_status="proven", report="relation_results")
+        else:
+            assert entry["gates"] and "optimization" not in entry
         for gate in entry["gates"]:
             assert gate["cell"] == cell and gate["storage"] == "state" and gate["bit"] == 0
             assert gate["xor"] == polarity and gate["proof_status"] == "passing"
@@ -106,6 +114,9 @@ def audit(run):
     for n, gate in enumerate(sorted(physical)):
         for value in (0, 1):
             lines.append(f"bit_{n}_{value}: cover property (@(posedge clock) relation && {gate_expr(gate)} == 1'b{value});")
+    for n, bit in enumerate(omitted):
+        for value in (0, 1):
+            lines.append(f"unread_{n}_{value}: cover property (@(posedge clock) relation && reference.{bit} == 1'b{value});")
     assert artifacts["relation_miter"] == "\n".join(lines + ["endmodule", ""]).encode()
     source = Path(__file__).parents[1] / "relational_state.py"
     script = next(ast.literal_eval(n.value) for n in ast.parse(source.read_text()).body if
@@ -119,6 +130,8 @@ def audit(run):
     expected["<embedded>::checkpoint_relation_miter.checkpoint_edge"] = ("cover", "covered")
     for n in range(28):
         for value in (0, 1): expected[f"<embedded>::checkpoint_relation_miter.bit_{n}_{value}"] = ("cover", "covered")
+    for n in range(len(omitted)):
+        for value in (0, 1): expected[f"<embedded>::checkpoint_relation_miter.unread_{n}_{value}"] = ("cover", "covered")
     result_lines = artifacts["relation_results"].decode().splitlines()
     assert result_lines[0] == "FORMAT\tjasper-relation-v1" and result_lines[-1] == "END"
     inputs, properties = {}, {}
@@ -178,7 +191,7 @@ def audit(run):
     for name, signal in (("gate-restored", "count_out"), ("gate-shared-fault", "held_out")):
         text = (run / name / "fault.log").read_text()
         assert f"GATE_MISMATCH cycle=29 signal={signal}" in text and text.count("GATE_MATCH cycle=") == 12
-    for name in ("wrong-polarity", "wrong-alias", "wrong-permutation", "changed-clone-D", "changed-shared-D"):
+    for name in ("wrong-polarity", "wrong-alias", "wrong-permutation", "changed-clone-D", "changed-shared-D") + (("connected-unread", "connected-unread-next") if optimized else ()):
         negative = (run / name / "relation-results.tsv").read_text()
         assert "\tcex\n" in negative
         raw = (run / name / "jasper.log").read_text()
@@ -190,9 +203,9 @@ def audit(run):
     assert "\tunreachable\n" in (run / "vacuous-relation/relation-results.tsv").read_text()
     assert 'was proven unreachable' in (run / "vacuous-relation/jasper.log").read_text()
     assert summary["formal_negatives"]["vacuous-relation"] == "unproven or vacuous state correspondence"
-    for name in ("wrong-polarity", "wrong-alias", "wrong-permutation", "changed-clone-D", "changed-shared-D", "vacuous-relation"):
+    for name in ("wrong-polarity", "wrong-alias", "wrong-permutation", "changed-clone-D", "changed-shared-D", "vacuous-relation") + (("connected-unread", "connected-unread-next") if optimized else ()):
         implementation = run / (name + ".v") if name.startswith("changed-") else Path(paths["netlist"])
-        expected_inputs = {"rtl": Path(paths["rtl"]), "netlist": implementation, "models": Path(paths["models"]),
+        expected_inputs = {"rtl": run / (name + ".v") if name.startswith("connected-unread") else Path(paths["rtl"]), "netlist": implementation, "models": Path(paths["models"]),
                            "relation_spec": run / name / "spec.json", "relation_miter": run / name / "miter.sv",
                            "relation_script": run / name / "prove.tcl"}
         assert expected_inputs["relation_script"].read_bytes() == script.encode()
@@ -204,10 +217,56 @@ def audit(run):
         assert len(machine_inputs) == len(raw_inputs) == 6 and dict(machine_inputs) == dict(raw_inputs) == inputs_expected
     for name in ("missing-alias", "missing-copy"):
         assert name in summary["formal_negatives"] and len(json.loads((run / (name + "-spec.json")).read_text())["relations"]) == 31
-    result = dict(status="passed", semantic_bits=28, physical_bits=28, proven_relations=32,
-                  asserted_properties=35, covered_properties=92, compared_outputs=237,
+    if optimized:
+        assert summary["unread_semantic_bits"] == 4
+        assert summary["unread_checks"] == {"altered-checkpoint": "all four unread bits flipped; identical deposits and fresh RTL replay"}
+        altered = container(run / "altered-unread.rtlckpt", b"RTLCKP\x00\x01")
+        expected_altered = json.loads(json.dumps(checkpoint))
+        unused_state = next(s for s in manifest["state"] if s["hierarchy"].endswith(".unused"))
+        record = next(r for r in expected_altered["records"] if r["state_id"] == unused_state["state_id"])
+        record["values"][0] = f"{int(record['values'][0],16)^15:x}"
+        assert altered == expected_altered
+        replay = run / "rtl-altered-unread"
+        assert "Y-2026.03-SP1" in (replay / "compile.log").read_text()
+        assert "PASS: fresh clean RTL replay cycles=17..95 samples=79 outputs_per_cycle=3 restored_words=8" in (replay / "simulation.log").read_text()
+        state_by_id = {s["state_id"]: s for s in manifest["state"]}
+        expected_restore = []
+        for r in altered["records"]:
+            state = state_by_id[r["state_id"]]
+            name = state["hierarchy"].split(".")[-1]
+            for a, value in enumerate(r["values"]):
+                path = name + (f"[{a}]" if state["kind"] == "memory" else "")
+                expected_restore.append(f"semantic_replay_tb.dut.{path} {state['width']} {value}")
+        assert (replay / "restore.txt").read_text().splitlines() == expected_restore
+        bench = (replay / "replay.sv").read_text()
+        assert bench.count('FIRST_MISMATCH cycle=') == 237 and bench.count('clock = 1; #1; clock = 0; #1;') == 79
+        for record in trace["records"]:
+            for port, value in record["outputs"].items():
+                assert f"if ({port} !== {value['width']}'h{value['value']})" in bench
+        connected = (run / "connected-unread.v").read_text()
+        assert connected == artifacts["rtl"].decode().replace("assign held_out = held & held_copy;", "assign held_out = (held & held_copy) ^ unused;")
+        assert (run / "connected-unread/spec.json").read_bytes() == artifacts["relation_spec"]
+        assert (run / "connected-unread/miter.sv").read_bytes() == artifacts["relation_miter"].replace(
+            b"assign held_out = held & held_copy;", b"assign held_out = (held & held_copy) ^ unused;", 1)
+        assert "checkpoint_relation_miter.output_held\tassert\tcex" in (run / "connected-unread/relation-results.tsv").read_text()
+        assert summary["formal_negatives"]["connected-unread"] == "unproven or vacuous state correspondence"
+        for name in ("missing-unread", "wrong-unread"):
+            wrong = json.loads((run / (name + "-spec.json")).read_text())
+            expected_wrong = json.loads(json.dumps(spec))
+            if name == "missing-unread": expected_wrong["unread"].pop()
+            else: expected_wrong["unread"][-1] = "unknown[0]"
+            assert wrong == expected_wrong and name in summary["formal_negatives"]
+        connected_next = (run / "connected-unread-next.v").read_text()
+        assert connected_next == artifacts["rtl"].decode().replace("count <= count + 1'b1;", "count <= count + unused;")
+        assert (run / "connected-unread-next/spec.json").read_bytes() == artifacts["relation_spec"]
+        assert (run / "connected-unread-next/miter.sv").read_bytes() == artifacts["relation_miter"].replace(
+            b"count <= count + 1'b1;", b"count <= count + unused;", 1)
+        assert re.search(r"^PROPERTY\t[^\n]+\.step_\d+\tassert\tcex$", (run / "connected-unread-next/relation-results.tsv").read_text(), re.M)
+        assert summary["formal_negatives"]["connected-unread-next"] == "unproven or vacuous state correspondence"
+    result = dict(status="passed", semantic_bits=28 + 4 * optimized, physical_bits=28, proven_relations=32,
+                  asserted_properties=35, covered_properties=92 + 8 * optimized, unread_bits=4 * optimized, compared_outputs=237,
                   restore_cycle=17, end_cycle=96, loader_rejections=6, actual_faults=2,
-                  fresh_counterexample_proofs=5, actual_vacuous_proof_rejected=True)
+                  fresh_counterexample_proofs=5 + 2 * optimized, actual_vacuous_proof_rejected=True)
     (run / "independent-audit.json").write_text(json.dumps(result, indent=2) + "\n")
     print(json.dumps(result, indent=2))
 

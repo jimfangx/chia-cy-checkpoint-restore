@@ -1,4 +1,74 @@
-# M8 formal state mapping — iteration 64
+# M8 formal state mapping — iteration 65
+
+Status: in progress. Relational unread-state composition now supports native
+merging, duplication, either polarity and indexed destination reordering.
+SRAM macro contents/pipeline/port initialization and relational constant
+composition remain unsupported. No required CAD dependency is missing.
+Artificial functional cells; no process ASIC, physical FPGA or power validation.
+
+Use `verify_formal_state_map.py --merge-registers --duplicate-registers
+--optimize-registers`, optionally adding `--profile inverted` and
+`--reorder-registers`. Existing original RTL fixtures and successful Genus
+netlists remain unchanged; retiming is queried false. The candidate schema is
+version 2 and the resulting build-bound map is version 6. Every semantic StateID
+remains represented, including four eliminated bits with empty gate destinations
+and `kind=unread, proof_status=proven, report=relation_results`.
+
+The complete miter relation constrains only retained original state and actual
+gate storage. It never constrains eliminated original bits. Unbounded relation
+preservation and equality of every output must therefore hold for their arbitrary
+values and evolution; this proves irrelevance without an unread assumption or
+inferred classification from global equivalence. All existing antecedent,
+physical-bit and edge covers remain required, plus zero/one covers for each
+omitted original bit. Complete input hashes, exact audited script/miter and
+independent raw engine results still bind every assertion/cover. Missing,
+observable, unknown, overlapping or unsupported eliminated state rejects.
+
+All four new profiles and independent audits pass in both polarities,
+with/without indexed reordering: 32 semantic bits, 28 initialized/read-back
+physical bits at zero edges, 32 relationships, 35 assertions, 100 covers,
+and 79 boundaries/237 outputs from C=17 through END C=96. All four unread
+checkpoint bits are flipped; deposits remain identical and fresh ordinary RTL
+replay matches. Each profile retains five previous counterexample proofs and
+adds two: connecting omitted state directly to held_out fails output equivalence;
+connecting it to the counter's next-state update fails relation preservation.
+Both actual Jasper engine counterexamples reject in the proof adapter. The
+independent audit also reconstructs both mutated originals and their miters.
+Six atomic loader failures, clone/shared faults at C=29, merged checkpoint
+consistency and the contradictory-relation/vacuity rejection remain covered.
+
+All 44 fresh CAD/VCS profiles/audits, all 115 Python tests and full M2/M3 metasim
+and ordinary RTL regressions pass. M2 retains five cuts, all 22 words, actual
+C=29 divergence and four loader failures. M3 retains 717 transport edges,
+23 semantic advances, six captures, 242 boundary/five semantic replay samples
+and eight invalid reads. All previous shared-flop fault/changed-D checks pass.
+
+The complete supplemental scope passed twice, with all 11 unchanged controls
+passing and all 163 distinct actual artifact mutations rejecting on each pass.
+The new unread-composition audit retains every prior relational mutation and
+adds missing/misclassified unread entries, missing covers, false raw engine
+status, wrong candidates, unchanged altered checkpoint, forged RTL replay,
+and missing current/future counterexample engine reports (28 mutations per
+polarity). Input hashes are rebound to exercise semantic/raw-proof checks.
+Four previously rejected unread combinations now have full positive profiles;
+the four constant combinations still reject before any tools launch.
+
+Repeated missing-proof checks perform eight additional fresh Genus/Formality
+builds across both supplemental passes; first-pass proof hashes/inodes remain
+unchanged. Previous evidence is preserved. `finalize-evidence.py` revalidates
+all 44 maps against actual current input bytes and complete regression metrics.
+Commands, raw logs, proof/map artifacts and full-path/hash catalog are under
+`automations/checkpoint_loop/runs/m8-iteration65/`: `verification-commands.json`,
+`finish-repeat-commands.json`, `finish-repeat-summary.json`, `summary.json`,
+`matrix-results.json` and `artifact-manifest.json`. The initial pilot artifacts
+remain too; the matrix selects the fresh final invocations for acceptance.
+
+Next: complete audited SRAM macro contents/pipeline/port initialization, then
+relational constant predicate/horizon composition. Logical RAM still uses DFFs.
+Level-1 simulator images remain independent of Level-2 semantic state. Plans,
+PDFs and dirty conda files are not edited or staged; no commit/reset/clean.
+
+## Historical iteration 64 evidence
 
 Status: in progress. Fixed the repeat verification failure reported by the loop.
 SRAM macro initialization and relational unread/constant composition remain

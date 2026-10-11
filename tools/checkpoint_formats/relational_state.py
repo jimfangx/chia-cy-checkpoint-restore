@@ -3,7 +3,9 @@
 No assumptions or reset sequence: each assertion's antecedent is the complete
 candidate state relation. A loader enforces that relation when initializing the
 netlist. Induction proves its preservation; output assertions prove observation
-equivalence. Independent covers exercise both values of every physical bit.
+equivalence. Unread candidates remain unconstrained outside that relation, so
+these assertions prove their irrelevance rather than assuming it. Independent
+covers exercise both values of every physical and omitted original bit.
 This initial adapter supports the flat StateMapDUT interface and scalar cells.
 """
 
@@ -50,8 +52,10 @@ exit
 
 
 def candidates(spec):
-    keys(spec, {"relation_version", "top", "relations"})
-    require(spec["relation_version"] == 1 and spec["top"] == "StateMapDUT",
+    require(type(spec) is dict, "unsupported relational proof interface")
+    keys(spec, {"relation_version", "top", "relations"} |
+         ({"unread"} if spec.get("relation_version") == 2 else set()))
+    require(type(spec["relation_version"]) is int and spec["relation_version"] in (1, 2) and spec["top"] == "StateMapDUT",
             "unsupported relational proof interface")
     require(type(spec["relations"]) is list and spec["relations"], "empty state relation")
     seen = set()
@@ -65,7 +69,26 @@ def candidates(spec):
         pair = (row["original_rtl"], row["gate"])
         require(pair not in seen, "duplicate or conflicting state relation")
         seen.add(pair)
+    unread(spec)
     return spec["relations"]
+
+
+def unread(spec):
+    """Candidates for omission, never assumptions on the reference state.
+
+    The complete relation excludes these bits. Induction and output assertions
+    must therefore hold for every value and evolution of this original state.
+    Both values are independently covered under that same relation.
+    """
+    bits = spec.get("unread", [])
+    require(type(bits) is list and (spec["relation_version"] != 2 or bits),
+            "empty or unsupported unread state candidates")
+    require(all(type(bit) is str and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_$]*\[\d+\]", bit)
+                for bit in bits), "unsupported unread state candidate")
+    require(len(bits) == len(set(bits)) and not
+            (set(bits) & {row["original_rtl"] for row in spec["relations"]}),
+            "duplicate or conflicting unread state candidate")
+    return bits
 
 
 def gate_expression(path):
@@ -134,6 +157,10 @@ def miter(spec, rtl, netlist):
         for value in (0, 1):
             lines.append(f"bit_{n}_{value}: cover property (@(posedge clock) relation && "
                          f"{gate_expression(gate)} == 1'b{value});")
+    for n, bit in enumerate(unread(spec)):
+        for value in (0, 1):
+            lines.append(f"unread_{n}_{value}: cover property (@(posedge clock) relation && "
+                         f"reference.{bit} == 1'b{value});")
     return ("\n".join(lines + ["endmodule", ""]).encode())
 
 
@@ -148,13 +175,16 @@ def validate_relations(artifacts, refs, gates):
             "unaudited relational script or miter")
     by_original = {v["original_rtl"]: k for k, v in refs.items()}
     by_gate = {v["instance"] + "." + v["rtl_path"]: k for k, v in gates.items()}
+    omitted = unread(spec)
+    require(set(omitted) <= set(by_original), "unread state outside complete semantic inventory")
+    optimized = {by_original[bit]: "unread" for bit in omitted}
     proven = []
     for row in rows:
         require(row["original_rtl"] in by_original and row["gate"] in by_gate,
                 "relation outside complete state inventory")
         gate = by_gate[row["gate"]]
         proven.append((by_original[row["original_rtl"]], gate, row["xor"] ^ gates[gate]["storage_xor"]))
-    require({r for r, _, _ in proven} == set(refs), "unproven or unmappable semantic state")
+    require({r for r, _, _ in proven} | set(optimized) == set(refs), "unproven or unmappable semantic state")
     require({g for _, g, _ in proven} == set(gates), "unproven or unmappable gate state")
     expected = {}
     for name in [f"step_{n}" for n in range(len(rows))] + [f"output_{p}" for p in ("held", "count", "read")]:
@@ -165,6 +195,9 @@ def validate_relations(artifacts, refs, gates):
     for n in range(len(gates)):
         for value in (0, 1):
             expected[f"<embedded>::checkpoint_relation_miter.bit_{n}_{value}"] = ("cover", "covered")
+    for n in range(len(omitted)):
+        for value in (0, 1):
+            expected[f"<embedded>::checkpoint_relation_miter.unread_{n}_{value}"] = ("cover", "covered")
     lines = artifacts["relation_results"].decode("ascii").splitlines()
     require(lines[:1] == ["FORMAT\tjasper-relation-v1"] and lines[-1:] == ["END"],
             "incomplete relational proof")
@@ -193,4 +226,4 @@ def validate_relations(artifacts, refs, gates):
                 "missing independent relational engine result")
     raw_inputs = re.findall(r"^CHECKPOINT_RELATION_INPUT\t([^\t\n]+)\t([a-f0-9]{64})$", log, re.M)
     require(len(raw_inputs) == len(INPUTS) and dict(raw_inputs) == inputs, "raw relational proof identity mismatch")
-    return proven
+    return proven, optimized
