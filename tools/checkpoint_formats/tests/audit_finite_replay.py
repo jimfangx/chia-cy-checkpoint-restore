@@ -9,9 +9,9 @@ from tools.checkpoint_formats.finite_replay import check_clean
 from tools.checkpoint_formats.tests.verify_finite_replay_vcs import sha
 
 
-def audit_case(case, manifest, boundary, result):
+def audit_case(case, manifest, boundary, result, clean_validator=check_clean):
     metadata = result['metadata']
-    check_clean(manifest, boundary, (case/'clean.sv').read_text())
+    clean_validator(manifest, boundary, (case/'clean.sv').read_text())
     require(all(sha(case/n) == h for n, h in result['artifact_hashes'].items()), 'changed replay artifact')
     # One expected value per semantic word, including all memory addresses.
     expected = {}

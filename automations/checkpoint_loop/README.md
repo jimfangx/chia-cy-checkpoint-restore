@@ -55,6 +55,13 @@ resumable state. With the default `0`, the loop continues until milestones are
 verified or a real external dependency blocks progress. A repeat invocation
 resumes from `runs/state.json`.
 
+M0–M9 establish the checkpoint/replay flows and mapping on small synthesized
+fixtures. M10 extends the complete formal map and gate replay to the actual
+pre-FAME DUT from the M6/M7 metasim workflows, starting with
+`AXI4Fuzzer-FCFSConfig-FCFS16GBQuadRank_DefaultF1Config`. This work requires
+synthesis, formal tools and VCS, and can run without FPGA hardware. A run that
+finished M9 resumes directly at M10, preserving its saved progress.
+
 The local Codex invocation defaults to `workspace-write`, using the Linux
 bubblewrap sandbox. A per-invocation `checkpoint` permission profile inherits
 `:workspace` filesystem restrictions and enables outbound networking for

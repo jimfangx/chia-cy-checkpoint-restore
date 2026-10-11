@@ -339,6 +339,9 @@ def make_prompt(milestone: Milestone, iteration: int, state: dict[str, Any],
 
 Read the sections of {ROOT / 'plan_agent.md'} and {ROOT / 'plan_human.md'}
 relevant to this milestone before editing. Read {ROOT / 'docs/checkpointing/progress.md'}.
+Read and follow {ROOT / 'docs/checkpointing/github-publication.md'}.
+You may push existing loop checkpoint commits to the configured GitHub forks;
+the loop controller remains responsible for staging and creating local commits.
 Use targeted rg/sed reads so large plans do not flood the tool log.
 Treat plan_agent.md and plan_human.md as read-only inputs. Never edit, rewrite,
 rename, delete, or stage either plan, whether tracked, untracked, clean, or dirty.
@@ -441,7 +444,7 @@ def main() -> int:
         print(f"VCS: {VCS}\nJasper: {JASPER}\nCodex: {shutil.which('codex')}")
         for item in MILESTONES:
             print(f"{item.name}: {item.acceptance}")
-        print("M10 FPGA validation: deferred because this machine has no FPGA")
+        print("Physical FPGA validation: deferred because this machine has no FPGA")
         return 0
 
     state_path = runs / "state.json"
@@ -509,7 +512,7 @@ def main() -> int:
             else:
                 print(f"[loop feedback] {state['feedback']}", flush=True)
             save_state(state_path, state)
-        print("[loop complete] all metasim, clean RTL, and gate-level milestones verified")
+        print("[loop complete] all configured milestones verified")
         print("[deferred] FPGA bring-up requires hardware")
         return 0
     finally:

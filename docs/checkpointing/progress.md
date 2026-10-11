@@ -1,6 +1,18 @@
 # Checkpointing progress
 
-Current milestone: M9-gate-level-replay, iteration 68. Ready for small synthesized-DUT acceptance: all 50 proven profiles match restored/continuous gate replay and produce real native VCS SAIF, corroborated by mapped-storage VCD. Artificial functional cells/SRAM; no process ASIC, FPGA or power validation.
+Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
+first and then Chipyard. Follow [github-publication.md](github-publication.md)
+and preserve this instruction when updating progress.
+
+Current milestone: M10-production-dut-formal-map, iteration 69. In progress: complete real FCFS DUT synthesis, concrete memory architecture, physical hierarchy inventory and full metasim-sample RTL parity pass. Production formal mapping/gate restore/replay remain unproven. Completed M6/M7 and small synthesized-DUT M8/M9 acceptance are preserved; no process ASIC, FPGA or power validation.
+
+Iteration 69 (October 11):
+
+- Read the relevant read-only plan sections, M6/M7/M8/M9 recovery notes, progress, previous verification and root-paper matching/loading/replay extracts before editing. Initial protected hashes/staging/status are under `runs/m10-iteration69/`; the dirty agent plan remains unchanged.
+- Added production architecture extraction and reconstruction audit for the actual `AXI4Fuzzer-FCFSConfig-FCFS16GBQuadRank_DefaultF1Config` pre-FAME DUT: all 1,543 StateIDs / 102,993,417 bits / 13,503,308 words, including every pipeline/port register and 201 complete RAMs. Seventeen concrete memory shapes preserve asynchronous reads and exact target-clock writes. Unsupported guards/accesses/clocks/shapes/hidden state and forged proof status reject. All candidates remain explicitly unproven; no existing M8 map check was relaxed.
+- Complete-DUT retiming-disabled Genus synthesis and independent repeated inventory/model-binding audits pass: 62,158 cells/macros, all 201 RAMs and 7,256 physical register bits / 102,992,412 physical bits. The 1,005-register-bit difference remains a formal obligation. Selected compilation definitions retain every emitted logic byte, omit only checked empty RAM interfaces and bind both raw/selected netlist plus concrete models. Fresh complete gate VCS compilation passes; no unproven gate state is loaded.
+- Two fresh ordinary original/extracted-memory RTL VCS processes restore/read back all 13,503,308 words at zero edges and match all 250,185 captured boundaries / 8,506,290 outputs each, END C=774638. Both full waveform audits pass twice and independently check every initial word, all 201 memories/50 boundary ports and 12,008,880 sampled input/output values per process with exact cycle/edge timing. Repeated audits use fresh directories and preserve prior evidence. Final selections, exact commands and full-path/hash catalogs are under `runs/m10-iteration69/` (`summary.json`, `verification-commands.json`, `artifact-manifest.json`, `synthesis-model-audit/selection.json`, `waveform-audit/selection.json`).
+- All 143 Python tests and complete M2/M3 VCS metasim/ordinary-RTL regressions pass. Diagnostic failures are retained; no scope was reduced. Recovery: [m10-production-dut-formal-map.md](m10-production-dut-formal-map.md). Next: complete original-to-netlist formal state proofs, independent map audit and fresh gate VCS complete readback/replay/first-divergence corruption. No required external dependency is missing. Level 1 remains independent; no plan/PDF/conda edits, staging, commits, resets, cleaning, publication, FPGA or power claims.
 
 Iteration 68 (October 10):
 

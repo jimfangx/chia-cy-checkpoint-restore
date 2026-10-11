@@ -108,4 +108,36 @@ MILESTONES = (
         "at sampled cycles and generates real gate-level switching activity.",
         needs_vcs=True,
     ),
+    Milestone(
+        "M10-production-dut-formal-map",
+        "Extend the M8 formal mapping and M9 gate replay flow to the actual "
+        "pre-FAME DUT used by the completed M6/M7 metasim workflows. Start with "
+        "AXI4Fuzzer-FCFSConfig-FCFS16GBQuadRank_DefaultF1Config and its existing "
+        "semantic-clean RTL, StateID manifest, boundary manifest, metasim-captured "
+        ".rtlckpt and .trace. Read docs/checkpointing/m6-restored-live-shadow.md, "
+        "m7-dessert-replay.md, m8-formal-state-map.md and m9-gate-level-replay.md. "
+        "Synthesize the complete selected DUT with retiming disabled; implement "
+        "the hierarchy, cell and memory adapters needed to prove and export a "
+        "complete build-bound semantic StateID-to-gate map. Cover all captured "
+        "registers, memory contents, pipeline and port state. Use real installed "
+        "CAD tools and suitable cell/memory models, preserving every proof "
+        "obligation and explicitly rejecting unsupported or unproven state. "
+        "Small synthetic fixtures may support development but cannot satisfy "
+        "this milestone. Validate the map by restoring the actual metasim "
+        "checkpoint into fresh gate-level VCS and replaying its recorded trace. "
+        "FPGA hardware is not a dependency for synthesis, formal mapping or "
+        "gate replay. Power characterization is needed only for power analysis. "
+        "Preserve completed milestone progress and write recovery details in "
+        "docs/checkpointing/m10-production-dut-formal-map.md.",
+        "The selected real metasim DUT has a complete independently audited "
+        "formal state map bound to its exact RTL, netlist, models and semantic "
+        "manifest. Fresh gate-level VCS initializes and reads back all mapped "
+        "state before any target edge, replays the actual metasim-captured trace, "
+        "matches every sampled output against ordinary RTL replay, and detects "
+        "a deliberate mapped-state corruption at its first divergent cycle. "
+        "Missing state or unproven mappings reject explicitly; fixture-only "
+        "results cannot mark this milestone ready.",
+        ("docs/checkpointing/m10-production-dut-formal-map.md",),
+        needs_vcs=True,
+    ),
 )
