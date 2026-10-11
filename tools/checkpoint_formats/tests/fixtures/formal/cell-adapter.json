@@ -1,0 +1,33 @@
+{
+  "adapter_version": 1,
+  "models_sha256": "f98b422456eb9e31b30475ed63486e3773914ff143e4f2f781a8c7171d88f245",
+  "cells": {
+    "CKBUF": {
+      "storage": []
+    },
+    "CKINV": {
+      "storage": []
+    },
+    "CKAND": {
+      "storage": []
+    },
+    "CKOR": {
+      "storage": []
+    },
+    "CKXOR": {
+      "storage": []
+    },
+    "CKMUX": {
+      "storage": []
+    },
+    "CKDFF": {
+      "storage": [
+        {
+          "rtl_path": "state",
+          "formal_path": "state_reg",
+          "xor": 0
+        }
+      ]
+    }
+  }
+}

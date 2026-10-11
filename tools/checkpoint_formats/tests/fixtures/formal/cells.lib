@@ -1,0 +1,36 @@
+/* Artificial test-only timing and area, never for power estimation. */
+library (checkpoint_test) {
+delay_model : table_lookup; time_unit : "1ns"; voltage_unit : "1V"; current_unit : "1mA"; capacitive_load_unit (1,pf); nom_process : 1; nom_voltage : 1; nom_temperature : 25;
+input_threshold_pct_rise : 50; input_threshold_pct_fall : 50; output_threshold_pct_rise : 50; output_threshold_pct_fall : 50; slew_lower_threshold_pct_rise : 20; slew_upper_threshold_pct_rise : 80; slew_lower_threshold_pct_fall : 20; slew_upper_threshold_pct_fall : 80;
+default_input_pin_cap : 0.01; default_output_pin_cap : 0.01; default_inout_pin_cap : 0.01;
+cell (CKBUF) { area : 1;
+pin (A) { direction : input; capacitance : 0.01; }
+pin (Y) { direction : output; function : "A"; timing () { related_pin : "A"; timing_type : combinational; cell_rise (scalar) { values ("0.1"); } cell_fall (scalar) { values ("0.1"); } rise_transition (scalar) { values ("0.1"); } fall_transition (scalar) { values ("0.1"); } } }
+}
+cell (CKINV) { area : 1;
+pin (A) { direction : input; capacitance : 0.01; }
+pin (Y) { direction : output; function : "!A"; timing () { related_pin : "A"; timing_type : combinational; cell_rise (scalar) { values ("0.1"); } cell_fall (scalar) { values ("0.1"); } rise_transition (scalar) { values ("0.1"); } fall_transition (scalar) { values ("0.1"); } } }
+}
+cell (CKAND) { area : 1;
+pin (A) { direction : input; capacitance : 0.01; }
+pin (B) { direction : input; capacitance : 0.01; }
+pin (Y) { direction : output; function : "A & B"; timing () { related_pin : "A"; timing_type : combinational; cell_rise (scalar) { values ("0.1"); } cell_fall (scalar) { values ("0.1"); } rise_transition (scalar) { values ("0.1"); } fall_transition (scalar) { values ("0.1"); } } timing () { related_pin : "B"; timing_type : combinational; cell_rise (scalar) { values ("0.1"); } cell_fall (scalar) { values ("0.1"); } rise_transition (scalar) { values ("0.1"); } fall_transition (scalar) { values ("0.1"); } } }
+}
+cell (CKOR) { area : 1;
+pin (A) { direction : input; capacitance : 0.01; }
+pin (B) { direction : input; capacitance : 0.01; }
+pin (Y) { direction : output; function : "A | B"; timing () { related_pin : "A"; timing_type : combinational; cell_rise (scalar) { values ("0.1"); } cell_fall (scalar) { values ("0.1"); } rise_transition (scalar) { values ("0.1"); } fall_transition (scalar) { values ("0.1"); } } timing () { related_pin : "B"; timing_type : combinational; cell_rise (scalar) { values ("0.1"); } cell_fall (scalar) { values ("0.1"); } rise_transition (scalar) { values ("0.1"); } fall_transition (scalar) { values ("0.1"); } } }
+}
+cell (CKXOR) { area : 1;
+pin (A) { direction : input; capacitance : 0.01; }
+pin (B) { direction : input; capacitance : 0.01; }
+pin (Y) { direction : output; function : "A ^ B"; timing () { related_pin : "A"; timing_type : combinational; cell_rise (scalar) { values ("0.1"); } cell_fall (scalar) { values ("0.1"); } rise_transition (scalar) { values ("0.1"); } fall_transition (scalar) { values ("0.1"); } } timing () { related_pin : "B"; timing_type : combinational; cell_rise (scalar) { values ("0.1"); } cell_fall (scalar) { values ("0.1"); } rise_transition (scalar) { values ("0.1"); } fall_transition (scalar) { values ("0.1"); } } }
+}
+cell (CKMUX) { area : 1;
+pin (A) { direction : input; capacitance : 0.01; }
+pin (B) { direction : input; capacitance : 0.01; }
+pin (S) { direction : input; capacitance : 0.01; }
+pin (Y) { direction : output; function : "(!S & A) | (S & B)"; timing () { related_pin : "A"; timing_type : combinational; cell_rise (scalar) { values ("0.1"); } cell_fall (scalar) { values ("0.1"); } rise_transition (scalar) { values ("0.1"); } fall_transition (scalar) { values ("0.1"); } } timing () { related_pin : "B"; timing_type : combinational; cell_rise (scalar) { values ("0.1"); } cell_fall (scalar) { values ("0.1"); } rise_transition (scalar) { values ("0.1"); } fall_transition (scalar) { values ("0.1"); } } timing () { related_pin : "S"; timing_type : combinational; cell_rise (scalar) { values ("0.1"); } cell_fall (scalar) { values ("0.1"); } rise_transition (scalar) { values ("0.1"); } fall_transition (scalar) { values ("0.1"); } } }
+}
+cell (CKDFF) { area : 4; ff (IQ, IQN) { clocked_on : "CP"; next_state : "D"; } pin (CP) { direction : input; clock : true; capacitance : 0.01; } pin (D) { direction : input; capacitance : 0.01; timing () { related_pin : "CP"; timing_type : setup_rising; rise_constraint (scalar) { values ("0.1"); } fall_constraint (scalar) { values ("0.1"); } } timing () { related_pin : "CP"; timing_type : hold_rising; rise_constraint (scalar) { values ("0.1"); } fall_constraint (scalar) { values ("0.1"); } } } pin (Q) { direction : output; function : "IQ"; timing () { related_pin : "CP"; timing_type : rising_edge; cell_rise (scalar) { values ("0.1"); } cell_fall (scalar) { values ("0.1"); } rise_transition (scalar) { values ("0.1"); } fall_transition (scalar) { values ("0.1"); } } } }
+}

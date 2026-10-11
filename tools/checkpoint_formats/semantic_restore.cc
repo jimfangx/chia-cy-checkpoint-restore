@@ -16,6 +16,28 @@ struct Deposit {
   vpiHandle handle;
   std::string value;
 };
+// Synthesis can emit escaped module instance names such as count_reg[0].
+// VPI requires the backslash and terminating space for those *intermediate*
+// hierarchy components. Restore rows use whitespace-free logical names; the
+// final component remains a normal register or memory-word expression.
+vpiHandle resolve_storage(const std::string &path) {
+  auto handle = vpi_handle_by_name(const_cast<char *>(path.c_str()), nullptr);
+  if (handle) return handle;
+  std::string escaped;
+  std::size_t begin = 0, end;
+  while ((end = path.find('.', begin)) != std::string::npos) {
+    auto component = path.substr(begin, end - begin);
+    if (component.find('[') != std::string::npos) {
+      escaped += "\\" + component + " ";
+    } else {
+      escaped += component;
+    }
+    escaped += ".";
+    begin = end + 1;
+  }
+  escaped += path.substr(begin);
+  return vpi_handle_by_name(const_cast<char *>(escaped.c_str()), nullptr);
+}
 void fail(const char *message, const std::string &path) {
   vpi_printf("RESTORE_ERROR: %s %s\n", message, path.c_str());
 }
@@ -41,7 +63,7 @@ extern "C" int semantic_restore(const char *filename, unsigned expected_words) {
     if (!(row >> path >> width >> value) || (row >> extra)) {
       fail("malformed restore row", line); return 1;
     }
-    auto handle = vpi_handle_by_name(const_cast<char *>(path.c_str()), nullptr);
+    auto handle = resolve_storage(path);
     if (!handle || vpi_get(vpiSize, handle) != static_cast<int>(width) || !seen.insert(path).second) {
       fail("missing/reshaped/duplicate state handle", path); return 1;
     }
@@ -82,7 +104,7 @@ extern "C" int semantic_verify(const char *filename, unsigned expected_words) {
         expected.find_first_not_of("0123456789abcdef") != std::string::npos) {
       fail("malformed readback oracle", line); return 1;
     }
-    auto handle = vpi_handle_by_name(const_cast<char *>(path.c_str()), nullptr);
+    auto handle = resolve_storage(path);
     if (!handle || vpi_get(vpiSize, handle) != static_cast<int>(width) || !seen.insert(path).second ||
         (vpi_get(vpiType, handle) != vpiReg && vpi_get(vpiType, handle) != vpiMemoryWord)) {
       fail("missing/reshaped/duplicate readback handle", path); return 1;

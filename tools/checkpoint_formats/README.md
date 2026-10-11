@@ -45,14 +45,52 @@ the compiler manifest; its `encode_semantic(document, manifest)` and
 `decode_semantic(data, expected_build, manifest)` are the entry points for semantic
 checkpoints. The low-level codec does not establish completeness. `replay.py`
 enforces complete trace boundary membership and widths against the compiler's
-boundary manifest. Level-1 production ownership is still incomplete. ASIC netlist metadata is intentionally unsupported in
-v1; no gate-level mapping or power analysis is claimed.
+boundary manifest. ASIC mapping is a separate build-bound artifact; it does not
+change either checkpoint container or combine Level-1 and Level-2 state. The
+initial mapping capability and its limitations are described below. No ASIC power
+analysis is implemented by these codecs.
 
 Run from the Chipyard root:
 
 ```sh
 python -m unittest discover -s tools/checkpoint_formats/tests -v
 ```
+
+`formal_state_map.py` exports `asic_state_map.json` from actual Formality passing
+sequential compare points. It checks complete original semantic bits and complete
+gate storage independently, rejects black boxes, and binds the RTL, mapped
+netlist, cell models, library, scripts and proof/synthesis evidence by SHA-256.
+Both CAD scripts export hashes of the files they actually read, checked before
+and after the tool run. Changing a netlist cannot reuse a stale successful proof.
+The current capability is one flat DUT with retiming disabled and audited scalar
+cell storage. RAM mapped to individual flip-flops is supported; unknown SRAM
+macros, optimized-away/merged reference bits, and unproven gate state reject
+explicitly. Polarity, bit placement and one-to-many translation have unit tests;
+real tool proof/replay for those synthesis transformations remains M8 work.
+
+`gate_deposits` revalidates the map and independent Level-2 checkpoint before
+returning storage deposits. The existing VPI loader resolves escaped synthesized
+instance names, prevalidates every handle before writes, and reads back complete
+state before any target edge. It never forces output wires. The small-DUT verifier
+uses Genus with an explicitly artificial standard-cell test library, Formality,
+and ordinary VCS. This establishes functional state correspondence and replay,
+not a process library's timing, power, physical ASIC or FPGA validation.
+
+```sh
+source env.sh
+source sims/firesim/env.sh
+source automations/checkpoint_loop/vcs-env.sh
+python -m tools.checkpoint_formats.tests.verify_formal_state_map \
+  --out automations/checkpoint_loop/runs/m8-validation
+```
+
+The verifier produces a fresh invocation directory, raw passing/matching reports,
+source hashes, semantic checkpoint/trace, complete map, zero-edge gate readback,
+healthy uninterrupted/restored comparisons and real formal/simulation failures.
+`tests.audit_formal_state_map --run <invocation>` independently audits the reports,
+containers, captured state, netlist inventory and every replay boundary without
+importing the exporter or codec. Recovery and current M8 scope are recorded in
+`docs/checkpointing/m8-formal-state-map.md`.
 
 The opt-in Golden Gate CLI flag `--semantic-checkpoint-root Top.dut` invokes
 `midas.checkpoint.SemanticStateInventory` after target lowering, before
