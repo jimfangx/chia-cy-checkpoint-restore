@@ -14,6 +14,7 @@ import subprocess
 import tempfile
 
 from tools.checkpoint_formats.codec import FormatError
+from tools.checkpoint_formats.constant_state import SCRIPT, binding, validate_constants
 from tools.checkpoint_formats.formal_state_map import export_state_map, gate_deposits, sha
 from tools.checkpoint_formats.replay import builds, package_capture, prepare_capture, prepare_replay
 from tools.checkpoint_formats.semantic import encode_semantic, state_id
@@ -24,17 +25,20 @@ FIXTURE = Path(__file__).with_name("fixtures") / "formal"
 GENUS = "/ecad/tools/cadence/GENUS/GENUS211/bin/genus"
 FORMALITY = "/ecad/tools/synopsys/fm/P-2019.03-SP2/bin/fm_shell"
 VCS = "/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs"
+JASPER = "/ecad/tools/cadence/JASPER/jasper_2025.03/bin/jg"
 
 
-def fixture_manifest(rtl_path=FIXTURE / "dut.v", merge_registers=False, optimize_registers=False):
+def fixture_manifest(rtl_path=FIXTURE / "dut.v", merge_registers=False, optimize_registers=False,
+                     constant_registers=False):
     state = []
     for name, kind, depth in (("held", "register", 1), ("count", "register", 1), ("ram", "memory", 4)) + \
                             ((("held_copy", "register", 1),) if merge_registers else ()) + \
-                            ((("unused", "register", 1),) if optimize_registers else ()):
+                            ((("unused", "register", 1),) if optimize_registers else ()) + \
+                            ((("constant", "register", 1),) if constant_registers else ()):
         path = "Harness.dut." + name
         state.append(dict(state_id=state_id(path, kind), hierarchy=path, kind=kind, width=4, depth=depth,
                           signed=False, clock_domain="Harness.dut.clock",
-                          reset="none" if kind == "memory" else "synchronous",
+                          reset="none" if kind == "memory" or name == "constant" else "synchronous",
                           bit_order="lsb0", address_order="ascending_zero_based"))
     manifest = dict(manifest_version=1, manifest_type="rtlckpt", identity_scheme="pre-fame-state-v1",
                     circuit="Harness", dut_root="Harness.dut", clock_domain="Harness.dut.clock",
@@ -96,7 +100,8 @@ def testbench(module, start=0, trace=None, deposits=None, fault_storage=None):
 
 
 def verify(out, profile="direct", duplicate_registers=False, reorder_registers=False, merge_registers=False,
-           optimize_registers=False):
+           optimize_registers=False, constant_registers=False):
+    optimize_registers = optimize_registers or constant_registers
     if merge_registers and duplicate_registers:
         raise ValueError("combined merging and duplication requires a separate proof adapter")
     if merge_registers and optimize_registers:
@@ -113,6 +118,8 @@ def verify(out, profile="direct", duplicate_registers=False, reorder_registers=F
     rtl_path = FIXTURE / ("merged/dut.v" if merge_registers else "dut.v")
     if optimize_registers:
         rtl_path = FIXTURE / "optimized/dut.v"
+    if constant_registers:
+        rtl_path = FIXTURE / "constants/dut.v"
     if merge_registers:
         configuration = FIXTURE / "merged" / profile / ("reordered/config.tcl" if reorder_registers else "config.tcl")
 
@@ -141,6 +148,28 @@ def verify(out, profile="direct", duplicate_registers=False, reorder_registers=F
     if not require_netlist.exists():
         raise RuntimeError(f"Genus failed to write the netlist; see {synth / 'synth.log'}")
 
+    constant_paths = {}
+
+    def prove_constants(directory, reference=rtl_path, spec=None):
+        directory.mkdir()
+        spec = spec or dict(constant_version=1, top="StateMapDUT", bits=[
+            dict(signal="constant", width=4, bit=bit, value=(10 >> bit) & 1) for bit in range(4)])
+        directory.joinpath("spec.json").write_text(json.dumps(spec, indent=2) + "\n")
+        directory.joinpath("bind.sv").write_bytes(binding(spec))
+        directory.joinpath("prove.tcl").write_text(SCRIPT)
+        env = dict(formal_env, CHECKPOINT_RTL=str(reference), CHECKPOINT_CONSTANT_TOP="StateMapDUT",
+                   CHECKPOINT_CONSTANT_SPEC=str(directory / "spec.json"),
+                   CHECKPOINT_CONSTANT_SCRIPT=str(directory / "prove.tcl"),
+                   CHECKPOINT_CONSTANT_BIND=str(directory / "bind.sv"))
+        invoke([JASPER, "-allow_unsupported_OS", "-batch", "-tcl", str(directory / "prove.tcl")],
+               directory, directory / "jasper.log", env)
+        return dict(constant_spec=directory / "spec.json", constant_bind=directory / "bind.sv",
+                    constant_script=directory / "prove.tcl", constant_log=directory / "jasper.log",
+                    constant_results=directory / "constant-results.tsv")
+
+    if constant_registers:
+        constant_paths = prove_constants(run / "constant-proof")
+
     def prove(netlist, directory, config=None, reference=None):
         directory.mkdir()
         config = config or configuration
@@ -157,10 +186,11 @@ def verify(out, profile="direct", duplicate_registers=False, reorder_registers=F
                      blackboxes=directory / "blackboxes.rpt")
         if paths["evidence"].read_bytes().startswith(b"FORMAT\tformality-state-v3\n"):
             paths["optimization_report"] = directory / "optimized-unread.rpt"
+        paths.update(constant_paths)
         return {role: path.read_bytes() for role, path in paths.items()}, paths
 
     artifacts, paths = prove(require_netlist, run / "formal")
-    manifest, boundary = fixture_manifest(rtl_path, merge_registers, optimize_registers)
+    manifest, boundary = fixture_manifest(rtl_path, merge_registers, optimize_registers, constant_registers)
     adapter = json.loads((cells / "cell-adapter.json").read_text())
     mapping = export_state_map(manifest, "StateMapDUT", adapter, artifacts)
     inverted = len({g["formal_implementation"] for e in mapping["entries"] for g in e["gates"] if g["xor"]})
@@ -180,8 +210,8 @@ def verify(out, profile="direct", duplicate_registers=False, reorder_registers=F
             counter_name(entry["bit"]) + suffix for suffix in
             (("", "_SYNTHESIS_SEQ_DUP_0") if duplicate_registers else ("",))}
     assert all(g["cell"] == sequential_cell for e in mapping["entries"] for g in e["gates"])
-    assert mapping["semantic_bits"] == (28 if optimize_registers or merge_registers else 24)
-    unread_entries = [e for e in mapping["entries"] if not e["gates"]]
+    assert mapping["semantic_bits"] == (28 if optimize_registers or merge_registers else 24) + (4 if constant_registers else 0)
+    unread_entries = [e for e in mapping["entries"] if e.get("optimization", {}).get("kind") == "unread"]
     assert len(unread_entries) == (4 if optimize_registers else 0)
     for entry in unread_entries:
         assert entry["original_rtl"] == f"unused[{entry['bit']}]"
@@ -244,7 +274,7 @@ def verify(out, profile="direct", duplicate_registers=False, reorder_registers=F
         # Mutating actual original connectivity must remove the unread
         # classification and fail output equivalence against the real netlist.
         observed = run / "observed-unread.v"
-        observed.write_text(rtl_path.read_text().replace("assign held_out = held;", "assign held_out = held ^ unused;"))
+        observed.write_text(rtl_path.read_text().replace("assign held_out = held", "assign held_out = held ^ unused"))
         bad_artifacts, _ = prove(require_netlist, run / "formal-observed-unread", reference=observed)
         assert b"Verification FAILED" in bad_artifacts["formal_log"]
         assert not any(line.startswith(b"OPTIMIZED\tunread\t") for line in bad_artifacts["evidence"].splitlines())
@@ -265,6 +295,84 @@ def verify(out, profile="direct", duplicate_registers=False, reorder_registers=F
             else:
                 raise AssertionError(f"unsupported optimization evidence accepted: {name}")
     inconsistent_merge_rejection = None
+    constant_rejections = {}
+    if constant_registers:
+        constant_entries = [e for e in mapping["entries"] if e.get("optimization", {}).get("kind") == "constant"]
+        assert len(constant_entries) == 4 and mapping["map_version"] == 4
+        for entry in constant_entries:
+            assert entry["original_rtl"] == f"constant[{entry['bit']}]"
+            assert entry["optimization"]["value"] == (10 >> entry["bit"]) & 1
+            assert not entry["gates"]
+        build = builds(manifest, boundary, "formal-small-dut-v1")[0]
+        for bit in range(4):
+            conflicting = copy.deepcopy(checkpoint)
+            row = next(r for r in conflicting["records"] if r["state_id"] == state_id("Harness.dut.constant", "register"))
+            assert row["values"] == ["a"]
+            row["values"][0] = f"{10 ^ (1 << bit):x}"
+            payload = encode_semantic(conflicting, manifest)
+            (run / f"conflicting-constant-{bit}.rtlckpt").write_bytes(payload)
+            try:
+                gate_deposits(mapping, manifest, adapter, artifacts, payload, build, "tb.dut")
+            except FormatError as error:
+                constant_rejections[f"checkpoint-bit-{bit}"] = str(error)
+            else:
+                raise AssertionError("conflicting observable constant checkpoint accepted")
+        early = copy.deepcopy(checkpoint)
+        early["target_cycle"] = 0
+        early_data = encode_semantic(early, manifest)
+        (run / "pre-horizon.rtlckpt").write_bytes(early_data)
+        try:
+            gate_deposits(mapping, manifest, adapter, artifacts, early_data, build, "tb.dut")
+        except FormatError as error:
+            constant_rejections["pre-horizon"] = str(error)
+        else:
+            raise AssertionError("unproven initial constant state accepted")
+        # Fresh ordinary RTL must expose the semantic error before any edge.
+        replay = run / "rtl-conflicting-constant"
+        prepare_replay(manifest, boundary, "formal-small-dut-v1",
+                       (run / "conflicting-constant-0.rtlckpt").read_bytes(),
+                       (capture / "capture.trace").read_bytes(), replay)
+        simv = build_vcs(replay, [rtl_path, replay / "replay.sv"])
+        invoke([str(simv), f"+restore={replay / 'restore.txt'}", f"+waveform={replay / 'replay.vcd'}"],
+               replay, replay / "simulation.log", expected=1)
+        assert "cycle=17" in (replay / "simulation.log").read_text()
+        wrong_spec = json.loads(artifacts["constant_spec"])
+        wrong_spec["bits"][0]["value"] ^= 1
+        conditional = run / "conditional-constant.v"
+        conditional.write_text(rtl.replace("constant <= 4'b1010;", "if (enable) constant <= 4'b1010;"))
+        assert conditional.read_text() != rtl
+        for case, reference, spec in (("wrong-value", rtl_path, wrong_spec),
+                                      ("conditional-update", conditional, None)):
+            negative_paths = prove_constants(run / ("constant-" + case), reference, spec)
+            negative = dict(artifacts, rtl=reference.read_bytes(),
+                            **{k: p.read_bytes() for k, p in negative_paths.items()})
+            try:
+                validate_constants(negative, manifest, "StateMapDUT")
+            except FormatError as error:
+                constant_rejections[case] = str(error)
+            else:
+                raise AssertionError("false constant predicate accepted")
+            assert b"\tassert\tcex\n" in negative["constant_results"]
+        variants = {
+            "missing-proof": {k: v for k, v in artifacts.items() if not k.startswith("constant_")},
+            "missing-property": dict(artifacts, constant_results=b"\n".join(
+                line for line in artifacts["constant_results"].split(b"\n") if not
+                (line.startswith(b"PROPERTY\t") and line.endswith(b"\tassert\tproven") and b"constant_0\t" in line))),
+            "bounded-proof": dict(artifacts, constant_results=artifacts["constant_results"].replace(
+                b"\tassert\tproven", b"\tassert\tbounded_proven", 1)),
+            "vacuous-proof": dict(artifacts, constant_results=artifacts["constant_results"].replace(
+                b"\tcover\tcovered", b"\tcover\tunreachable", 1)),
+            "wrong-raw-status": dict(artifacts, constant_log=artifacts["constant_log"].replace(
+                b"\tassert\tproven", b"\tassert\tcex", 1)),
+        }
+        for case, negative in variants.items():
+            try:
+                export_state_map(manifest, "StateMapDUT", adapter, negative)
+            except FormatError as error:
+                constant_rejections[case] = str(error)
+            else:
+                raise AssertionError(f"unsupported constant evidence accepted: {case}")
+        (run / "constant-rejections.json").write_text(json.dumps(constant_rejections, indent=2) + "\n")
     if merge_registers:
         inconsistent = copy.deepcopy(checkpoint)
         record = next(r for r in inconsistent["records"] if r["state_id"] == state_id("Harness.dut.held_copy", "register"))
@@ -457,6 +565,8 @@ def verify(out, profile="direct", duplicate_registers=False, reorder_registers=F
                    altered_unread_rtl_replayed=optimize_registers,
                    observed_unread_formal_failed=optimize_registers,
                    optimization_evidence_rejections=optimization_rejections,
+                   constant_registers=constant_registers, constant_semantic_bits=4 if constant_registers else 0,
+                   constant_rejections=constant_rejections,
                    duplicate_registers=duplicate_registers, duplicated_semantic_bits=len(duplicated),
                    reorder_registers=reorder_registers, counter_bit_to_gate_slot=list(slots),
                    merge_registers=merge_registers, merged_gate_bits=len(merged),
@@ -478,7 +588,7 @@ def verify(out, profile="direct", duplicate_registers=False, reorder_registers=F
                    remaining=(["real polarity proof case"] if profile == "direct" else []) +
                              ([] if merge_registers else ["real merging proof case"]) +
                              (["real unread-state proof case"] if not optimize_registers else []) +
-                             ["proven constant propagation"] +
+                             ([] if constant_registers else ["proven constant propagation"]) +
                              ([] if reorder_registers else ["real indexed destination permutation proof case"]) +
                              ([] if duplicate_registers else ["real duplication proof case"]) + [
                               "audited SRAM macro initialization interface"])
@@ -495,10 +605,11 @@ def main():
     parser.add_argument("--reorder-registers", action="store_true")
     parser.add_argument("--merge-registers", action="store_true")
     parser.add_argument("--optimize-registers", action="store_true")
+    parser.add_argument("--constant-registers", action="store_true")
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     verify(args.out, args.profile, args.duplicate_registers, args.reorder_registers, args.merge_registers,
-           args.optimize_registers)
+           args.optimize_registers, args.constant_registers)
 
 
 if __name__ == "__main__":

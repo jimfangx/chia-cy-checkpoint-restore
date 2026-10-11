@@ -8,12 +8,16 @@ Gate-reference proofs support merged RTL registers; all checkpoint sources of
 shared storage must agree after their proven polarity transformations.
 Unread original registers may be omitted only with explicit tool classification,
 independently cross-checked against the hash-bound human unread-point report.
+Constant original register bits require separate Jasper predicates proved from
+arbitrary state after one edge, with raw results and nonvacuity coverage. Every
+checkpoint must satisfy both their horizon and values before any gate deposits.
 """
 
 import hashlib
 import re
 
 from .codec import canonical, keys, require
+from .constant_state import ROLES as CONSTANT_ROLES, validate_constants
 from .replay import IDENT, inventory_rtl, modules, state_words
 from .semantic import decode_semantic, manifest_hash, validate_manifest
 
@@ -144,14 +148,16 @@ def export_state_map(manifest, top, adapter, artifacts):
 
     The returned map is reviewable data, not a declaration of ASIC acceptance.
     Callers must validate it again against the current bytes before loading.
-    Missing/unclassified state fails; only explicitly unread state may be omitted.
+    Missing/unclassified state fails; omissions need unread or constant evidence.
     """
     validate_manifest(manifest)
     require(re.fullmatch(IDENT, top), "invalid DUT module")
     require(type(artifacts) is dict and all(type(v) is bytes for v in artifacts.values()),
             "incomplete formal build artifacts")
     has_optimization = artifacts.get("evidence", b"").startswith(b"FORMAT\tformality-state-v3\n")
-    require(set(artifacts) == ROLES | ({"optimization_report"} if has_optimization else set()),
+    has_constants = bool(set(artifacts) & CONSTANT_ROLES)
+    require(set(artifacts) == ROLES | ({"optimization_report"} if has_optimization else set()) |
+            (CONSTANT_ROLES if has_constants else set()),
             "incomplete formal build artifacts")
     require(b"Verification SUCCEEDED\n" in artifacts["formal_log"] and
             b"Error:" not in artifacts["formal_log"], "formal tool did not prove equivalence")
@@ -193,6 +199,9 @@ def export_state_map(manifest, top, adapter, artifacts):
             "stale formal input identity")
     require(registers["r"] == set(refs), "unmappable or optimized reference state")
     require(registers["i"] == set(gates), "formal/netlist gate inventory mismatch")
+    constants = validate_constants(artifacts, manifest, top) if has_constants else {}
+    require(set(constants) <= set(refs) and not (set(constants) & set(optimized)),
+            "constant state outside inventory or classified unread")
     if optimized:
         # Read the tool's independently retained human report, including its
         # filter and total. A global PASS or a hand-added machine row is never
@@ -216,6 +225,7 @@ def export_state_map(manifest, top, adapter, artifacts):
     for ref, impl, polarity in proven:
         require(ref in entries and impl in gates, "passing point outside state inventory")
         require(ref not in optimized, "state classified both passing and unread")
+        require(ref not in constants, "state classified both passing and constant")
         require(reversed_proof or impl not in covered, "gate storage has conflicting state relationships")
         covered.add(impl)
         storage = gates[impl]
@@ -224,15 +234,17 @@ def export_state_map(manifest, top, adapter, artifacts):
                                           bit=0, xor=polarity ^ storage["storage_xor"],
                                           proof_status="passing"))
     require(covered == set(gates), "unproven or unmappable gate state")
-    require(all(e["gates"] or ref in optimized for ref, e in entries.items()),
+    require(all(e["gates"] or ref in optimized or ref in constants for ref, e in entries.items()),
             "unproven or unmappable semantic state")
     for ref in optimized:
         entries[ref]["optimization"] = dict(kind="unread", proof_status="tool_classified",
                                              report="optimization_report")
+    for ref, proof in constants.items():
+        entries[ref]["optimization"] = proof
     ordered = sorted(entries.values(), key=lambda e: (e["state_id"], e["address"], e["bit"]))
     for entry in ordered:
         entry["gates"].sort(key=lambda g: g["formal_implementation"])
-    return dict(map_version=3 if optimized else 2 if reversed_proof else 1, map_type="asic_state_map", top=top,
+    return dict(map_version=4 if constants else 3 if optimized else 2 if reversed_proof else 1, map_type="asic_state_map", top=top,
                 state_manifest_hash=manifest_hash(manifest), retiming=False,
                 build={role: sha(data) for role, data in sorted(artifacts.items())},
                 cell_adapter_hash=sha(canonical(adapter)), entries=ordered,
@@ -240,7 +252,9 @@ def export_state_map(manifest, top, adapter, artifacts):
                 proof=dict(tool="Formality", export="passing sequential compare points" +
                            ("; gate-reference orientation" if reversed_proof else "") +
                            ("; explicit unread original DFF classification" if optimized else ""),
-                           assumptions=[], reset="unconstrained synchronous input"))
+                           assumptions=[], reset="unconstrained synchronous input",
+                           **(dict(constant_tool="Jasper", constant_horizon="one unconstrained target edge")
+                              if constants else {})))
 
 
 def validate_state_map(mapping, manifest, adapter, artifacts):
@@ -263,6 +277,12 @@ def gate_deposits(mapping, manifest, adapter, artifacts, checkpoint_data, expect
     deposits = {}
     for entry in mapping["entries"]:
         value = int(records[entry["state_id"]]["values"][entry["address"]], 16)
+        proof = entry.get("optimization", {})
+        if proof.get("kind") == "constant":
+            require(checkpoint["target_cycle"] >= proof["min_target_cycle"],
+                    "checkpoint precedes proven constant horizon")
+            require(((value >> entry["bit"]) & 1) == proof["value"],
+                    f"checkpoint conflicts with proven constant state: {entry['original_rtl']}")
         for gate in entry["gates"]:
             bit = ((value >> entry["bit"]) & 1) ^ gate["xor"]
             path = f"{root}.{gate['instance']}.{gate['storage']}"

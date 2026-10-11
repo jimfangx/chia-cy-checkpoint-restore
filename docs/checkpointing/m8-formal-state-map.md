@@ -1,4 +1,91 @@
-# M8 formal state mapping — iteration 60
+# M8 formal state mapping — iteration 61
+
+Status: in progress. Observable constant propagation now has independent Jasper
+predicate proofs, complete StateID preservation and fresh gate initialization/
+replay evidence. SRAM macro initialization remains. No external dependency
+blocks this increment. Artificial functional cells; no foundry ASIC, FPGA or
+power validation.
+
+Read both plans' relevant formal/state-replay sections, progress/previous
+verification and both papers' preserved matching/replay extracts before edits.
+Fresh extracts from the unchanged root PDFs are also retained. Plan/PDF hashes
+and initial staging are under `automations/checkpoint_loop/runs/m8-iteration61/`;
+the dirty agent plan remains read-only. Plan numbering and symmetric-orientation
+proposals remain solely in these checkpointing documents.
+
+`verify_formal_state_map.py --constant-registers` selects
+`tests/fixtures/formal/constants/dut.v` and includes both its four unread bits
+and four observable constant bits in the original semantic checkpoint. Genus
+natively removes both sets; its successful netlist is never rewritten. Ordinary
+Formality equivalence and complete original/gate inventories still apply, with
+retiming queried false, every required gate storage relationship/output passing,
+no black boxes, and unread-state evidence cross-checked separately.
+
+The new `constant_state.py` adapter binds a separate Jasper proof to the exact
+original RTL, candidate bit specification, generated SVA binding and audited
+runner script. Each original register bit is asserted as `1'b1 |=> bit == value`,
+with `reset -none` and arbitrary original initial state. The antecedent covers
+and an explicit two-sample edge cover must all be covered. Every assertion must
+be unbounded `proven`; missing, bounded, vacuous, constrained, stale, contradictory
+or unsupported predicates reject. Machine results, raw tool status markers and
+independent engine result messages must agree. Original `initial`, assumptions
+and assertion constructs are unsupported by this adapter rather than silently
+introducing constraints. Candidate names/values alone never prove a constant.
+
+Version-4 maps retain every semantic StateID and bit. Constant entries have no
+gate destination but carry the proven value, property and minimum target cycle
+1. Before returning any gate deposit list, translation requires C >= 1 and each
+checkpoint constant bit to equal its proven value. Target time never advances
+while loading. Prior version-1/2/3 maps remain supported; extra/unproven physical
+storage and SRAM macros without an audited storage interface still reject.
+
+All eight new constant profiles cover direct/inverted storage, with/without
+indexed scalar reordering and native duplication. Each retains 32 semantic bits:
+24 mapped originals, four unread bits and four independently proved constants.
+All 24/28 physical bits deposit and read back at zero edges from pre-edge C=17;
+79 boundaries / 237 outputs match the clean RTL oracle and uninterrupted gate
+execution through END C=96. All four logical RAM words remain flip-flops.
+
+All four independently checksummed conflicting constant checkpoints and a C=0
+checkpoint reject before deposits. Fresh ordinary RTL replay of a conflicting
+observable constant first differs on held_out at C=17 before any replay edge.
+Wrong-value and conditional-update predicates yield actual Jasper counterexamples
+from arbitrary initial state. Missing predicate evidence still rejects despite
+fresh equivalence PASS in both polarities. Unread-state arbitrary-value replay,
+actual storage faults, fresh changed-D, polarity and permutation failures,
+complete atomic loader faults and missing duplicate/merge proofs are preserved.
+
+All 28 real CAD/VCS profiles and independent audits pass, including all 20 prior
+profiles. All 103 Python tests and complete M2/M3 metasim/ordinary-RTL regressions
+pass. M2 retains five cuts, all 22 words, actual C=29 divergence and four loader
+rejections; M3 retains 717 transport edges, 23 semantic advances, six captures,
+242 boundary/five semantic replay samples and eight invalid client reads.
+Supplemental actual shared-flop/storage faults and changed-D proofs/audits pass
+in both polarities. Four unchanged isolated audit controls pass and all 37
+actual artifact mutations reject: 12 constant, nine unread, eight merging and
+eight duplication/reordering. Constant input hashes are rebound in the mutation
+checks so semantic/raw-proof validation must reject beyond a stale-hash check.
+
+Exact argv/exit codes, profile paths, summary and full-path/hash catalog:
+`runs/m8-iteration61/verification-commands.json`, `matrix-results.json`,
+`summary.json` and `artifact-manifest.json`. Each invocation retains inner
+`commands.json`. Initial Jasper launch probes diagnosed the OS switch and mutually
+exclusive GUI/batch options. The first integrated run failed because Jasper's
+batch interpreter leaves Tcl `info script` empty; explicit before/after-hashed
+script path retry passed. These diagnostic failures/logs remain recorded.
+The initial integrated driver log was reused by the final matrix; its original raw Jasper failure log and
+recorded return code remain in `constants-direct/invocation-k9s772pe/`.
+
+Next: add a complete hash-bound SRAM model initialization adapter, including
+logical contents and pipeline/port state, and prove/replay it with a real
+synthesized macro fixture. All currently validated RAM words are synthesized
+flip-flops. Combined merging/duplication requires a separate proof adapter;
+combined merging/optimization fixtures also remain unsupported. Level 1 stays
+independent. Every VCS shell sources both project environments then `vcs-env.sh`
+LAST, retaining Y-2026.03-SP1, -full64 and GCC/G++ 13. Plans/PDFs/conda files,
+staging and git history are preserved.
+
+## Historical iteration 60 evidence
 
 Status: in progress. Explicit unused-state optimization now has real Genus,
 Formality and fresh ordinary-RTL/gate VCS evidence. Constant propagation and

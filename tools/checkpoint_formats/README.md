@@ -69,16 +69,21 @@ duplication and merging. Shared storage requires agreement among every semantic
 source after proven polarity transforms. Version-3 maps additionally preserve
 unread original StateIDs with empty gate destinations, only when explicit tool
 classification agrees with the hash-bound human unread-point report. Missing
-classification, contradictory passing/unread state, unproven gate storage,
-constant propagation and unknown SRAM macros reject explicitly. SRAM macro
-initialization and constants remain M8 work.
+classification, contradictory classifications, unproven gate storage and unknown
+SRAM macros reject explicitly. Version-4 maps support omitted constant register
+bits with separate hash-bound Jasper predicates from `constant_state.py`.
+Unconstrained one-edge assertions must be proven, with covered antecedents and
+edge coverage; bounded, vacuous or missing proofs reject. Checkpoints before
+C=1 or with a conflicting constant value reject before deposits. SRAM macro
+initialization requires an additional audited adapter.
 
 `gate_deposits` revalidates the map and independent Level-2 checkpoint before
 returning storage deposits. The existing VPI loader resolves escaped synthesized
 instance names, prevalidates every handle before writes, and reads back complete
 state before any target edge. It never forces output wires. The small-DUT verifier
 uses Genus with an explicitly artificial standard-cell test library, Formality,
-and ordinary VCS. This establishes functional state correspondence and replay,
+Jasper for constant predicates, and ordinary VCS. This establishes functional
+state correspondence and replay,
 not a process library's timing, power, physical ASIC or FPGA validation.
 
 ```sh
@@ -88,6 +93,11 @@ source automations/checkpoint_loop/vcs-env.sh
 python -m tools.checkpoint_formats.tests.verify_formal_state_map \
   --out automations/checkpoint_loop/runs/m8-validation
 ```
+
+Use `--constant-registers` to exercise observable constant propagation together
+with unread state, optionally adding `--profile inverted`, `--duplicate-registers`
+and `--reorder-registers`. The verifier launches Jasper in batch mode with the
+required unsupported-OS switch on this machine; original RTL remains unchanged.
 
 The verifier produces a fresh invocation directory, raw passing/matching reports,
 source hashes, semantic checkpoint/trace, complete map, zero-edge gate readback,
