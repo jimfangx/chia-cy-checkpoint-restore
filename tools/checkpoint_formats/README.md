@@ -129,6 +129,13 @@ importing the exporter or codec. Recovery and current M8 scope are recorded in
 Use `tests.audit_relational_state_map --run <invocation>` for version-5 profiles;
 it checks the miter, individual raw engine results, inventories and replay.
 
+`python -m tools.checkpoint_formats.tests.verify_formal_missing_proof --out <runs-directory>`
+performs fresh Genus/Formality builds in both polarities and checks that global
+equivalence still rejects four unclassified constant bits without Jasper state
+predicates. Source both project environments and `vcs-env.sh` last. Each call
+allocates a new invocation directory, preserving prior raw evidence and recording
+commands, input hashes and the exact export rejection in its own summary.
+
 The opt-in Golden Gate CLI flag `--semantic-checkpoint-root Top.dut` invokes
 `midas.checkpoint.SemanticStateInventory` after target lowering, before
 `MidasTransforms`. It emits `<output-base>.semantic-state.json`, the same

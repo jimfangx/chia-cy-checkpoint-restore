@@ -1,4 +1,57 @@
-# M8 formal state mapping — iteration 63
+# M8 formal state mapping — iteration 64
+
+Status: in progress. Fixed the repeat verification failure reported by the loop.
+SRAM macro initialization and relational unread/constant composition remain
+unsupported. No required CAD dependency is missing. Artificial functional cells;
+no process ASIC, physical FPGA or power validation.
+
+The previous failure occurred in iteration 63's diagnostic missing-proof script:
+its fixed synthesis directory already existed on verification replay. The new
+`tools/checkpoint_formats/tests/verify_formal_missing_proof.py` allocates a fresh
+invocation under `--out` on every call, records all CAD commands and input hashes,
+and keeps every original semantic bit. Both direct and inverted Genus/Formality
+builds must pass global equivalence and then reject export with exactly
+`unproven or unmappable semantic state` when four optimized constant bits have no
+Jasper state predicates. The complete inventory, synthesis/proof identities,
+24 proven physical bits and four explicitly unread bits still validate first.
+No exporter, loader, synthesis or proof adapter was changed.
+
+Use `python -m tools.checkpoint_formats.tests.verify_formal_missing_proof`
+with `--out automations/checkpoint_loop/runs/formal-missing-proof` after sourcing Chipyard
+`env.sh`, FireSim `env.sh`, then `automations/checkpoint_loop/vcs-env.sh` LAST.
+The repeat check under `runs/m8-iteration64/verify-repeat-missing-proof.py`
+calls this module twice in the same output directory and verifies independent
+invocations and unchanged hashes, sizes and inodes of all first-call files.
+Its initial real run passed four fresh synthesis/proof builds and preserved
+56 files. Previous iteration's evidence and diagnostic scripts are untouched.
+
+All 40 fresh CAD/VCS profiles and independent audits pass, including complete
+Jasper induction for merging/duplication. All 111 Python tests and full M2/M3
+metasim/ordinary RTL regressions pass. M2 retains five cuts, all 22 words, actual
+C=29 divergence and four loader failures. M3 retains 717 transport edges,
+23 semantic advances, six captures, 242 boundary/five semantic replay samples
+and eight invalid reads. All shared-flop fault/changed-D audits pass too.
+
+`runs/m8-iteration64/verify-finish-repeat.py` executes the entire supplemental
+scope twice, including nine isolated controls, 107 distinct actual artifact
+mutations, individual negative-engine audits and eight unsupported compositions.
+Both passes succeeded. Each pass runs the missing-proof module twice: eight
+additional fresh synthesis/equivalence builds in total. The second supplemental
+pass preserved both first-pass proof invocations' hashes and inodes. No previous
+proof requirement was relaxed, and no scope was reduced or check skipped.
+`finalize-evidence.py` validates every map against current input bytes, actual
+regression metrics, mutation results, repeat results and protected inputs.
+
+Commands, raw logs, proof artifacts and current maps are under
+`automations/checkpoint_loop/runs/m8-iteration64/`: `verification-commands.json`,
+`finish-repeat-commands.json`, `finish-repeat-summary.json`, `summary.json`,
+`matrix-results.json` and the full-path/hash `artifact-manifest.json`.
+The unchanged remaining work is audited SRAM macro contents and pipeline/port
+initialization, followed by relational unread/constant composition. Current
+logical RAM uses flip-flops. Unsupported state still rejects explicitly;
+Level-1 simulator images remain independent of Level-2 semantic state.
+
+## Historical iteration 63 evidence
 
 Status: in progress. Simultaneous native merging/duplication now has complete
 Jasper induction, version-5 mapping and gate replay in both polarities with
