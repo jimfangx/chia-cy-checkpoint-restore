@@ -1,7 +1,7 @@
 """Build-bound, fail-closed Formality/Jasper state-map exporter.
 
-Initial capability: one flat pre-FAME DUT, no retiming, audited scalar-cell
-simulation models, and memories explicitly synthesized into flip-flops. Passing
+Initial capability: one flat pre-FAME DUT, no retiming, audited cell and SRAM
+simulation models with complete writable storage inventories. Passing
 sequential compare points or complete Jasper relational induction initialize
 state. A global equivalence PASS never excuses missing bits or extra storage.
 Gate-reference proofs support merged RTL registers; all checkpoint sources of
@@ -32,6 +32,7 @@ from .semantic import decode_semantic, manifest_hash, validate_manifest
 ROLES = {"rtl", "netlist", "models", "library", "synthesis_script", "synthesis_log",
          "formal_script", "formal_configuration", "formal_log", "evidence", "blackboxes"}
 NAME = r"(?:[A-Za-z_][A-Za-z0-9_$]*|\\[^\s,()]+)"
+MACRO_SYNTHESIS_ROLES = {"implementation_rtl", "macro_stub"}
 
 
 def sha(data):
@@ -50,21 +51,41 @@ def flat_inventory(netlist, models_text, adapter, top):
     name, library name, or synthesis naming convention is a state proof.
     """
     keys(adapter, {"adapter_version", "models_sha256", "cells"})
-    require(adapter["adapter_version"] == 1, "unsupported cell adapter")
+    require(type(adapter["adapter_version"]) is int and adapter["adapter_version"] in (1, 2),
+            "unsupported cell adapter")
+    shaped = adapter["adapter_version"] == 2
     require(adapter["models_sha256"] == sha(models_text.encode()), "unaudited cell simulation models")
     model_mods = modules(models_text)
     require(set(model_mods) == set(adapter["cells"]), "incomplete cell model adapter")
     for cell, spec in adapter["cells"].items():
         keys(spec, {"storage"})
+        require(type(spec["storage"]) is list, "unsupported cell storage inventory")
+        expected = {}
         for storage in spec["storage"]:
-            keys(storage, {"rtl_path", "formal_path", "xor"})
+            keys(storage, {"rtl_path", "formal_path", "xor"} |
+                 ({"width", "depth", "kind"} if shaped else set()))
             require(re.fullmatch(IDENT, storage["rtl_path"]) and
                     re.fullmatch(IDENT, storage["formal_path"]) and
                     type(storage["xor"]) is int and storage["xor"] in (0, 1),
-                    "unsupported scalar cell storage adapter")
+                    "unsupported cell storage adapter")
+            width, depth, kind = (storage["width"], storage["depth"], storage["kind"]) if shaped else (1, 1, "register")
+            require(type(width) is int and 0 < width <= 65536 and type(depth) is int and 0 < depth <= 65536 and
+                    kind in ("register", "memory") and (kind == "memory" or depth == 1),
+                    "unsupported cell storage shape")
+            require(storage["rtl_path"] not in expected, "duplicate cell storage adapter")
+            expected[storage["rtl_path"]] = (width, depth, kind)
         actual = inventory_rtl(model_mods, cell)
-        expected = {s["rtl_path"]: (1, 1, "register") for s in spec["storage"]}
         require(actual == expected, "hidden or unsupported cell model state")
+        if shaped:
+            require(not re.search(r"\b(reg|logic|bit|int|integer|parameter)\b", model_mods[cell][0]),
+                    "stateful or parameterized cell model ports unsupported")
+            body = re.sub(r"/\*.*?\*/|//[^\n]*", "", model_mods[cell][1], flags=re.S)
+            # Version 2 is a concrete, unparameterized reg model interface.
+            # Reject declarations the inventory parser cannot account for.
+            require(not re.search(r"\b(logic|bit|int|integer|shortint|longint|byte|real|time|event|typedef|enum|struct|union|parameter|localparam|generate|initial|assume|restrict|force|function|task|always_latch|always_comb|negedge)\b", body) and
+                    len(re.findall(r"\breg\b", body)) == len(expected) and
+                    all(event.strip() == "posedge CP" for event in re.findall(r"@\s*\(([^)]*)\)", body)),
+                    "unsupported or initialized cell model state")
     text = re.sub(r"/\*.*?\*/|//[^\n]*", "", netlist, flags=re.S)
     parsed = re.fullmatch(rf"\s*module\s+{re.escape(top)}\s*\([^;]*\);(.*?)endmodule\s*", text, re.S)
     require(parsed is not None, "only one flat mapped netlist module supported")
@@ -94,10 +115,17 @@ def flat_inventory(netlist, models_text, adapter, top):
         require(re.fullmatch(r"\s*\.\w+\s*\([^()]*\)(?:\s*,\s*\.\w+\s*\([^()]*\))*\s*", ports),
                 "unsupported mapped cell connection")
         for storage in adapter["cells"][cell]["storage"]:
-            formal = f"i:/WORK/{top}/{name}/{storage['formal_path']}"
-            require(formal not in result, "duplicate gate storage")
-            result[formal] = dict(cell=cell, instance=name, rtl_path=storage["rtl_path"],
-                                  storage_xor=storage["xor"])
+            width, depth, kind = (storage["width"], storage["depth"], storage["kind"]) if shaped else (1, 1, "register")
+            for address in range(depth):
+                word_suffix = f"[{address}]" if kind == "memory" else ""
+                word = storage["rtl_path"] + word_suffix
+                for bit in range(width):
+                    bit_suffix = f"[{bit}]" if width > 1 else ""
+                    formal = f"i:/WORK/{top}/{name}/{storage['formal_path']}{word_suffix}{bit_suffix}"
+                    require(formal not in result, "duplicate gate storage")
+                    result[formal] = dict(cell=cell, instance=name, rtl_path=word + bit_suffix,
+                                          storage_xor=storage["xor"],
+                                          **(dict(storage_path=word, width=width, bit=bit) if shaped else {}))
     require(result, "empty gate state inventory")
     return result
 
@@ -164,7 +192,9 @@ def export_state_map(manifest, top, adapter, artifacts):
     has_optimization = artifacts.get("evidence", b"").startswith(b"FORMAT\tformality-state-v3\n")
     has_constants = bool(set(artifacts) & CONSTANT_ROLES)
     has_relations = "relation_spec" in artifacts
-    require(set(artifacts) == (RELATION_ROLES | (CONSTANT_ROLES if has_constants else set()) if has_relations else
+    macro_synthesis = adapter.get("adapter_version") == 2
+    require(not macro_synthesis or has_relations, "shaped cell adapters require complete relational proof")
+    require(set(artifacts) == (MACRO_SYNTHESIS_ROLES if macro_synthesis else set()) | (RELATION_ROLES | (CONSTANT_ROLES if has_constants else set()) if has_relations else
             ROLES | ({"optimization_report"} if has_optimization else set()) |
             (CONSTANT_ROLES if has_constants else set())),
             "incomplete formal build artifacts")
@@ -173,7 +203,7 @@ def export_state_map(manifest, top, adapter, artifacts):
                 b"Error:" not in artifacts["formal_log"], "formal tool did not prove equivalence")
     require(b"CHECKPOINT_RETIMING=false\n" in artifacts["synthesis_log"] and
             b"Error" not in artifacts["synthesis_log"], "retiming disabled synthesis not established")
-    for role in ("rtl", "library", "synthesis_script"):
+    for role in ("rtl", "library", "synthesis_script") + (("implementation_rtl", "macro_stub") if macro_synthesis else ()):
         marker = f"CHECKPOINT_SYNTH_INPUT\t{role}\t{sha(artifacts[role])}".encode()
         require(marker in artifacts["synthesis_log"].splitlines(), "stale synthesis input identity")
     marker = f"CHECKPOINT_SYNTH_OUTPUT\t{sha(artifacts['netlist'])}".encode()
@@ -245,8 +275,9 @@ def export_state_map(manifest, top, adapter, artifacts):
         covered.add(impl)
         storage = gates[impl]
         entries[ref]["gates"].append(dict(formal_implementation=impl, cell=storage["cell"],
-                                          instance=storage["instance"], storage=storage["rtl_path"],
-                                          bit=0, xor=polarity ^ storage["storage_xor"],
+                                          instance=storage["instance"], storage=storage.get("storage_path", storage["rtl_path"]),
+                                          bit=storage.get("bit", 0), xor=polarity ^ storage["storage_xor"],
+                                          **(dict(width=storage["width"]) if macro_synthesis else {}),
                                           proof_status="passing"))
     require(covered == set(gates), "unproven or unmappable gate state")
     require(all(e["gates"] or ref in optimized or ref in constants for ref, e in entries.items()),
@@ -271,7 +302,7 @@ def export_state_map(manifest, top, adapter, artifacts):
                   assumptions=[], reset="unconstrained synchronous input",
                   **(dict(constant_tool="Jasper", constant_horizon="one unconstrained target edge")
                      if constants else {})))
-    return dict(map_version=(7 if constants else 6 if optimized else 5) if has_relations else 4 if constants else 3 if optimized else 2 if reversed_proof else 1, map_type="asic_state_map", top=top,
+    return dict(map_version=8 if macro_synthesis else (7 if constants else 6 if optimized else 5) if has_relations else 4 if constants else 3 if optimized else 2 if reversed_proof else 1, map_type="asic_state_map", top=top,
                 state_manifest_hash=manifest_hash(manifest), retiming=False,
                 build={role: sha(data) for role, data in sorted(artifacts.items())},
                 cell_adapter_hash=sha(canonical(adapter)), entries=ordered,
@@ -288,7 +319,7 @@ def validate_state_map(mapping, manifest, adapter, artifacts):
 def gate_deposits(mapping, manifest, adapter, artifacts, checkpoint_data, expected_build, root):
     """Translate independent Level-2 values, without advancing any target edges.
 
-    This returns scalar writable storage paths for semantic_restore.cc. Its VPI
+    This returns complete writable words for semantic_restore.cc. Its VPI
     resolver prevalidates every handle before any write; semantic_verify checks
     the complete zero-edge readback. These are deposits, never output forces.
     """
@@ -308,8 +339,15 @@ def gate_deposits(mapping, manifest, adapter, artifacts, checkpoint_data, expect
         for gate in entry["gates"]:
             bit = ((value >> entry["bit"]) & 1) ^ gate["xor"]
             path = f"{root}.{gate['instance']}.{gate['storage']}"
-            require(path not in deposits or deposits[path] == bit,
+            width = gate.get("width", 1)
+            word = deposits.setdefault(path, dict(width=width, bits={}))
+            index = gate["bit"]
+            require(word["width"] == width and (index not in word["bits"] or word["bits"][index] == bit),
                     f"inconsistent merged semantic state for gate storage: {path}")
-            deposits[path] = bit
-    require(len(deposits) == mapping["gate_storage_bits"], "incomplete gate initialization")
-    return checkpoint["target_cycle"], sorted((path, 1, f"{value:x}") for path, value in deposits.items())
+            word["bits"][index] = bit
+    require(sum(len(word["bits"]) for word in deposits.values()) == mapping["gate_storage_bits"] and
+            all(set(word["bits"]) == set(range(word["width"])) for word in deposits.values()),
+            "incomplete gate initialization")
+    return checkpoint["target_cycle"], sorted(
+        (path, word["width"], f"{sum(value << bit for bit, value in word['bits'].items()):0{(word['width'] + 3) // 4}x}")
+        for path, word in deposits.items())

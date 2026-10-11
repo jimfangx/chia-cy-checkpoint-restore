@@ -62,8 +62,8 @@ gate storage independently, rejects black boxes, and binds the RTL, mapped
 netlist, cell models, library, scripts and proof/synthesis evidence by SHA-256.
 Both CAD scripts export hashes of the files they actually read, checked before
 and after the tool run. Changing a netlist cannot reuse a stale successful proof.
-The current capability is one flat DUT with retiming disabled and audited scalar
-cell storage. RAM mapped to individual flip-flops is supported. Real Genus,
+The current capability is one flat DUT with retiming disabled and audited cell
+storage. RAM mapped to individual flip-flops is supported. Real Genus,
 Formality and VCS profiles cover polarity, indexed scalar destination reordering,
 duplication and merging. Shared storage requires agreement among every semantic
 source after proven polarity transforms. Version-3 maps additionally preserve
@@ -74,8 +74,7 @@ SRAM macros reject explicitly. Version-4 maps support omitted constant register
 bits with separate hash-bound Jasper predicates from `constant_state.py`.
 Unconstrained one-edge assertions must be proven, with covered antecedents and
 edge coverage; bounded, vacuous or missing proofs reject. Checkpoints before
-C=1 or with a conflicting constant value reject before deposits. SRAM macro
-initialization requires an additional audited adapter.
+C=1 or with a conflicting constant value reject before deposits.
 
 `gate_deposits` revalidates the map and independent Level-2 checkpoint before
 returning storage deposits. The existing VPI loader resolves escaped synthesized
@@ -133,8 +132,25 @@ complete relation PASS cannot replace these independent predicates. Missing,
 bounded, vacuous or mismatched proofs reject. The verifier also exercises a
 conditional constant update whose complete relation passes while its independent
 constant predicate fails, conflicting checkpoints and zero-edge RTL divergence.
-These fixtures use flip-flops
-for logical RAM; SRAM macros still require a complete storage adapter.
+These fixtures use flip-flops for logical RAM.
+
+Version-8 maps use version-2 cell adapters for packed registers and unpacked SRAM
+words. Every storage declaration has an exact width, depth and kind, bound to the
+concrete model hash. Complete relational proof is mandatory. Hidden or initialized
+state, omitted contents/pipeline/port state, unknown macros and unsupported model
+syntax reject. Translation assembles every destination bit into complete writable
+words and checks merged-source consistency before returning any deposits.
+`tests.verify_sram_state_map --out <runs-directory>`, optionally with
+`--profile inverted`, synthesizes an explicit preserved SRAM architecture and
+proves its emitted netlist against the original flat RTL. Both synthesis sources
+and the macro declaration are hash-bound; proof and VCS use the complete concrete
+model. This fixture exercises a buffered write and registered read, with a pending
+write at C=17, all memory words and port/pipeline registers initialized/read back
+before any edge, uninterrupted/restored replay, five actual storage faults, four
+fresh counterexample proofs and six atomic loader failures. Automatic SRAM
+inference and production process SRAM libraries are outside this fixture.
+`tests.audit_sram_state_map --run <invocation>` independently reconstructs the
+relation, storage mapping, deposits and raw proof/replay evidence.
 
 The verifier produces a fresh invocation directory, raw passing/matching reports,
 source hashes, semantic checkpoint/trace, complete map, zero-edge gate readback,

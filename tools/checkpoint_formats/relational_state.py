@@ -9,7 +9,8 @@ covers exercise both values of every physical and omitted original bit.
 Constant candidates constrain the relation only after separate arbitrary-state
 predicates prove their values and horizon; these predicates are never inferred
 from relation preservation, even if every relational assertion passes.
-This initial adapter supports the flat StateMapDUT interface and scalar cells.
+This adapter supports the flat StateMapDUT interface and audited cell storage,
+including packed registers and unpacked SRAM words with pipeline/port state.
 """
 
 import json
@@ -68,7 +69,7 @@ def candidates(spec):
         require(type(row["original_rtl"]) is str and
                 re.fullmatch(r"[A-Za-z_][A-Za-z0-9_$]*(?:\[\d+\]){0,2}", row["original_rtl"]) and
                 type(row["gate"]) is str and
-                re.fullmatch(r"[A-Za-z_][A-Za-z0-9_$]*(?:\[\d+\])*[A-Za-z0-9_$]*\.[A-Za-z_][A-Za-z0-9_$]*", row["gate"]) and
+                re.fullmatch(r"[A-Za-z_][A-Za-z0-9_$]*(?:\[\d+\])*[A-Za-z0-9_$]*\.[A-Za-z_][A-Za-z0-9_$]*(?:\[\d+\]){0,2}", row["gate"]) and
                 type(row["xor"]) is int and row["xor"] in (0, 1), "unsupported state relation")
         pair = (row["original_rtl"], row["gate"])
         require(pair not in seen, "duplicate or conflicting state relation")

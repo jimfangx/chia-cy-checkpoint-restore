@@ -1,4 +1,62 @@
-# M8 formal state mapping — iteration 66
+# M8 formal state mapping — iteration 67
+
+Status: ready for M8 small synthesized-DUT acceptance. All 50 fresh CAD/VCS
+profiles and independent audits pass, including the two new SRAM profiles.
+Version-2 cell adapters and version-8 build-bound maps now cover packed registers,
+unpacked contents and the complete SRAM pipeline/port state. Every modeled bit
+must have a proven relationship; hidden, initialized, omitted, unproven or unknown
+state rejects. Destination words are assembled completely before VPI deposits.
+
+The new flat original RTL has four 4-bit RAM words, address/data/write port
+registers and a registered read. Genus synthesizes a separate explicit preserved
+macro architecture. Both sources and the synthesis-only macro stub are hash-bound;
+Jasper and VCS use the full concrete functional model. This is explicit SRAM
+architecture synthesis, not automatic SRAM inference or a production process
+macro. Original RTL to emitted netlist relation induction/output equivalence has
+no input/reset assumptions, 38 unbounded assertions and 109 nonvacuity covers.
+All 35 physical bits (27 inside the macro) are mapped, deposited in 16 words and
+read back at zero edges in direct and complemented polarity.
+
+Both profiles restore C=17 with a pending write, match all 79 boundaries/237
+outputs through C=95 and end C=96; ordinary RTL replay and uninterrupted gate
+replay also match. Five actual storage faults cover contents, buffered address,
+write enable, write data and read pipeline. Four fresh negative proofs reject
+wrong polarity, missing memory state, changed write semantics and changed read
+pipeline. Six VPI loader failures retain all 35 bits and healthy continuation.
+The independent auditor reconstructs models, inventories, relation/miter,
+input identities, engine messages, checkpoint/deposits and complete replay.
+Two unchanged SRAM audit controls pass; all 64 actual artifact mutations reject
+after map hashes are recomputed, on each of two fresh passes. Full paths/commands are under
+`automations/checkpoint_loop/runs/m8-iteration67/`; new profile selections are
+`sram-matrix-results.json`, with raw logs, `asic_state_map.json`, `inputs.json`,
+`summary.json` and `independent-audit.json` in each selected invocation.
+
+All 48 prior CAD/VCS profiles and audits, all 122 Python tests and full M2/M3
+VCS metasim/ordinary RTL regressions pass. M2 retains five cuts/all 22 words,
+C=29 divergence and four loader failures. M3 retains 717 transport edges,
+23 semantic advances, six captures, 242 boundary/five semantic replay samples
+and eight invalid reads. The full supplemental scope passed twice: 15 distinct
+unchanged controls and all 333 distinct artifact mutations reject per pass
+(13 prior controls/269 mutations plus two SRAM controls/64 mutations). Eight
+additional fresh missing-predicate synthesis/equivalence builds retain prior
+proof bytes/inodes. `finalize-evidence.py` revalidates all 50 selected maps against
+current input bytes and all regression metrics. `summary.json` reports ready;
+`verification-commands.json`, `sram-verification-commands.json`,
+`finish-repeat-commands.json`, `all-verification-commands.json` and
+`artifact-manifest.json` provide exact commands and the full-path/hash catalog.
+No check was skipped or scope reduced. Initial
+Genus command/RTL parser and replay harness invocation diagnostics are preserved.
+Both plans and root PDFs remain read-only; protected hashes, untouched staging
+and FireSim worktree, and source/documentation whitespace checks pass. Level-1 simulator checkpoints remain independent of Level-2 semantic
+state. No process ASIC, physical FPGA or power validation is claimed.
+
+M8 now has real functional acceptance for the small synthesized fixtures across
+polarity, reordering, duplication, merging, unread/constant optimization and
+complete SRAM initialization. Production macro libraries, automatic SRAM
+inference, retiming and other DUT interfaces still need their own adapters and
+proofs; unsupported inputs fail explicitly. The loop selects the next milestone.
+
+## Historical iteration 66 evidence
 
 Status: in progress. Implemented relational constant composition with native
 merging, duplication, either polarity, indexed destination reordering and
