@@ -21,7 +21,7 @@ def container(path, magic):
     return json.loads(data[16:-32])
 
 
-def passing_pairs(report):
+def passing_pairs(report, gate_reference=False):
     """Read every implementation in each human one-to-many DFF group."""
     pairs = []
     for block in re.split(r"\n\s*\n", report):
@@ -32,6 +32,8 @@ def passing_pairs(report):
             pairs.extend((refs[0], impl) for impl in impls)
     assert len(pairs) == len(set(pairs)), "duplicate human passing relationship"
     assert len(pairs) == len(re.findall(r"^\s*Impl\s+DFF\s", report, re.M))
+    if gate_reference:
+        return [("r" + impl[1:], "i" + ref[1:]) for ref, impl in pairs]
     return pairs
 
 
@@ -54,8 +56,12 @@ def audit(run):
     assert summary.get("counter_bit_to_gate_slot", list(slots)) == list(slots)
     assert summary.get("reordered_semantic_bits", 0) == (4 if reordered else 0)
     gate_bits = 28 if duplicated else 24
+    merged = summary.get("merge_registers", False)
+    assert type(merged) is bool and not (merged and duplicated)
+    semantic_bits = 28 if merged else 24
     cases = ("missing", "width", "duplicate", "unknown-value", "incomplete") + (("missing-copy",) if duplicated else ())
-    assert mapping["semantic_bits"] == 24 and mapping["gate_storage_bits"] == gate_bits
+    assert mapping["semantic_bits"] == semantic_bits and mapping["gate_storage_bits"] == gate_bits
+    assert mapping["map_version"] == (2 if merged else 1)
     for role, path in paths.items():
         assert digest(Path(path).read_bytes()) == mapping["build"][role], role
     encoded = json.dumps(manifest, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
@@ -67,30 +73,37 @@ def audit(run):
     assert "\nCHECKPOINT_RETIMING=false\n" in Path(paths["synthesis_log"]).read_text()
     expected = {(state["state_id"], address, bit) for state in manifest["state"]
                 for address in range(state["depth"]) for bit in range(state["width"])}
-    assert len(expected) == 24
+    assert len(expected) == semantic_bits
     assert {(e["state_id"], e["address"], e["bit"]) for e in mapping["entries"]} == expected
-    assert len(mapping["entries"]) == 24
+    assert len(mapping["entries"]) == semantic_bits
     # Cross-check the machine export against Formality's human passing report.
     passing = (run / "formal/passing.rpt").read_text()
-    pairs = passing_pairs(passing)
-    assert len(pairs) == gate_bits
+    pairs = passing_pairs(passing, merged)
+    assert len(pairs) == gate_bits + (4 if merged else 0)
+    assert len(re.findall(r"^\s*Impl\s+Port\s", passing, re.M)) == 12
     map_pairs = [(e["formal_reference"], gate["formal_implementation"])
                  for e in mapping["entries"] for gate in e["gates"]]
     assert set(pairs) == set(map_pairs)
     for status, xor in (("noninverted", 0), ("inverted", 1)):
         report = (run / "formal" / f"passing-{status}.rpt").read_text()
-        status_pairs = passing_pairs(report)
+        status_pairs = passing_pairs(report, merged)
         assert set(status_pairs) == {(e["formal_reference"], g["formal_implementation"])
                                     for e in mapping["entries"] for g in e["gates"] if g["xor"] == xor}
     cell_instances = re.findall(rf"\b{cell}\s+\\([^\s]+)\s+\(", Path(paths["netlist"]).read_text())
     assert len(cell_instances) == len(set(cell_instances)) == gate_bits
     mapped_instances = [gate["instance"] for e in mapping["entries"] for gate in e["gates"]]
-    assert set(mapped_instances) == set(cell_instances) and len(mapped_instances) == gate_bits
+    assert set(mapped_instances) == set(cell_instances) and len(mapped_instances) == len(pairs)
     evidence = Path(paths["evidence"]).read_text().splitlines()
     proven = [line.split("\t")[2:] for line in evidence if line.startswith("PROVEN\t")]
-    assert len(proven) == gate_bits and {tuple(row) for row in proven} == set(pairs)
-    assert {line.split("\t")[2] for line in evidence if line.startswith("REGISTER\ti\t")} == {impl for _, impl in pairs}
-    assert {line.split("\t")[2] for line in evidence if line.startswith("REGISTER\tr\t")} == {ref for ref, _ in pairs}
+    if merged:
+        assert evidence[:3] == ["FORMAT\tformality-state-v2", "VERIFY\t1", "ORIENTATION\tgate-reference"]
+        proven = [["r" + impl[1:], "i" + ref[1:]] for ref, impl in proven]
+    else:
+        assert evidence[:2] == ["FORMAT\tformality-state-v1", "VERIFY\t1"]
+    assert len(proven) == len(pairs) and {tuple(row) for row in proven} == set(pairs)
+    gate_side, rtl_side = ("r", "i") if merged else ("i", "r")
+    assert {"i" + line.split("\t")[2][1:] for line in evidence if line.startswith(f"REGISTER\t{gate_side}\t")} == {impl for _, impl in pairs}
+    assert {"r" + line.split("\t")[2][1:] for line in evidence if line.startswith(f"REGISTER\t{rtl_side}\t")} == {ref for ref, _ in pairs}
     assert summary.get("duplicated_semantic_bits", 0) == (4 if duplicated else 0)
     for entry in mapping["entries"]:
         state = next(s for s in manifest["state"] if s["state_id"] == entry["state_id"])
@@ -100,6 +113,8 @@ def audit(run):
         expected_instances = {entry["formal_reference"].rsplit("/", 1)[1]}
         if reordered and name == "count":
             expected_instances = {counter_name(entry["bit"])}
+        if merged and name == "held":
+            expected_instances = {f"held_copy_reg[{entry['bit']}]"}
         if duplicated and name == "count":
             expected_instances.add(counter_name(entry["bit"]) + "_SYNTHESIS_SEQ_DUP_0")
         assert {gate["instance"] for gate in entry["gates"]} == expected_instances
@@ -113,11 +128,12 @@ def audit(run):
     layout = json.loads((run / "reference/capture-layout.json").read_text())
     captured = [json.loads(line) for line in (run / "reference/capture.jsonl").read_text().splitlines()]
     records = {r["state_id"]: r for r in checkpoint["records"]}
-    expected_deposits = []
+    expected_deposits = set()
     for entry in mapping["entries"]:
         value = int(records[entry["state_id"]]["values"][entry["address"]], 16)
         for gate in entry["gates"]:
-            expected_deposits.append(f"tb.dut.{gate['instance']}.{gate['storage']} 1 {((value >> entry['bit']) & 1) ^ polarity:x}")
+            expected_deposits.add(f"tb.dut.{gate['instance']}.{gate['storage']} 1 {((value >> entry['bit']) & 1) ^ polarity:x}")
+    assert len(expected_deposits) == gate_bits
     assert (run / "restore.txt").read_text().splitlines() == sorted(expected_deposits)
     for field, value in zip(layout, captured[17]["values"]):
         if "state_id" in field:
@@ -174,8 +190,35 @@ def audit(run):
         missing = (run / "missing-copy-evidence.tsv").read_text().splitlines()
         assert missing == [line for line in evidence if not
                            (line.startswith("PROVEN\t") and counter_name(0) + "_SYNTHESIS_SEQ_DUP_0/state_reg" in line)]
-    result = dict(status="passed", independently_checked_state_bits=24, ram_words=4,
+    if merged:
+        actual_shared = {}
+        for entry in mapping["entries"]:
+            for gate in entry["gates"]:
+                actual_shared.setdefault(gate["formal_implementation"], []).append(entry["original_rtl"])
+        shared = {gate: sources for gate, sources in actual_shared.items() if len(sources) > 1}
+        assert len(shared) == summary["merged_gate_bits"] == 4
+        assert shared == summary["merged_semantic_sources"]
+        for bit in range(4):
+            assert set(shared[f"i:/WORK/StateMapDUT/held_copy_reg[{bit}]/state_reg"]) == {f"held[{bit}]", f"held_copy[{bit}]"}
+        held = next(s for s in manifest["state"] if s["hierarchy"].endswith(".held"))
+        alias = next(s for s in manifest["state"] if s["hierarchy"].endswith(".held_copy"))
+        assert records[held["state_id"]]["values"] == records[alias["state_id"]]["values"]
+        inconsistent = container(run / "inconsistent-merged.rtlckpt", b"RTLCKP\x00\x01")
+        expected_inconsistent = json.loads(json.dumps(checkpoint))
+        row = next(r for r in expected_inconsistent["records"] if r["state_id"] == alias["state_id"])
+        row["values"][0] = f"{int(row['values'][0], 16) ^ 1:x}"
+        assert inconsistent == expected_inconsistent
+        assert summary["inconsistent_merge_rejected"] == "inconsistent merged semantic state for gate storage: tb.dut.held_copy_reg[0].state"
+        missing = (run / "missing-alias-evidence.tsv").read_text().splitlines()
+        assert missing == [line for line in evidence if not
+                           (line.startswith("PROVEN\t") and line.endswith("\ti:/WORK/StateMapDUT/held_reg[0]"))]
+        assert summary["missing_alias_proof_rejected"] == "unproven or unmappable semantic state"
+        assert "Verification FAILED" in (run / "formal-wrong-alias/formal.log").read_text()
+        assert "\nVERIFY\t0\n" in (run / "formal-wrong-alias/evidence.tsv").read_text()
+        assert summary["wrong_alias_formal_rejected"] == "formal tool did not prove equivalence"
+    result = dict(status="passed", independently_checked_state_bits=semantic_bits, ram_words=4,
                   independently_checked_gate_bits=gate_bits, duplicated_semantic_bits=4 if duplicated else 0,
+                  merged_gate_bits=4 if merged else 0, inconsistent_merged_checkpoint_rejected=merged,
                   profile=profile, independently_checked_inverted_bits=gate_bits * polarity,
                   reordered_semantic_bits=4 if reordered else 0,
                   wrong_permutation_hypothesis_formal_failed=reordered,

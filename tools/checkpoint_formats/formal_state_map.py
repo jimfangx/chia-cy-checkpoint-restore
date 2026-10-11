@@ -4,6 +4,8 @@ Initial capability: one flat pre-FAME DUT, no retiming, audited scalar-cell
 simulation models, and memories explicitly synthesized into flip-flops. Only
 passing sequential compare points may initialize state. In particular, a global
 equivalence PASS never excuses missing semantic bits or extra gate storage.
+Gate-reference proofs support merged RTL registers; all checkpoint sources of
+shared storage must agree after their proven polarity transformations.
 """
 
 import hashlib
@@ -89,10 +91,14 @@ def flat_inventory(netlist, models_text, adapter, top):
 
 def parse_evidence(data):
     lines = data.decode("ascii").splitlines()
-    require(len(lines) >= 3 and lines[:2] == ["FORMAT\tformality-state-v1", "VERIFY\t1"]
+    require(len(lines) >= 3 and lines[0] in ("FORMAT\tformality-state-v1", "FORMAT\tformality-state-v2")
+            and lines[1] == "VERIFY\t1"
             and lines[-1] == "END", "missing, incomplete or unsuccessful formal proof")
+    reversed_proof = lines[0] == "FORMAT\tformality-state-v2"
+    if reversed_proof:
+        require(lines[2] == "ORIENTATION\tgate-reference", "unsupported formal proof orientation")
     registers, relations, inputs = {"r": set(), "i": set()}, [], {}
-    for line in lines[2:-1]:
+    for line in lines[3 if reversed_proof else 2:-1]:
         row = line.split("\t")
         if len(row) == 3 and row[0] == "INPUT":
             require(row[1] not in inputs, "duplicate formal input identity")
@@ -105,7 +111,17 @@ def parse_evidence(data):
         else:
             require(False, "unsupported formal evidence row")
     require(relations and len(relations) == len(set(relations)), "missing or duplicate passing relationships")
-    return registers, relations, inputs
+    require(len({(ref, impl) for ref, impl, _ in relations}) == len(relations),
+            "conflicting passing polarity relationships")
+    if reversed_proof:
+        require(all(name.startswith(side + ":/WORK/") for side, names in registers.items() for name in names),
+                "invalid oriented formal inventory")
+        require(all(ref in registers["r"] and impl in registers["i"] for ref, impl, _ in relations),
+                "passing point outside oriented state inventory")
+        registers = {"r": {"r" + name[1:] for name in registers["i"]},
+                     "i": {"i" + name[1:] for name in registers["r"]}}
+        relations = [("r" + impl[1:], "i" + ref[1:], polarity) for ref, impl, polarity in relations]
+    return registers, relations, inputs, reversed_proof
 
 
 def export_state_map(manifest, top, adapter, artifacts):
@@ -113,7 +129,7 @@ def export_state_map(manifest, top, adapter, artifacts):
 
     The returned map is reviewable data, not a declaration of ASIC acceptance.
     Callers must validate it again against the current bytes before loading.
-    Optimized/merged reference state currently fails, rather than being guessed.
+    Optimized reference state still fails, rather than being guessed.
     """
     validate_manifest(manifest)
     require(re.fullmatch(IDENT, top), "invalid DUT module")
@@ -153,7 +169,7 @@ def export_state_map(manifest, top, adapter, artifacts):
             require(ref not in refs, "ambiguous reference register convention")
             refs[ref] = dict(state_id=word["state_id"], address=word["address"], bit=bit,
                              original_rtl=path + (f"[{bit}]" if width > 1 else ""))
-    registers, proven, proof_inputs = parse_evidence(artifacts["evidence"])
+    registers, proven, proof_inputs, reversed_proof = parse_evidence(artifacts["evidence"])
     require(proof_inputs == {role: sha(artifacts[role]) for role in
                             ("rtl", "models", "netlist", "formal_script", "formal_configuration")},
             "stale formal input identity")
@@ -163,7 +179,7 @@ def export_state_map(manifest, top, adapter, artifacts):
     covered = set()
     for ref, impl, polarity in proven:
         require(ref in entries and impl in gates, "passing point outside state inventory")
-        require(impl not in covered, "gate storage has conflicting state relationships")
+        require(reversed_proof or impl not in covered, "gate storage has conflicting state relationships")
         covered.add(impl)
         storage = gates[impl]
         entries[ref]["gates"].append(dict(formal_implementation=impl, cell=storage["cell"],
@@ -175,12 +191,13 @@ def export_state_map(manifest, top, adapter, artifacts):
     ordered = sorted(entries.values(), key=lambda e: (e["state_id"], e["address"], e["bit"]))
     for entry in ordered:
         entry["gates"].sort(key=lambda g: g["formal_implementation"])
-    return dict(map_version=1, map_type="asic_state_map", top=top,
+    return dict(map_version=2 if reversed_proof else 1, map_type="asic_state_map", top=top,
                 state_manifest_hash=manifest_hash(manifest), retiming=False,
                 build={role: sha(data) for role, data in sorted(artifacts.items())},
                 cell_adapter_hash=sha(canonical(adapter)), entries=ordered,
                 gate_storage_bits=len(gates), semantic_bits=len(refs),
-                proof=dict(tool="Formality", export="passing sequential compare points",
+                proof=dict(tool="Formality", export="passing sequential compare points" +
+                           ("; gate-reference orientation" if reversed_proof else ""),
                            assumptions=[], reset="unconstrained synchronous input"))
 
 
@@ -201,11 +218,14 @@ def gate_deposits(mapping, manifest, adapter, artifacts, checkpoint_data, expect
     require(re.fullmatch(rf"{IDENT}(?:\.{IDENT})*", root), "invalid gate simulation root")
     checkpoint = decode_semantic(checkpoint_data, expected_build, manifest)
     records = {r["state_id"]: r for r in checkpoint["records"]}
-    deposits = []
+    deposits = {}
     for entry in mapping["entries"]:
         value = int(records[entry["state_id"]]["values"][entry["address"]], 16)
         for gate in entry["gates"]:
             bit = ((value >> entry["bit"]) & 1) ^ gate["xor"]
-            deposits.append((f"{root}.{gate['instance']}.{gate['storage']}", 1, f"{bit:x}"))
+            path = f"{root}.{gate['instance']}.{gate['storage']}"
+            require(path not in deposits or deposits[path] == bit,
+                    f"inconsistent merged semantic state for gate storage: {path}")
+            deposits[path] = bit
     require(len(deposits) == mapping["gate_storage_bits"], "incomplete gate initialization")
-    return checkpoint["target_cycle"], sorted(deposits)
+    return checkpoint["target_cycle"], sorted((path, 1, f"{value:x}") for path, value in deposits.items())

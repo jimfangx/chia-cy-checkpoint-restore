@@ -1,4 +1,99 @@
-# M8 formal state mapping — iteration 58
+# M8 formal state mapping — iteration 59
+
+Status: in progress. Native register merging now has real synthesis, formal
+proof and gate restore/replay evidence with both polarities and with/without
+indexed scalar reordering. Constants/irrelevance and SRAM macro initialization
+remain; no external dependency blocks the supported flow.
+
+Read both plans' relevant formal sections, progress/previous verification and
+the two papers' preserved matching/replay extracts before edits. Starting plan/
+PDF hashes and staging are under `automations/checkpoint_loop/runs/m8-iteration59/`.
+Preserve the dirty agent plan. The loop M8 versus plan M9 numbering correction
+remains only in checkpointing docs.
+
+`verify_formal_state_map.py --merge-registers` uses the new original RTL fixture
+`tools/checkpoint_formats/tests/fixtures/formal/merged/dut.v`. `held` and
+`held_copy` have identical enabled updates and synchronous reset; both remain
+independent semantic StateIDs in the 28-bit manifest. Genus natively merges
+their four bit pairs into four shared `held_copy_reg` flops. No successful
+emitted netlist is rewritten. The complete RTL, library, script, configuration,
+netlist, retiming=false query and proof identities remain hash-bound.
+
+Formality P-2019.03-SP2 allows one reference point to multiple implementation
+points, but prohibits multiple reference points to one implementation point.
+The merging configuration therefore reverses the symmetric equivalence proof:
+the gate netlist is the tool reference and the exact original RTL is its
+implementation. Each shared flop matches both original RTL aliases; every alias,
+other state point and all 12 output points must pass. No reset/input assumptions
+or black boxes are introduced. Diagnostic failed forward-cutpoint attempts are
+preserved under `runs/m8-iteration59/probe*/`.
+
+Proposed plan correction: permit this explicitly recorded symmetric orientation
+for merging in the agent Phase 10 procedure, which currently prescribes original
+RTL as the tool reference. Equivalence is symmetric; complete state/output proof
+and checkpoint consistency remain required. This proposal changes no plan file.
+
+Evidence schema `formality-state-v2` records `ORIENTATION gate-reference` and
+retains actual raw tool inventories/passing relationships. The exporter
+normalizes them to its canonical semantic `r:` and gate `i:` paths; these
+normalized paths in `asic_state_map.json` differ from raw tool container names.
+The resulting version-2 map preserves every semantic bit, even when multiple
+StateIDs share physical storage. Version-1 forward proofs remain supported.
+Missing aliases, missing storage, contradictory polarity, stale identities and
+unsupported optimized state still reject explicitly.
+
+`gate_deposits` applies every proven XOR transformation, requires all sources
+of shared storage to agree, and emits exactly one deposit per physical bit.
+A conflicting but structurally valid Level-2 checkpoint rejects before a deposit
+list is returned. VPI retains its complete handle prevalidation, atomic rejection
+and zero-edge readback. The reverse proof does not authorize arbitrary initial
+alias values; checkpoint consistency enforces the proven state relation.
+
+All four merging profiles (direct/inverted, ordered/reordered) prove 28 state
+relationships and 12 outputs. They cover every semantic bit and all 24 physical
+bits, including four shared flops and all four logical RAM words. Fresh ordinary
+gate VCS restores from pre-edge C=17 with complete zero-edge readback and matches
+79 boundaries / 237 outputs through END C=96. Uninterrupted gate execution agrees
+with the ordinary original-RTL oracle. Inverted profiles have XOR=1 for all 24
+physical storage bits. These RAM words are flip-flops, not SRAM macros.
+
+Each profile retains five atomic loader rejections, actual counter fault,
+changed-D formal failure, wrong-polarity failure and, when reordered, wrong
+permutation/formal and swapped-map rejections. Merging adds a valid conflicting
+checkpoint, missing alias proof despite global PASS, and a wrong-alias fresh
+formal failure. Additional actual shared-flop faults in both reordered polarities
+first differ on `held_out` at C=29 after 12 restored edges. Changed shared D fails
+both original alias compare points. Independent supplemental audits check actual
+netlist changes, storage paths, complete readback, exact healthy prefixes and raw
+failed reports. An unchanged isolated merging audit control passes; eight actual
+artifact mutations reject.
+
+All 12 real CAD/VCS profiles and independent audits pass, including every one
+of the eight previous profiles. Both unchanged isolated controls pass and all
+16 actual audit mutations reject. All 94 Python tests and full M2/M3 metasim/
+ordinary-RTL VCS regressions pass. M2 retains five cuts, all 22 words, real C=29
+divergence and four loader failures. M3 checks 717 transport edges, 23 semantic
+advances, six captures, 242 boundary/five semantic replay samples and eight
+invalid client reads. Exact argv arrays and complete profile locations are
+recorded in `runs/m8-iteration59/summary.json`, `verification-commands.json` and
+`matrix-results.json`. Every CAD/VCS invocation
+retains its inner `commands.json`; `artifact-manifest.json` catalogs full paths
+and hashes. Every VCS shell sources Chipyard env, FireSim env, then `vcs-env.sh`
+LAST, retaining Y-2026.03-SP1 `-full64` and GCC/G++ 13. Reused metasim Make builds
+regenerate cached VCS C Makefiles with `-Mupdate`.
+
+Next: independently prove constants/irrelevance and implement complete hash-bound
+SRAM macro initialization, including memory and any pipeline/port state.
+Combined `--merge-registers --duplicate-registers` rejects explicitly: this
+Formality orientation alone cannot express both transformations in one proof.
+A future multi-proof adapter must preserve complete coverage and shared-source
+consistency; no combined-profile acceptance is claimed. Scalar reordering remains
+native name/index permutation, not packed multibit-cell ordering or placement.
+Artificial functional cells establish no foundry ASIC, FPGA, gate-activity or
+power acceptance. Level 1 remains independent. No plan/PDF/conda edits, staging,
+commits, resets or cleaning.
+
+## Historical iteration 58 evidence
 
 Status: in progress. The new increment proves and replays a nonidentity
 permutation of indexed scalar gate destinations, combined with duplication

@@ -172,6 +172,65 @@ class FormalStateMapTests(unittest.TestCase):
         with self.assertRaisesRegex(FormatError, "conflicting state relationships"):
             self.export(conflicting)
 
+    def merged_artifacts(self):
+        # Schema oracle only; real Genus/Formality/VCS merging is checked by
+        # --merge-registers. saved[1] shares saved[0]'s gate with opposite XOR.
+        netlist = self.artifacts["netlist"]
+        for index in (0, 6):
+            netlist = netlist.replace(f"CKDFF g{index}(.CP(clock),.D(1'b0),.Q(q));\n".encode(), b"")
+        artifacts = self.rebound("netlist", netlist)
+        rows = ["FORMAT\tformality-state-v2", "VERIFY\t1", "ORIENTATION\tgate-reference"]
+        for line in artifacts["evidence"].decode().splitlines()[2:-1]:
+            fields = line.split("\t")
+            if fields[0] == "REGISTER":
+                if fields[2] in ("i:/WORK/DUT/g0/state_reg", "i:/WORK/DUT/g6/state_reg"):
+                    continue
+                fields[1] = "i" if fields[1] == "r" else "r"
+                fields[2] = fields[1] + fields[2][1:]
+            elif fields[0] == "PROVEN":
+                if fields[3].endswith("g6/state_reg"):
+                    continue
+                fields[3] = fields[3].replace("g0/state_reg", "g4/state_reg")
+                fields[2], fields[3] = "r" + fields[3][1:], "i" + fields[2][1:]
+            rows.append("\t".join(fields))
+        artifacts["evidence"] = ("\n".join(rows + ["END"]) + "\n").encode()
+        return artifacts
+
+    def test_reverse_proven_merge_polarity_and_atomic_checkpoint_consistency(self):
+        artifacts = self.merged_artifacts()
+        mapping = self.export(artifacts)
+        self.assertEqual((mapping["map_version"], mapping["semantic_bits"], mapping["gate_storage_bits"]), (2, 6, 5))
+        saved = next(r for r in self.checkpoint["records"] if r["depth"] == 1)
+        # Both bits are initially 1, so opposite proven polarities disagree.
+        with self.assertRaisesRegex(FormatError, "inconsistent merged semantic state"):
+            gate_deposits(mapping, self.manifest, self.adapter, artifacts,
+                          encode_semantic(self.checkpoint, self.manifest), self.build, "tb.gate")
+        saved["values"] = ["1"]
+        cycle, deposits = gate_deposits(mapping, self.manifest, self.adapter, artifacts,
+                                        encode_semantic(self.checkpoint, self.manifest), self.build, "tb.gate")
+        self.assertEqual(cycle, 17)
+        self.assertEqual(len(deposits), 5)
+        self.assertEqual({p: v for p, _, v in deposits}, {
+            "tb.gate.g1.state": "1", "tb.gate.g2.state": "0", "tb.gate.g3.state": "1",
+            "tb.gate.g4.state": "1", "tb.gate.g5.state": "0"})
+
+    def test_reverse_merge_requires_every_alias_and_valid_orientation(self):
+        artifacts = self.merged_artifacts()
+        evidence = artifacts["evidence"]
+        missing = b"\n".join(row for row in evidence.split(b"\n") if not
+                              (row.startswith(b"PROVEN\t") and row.endswith(b"saved_reg[1]")))
+        with self.assertRaisesRegex(FormatError, "unproven or unmappable semantic state"):
+            self.export(dict(artifacts, evidence=missing))
+        for data in (evidence.replace(b"gate-reference", b"rtl-reference"),
+                     evidence.replace(b"REGISTER\ti\ti:", b"REGISTER\ti\tr:", 1),
+                     evidence.replace(b"\ti:/WORK/DUT/saved_reg[1]\n", b"\ti:/WORK/DUT/unknown\n", 1)):
+            with self.subTest(data=data[:90]), self.assertRaises(FormatError):
+                self.export(dict(artifacts, evidence=data))
+        row = next(row for row in evidence.splitlines() if row.startswith(b"PROVEN\tinverted"))
+        conflict = evidence.replace(b"END\n", row.replace(b"inverted", b"noninverted") + b"\nEND\n")
+        with self.assertRaisesRegex(FormatError, "conflicting passing polarity"):
+            self.export(dict(artifacts, evidence=conflict))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -7,25 +7,34 @@ foreach {role path} $input_paths {
 }
 source $env(CHECKPOINT_FORMAL_CONFIG)
 if {$checkpoint_candidate_polarity ni {-inverted -noninverted}} {error "Unsupported candidate match configuration"}
-read_verilog -r $env(CHECKPOINT_RTL)
-set_top r:/WORK/StateMapDUT
-read_verilog -i $env(CHECKPOINT_CELLS)
-read_verilog -i $env(CHECKPOINT_NETLIST)
-set_top i:/WORK/StateMapDUT
+set checkpoint_semantic_side r
+set checkpoint_gate_side i
+if {[info exists checkpoint_gate_reference] && $checkpoint_gate_reference == 1} {
+  # Formality permits one reference to many implementation points, not many
+  # references to one implementation. Reverse the symmetric proof for merging.
+  # Every original RTL alias and all outputs are still verified, unconstrained.
+  set checkpoint_semantic_side i
+  set checkpoint_gate_side r
+}
+read_verilog -$checkpoint_semantic_side $env(CHECKPOINT_RTL)
+set_top $checkpoint_semantic_side:/WORK/StateMapDUT
+read_verilog -$checkpoint_gate_side $env(CHECKPOINT_CELLS)
+read_verilog -$checkpoint_gate_side $env(CHECKPOINT_NETLIST)
+set_top $checkpoint_gate_side:/WORK/StateMapDUT
 # Automatic inversion matching in this release can swap same-width registers.
 # Supply exact-name candidates from the actual inventories, with a build-bound
 # polarity hypothesis. Every candidate relation and all outputs must verify.
 # These are proof partitions, never passing-state evidence or reset assumptions.
-current_design r:/WORK/StateMapDUT
+current_design $checkpoint_semantic_side:/WORK/StateMapDUT
 set reference_registers [dict create]
 foreach_in_collection reg [all_registers -cells] {
   dict set reference_registers [get_attribute $reg full_name] 1
 }
-current_design i:/WORK/StateMapDUT
+current_design $checkpoint_gate_side:/WORK/StateMapDUT
 set checkpoint_matches [dict create]
 foreach_in_collection reg [all_registers -cells] {
   set checkpoint_impl [get_attribute $reg full_name]
-  if {[regexp {^i:/WORK/StateMapDUT/(.+)/state_reg$} $checkpoint_impl -> name]} {
+  if {[regexp {^[ri]:/WORK/StateMapDUT/(.+)/state_reg$} $checkpoint_impl -> name]} {
     # Genus' native duplicate_register suffix proposes a one-to-many match.
     # Every physical copy must pass; the suffix itself certifies nothing.
     regsub {_SYNTHESIS_SEQ_DUP_[0-9]+$} $name {} name
@@ -34,9 +43,21 @@ foreach_in_collection reg [all_registers -cells] {
     if {[info exists checkpoint_candidate_names] && [dict exists $checkpoint_candidate_names $name]} {
       set name [dict get $checkpoint_candidate_names $name]
     }
-    set checkpoint_ref r:/WORK/StateMapDUT/$name
-    if {[dict exists $reference_registers $checkpoint_ref]} {
-      dict lappend checkpoint_matches $checkpoint_ref $checkpoint_impl
+    if {$checkpoint_gate_side eq "r"} {
+      set checkpoint_aliases [list $name]
+      if {[info exists checkpoint_candidate_aliases] && [dict exists $checkpoint_candidate_aliases $name]} {
+        set checkpoint_aliases [dict get $checkpoint_candidate_aliases $name]
+      }
+      foreach checkpoint_alias $checkpoint_aliases {
+        set checkpoint_ref i:/WORK/StateMapDUT/$checkpoint_alias
+        if {![dict exists $reference_registers $checkpoint_ref]} {error "Unknown semantic alias candidate"}
+        dict lappend checkpoint_matches $checkpoint_impl $checkpoint_ref
+      }
+    } else {
+      set checkpoint_ref r:/WORK/StateMapDUT/$name
+      if {[dict exists $reference_registers $checkpoint_ref]} {
+        dict lappend checkpoint_matches $checkpoint_ref $checkpoint_impl
+      }
     }
   }
 }
@@ -55,8 +76,13 @@ redirect aborted.rpt {report_aborted_points}
 redirect unverified.rpt {report_unverified_points}
 redirect blackboxes.rpt {report_black_boxes}
 set out [open evidence.tsv w]
-puts $out "FORMAT\tformality-state-v1"
+if {$checkpoint_gate_side eq "r"} {
+  puts $out "FORMAT\tformality-state-v2"
+} else {
+  puts $out "FORMAT\tformality-state-v1"
+}
 puts $out "VERIFY\t$passed"
+if {$checkpoint_gate_side eq "r"} {puts $out "ORIENTATION\tgate-reference"}
 foreach {role path} $input_paths {
   set digest [lindex [exec sha256sum $path] 0]
   if {$digest ne [dict get $input_hashes $role]} {error "Formal input changed during proof: $role"}
