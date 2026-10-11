@@ -75,14 +75,32 @@ redirect failing.rpt {report_failing_points}
 redirect aborted.rpt {report_aborted_points}
 redirect unverified.rpt {report_unverified_points}
 redirect blackboxes.rpt {report_black_boxes}
+set checkpoint_optimized [dict create]
+foreach status {unread} {
+  redirect optimized-$status.rpt {report_unmatched_points -point_type reg -status $status}
+  foreach point [report_unmatched_points -point_type reg -status $status -list] {
+    # Only omitted original state is supported. Extra physical storage still
+    # requires a passing correspondence and a complete initialization adapter.
+    if {[string match $checkpoint_semantic_side:* $point]} {
+      if {[dict exists $checkpoint_optimized $point]} {error "Conflicting optimization classification"}
+      dict set checkpoint_optimized $point $status
+    }
+  }
+}
 set out [open evidence.tsv w]
-if {$checkpoint_gate_side eq "r"} {
+if {[dict size $checkpoint_optimized]} {
+  puts $out "FORMAT\tformality-state-v3"
+} elseif {$checkpoint_gate_side eq "r"} {
   puts $out "FORMAT\tformality-state-v2"
 } else {
   puts $out "FORMAT\tformality-state-v1"
 }
 puts $out "VERIFY\t$passed"
-if {$checkpoint_gate_side eq "r"} {puts $out "ORIENTATION\tgate-reference"}
+if {$checkpoint_gate_side eq "r"} {
+  puts $out "ORIENTATION\tgate-reference"
+} elseif {[dict size $checkpoint_optimized]} {
+  puts $out "ORIENTATION\trtl-reference"
+}
 foreach {role path} $input_paths {
   set digest [lindex [exec sha256sum $path] 0]
   if {$digest ne [dict get $input_hashes $role]} {error "Formal input changed during proof: $role"}
@@ -98,6 +116,9 @@ foreach polarity {noninverted inverted} {
   foreach pair [report_passing_points -point_type reg -status $polarity -list] {
     puts $out "PROVEN\t$polarity\t[join $pair \t]"
   }
+}
+dict for {point status} $checkpoint_optimized {
+  puts $out "OPTIMIZED\t$status\t$point"
 }
 puts $out "END"
 close $out

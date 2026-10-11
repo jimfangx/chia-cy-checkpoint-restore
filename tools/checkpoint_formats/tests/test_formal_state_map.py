@@ -154,6 +154,76 @@ class FormalStateMapTests(unittest.TestCase):
         with self.assertRaisesRegex(FormatError, "manifest/reference RTL identity"):
             self.export()
 
+    def unread_artifacts(self):
+        # Schema/translation oracle only. The actual unread optimization proof
+        # and independent original-RTL/gate replay run in --optimize-registers.
+        netlist = self.artifacts["netlist"].replace(b"CKDFF g0(.CP(clock),.D(1'b0),.Q(q));\n", b"")
+        artifacts = self.rebound("netlist", netlist)
+        point = b"r:/WORK/DUT/saved_reg[1]"
+        evidence = artifacts["evidence"].replace(b"FORMAT\tformality-state-v1\nVERIFY\t1\n",
+                    b"FORMAT\tformality-state-v3\nVERIFY\t1\nORIENTATION\trtl-reference\n")
+        evidence = b"\n".join(line for line in evidence.split(b"\n") if not
+                             (line.startswith(b"PROVEN\t") and point in line or
+                              line == b"REGISTER\ti\ti:/WORK/DUT/g0/state_reg"))
+        artifacts["evidence"] = evidence.replace(b"END\n", b"OPTIMIZED\tunread\t" + point + b"\nEND\n")
+        artifacts["optimization_report"] = (b"Report : unmatched_points\n -point_type reg\n -status unread\n"
+                b"1 Unmatched points (1 reference, 0 implementation):\n Ref DFF " + point + b"\n1\n")
+        return artifacts
+
+    def test_explicit_unread_state_preserved_and_omitted_from_gate_deposits(self):
+        artifacts = self.unread_artifacts()
+        mapping = self.export(artifacts)
+        self.assertEqual((mapping["map_version"], mapping["semantic_bits"], mapping["gate_storage_bits"]), (3, 6, 6))
+        omitted = [e for e in mapping["entries"] if not e["gates"]]
+        self.assertEqual(len(omitted), 1)
+        self.assertEqual(omitted[0]["optimization"]["kind"], "unread")
+        data = encode_semantic(self.checkpoint, self.manifest)
+        baseline = gate_deposits(mapping, self.manifest, self.adapter, artifacts, data, self.build, "tb.gate")
+        for value in ("1", "3"):
+            changed = copy.deepcopy(self.checkpoint)
+            next(r for r in changed["records"] if r["state_id"] == omitted[0]["state_id"])["values"] = [value]
+            self.assertEqual(gate_deposits(mapping, self.manifest, self.adapter, artifacts,
+                                          encode_semantic(changed, self.manifest), self.build, "tb.gate"), baseline)
+
+    def test_unread_classification_requires_complete_independent_report(self):
+        artifacts = self.unread_artifacts()
+        report = artifacts["optimization_report"]
+        for changed in (b"", report.replace(b"unread", b"const0"), report.replace(b"saved_reg[1]", b"saved_reg[0]"),
+                        report.replace(b"Ref DFF", b"Impl DFF"), report.replace(b"1 reference", b"0 reference"),
+                        report + b" Ref DFF r:/WORK/DUT/saved_reg[1]\n"):
+            with self.subTest(report=changed), self.assertRaises(FormatError):
+                self.export(dict(artifacts, optimization_report=changed))
+        missing_report = dict(artifacts)
+        del missing_report["optimization_report"]
+        with self.assertRaisesRegex(FormatError, "incomplete formal build artifacts"):
+            self.export(missing_report)
+        with self.assertRaisesRegex(FormatError, "incomplete formal build artifacts"):
+            self.export(dict(artifacts, evidence="not binary tool evidence"))
+        evidence = artifacts["evidence"]
+        for changed in (evidence.replace(b"OPTIMIZED\tunread", b"OPTIMIZED\tconst0"),
+                        evidence.replace(b"OPTIMIZED\tunread\tr:/WORK/DUT/saved_reg[1]\n", b""),
+                        evidence.replace(b"END\n", b"OPTIMIZED\tunread\tr:/WORK/DUT/saved_reg[1]\nEND\n"),
+                        evidence.replace(b"OPTIMIZED\tunread\tr:/WORK/DUT/saved_reg[1]",
+                                         b"OPTIMIZED\tunread\ti:/WORK/DUT/g1/state_reg")):
+            with self.subTest(evidence=changed), self.assertRaises(FormatError):
+                self.export(dict(artifacts, evidence=changed))
+
+    def test_unread_cannot_excuse_missing_live_state_or_physical_storage(self):
+        artifacts = self.unread_artifacts()
+        # An unread label cannot replace a passing relationship for live state.
+        evidence = artifacts["evidence"].replace(b"END\n", b"OPTIMIZED\tunread\tr:/WORK/DUT/saved_reg[0]\nEND\n")
+        report = artifacts["optimization_report"].replace(b"1 Unmatched points (1 reference", b"2 Unmatched points (2 reference")
+        report += b" Ref DFF r:/WORK/DUT/saved_reg[0]\n"
+        with self.assertRaisesRegex(FormatError, "both passing and unread"):
+            self.export(dict(artifacts, evidence=evidence, optimization_report=report))
+        row = next(line for line in artifacts["evidence"].splitlines() if line.startswith(b"PROVEN\t"))
+        with self.assertRaisesRegex(FormatError, "unproven or unmappable gate state"):
+            self.export(dict(artifacts, evidence=artifacts["evidence"].replace(row + b"\n", b"")))
+        mapping = self.export(artifacts)
+        with self.assertRaisesRegex(FormatError, "identity mismatch"):
+            validate_state_map(mapping, self.manifest, self.adapter,
+                               dict(artifacts, optimization_report=artifacts["optimization_report"] + b"\n"))
+
     def test_native_duplicate_suffix_requires_each_copy_proven(self):
         name = b"saved_reg[0]_SYNTHESIS_SEQ_DUP_0"
         netlist = self.artifacts["netlist"].replace(b"CKDFF g6(", b"CKDFF \\" + name + b" (")

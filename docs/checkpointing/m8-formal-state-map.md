@@ -1,4 +1,94 @@
-# M8 formal state mapping — iteration 59
+# M8 formal state mapping — iteration 60
+
+Status: in progress. Explicit unused-state optimization now has real Genus,
+Formality and fresh ordinary-RTL/gate VCS evidence. Constant propagation and
+SRAM macro initialization remain. No external dependency blocks this increment.
+
+Read both plans' formal correspondence sections, progress/previous verification,
+and both papers' preserved matching/replay extracts before editing. Plan/PDF
+hashes and initial staging are under `automations/checkpoint_loop/runs/m8-iteration60/`.
+The dirty agent plan remains read-only. Prior numbering and symmetric-orientation
+plan proposals remain solely in these checkpointing documents.
+
+`verify_formal_state_map.py --optimize-registers` uses the new original fixture
+`tools/checkpoint_formats/tests/fixtures/formal/optimized/dut.v`. Its four-bit
+`unused` register updates dynamically from its own state and input data but has
+no fanout to required outputs or mapped state. Genus removes it during ordinary
+synthesis without rewriting the successful netlist. The independent Level-2
+manifest/checkpoint still includes every original StateID and bit.
+
+The proof adapter queries `report_unmatched_points -point_type reg -status unread`
+after equivalence verification and retains both the human report and explicit
+machine classifications. Evidence schema `formality-state-v3` records orientation
+and every original/gate register inventory. The exporter cross-checks the exact
+unread point set, report filter, side, and count before permitting empty gate
+destinations. Version-3 maps bind this report along with all prior synthesis,
+formal, configuration, model and netlist inputs. Version-1/2 proofs remain
+supported. Every physical bit still requires a passing state relationship and
+initialization; extra gate state, contradictory passing/unread classifications,
+missing evidence and unknown memory models reject explicitly.
+
+No constant or reset assumption is introduced. `unused` values may vary because
+Formality explicitly classifies these original DFFs as unread. Changing all four
+checkpoint bits produces identical gate deposits. A fresh ordinary RTL process
+restores that altered checkpoint and checks all 79 recorded output boundaries.
+Connecting the actual original unused register to `held_out` makes fresh formal
+verification fail and removes its unread classification. Isolated missing,
+constant-labelled and live-point classifications reject before map publication.
+
+All eight new optimized profiles (both polarities, with/without duplication and
+indexed scalar reordering) prove 24/28 required state relationships and all 12
+outputs, plus explicit classification of four unread original bits. All 28
+semantic bits remain represented. Fresh gate VCS deposits/readbacks every one of
+24/28 physical bits at zero edges from pre-edge C=17, matches 79 boundaries / 237
+outputs, and ends at C=96. Uninterrupted gate simulation agrees with the same
+ordinary RTL oracle. Every profile covers all four logical RAM words, retains
+five/six atomic loader failures and an actual storage fault at C=29 after 12
+restored edges, and rejects changed D, wrong polarity and (when reordered)
+wrong permutation. Duplicated storage still requires each copy's proof.
+
+All 20 real CAD/VCS profiles and independent audits pass, including all 12 prior
+profiles. All 97 Python tests and complete M2/M3 metasim/ordinary-RTL regressions
+pass. M2 retains five cuts, all 22 words, real C=29 divergence and four loader
+rejections. M3 retains 717 transport edges, 23 semantic advances, six captures,
+242 boundary/five semantic replay samples and eight invalid client reads.
+Supplemental actual shared-flop/storage and changed-D proofs/audits pass in both
+polarities. Three isolated unchanged audit controls pass and all 25 actual
+artifact mutations reject (nine unread-state, eight merging, eight duplication/
+reordering). Both fresh constant-propagation builds pass equivalence and still
+reject with `unproven or unmappable semantic state` for four unclassified bits.
+
+Exact commands, exit codes, profile directories, summary and the full-path/hash
+catalog are `runs/m8-iteration60/verification-commands.json`, `matrix-results.json`,
+`summary.json` and `artifact-manifest.json`. Each invocation retains its inner
+`commands.json`. A supplemental launcher initially omitted root `PYTHONPATH`
+and failed before CAD ran; its log/failed command are preserved. The corrected
+complete checks pass, with recovery recorded in the command catalog and summary.
+No test scope was reduced. Logs stay outside tracked documentation.
+
+Next: obtain independent point/predicate evidence for constant propagation,
+then add a complete hash-bound SRAM model initialization adapter, including
+logical contents and pipeline/port state. Initial constant probes synthesized
+all four constant bits away and passed equivalence, but this Formality adapter's
+constant/unread/not-compared reports did not classify them. Fresh direct/inverted
+builds with the current adapter confirm that map export rejects all four missing
+constant relationships despite equivalence PASS. They remain unsupported;
+global PASS is insufficient. Preserved original constant probe RTL (hash matching
+the raw proof log): `runs/m8-iteration60/constant-probe-original.v`; diagnostics:
+`probe/`, `probe2/`, `constant-rejection-direct/` and `constant-rejection-inverted/`.
+`constant-rejection-summary.json` records both fresh rejected builds. A separate
+invariant proof or a more precise tool export
+is needed, including checkpoint-value validation for any observable constants.
+
+Combined optimization/merging fixtures and combined merging/duplication proof
+remain explicitly unsupported. All validated RAM words remain synthesized
+flip-flops. The test cells have artificial functional/timing data; no foundry
+ASIC, physical FPGA, gate-activity or power validation is claimed. Level 1 stays
+independent. Every VCS shell sources both project environments and `vcs-env.sh`
+LAST, retaining Y-2026.03-SP1, `-full64` and GCC/G++ 13. Plans/PDFs/conda files,
+staging and git history are preserved.
+
+## Historical iteration 59 evidence
 
 Status: in progress. Native register merging now has real synthesis, formal
 proof and gate restore/replay evidence with both polarities and with/without

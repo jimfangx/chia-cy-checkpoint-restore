@@ -63,10 +63,15 @@ netlist, cell models, library, scripts and proof/synthesis evidence by SHA-256.
 Both CAD scripts export hashes of the files they actually read, checked before
 and after the tool run. Changing a netlist cannot reuse a stale successful proof.
 The current capability is one flat DUT with retiming disabled and audited scalar
-cell storage. RAM mapped to individual flip-flops is supported; unknown SRAM
-macros, optimized-away/merged reference bits, and unproven gate state reject
-explicitly. Polarity, bit placement and one-to-many translation have unit tests;
-real tool proof/replay for those synthesis transformations remains M8 work.
+cell storage. RAM mapped to individual flip-flops is supported. Real Genus,
+Formality and VCS profiles cover polarity, indexed scalar destination reordering,
+duplication and merging. Shared storage requires agreement among every semantic
+source after proven polarity transforms. Version-3 maps additionally preserve
+unread original StateIDs with empty gate destinations, only when explicit tool
+classification agrees with the hash-bound human unread-point report. Missing
+classification, contradictory passing/unread state, unproven gate storage,
+constant propagation and unknown SRAM macros reject explicitly. SRAM macro
+initialization and constants remain M8 work.
 
 `gate_deposits` revalidates the map and independent Level-2 checkpoint before
 returning storage deposits. The existing VPI loader resolves escaped synthesized

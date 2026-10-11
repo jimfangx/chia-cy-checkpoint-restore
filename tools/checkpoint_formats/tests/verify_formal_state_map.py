@@ -15,7 +15,7 @@ import tempfile
 
 from tools.checkpoint_formats.codec import FormatError
 from tools.checkpoint_formats.formal_state_map import export_state_map, gate_deposits, sha
-from tools.checkpoint_formats.replay import builds, package_capture, prepare_capture
+from tools.checkpoint_formats.replay import builds, package_capture, prepare_capture, prepare_replay
 from tools.checkpoint_formats.semantic import encode_semantic, state_id
 
 
@@ -26,10 +26,11 @@ FORMALITY = "/ecad/tools/synopsys/fm/P-2019.03-SP2/bin/fm_shell"
 VCS = "/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs"
 
 
-def fixture_manifest(rtl_path=FIXTURE / "dut.v", merge_registers=False):
+def fixture_manifest(rtl_path=FIXTURE / "dut.v", merge_registers=False, optimize_registers=False):
     state = []
     for name, kind, depth in (("held", "register", 1), ("count", "register", 1), ("ram", "memory", 4)) + \
-                            ((("held_copy", "register", 1),) if merge_registers else ()):
+                            ((("held_copy", "register", 1),) if merge_registers else ()) + \
+                            ((("unused", "register", 1),) if optimize_registers else ()):
         path = "Harness.dut." + name
         state.append(dict(state_id=state_id(path, kind), hierarchy=path, kind=kind, width=4, depth=depth,
                           signed=False, clock_domain="Harness.dut.clock",
@@ -94,9 +95,12 @@ def testbench(module, start=0, trace=None, deposits=None, fault_storage=None):
     return "\n".join(lines) + "\n"
 
 
-def verify(out, profile="direct", duplicate_registers=False, reorder_registers=False, merge_registers=False):
+def verify(out, profile="direct", duplicate_registers=False, reorder_registers=False, merge_registers=False,
+           optimize_registers=False):
     if merge_registers and duplicate_registers:
         raise ValueError("combined merging and duplication requires a separate proof adapter")
+    if merge_registers and optimize_registers:
+        raise ValueError("combined merging and optimization requires a separate original RTL fixture")
     run = Path(tempfile.mkdtemp(prefix="invocation-", dir=out)).resolve()
     commands = []
     cells = FIXTURE if profile == "direct" else FIXTURE / "inverted"
@@ -107,6 +111,8 @@ def verify(out, profile="direct", duplicate_registers=False, reorder_registers=F
     counter_name = lambda bit: f"{'gate_count' if reorder_registers else 'count'}_reg[{slots[bit]}]"
     configuration = cells / "reordered/config.tcl" if reorder_registers else cells / "config.tcl"
     rtl_path = FIXTURE / ("merged/dut.v" if merge_registers else "dut.v")
+    if optimize_registers:
+        rtl_path = FIXTURE / "optimized/dut.v"
     if merge_registers:
         configuration = FIXTURE / "merged" / profile / ("reordered/config.tcl" if reorder_registers else "config.tcl")
 
@@ -135,23 +141,26 @@ def verify(out, profile="direct", duplicate_registers=False, reorder_registers=F
     if not require_netlist.exists():
         raise RuntimeError(f"Genus failed to write the netlist; see {synth / 'synth.log'}")
 
-    def prove(netlist, directory, config=None):
+    def prove(netlist, directory, config=None, reference=None):
         directory.mkdir()
         config = config or configuration
-        env = dict(formal_env, CHECKPOINT_RTL=str(rtl_path),
+        reference = reference or rtl_path
+        env = dict(formal_env, CHECKPOINT_RTL=str(reference),
                    CHECKPOINT_FORMAL_CONFIG=str(config),
                    CHECKPOINT_NETLIST=str(netlist), CHECKPOINT_CELLS=str(cells / "cells.v"))
         invoke([FORMALITY, "-f", str(FIXTURE / "prove.tcl")], directory, directory / "formal.log", env)
-        paths = dict(rtl=rtl_path, netlist=netlist, models=cells / "cells.v",
+        paths = dict(rtl=reference, netlist=netlist, models=cells / "cells.v",
                      library=cells / "cells.lib", synthesis_script=FIXTURE / "synth.tcl",
                      synthesis_log=synth / "synth.log", formal_script=FIXTURE / "prove.tcl",
                      formal_log=directory / "formal.log", evidence=directory / "evidence.tsv",
                      formal_configuration=config,
                      blackboxes=directory / "blackboxes.rpt")
+        if paths["evidence"].read_bytes().startswith(b"FORMAT\tformality-state-v3\n"):
+            paths["optimization_report"] = directory / "optimized-unread.rpt"
         return {role: path.read_bytes() for role, path in paths.items()}, paths
 
     artifacts, paths = prove(require_netlist, run / "formal")
-    manifest, boundary = fixture_manifest(rtl_path, merge_registers)
+    manifest, boundary = fixture_manifest(rtl_path, merge_registers, optimize_registers)
     adapter = json.loads((cells / "cell-adapter.json").read_text())
     mapping = export_state_map(manifest, "StateMapDUT", adapter, artifacts)
     inverted = len({g["formal_implementation"] for e in mapping["entries"] for g in e["gates"] if g["xor"]})
@@ -171,7 +180,12 @@ def verify(out, profile="direct", duplicate_registers=False, reorder_registers=F
             counter_name(entry["bit"]) + suffix for suffix in
             (("", "_SYNTHESIS_SEQ_DUP_0") if duplicate_registers else ("",))}
     assert all(g["cell"] == sequential_cell for e in mapping["entries"] for g in e["gates"])
-    assert mapping["semantic_bits"] == (28 if merge_registers else 24)
+    assert mapping["semantic_bits"] == (28 if optimize_registers or merge_registers else 24)
+    unread_entries = [e for e in mapping["entries"] if not e["gates"]]
+    assert len(unread_entries) == (4 if optimize_registers else 0)
+    for entry in unread_entries:
+        assert entry["original_rtl"] == f"unused[{entry['bit']}]"
+        assert entry["optimization"] == dict(kind="unread", proof_status="tool_classified", report="optimization_report")
     shared = {}
     for entry in mapping["entries"]:
         for gate in entry["gates"]:
@@ -207,6 +221,49 @@ def verify(out, profile="direct", duplicate_registers=False, reorder_registers=F
     checkpoint, trace = package_capture(manifest, boundary, "formal-small-dut-v1",
                                         capture / "capture.jsonl", 17, 79, capture)
     checkpoint_data = (capture / "capture.rtlckpt").read_bytes()
+    optimization_rejections = {}
+    if optimize_registers:
+        # Explicit unread classification permits arbitrary values only for
+        # these bits. Retain an independent clean-RTL replay with all four
+        # unread bits changed, and compare against the same recorded oracle.
+        altered = copy.deepcopy(checkpoint)
+        record = next(r for r in altered["records"] if r["state_id"] == state_id("Harness.dut.unused", "register"))
+        record["values"][0] = f"{int(record['values'][0], 16) ^ 15:x}"
+        altered_data = encode_semantic(altered, manifest)
+        (run / "altered-unread.rtlckpt").write_bytes(altered_data)
+        build = builds(manifest, boundary, "formal-small-dut-v1")[0]
+        assert gate_deposits(mapping, manifest, adapter, artifacts, altered_data, build, "tb.dut") == \
+               gate_deposits(mapping, manifest, adapter, artifacts, checkpoint_data, build, "tb.dut")
+        replay = run / "rtl-altered-unread"
+        prepare_replay(manifest, boundary, "formal-small-dut-v1", altered_data,
+                       (capture / "capture.trace").read_bytes(), replay)
+        simv = build_vcs(replay, [rtl_path, replay / "replay.sv"])
+        invoke([str(simv), f"+restore={replay / 'restore.txt'}", f"+waveform={replay / 'replay.vcd'}"],
+               replay, replay / "simulation.log")
+        assert "PASS: fresh clean RTL replay cycles=17..95 samples=79" in (replay / "simulation.log").read_text()
+        # Mutating actual original connectivity must remove the unread
+        # classification and fail output equivalence against the real netlist.
+        observed = run / "observed-unread.v"
+        observed.write_text(rtl_path.read_text().replace("assign held_out = held;", "assign held_out = held ^ unused;"))
+        bad_artifacts, _ = prove(require_netlist, run / "formal-observed-unread", reference=observed)
+        assert b"Verification FAILED" in bad_artifacts["formal_log"]
+        assert not any(line.startswith(b"OPTIMIZED\tunread\t") for line in bad_artifacts["evidence"].splitlines())
+        variants = {
+            "missing-classification": artifacts["evidence"].replace(
+                b"OPTIMIZED\tunread\tr:/WORK/StateMapDUT/unused_reg[0]\n", b""),
+            "unsupported-constant": artifacts["evidence"].replace(b"OPTIMIZED\tunread", b"OPTIMIZED\tconst0", 1),
+            "live-state-classified-unread": artifacts["evidence"].replace(
+                b"OPTIMIZED\tunread\tr:/WORK/StateMapDUT/unused_reg[0]",
+                b"OPTIMIZED\tunread\tr:/WORK/StateMapDUT/count_reg[0]"),
+        }
+        for name, evidence in variants.items():
+            (run / (name + "-evidence.tsv")).write_bytes(evidence)
+            try:
+                export_state_map(manifest, "StateMapDUT", adapter, dict(artifacts, evidence=evidence))
+            except FormatError as error:
+                optimization_rejections[name] = str(error)
+            else:
+                raise AssertionError(f"unsupported optimization evidence accepted: {name}")
     inconsistent_merge_rejection = None
     if merge_registers:
         inconsistent = copy.deepcopy(checkpoint)
@@ -396,6 +453,10 @@ def verify(out, profile="direct", duplicate_registers=False, reorder_registers=F
         assert b"Verification FAILED" in wrong_artifacts["formal_log"]
     summary = dict(status="passed", scope="flat audited scalar-cell DUT; no retiming",
                    profile=profile, formally_proven_inverted_bits=inverted,
+                   optimize_registers=optimize_registers, unread_semantic_bits=len(unread_entries),
+                   altered_unread_rtl_replayed=optimize_registers,
+                   observed_unread_formal_failed=optimize_registers,
+                   optimization_evidence_rejections=optimization_rejections,
                    duplicate_registers=duplicate_registers, duplicated_semantic_bits=len(duplicated),
                    reorder_registers=reorder_registers, counter_bit_to_gate_slot=list(slots),
                    merge_registers=merge_registers, merged_gate_bits=len(merged),
@@ -416,7 +477,8 @@ def verify(out, profile="direct", duplicate_registers=False, reorder_registers=F
                    wrong_polarity_rejected=wrong_polarity_rejection, wrong_polarity_formal_failed=True,
                    remaining=(["real polarity proof case"] if profile == "direct" else []) +
                              ([] if merge_registers else ["real merging proof case"]) +
-                             ["real optimization/irrelevance proof cases"] +
+                             (["real unread-state proof case"] if not optimize_registers else []) +
+                             ["proven constant propagation"] +
                              ([] if reorder_registers else ["real indexed destination permutation proof case"]) +
                              ([] if duplicate_registers else ["real duplication proof case"]) + [
                               "audited SRAM macro initialization interface"])
@@ -432,9 +494,11 @@ def main():
     parser.add_argument("--duplicate-registers", action="store_true")
     parser.add_argument("--reorder-registers", action="store_true")
     parser.add_argument("--merge-registers", action="store_true")
+    parser.add_argument("--optimize-registers", action="store_true")
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
-    verify(args.out, args.profile, args.duplicate_registers, args.reorder_registers, args.merge_registers)
+    verify(args.out, args.profile, args.duplicate_registers, args.reorder_registers, args.merge_registers,
+           args.optimize_registers)
 
 
 if __name__ == "__main__":

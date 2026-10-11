@@ -58,10 +58,12 @@ def audit(run):
     gate_bits = 28 if duplicated else 24
     merged = summary.get("merge_registers", False)
     assert type(merged) is bool and not (merged and duplicated)
-    semantic_bits = 28 if merged else 24
+    optimized = summary.get("optimize_registers", False)
+    assert type(optimized) is bool and not (merged and optimized)
+    semantic_bits = 28 if merged or optimized else 24
     cases = ("missing", "width", "duplicate", "unknown-value", "incomplete") + (("missing-copy",) if duplicated else ())
     assert mapping["semantic_bits"] == semantic_bits and mapping["gate_storage_bits"] == gate_bits
-    assert mapping["map_version"] == (2 if merged else 1)
+    assert mapping["map_version"] == (3 if optimized else 2 if merged else 1)
     for role, path in paths.items():
         assert digest(Path(path).read_bytes()) == mapping["build"][role], role
     encoded = json.dumps(manifest, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
@@ -98,18 +100,48 @@ def audit(run):
     if merged:
         assert evidence[:3] == ["FORMAT\tformality-state-v2", "VERIFY\t1", "ORIENTATION\tgate-reference"]
         proven = [["r" + impl[1:], "i" + ref[1:]] for ref, impl in proven]
+    elif optimized:
+        assert evidence[:3] == ["FORMAT\tformality-state-v3", "VERIFY\t1", "ORIENTATION\trtl-reference"]
     else:
         assert evidence[:2] == ["FORMAT\tformality-state-v1", "VERIFY\t1"]
     assert len(proven) == len(pairs) and {tuple(row) for row in proven} == set(pairs)
     gate_side, rtl_side = ("r", "i") if merged else ("i", "r")
     assert {"i" + line.split("\t")[2][1:] for line in evidence if line.startswith(f"REGISTER\t{gate_side}\t")} == {impl for _, impl in pairs}
-    assert {"r" + line.split("\t")[2][1:] for line in evidence if line.startswith(f"REGISTER\t{rtl_side}\t")} == {ref for ref, _ in pairs}
+    omitted = [e for e in mapping["entries"] if not e["gates"]]
+    assert {"r" + line.split("\t")[2][1:] for line in evidence if line.startswith(f"REGISTER\t{rtl_side}\t")} == \
+           {ref for ref, _ in pairs} | {e["formal_reference"] for e in omitted}
+    assert len(omitted) == summary.get("unread_semantic_bits", 0) == (4 if optimized else 0)
+    if optimized:
+        report = (run / "formal/optimized-unread.rpt").read_text()
+        assert digest(report.encode()) == mapping["build"]["optimization_report"]
+        assert re.search(r"^\s*-status unread\s*$", report, re.M)
+        assert "4 Unmatched points (4 reference, 0 implementation):" in report
+        unread = set(re.findall(r"^\s*Ref\s+DFF\s+(r:\S+)\s*$", report, re.M))
+        assert unread == {f"r:/WORK/StateMapDUT/unused_reg[{bit}]" for bit in range(4)}
+        assert unread == {e["formal_reference"] for e in omitted}
+        assert set(line for line in evidence if line.startswith("OPTIMIZED\t")) == \
+               {f"OPTIMIZED\tunread\t{point}" for point in unread}
+        assert summary["altered_unread_rtl_replayed"] is True
+        assert summary["observed_unread_formal_failed"] is True
+        assert "Verification FAILED" in (run / "formal-observed-unread/formal.log").read_text()
+        observed_evidence = (run / "formal-observed-unread/evidence.tsv").read_text()
+        assert "\nVERIFY\t0\n" in observed_evidence and "OPTIMIZED\tunread\t" not in observed_evidence
+        expected_observed = Path(paths["rtl"]).read_text().replace("assign held_out = held;", "assign held_out = held ^ unused;")
+        assert expected_observed != Path(paths["rtl"]).read_text()
+        assert (run / "observed-unread.v").read_text() == expected_observed
+        for case in ("missing-classification", "unsupported-constant", "live-state-classified-unread"):
+            assert summary["optimization_evidence_rejections"][case]
+            assert (run / (case + "-evidence.tsv")).read_text() != "\n".join(evidence) + "\n"
     assert summary.get("duplicated_semantic_bits", 0) == (4 if duplicated else 0)
     for entry in mapping["entries"]:
         state = next(s for s in manifest["state"] if s["state_id"] == entry["state_id"])
         name = state["hierarchy"].split(".")[-1]
         name += f"[{entry['address']}]" if state["kind"] == "memory" else ""
         assert entry["original_rtl"] == name + f"[{entry['bit']}]"
+        if name == "unused":
+            assert optimized and not entry["gates"]
+            assert entry["optimization"] == dict(kind="unread", proof_status="tool_classified", report="optimization_report")
+            continue
         expected_instances = {entry["formal_reference"].rsplit("/", 1)[1]}
         if reordered and name == "count":
             expected_instances = {counter_name(entry["bit"])}
@@ -128,6 +160,23 @@ def audit(run):
     layout = json.loads((run / "reference/capture-layout.json").read_text())
     captured = [json.loads(line) for line in (run / "reference/capture.jsonl").read_text().splitlines()]
     records = {r["state_id"]: r for r in checkpoint["records"]}
+    if optimized:
+        altered = container(run / "altered-unread.rtlckpt", b"RTLCKP\x00\x01")
+        expected_altered = json.loads(json.dumps(checkpoint))
+        unused_id = next(s["state_id"] for s in manifest["state"] if s["hierarchy"].endswith(".unused"))
+        row = next(r for r in expected_altered["records"] if r["state_id"] == unused_id)
+        row["values"][0] = f"{int(row['values'][0], 16) ^ 15:x}"
+        assert altered == expected_altered and altered != checkpoint
+        assert "PASS: fresh clean RTL replay cycles=17..95 samples=79 outputs_per_cycle=3 restored_words=7" in \
+               (run / "rtl-altered-unread/simulation.log").read_text()
+        altered_records = {r["state_id"]: r for r in altered["records"]}
+        semantic_rows = set()
+        for state in manifest["state"]:
+            name = state["hierarchy"].split(".")[-1]
+            for address, value in enumerate(altered_records[state["state_id"]]["values"]):
+                suffix = f"[{address}]" if state["kind"] == "memory" else ""
+                semantic_rows.add(f"semantic_replay_tb.dut.{name}{suffix} 4 {value}")
+        assert set((run / "rtl-altered-unread/restore.txt").read_text().splitlines()) == semantic_rows
     expected_deposits = set()
     for entry in mapping["entries"]:
         value = int(records[entry["state_id"]]["values"][entry["address"]], 16)
@@ -219,6 +268,7 @@ def audit(run):
     result = dict(status="passed", independently_checked_state_bits=semantic_bits, ram_words=4,
                   independently_checked_gate_bits=gate_bits, duplicated_semantic_bits=4 if duplicated else 0,
                   merged_gate_bits=4 if merged else 0, inconsistent_merged_checkpoint_rejected=merged,
+                  unread_semantic_bits=4 if optimized else 0, observed_unread_formal_failed=optimized,
                   profile=profile, independently_checked_inverted_bits=gate_bits * polarity,
                   reordered_semantic_bits=4 if reordered else 0,
                   wrong_permutation_hypothesis_formal_failed=reordered,
