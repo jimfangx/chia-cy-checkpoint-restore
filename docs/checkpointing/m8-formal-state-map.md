@@ -1,4 +1,75 @@
-# M8 formal state mapping — iteration 61
+# M8 formal state mapping — iteration 62
+
+Status: in progress. Native merging now composes with unread optimization and
+observable constants in real synthesized/proven/replayed DUTs. SRAM macro
+initialization and combined merging/duplication remain unsupported. No required
+CAD tool, library or license is missing. Artificial functional cells; no
+foundry ASIC, physical FPGA or power validation.
+
+`verify_formal_state_map.py --merge-registers --optimize-registers` or
+`--merge-registers --constant-registers` selects the corresponding original
+fixture under `tests/fixtures/formal/merged/`. Direct/inverted polarity and
+`--reorder-registers` are supported. Genus natively merges and eliminates state;
+its successful netlist is never rewritten, and retiming is queried false.
+Formality gate-reference orientation proves both original held aliases and all
+outputs. Unread points belong to original RTL on the implementation side; the
+machine rows, raw report labels/counts and complete original inventory agree.
+Constants retain independent unconstrained Jasper predicates, checkpoint value
+checks and minimum target cycle 1. No exporter schema/proof requirements were
+relaxed; the prior adapter already supports this composition.
+
+All eight new combined profiles pass. Version-3 maps retain 32 semantic bits;
+version-4 maps retain 36. All 24 physical bits deposit/read back at zero edges
+from pre-edge C=17. Four shared flops retain eight semantic sources. Every
+profile matches 79 boundaries / 237 outputs against the clean RTL oracle and
+uninterrupted gate execution through END C=96. All four logical RAM words are
+synthesized flip-flops; they do not establish SRAM macro acceptance.
+
+Unread bits do not excuse merged source conflicts, wrong constant values or
+pre-horizon checkpoints. Every alias and physical storage relation still needs
+proof. Wrong proof side, missing classification, swapped polarity/permutation,
+wrong aliases and changed D fail. Altering all unread bits replays clean RTL
+successfully; connecting them to an output fails real equivalence. False
+constant predicates still yield real arbitrary-initial-state counterexamples.
+Actual shared-flop faults first differ at C=29 after 12 restored edges; fresh
+changed-D proofs fail both semantic aliases in both polarities.
+
+All 36 CAD/VCS profiles and independent audits pass, including all 28 prior
+profiles. All 105 Python tests and full M2/M3 metasim/ordinary RTL regressions
+pass. M2 retains five cuts, all 22 words, actual C=29 divergence and four loader
+rejections. M3 retains 717 transport edges, 23 semantic advances, six captures,
+242 boundary/five semantic replay samples and eight invalid reads. The old
+shared-storage fault checks and both new combined constant fault checks pass.
+
+Seven isolated audit controls pass and all 69 actual mutations reject. The
+new combined unread audit rebinds mutated raw-report/evidence input hashes, so
+semantic checks must reject beyond stale identity. Two fresh equivalence-only
+constant builds still reject missing predicates. All eight selected unsupported
+merging/duplication combinations reject before tool launch/build artifacts.
+
+Exact argv/exit codes, profile paths, summary and full-path/hash catalog:
+`runs/m8-iteration62/verification-commands.json`, `matrix-results.json`,
+`summary.json`, `artifact-manifest.json`. Every invocation retains inner tool
+commands and raw reports/logs/containers. `finalize-evidence.py` revalidates all
+36 maps against their current actual input bytes and checks all regression
+metrics. Initial diagnostic audit clones omitted Tcl/Verilog files; corrected
+complete clones and all final controls pass. Failures/retries remain recorded.
+
+Read both read-only plans' relevant formal/replay sections, progress/previous
+verification and hash-verified root-paper extracts before edits. `pdftotext` is
+unavailable; preserved extraction input hashes match the unchanged root PDFs.
+Protected input hashes and staging remain unchanged. Level 1 stays independent.
+Every VCS shell sources both project environments then `vcs-env.sh` LAST,
+retaining Y-2026.03-SP1, -full64 and GCC/G++ 13; reused metasim builds use -Mupdate.
+Plans/PDFs/conda files and git history are preserved. Existing plan numbering
+and symmetric proof-orientation proposals remain only in checkpointing docs.
+
+Next: complete hash-bound SRAM macro initialization, including contents and
+pipeline/port state, with real synthesis/proof/replay. Combined merging and
+duplication requires a separate proof adapter. Combined merging/optimization
+fixture support is complete for these audited flat DUTs.
+
+## Historical iteration 61 evidence
 
 Status: in progress. Observable constant propagation now has independent Jasper
 predicate proofs, complete StateID preservation and fresh gate initialization/

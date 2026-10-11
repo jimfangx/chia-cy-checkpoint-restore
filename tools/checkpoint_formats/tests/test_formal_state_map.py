@@ -301,6 +301,55 @@ class FormalStateMapTests(unittest.TestCase):
         with self.assertRaisesRegex(FormatError, "conflicting passing polarity"):
             self.export(dict(artifacts, evidence=conflict))
 
+    def merged_unread_artifacts(self):
+        # Schema oracle only; real combined profiles synthesize the new DUTs.
+        artifacts = self.merged_artifacts()
+        netlist = artifacts["netlist"].replace(b"CKDFF g5(.CP(clock),.D(1'b0),.Q(q));\n", b"")
+        old, new = sha(artifacts["netlist"]).encode(), sha(netlist).encode()
+        artifacts = dict(artifacts, netlist=netlist)
+        for role in ("synthesis_log", "evidence"):
+            artifacts[role] = artifacts[role].replace(old, new)
+        evidence = artifacts["evidence"].replace(b"formality-state-v2", b"formality-state-v3")
+        evidence = b"\n".join(row for row in evidence.split(b"\n") if not
+            (row == b"REGISTER\tr\tr:/WORK/DUT/g5/state_reg" or
+             row.startswith(b"PROVEN\t") and b"g5/state_reg" in row))
+        point = b"i:/WORK/DUT/ram_reg[0][0]"
+        artifacts["evidence"] = evidence.replace(b"END\n", b"OPTIMIZED\tunread\t" + point + b"\nEND\n")
+        artifacts["optimization_report"] = (b"Report : unmatched_points\n -point_type reg\n -status unread\n"
+            b"1 Unmatched points (0 reference, 1 implementation):\n Impl DFF " + point + b"\n1\n")
+        return artifacts
+
+    def test_reverse_merge_and_unread_keep_complete_state_and_consistency(self):
+        artifacts = self.merged_unread_artifacts()
+        mapping = self.export(artifacts)
+        self.assertEqual((mapping["map_version"], mapping["semantic_bits"], mapping["gate_storage_bits"]), (3, 6, 4))
+        with self.assertRaisesRegex(FormatError, "inconsistent merged semantic state"):
+            gate_deposits(mapping, self.manifest, self.adapter, artifacts,
+                          encode_semantic(self.checkpoint, self.manifest), self.build, "tb.gate")
+        next(r for r in self.checkpoint["records"] if r["depth"] == 1)["values"] = ["1"]
+        payload = encode_semantic(self.checkpoint, self.manifest)
+        baseline = gate_deposits(mapping, self.manifest, self.adapter, artifacts, payload, self.build, "tb.gate")
+        self.assertEqual(len(baseline[1]), 4)
+        next(r for r in self.checkpoint["records"] if r["depth"] == 2)["values"][0] = "3"
+        self.assertEqual(baseline, gate_deposits(mapping, self.manifest, self.adapter, artifacts,
+            encode_semantic(self.checkpoint, self.manifest), self.build, "tb.gate"))
+
+    def test_reverse_unread_rejects_wrong_side_and_missing_alias(self):
+        artifacts = self.merged_unread_artifacts()
+        report = artifacts["optimization_report"]
+        for changed in (report.replace(b"Impl DFF i:", b"Ref DFF r:"),
+                        report.replace(b"0 reference, 1 implementation", b"1 reference, 0 implementation")):
+            with self.subTest(report=changed), self.assertRaises(FormatError):
+                self.export(dict(artifacts, optimization_report=changed))
+        evidence = artifacts["evidence"]
+        wrong_side = evidence.replace(b"OPTIMIZED\tunread\ti:", b"OPTIMIZED\tunread\tr:")
+        with self.assertRaisesRegex(FormatError, "optimized point outside original state inventory"):
+            self.export(dict(artifacts, evidence=wrong_side))
+        missing = b"\n".join(row for row in evidence.split(b"\n") if not
+            (row.startswith(b"PROVEN\t") and row.endswith(b"saved_reg[1]")))
+        with self.assertRaisesRegex(FormatError, "unproven or unmappable semantic state"):
+            self.export(dict(artifacts, evidence=missing))
+
 
 if __name__ == "__main__":
     unittest.main()

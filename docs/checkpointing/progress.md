@@ -1,6 +1,16 @@
 # Checkpointing progress
 
-Current milestone: M8-formal-state-map, iteration 61. In progress: independent Jasper constant predicates now complement Formality correspondence, with version-4 StateID preservation and checkpoint value/horizon validation. SRAM macro initialization and combined proof profiles remain. Artificial functional cells; no process ASIC, FPGA or power validation.
+Current milestone: M8-formal-state-map, iteration 62. In progress: combined native merging, unread optimization and independent Jasper constant predicates now have complete validated proof/map/replay profiles. SRAM macro initialization and combined merging/duplication remain. Artificial functional cells; no process ASIC, FPGA or power validation.
+
+Iteration 62 (October 10):
+
+- Read both plans' relevant formal/replay sections, progress/previous verification and root-paper extracts after checking their PDF input hashes. Protected-input hashes and initial staging are under `runs/m8-iteration62/`; the dirty agent plan remains read-only.
+- Added original merging/unread and merging/unread/constant fixtures and enabled both polarities and scalar reordering. The verifier and independent auditor retain complete state inventories, gate-reference orientation and side-correct unread reports. No exporter schema or proof requirements were relaxed. Two new composition tests cover unread-value independence, merged consistency, wrong proof/report sides and missing aliases.
+- Eight new combined profiles pass: version-3 maps retain 32 semantic bits; version-4 constant maps retain 36. All 24 physical bits initialize/read back at zero edges from C=17, and 79 boundaries/237 outputs match through END C=96. Four shared flops retain eight original sources; all four logical RAM words remain DFFs. Conflicting merged/constant checkpoints, early constant state, missing alias/classification and wrong proof side reject.
+- All 36 real CAD/VCS profiles and independent audits pass, including all 28 previous profiles. All 105 Python tests and full M2/M3 metasim/ordinary RTL regressions pass. M2 retains five cuts, all 22 words, actual C=29 divergence and four loader failures. M3 retains 717 transport edges, 23 semantic advances, six captures, 242 boundary/five semantic replay samples and eight invalid reads. Previous and new combined shared-flop/changed-D fault checks pass in both polarities.
+- Seven isolated audit controls pass; all 69 actual artifact mutations reject. New combined unread report/evidence hashes are rebound to exercise semantic checks. Two fresh equivalence-only constant builds still reject absent predicates. Eight unsupported merging/duplication combinations reject before tool launch. Exact commands/results/full-path catalog: `runs/m8-iteration62/verification-commands.json`, `summary.json`, `matrix-results.json`, `artifact-manifest.json`.
+- Initial diagnostic audit clones omitted Tcl/Verilog files; complete clones/retries and all final controls pass. Raw failures remain under runs. `pdftotext` is unavailable; preserved extracts were read after checking their root-PDF input hashes. No required CAD tool/library/license is missing, and no test scope was reduced.
+- Next: complete hash-bound SRAM macro initialization, including contents and pipeline/port state, with synthesis/proof/replay; add a separate combined merging/duplication proof adapter. Recovery: [m8-formal-state-map.md](m8-formal-state-map.md). Level 1 remains independent. No plans/PDFs/conda edits, staging, commits, resets, cleaning or FPGA/power claims.
 
 Iteration 61 (October 10):
 

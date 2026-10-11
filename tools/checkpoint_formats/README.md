@@ -99,6 +99,16 @@ with unread state, optionally adding `--profile inverted`, `--duplicate-register
 and `--reorder-registers`. The verifier launches Jasper in batch mode with the
 required unsupported-OS switch on this machine; original RTL remains unchanged.
 
+Combine `--merge-registers` with `--optimize-registers` or `--constant-registers`
+to select original DUT fixtures with merging and eliminated state together.
+Both polarities and `--reorder-registers` are supported. The gate-reference
+proof must establish every original alias; unread evidence belongs to the
+original RTL on the implementation side. Constants still require independent
+Jasper predicates. Unread bits cannot excuse conflicting merged values or
+constant checkpoint values. Combining merging with duplication rejects until
+a proof adapter supports both transformations. These fixtures use flip-flops
+for logical RAM; SRAM macros still require a complete storage adapter.
+
 The verifier produces a fresh invocation directory, raw passing/matching reports,
 source hashes, semantic checkpoint/trace, complete map, zero-edge gate readback,
 healthy uninterrupted/restored comparisons and real formal/simulation failures.

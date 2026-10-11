@@ -104,8 +104,6 @@ def verify(out, profile="direct", duplicate_registers=False, reorder_registers=F
     optimize_registers = optimize_registers or constant_registers
     if merge_registers and duplicate_registers:
         raise ValueError("combined merging and duplication requires a separate proof adapter")
-    if merge_registers and optimize_registers:
-        raise ValueError("combined merging and optimization requires a separate original RTL fixture")
     run = Path(tempfile.mkdtemp(prefix="invocation-", dir=out)).resolve()
     commands = []
     cells = FIXTURE if profile == "direct" else FIXTURE / "inverted"
@@ -121,6 +119,8 @@ def verify(out, profile="direct", duplicate_registers=False, reorder_registers=F
     if constant_registers:
         rtl_path = FIXTURE / "constants/dut.v"
     if merge_registers:
+        if optimize_registers:
+            rtl_path = FIXTURE / "merged" / ("constants" if constant_registers else "optimized") / "dut.v"
         configuration = FIXTURE / "merged" / profile / ("reordered/config.tcl" if reorder_registers else "config.tcl")
 
     def invoke(argv, cwd, log, env=None, timeout=240, expected=0):
@@ -210,7 +210,7 @@ def verify(out, profile="direct", duplicate_registers=False, reorder_registers=F
             counter_name(entry["bit"]) + suffix for suffix in
             (("", "_SYNTHESIS_SEQ_DUP_0") if duplicate_registers else ("",))}
     assert all(g["cell"] == sequential_cell for e in mapping["entries"] for g in e["gates"])
-    assert mapping["semantic_bits"] == (28 if optimize_registers or merge_registers else 24) + (4 if constant_registers else 0)
+    assert mapping["semantic_bits"] == 24 + 4 * (merge_registers + optimize_registers + constant_registers)
     unread_entries = [e for e in mapping["entries"] if e.get("optimization", {}).get("kind") == "unread"]
     assert len(unread_entries) == (4 if optimize_registers else 0)
     for entry in unread_entries:
@@ -278,13 +278,18 @@ def verify(out, profile="direct", duplicate_registers=False, reorder_registers=F
         bad_artifacts, _ = prove(require_netlist, run / "formal-observed-unread", reference=observed)
         assert b"Verification FAILED" in bad_artifacts["formal_log"]
         assert not any(line.startswith(b"OPTIMIZED\tunread\t") for line in bad_artifacts["evidence"].splitlines())
+        semantic_side = "i" if merge_registers else "r"
+        unread_point = f"{semantic_side}:/WORK/StateMapDUT/unused_reg[0]".encode()
         variants = {
             "missing-classification": artifacts["evidence"].replace(
-                b"OPTIMIZED\tunread\tr:/WORK/StateMapDUT/unused_reg[0]\n", b""),
+                b"OPTIMIZED\tunread\t" + unread_point + b"\n", b""),
             "unsupported-constant": artifacts["evidence"].replace(b"OPTIMIZED\tunread", b"OPTIMIZED\tconst0", 1),
             "live-state-classified-unread": artifacts["evidence"].replace(
-                b"OPTIMIZED\tunread\tr:/WORK/StateMapDUT/unused_reg[0]",
-                b"OPTIMIZED\tunread\tr:/WORK/StateMapDUT/count_reg[0]"),
+                b"OPTIMIZED\tunread\t" + unread_point,
+                f"OPTIMIZED\tunread\t{semantic_side}:/WORK/StateMapDUT/count_reg[0]".encode()),
+            "wrong-semantic-side": artifacts["evidence"].replace(
+                b"OPTIMIZED\tunread\t" + unread_point,
+                b"OPTIMIZED\tunread\t" + (b"r" if merge_registers else b"i") + unread_point[1:]),
         }
         for name, evidence in variants.items():
             (run / (name + "-evidence.tsv")).write_bytes(evidence)

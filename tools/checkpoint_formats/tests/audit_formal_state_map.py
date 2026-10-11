@@ -59,10 +59,10 @@ def audit(run):
     merged = summary.get("merge_registers", False)
     assert type(merged) is bool and not (merged and duplicated)
     optimized = summary.get("optimize_registers", False)
-    assert type(optimized) is bool and not (merged and optimized)
+    assert type(optimized) is bool
     constants = summary.get("constant_registers", False)
     assert type(constants) is bool and (not constants or optimized)
-    semantic_bits = (28 if merged or optimized else 24) + (4 if constants else 0)
+    semantic_bits = 24 + 4 * (merged + optimized + constants)
     cases = ("missing", "width", "duplicate", "unknown-value", "incomplete") + (("missing-copy",) if duplicated else ())
     assert mapping["semantic_bits"] == semantic_bits and mapping["gate_storage_bits"] == gate_bits
     assert mapping["map_version"] == (4 if constants else 3 if optimized else 2 if merged else 1)
@@ -100,7 +100,8 @@ def audit(run):
     evidence = Path(paths["evidence"]).read_text().splitlines()
     proven = [line.split("\t")[2:] for line in evidence if line.startswith("PROVEN\t")]
     if merged:
-        assert evidence[:3] == ["FORMAT\tformality-state-v2", "VERIFY\t1", "ORIENTATION\tgate-reference"]
+        assert evidence[:3] == ["FORMAT\tformality-state-v3" if optimized else "FORMAT\tformality-state-v2",
+                                "VERIFY\t1", "ORIENTATION\tgate-reference"]
         proven = [["r" + impl[1:], "i" + ref[1:]] for ref, impl in proven]
     elif optimized:
         assert evidence[:3] == ["FORMAT\tformality-state-v3", "VERIFY\t1", "ORIENTATION\trtl-reference"]
@@ -119,10 +120,12 @@ def audit(run):
         report = (run / "formal/optimized-unread.rpt").read_text()
         assert digest(report.encode()) == mapping["build"]["optimization_report"]
         assert re.search(r"^\s*-status unread\s*$", report, re.M)
-        assert "4 Unmatched points (4 reference, 0 implementation):" in report
-        unread = set(re.findall(r"^\s*Ref\s+DFF\s+(r:\S+)\s*$", report, re.M))
-        assert unread == {f"r:/WORK/StateMapDUT/unused_reg[{bit}]" for bit in range(4)}
-        assert unread == {e["formal_reference"] for e in unread_omitted}
+        counts = "0 reference, 4 implementation" if merged else "4 reference, 0 implementation"
+        assert f"4 Unmatched points ({counts}):" in report
+        label = "Impl" if merged else "Ref"
+        unread = set(re.findall(rf"^\s*{label}\s+DFF\s+({rtl_side}:\S+)\s*$", report, re.M))
+        assert unread == {f"{rtl_side}:/WORK/StateMapDUT/unused_reg[{bit}]" for bit in range(4)}
+        assert {"r" + point[1:] for point in unread} == {e["formal_reference"] for e in unread_omitted}
         assert set(line for line in evidence if line.startswith("OPTIMIZED\t")) == \
                {f"OPTIMIZED\tunread\t{point}" for point in unread}
         assert summary["altered_unread_rtl_replayed"] is True
@@ -133,7 +136,8 @@ def audit(run):
         expected_observed = Path(paths["rtl"]).read_text().replace("assign held_out = held", "assign held_out = held ^ unused")
         assert expected_observed != Path(paths["rtl"]).read_text()
         assert (run / "observed-unread.v").read_text() == expected_observed
-        for case in ("missing-classification", "unsupported-constant", "live-state-classified-unread"):
+        for case in ("missing-classification", "unsupported-constant", "live-state-classified-unread",
+                     "wrong-semantic-side"):
             assert summary["optimization_evidence_rejections"][case]
             assert (run / (case + "-evidence.tsv")).read_text() != "\n".join(evidence) + "\n"
     assert summary.get("duplicated_semantic_bits", 0) == (4 if duplicated else 0)
@@ -177,7 +181,7 @@ def audit(run):
         row = next(r for r in expected_altered["records"] if r["state_id"] == unused_id)
         row["values"][0] = f"{int(row['values'][0], 16) ^ 15:x}"
         assert altered == expected_altered and altered != checkpoint
-        assert f"PASS: fresh clean RTL replay cycles=17..95 samples=79 outputs_per_cycle=3 restored_words={8 if constants else 7}" in \
+        assert f"PASS: fresh clean RTL replay cycles=17..95 samples=79 outputs_per_cycle=3 restored_words={7 + merged + constants}" in \
                (run / "rtl-altered-unread/simulation.log").read_text()
         altered_records = {r["state_id"]: r for r in altered["records"]}
         semantic_rows = set()
