@@ -1,4 +1,84 @@
-# M10 production DUT formal map — iteration 69
+# M10 production DUT formal map — iteration 70
+
+Status: in progress. The original-to-architecture memory adapter now has
+independently audited universal word proofs for the selected real production
+DUT. Complete original/architecture/netlist register and boundary composition,
+optimized-state predicates, the production map, gate restore/replay and actual
+mapped-state corruption remain pending. No gate restoration is authorized.
+Completed M6/M7 and small synthesized-DUT M8/M9 acceptance is preserved.
+
+`tools/checkpoint_formats/production_memory.py` reconstructs all 201 original
+memory fragments and their semantic StateIDs from the exact iteration-69
+architecture inputs. It independently checks the concrete models' interfaces,
+single target-clock writes, asynchronous reads and absence of hidden state.
+The proof binding includes exact original/normalized RTL, architecture, models,
+candidate and semantic-manifest identities, original module bodies, port
+expressions and all instance relationships. It does not bind a proven netlist
+relation or export `asic_state_map.json`.
+
+The restricted array grammar permits a universal one-step word projection:
+an arbitrary valid address holds unless its write enable/address select it,
+then receives the full data word. Jasper proves complete word-relation
+preservation and every asynchronous read port, with unconstrained old words,
+data, enable and addresses, no reset sequence and zero assumptions. Quantifying
+the arbitrary address covers all **102,985,156 contents bits / 13,501,966 words**
+in the 201 production RAMs. This is an audited grammar/projection adapter theorem,
+not a whole-DUT equivalence run over instantiated arrays. The unchanged
+surrounding pipeline/port registers still require composition with the emitted
+netlist. Reads outside the selected valid word have independent unconstrained
+values; depth-one out-of-range reads are never assigned a fabricated value or
+claimed equivalent. Final composition must discharge their address/behavior
+obligations too.
+
+The final installed Jasper 2025.03 run proves all 17 real shapes: **41 assertions
+and 1,522 covers**, including every bit's zero/one value, both memory endpoints,
+enabled writes, disabled writes, other-address holds and each read port.
+All **51 fresh negative proofs** (inverted enable, wrong write address, wrong
+read address for each shape) produce actual counterexamples. The separate
+auditor reconstructs the exact miters/scripts and checks input hashes, exact
+property membership, precondition nonvacuity, raw individual engine messages,
+zero assumptions and absence of blackboxing. Both complete audit passes reject
+all **178 actual artifact mutations** each and pass two unchanged controls;
+positive proof bytes are preserved. Changed/rehashed models, hidden state,
+missing StateIDs/ports/properties, unproven/vacuous properties, altered reset,
+forged gate authorization and missing raw engine/hash evidence reject.
+
+Diagnostic logs remain under
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m10-iteration70/`.
+The final proof is `memory-proofs-final/invocation-ono1zw73/`; use
+`memory-proofs-final/selection.json` and `memory-audit/selection.json` for the
+selected complete proof and repeated independent audit. The preliminary
+default-array experiment automatically blackboxed the largest arrays and
+returned a counterexample. The no-blackboxing/automatic-RAM experiment was
+interrupted during elaboration and is diagnostic only, not a passing check.
+The preliminary projection run is also retained; the final run repeats all
+68 CAD invocations with independent unconstrained unobserved read values.
+An initial unit-test substring check accidentally matched a comment; its
+diagnostic is retained and the complete corrected suite reran.
+
+All 147 Python tests and complete M2/M3 VCS metasim/ordinary-RTL regressions
+pass. The complete production synthesis/model-binding audit passes again.
+The previous two full production RTL replays are independently waveform-audited
+again without changing their immutable evidence; these remain original and
+extracted-memory RTL replays, not gates. Exact commands, scope, full-path/hash
+catalog and protected-input checks are in the iteration-70 `summary.json`,
+`verification-commands.json` and `artifact-manifest.json`.
+
+Next: compose these memory adapter theorems with a complete hierarchical
+original/architecture/netlist state relation and boundary equivalence. Discharge
+all 8,261 semantic register bits, all 7,256 physical register bits and the
+1,005-bit count difference using independently proven relationships/constants/
+irrelevance; do not infer a classification from counts or finite replay.
+Bind the raw and selected netlists, concrete cell/memory models, exact synthesis
+and proof inputs, semantic manifest, and complete physical inventory. Reject
+any unproven semantic or physical state. After independent full-map audit,
+run fresh gate VCS complete zero-edge readback/full metasim trace replay against
+fresh ordinary RTL and actual first-divergence state corruption. FPGA hardware
+and power data are not dependencies for this work; no required external
+dependency is missing. Level-1 images remain independent. Plans/PDFs/conda files,
+staging and history are preserved; no FPGA, process ASIC or power claim.
+
+## Preserved iteration-69 synthesis and replay evidence
 
 Status: in progress. Production synthesis and memory architecture validation are
 the current increment. No production formal state map or gate restore is yet
