@@ -92,9 +92,11 @@ def testbench(module, start=0, trace=None, deposits=None, fault_storage=None):
     return "\n".join(lines) + "\n"
 
 
-def verify(out):
+def verify(out, profile="direct"):
     run = Path(tempfile.mkdtemp(prefix="invocation-", dir=out)).resolve()
     commands = []
+    cells = FIXTURE if profile == "direct" else FIXTURE / "inverted"
+    sequential_cell = "CKDFF" if profile == "direct" else "CKDFFN"
 
     def invoke(argv, cwd, log, env=None, timeout=240, expected=0):
         with open(log, "w") as output:
@@ -111,28 +113,36 @@ def verify(out):
     formal_env = dict(os.environ)
     formal_env.pop("LD_LIBRARY_PATH", None)  # Isolate CAD tools from the Conda ICU/libc libraries.
     formal_env["CHECKPOINT_FIXTURE"] = str(FIXTURE)
+    formal_env["CHECKPOINT_LIBRARY"] = str(cells / "cells.lib")
     invoke([GENUS, "-no_gui", "-batch", "-files", str(FIXTURE / "synth.tcl")], synth,
            synth / "synth.log", formal_env)
     require_netlist = synth / "netlist.v"
     if not require_netlist.exists():
         raise RuntimeError(f"Genus failed to write the netlist; see {synth / 'synth.log'}")
 
-    def prove(netlist, directory):
+    def prove(netlist, directory, configuration=None):
         directory.mkdir()
+        configuration = configuration or cells / "config.tcl"
         env = dict(formal_env, CHECKPOINT_RTL=str(FIXTURE / "dut.v"),
-                   CHECKPOINT_NETLIST=str(netlist), CHECKPOINT_CELLS=str(FIXTURE / "cells.v"))
+                   CHECKPOINT_FORMAL_CONFIG=str(configuration),
+                   CHECKPOINT_NETLIST=str(netlist), CHECKPOINT_CELLS=str(cells / "cells.v"))
         invoke([FORMALITY, "-f", str(FIXTURE / "prove.tcl")], directory, directory / "formal.log", env)
-        paths = dict(rtl=FIXTURE / "dut.v", netlist=netlist, models=FIXTURE / "cells.v",
-                     library=FIXTURE / "cells.lib", synthesis_script=FIXTURE / "synth.tcl",
+        paths = dict(rtl=FIXTURE / "dut.v", netlist=netlist, models=cells / "cells.v",
+                     library=cells / "cells.lib", synthesis_script=FIXTURE / "synth.tcl",
                      synthesis_log=synth / "synth.log", formal_script=FIXTURE / "prove.tcl",
                      formal_log=directory / "formal.log", evidence=directory / "evidence.tsv",
+                     formal_configuration=configuration,
                      blackboxes=directory / "blackboxes.rpt")
         return {role: path.read_bytes() for role, path in paths.items()}, paths
 
     artifacts, paths = prove(require_netlist, run / "formal")
     manifest, boundary = fixture_manifest()
-    adapter = json.loads((FIXTURE / "cell-adapter.json").read_text())
+    adapter = json.loads((cells / "cell-adapter.json").read_text())
     mapping = export_state_map(manifest, "StateMapDUT", adapter, artifacts)
+    inverted = sum(g["xor"] for e in mapping["entries"] for g in e["gates"])
+    assert inverted == (24 if profile == "inverted" else 0), "profile did not exercise expected polarity"
+    assert all(g["cell"] == sequential_cell for e in mapping["entries"] for g in e["gates"])
+    (run / "cell-adapter.json").write_text(json.dumps(adapter, indent=2) + "\n")
     (run / "asic_state_map.json").write_text(json.dumps(mapping, indent=2) + "\n")
     (run / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     (run / "boundary.json").write_text(json.dumps(boundary, indent=2) + "\n")
@@ -167,7 +177,7 @@ def verify(out):
     (gate / "tb.sv").write_text(testbench("StateMapDUT", start=cycle, trace=trace,
                                          deposits=(restore, len(deposits)),
                                          fault_storage="dut.\\count_reg[0] .state"))
-    simv = build_vcs(gate, [require_netlist, FIXTURE / "cells.v", gate / "tb.sv"])
+    simv = build_vcs(gate, [require_netlist, cells / "cells.v", gate / "tb.sv"])
     invoke([str(simv)], gate, gate / "simulation.log")
     text = (gate / "simulation.log").read_text()
     assert f"GATE_ZERO_EDGE_READBACK cycle={cycle} bits=24 edges=0" in text
@@ -214,7 +224,7 @@ def verify(out):
     continuation = testbench("StateMapDUT", start=17, trace=trace).split("initial begin\n#1;\n", 1)[1]
     continuation = continuation.replace("edges != 79", "edges != 96")
     (uninterrupted / "tb.sv").write_text(prefix + continuation)
-    simv = build_vcs(uninterrupted, [require_netlist, FIXTURE / "cells.v", uninterrupted / "tb.sv"])
+    simv = build_vcs(uninterrupted, [require_netlist, cells / "cells.v", uninterrupted / "tb.sv"])
     invoke([str(simv)], uninterrupted, uninterrupted / "simulation.log")
     assert "GATE_END cycle=96 edges=96" in (uninterrupted / "simulation.log").read_text()
     matched = lambda p: [line for line in p.read_text().splitlines() if line.startswith("GATE_MATCH ")]
@@ -223,7 +233,7 @@ def verify(out):
     # A fresh formal run on a real faulty implementation must fail closed;
     # no stale successful map is accepted or published for it.
     bad_netlist = run / "bad-netlist.v"
-    bad = re.sub(r"(\bCKDFF\s+\\count_reg\[3\]\s*\([^;]*?\.D\s*\()[^)]*(\))",
+    bad = re.sub(rf"(\b{sequential_cell}\s+\\count_reg\[3\]\s*\([^;]*?\.D\s*\()[^)]*(\))",
                  r"\g<1>1'b0\2", require_netlist.read_text(), count=1)
     assert bad != require_netlist.read_text()
     bad_netlist.write_text(bad)
@@ -235,14 +245,26 @@ def verify(out):
     else:
         raise AssertionError("faulty gate implementation accepted")
     assert b"Verification FAILED" in bad_artifacts["formal_log"]
+    opposite = FIXTURE / "inverted" if profile == "direct" else FIXTURE
+    wrong_artifacts, _ = prove(require_netlist, run / "formal-wrong-polarity", opposite / "config.tcl")
+    try:
+        export_state_map(manifest, "StateMapDUT", adapter, wrong_artifacts)
+    except FormatError as error:
+        wrong_polarity_rejection = str(error)
+    else:
+        raise AssertionError("unproven polarity hypothesis accepted")
+    assert b"Verification FAILED" in wrong_artifacts["formal_log"]
     summary = dict(status="passed", scope="flat audited scalar-cell DUT; no retiming",
+                   profile=profile, formally_proven_inverted_bits=inverted,
                    semantic_bits=mapping["semantic_bits"], gate_bits=mapping["gate_storage_bits"],
                    ram_words=4, restore_cycle=cycle, restored_edges=79, uninterrupted_edges=96,
                    compared_output_values=79 * 3, zero_edge_readback=True,
                    gate_fault_first_mismatch_cycle=29, gate_fault_edges=12,
                    gate_loader_rejections=invalid_cases,
                    faulty_netlist_rejected=rejection, faulty_netlist_formal_failed=True,
-                   remaining=["real polarity/permutation/duplication/merging/optimization proof cases",
+                   wrong_polarity_rejected=wrong_polarity_rejection, wrong_polarity_formal_failed=True,
+                   remaining=(["real polarity proof case"] if profile == "direct" else []) +
+                             ["real permutation/duplication/merging/optimization proof cases",
                               "audited SRAM macro initialization interface"])
     (run / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     print(json.dumps(dict(run=str(run), **summary), indent=2))
@@ -252,9 +274,10 @@ def verify(out):
 def main():
     parser = argparse.ArgumentParser(__doc__)
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--profile", choices=("direct", "inverted"), default="direct")
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
-    verify(args.out)
+    verify(args.out, args.profile)
 
 
 if __name__ == "__main__":

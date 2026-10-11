@@ -1,4 +1,82 @@
-# M8 formal state mapping — iteration 55
+# M8 formal state mapping — iteration 56
+
+Status: in progress. Real Genus/Formality/VCS evidence now validates both direct
+and inverted state correspondence for the complete 24-bit register/RAM DUT.
+Real permutation, duplication, merging, optimization/irrelevance and SRAM macro
+initialization still need proof and replay evidence. No external dependency
+blocks this increment; test-cell timing/area remain artificial.
+
+Read the read-only agent Phase 10/M9 and human formal-matching/retiming sections,
+progress, previous verification and both papers' preserved matching/replay
+extracts before edits. Plan/PDF hashes and initial staging are under
+`automations/checkpoint_loop/runs/m8-iteration56/`. Preserve the dirty agent plan.
+The loop M8 versus agent M9/Phase 10 numbering correction remains only here.
+
+Changes:
+
+- Added an audited CKDFFN Liberty library, zero-delay model and storage adapter
+  under `tools/checkpoint_formats/tests/fixtures/formal/inverted/`. Genus actually
+  synthesizes the original DUT into this cell library with retiming disabled;
+  the netlist is never rewritten to manufacture inversion. QN storage captures
+  the complement of D, with no hidden state; all 24 physical stored bits differ
+  in polarity from semantic RTL, including all four RAM words.
+- Added `--profile direct|inverted` to the complete existing CAD/VCS verifier.
+  Both profiles retain all restore, uninterrupted-continuation, real storage
+  fault, changed-netlist and five atomic loader rejection checks. Added a fresh
+  wrong-polarity formal proof that must fail and reject map export.
+- Formal configuration is a mandatory hash-bound build artifact, hashed before
+  and after the proof. Exact inventory-derived name matches and configured
+  polarity are *candidates*. Formality must prove every state relation and all
+  outputs; only passing-point reports produce the StateID map. No reset/input
+  assumptions or black boxes. This release defaults inversion matching off;
+  automatic inversion discovery swaps some candidate registers and misses a RAM
+  word even with fixed names. Those failed attempts and one reserved-Tcl-variable
+  error are retained as diagnostics, never passing evidence.
+- The restricted flat-RTL adapter now requires the semantic manifest's reference
+  hash to equal the actual proven original RTL bytes. A new test rejects an
+  unrelated reference hash. This capability uses an explicit fixture manifest;
+  future Golden Gate/FIRRTL reference identity needs a separately audited adapter.
+- Independent audit cross-checks both human passing-polarity reports, the complete
+  netlist inventory, adapter/model and original-RTL identities, every translated
+  checkpoint bit, trace boundary and actual simulator log. Three isolated actual
+  artifact mutations (map XOR, passing report and deposit value) are rejected.
+
+Final real-tool evidence (relative to Chipyard):
+
+- Inverted: `automations/checkpoint_loop/runs/m8-iteration56/inverted-complete/invocation-a7eywu05/`
+- Direct: `automations/checkpoint_loop/runs/m8-iteration56/direct-complete/invocation-d8jx2kwp/`
+
+Each Formality run proves 36 compare points: 24 state and 12 output bits.
+The inverted map has 24 XOR=1 destinations; direct has 24 XOR=0. Each ordinary
+RTL VCS capture at pre-edge C=17 creates independent Level-2 checkpoint/trace
+inputs. Fresh gate VCS deposits and verifies every stored bit with zero edges,
+then matches all 79 boundaries / 237 output values through C=95, END C=96.
+Uninterrupted gate simulation matches the same original RTL oracle after 96
+edges. Reset at C=37, enables and complete RAM reads/writes remain included.
+Five malformed loads each preserve all 24 bits before edges and still match
+continuation. The real storage fault first differs at C=29 after 12 restored
+edges; the changed D-input netlist and wrong polarity both fail fresh formal
+proof and export. Both independent audits pass.
+
+All 91 Python tests and complete M2/M3 VCS regressions pass. M2 retains five cuts,
+all 22 state words, real C=29 divergence and four loader rejections. M3 checks
+717 transport edges, 23 semantic advances, six complete captures, 242 boundary
+and five semantic replay samples, and eight invalid reads. Evidence and commands
+are cataloged under `runs/m8-iteration56/`. Top-level reproducible argv,
+summary and full-path artifact catalog are `verification-commands.json`,
+`summary.json` and `artifact-manifest.json`; per-invocation CAD/simulator commands
+remain in `commands.json`. Every VCS shell sources Chipyard env, FireSim env,
+then `vcs-env.sh` LAST, using Y-2026.03-SP1 and system GCC/G++ 13. The reused M2
+Make build uses `VCS_FLAGS=-Mupdate`.
+
+Next: obtain real synthesis/proof evidence for nontrivial bit permutation and
+one-to-many state, then proven merging/constants/irrelevance, plus an audited
+SRAM macro model with complete array/pipeline state and zero-edge initialization.
+Do not count unit-only transformations or global equivalence PASS as acceptance.
+Level 1 remains independent. No plan/PDF/conda edits, staging, commits, resets,
+cleaning, FPGA, process ASIC or power validation are claimed.
+
+## Historical iteration 55 evidence
 
 Status: in progress. A real Genus/Formality/VCS flow proves and replays complete
 direct correspondence for a small original RTL DUT. The remaining acceptance

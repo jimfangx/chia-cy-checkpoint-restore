@@ -15,7 +15,7 @@ from .semantic import decode_semantic, manifest_hash, validate_manifest
 
 
 ROLES = {"rtl", "netlist", "models", "library", "synthesis_script", "synthesis_log",
-         "formal_script", "formal_log", "evidence", "blackboxes"}
+         "formal_script", "formal_configuration", "formal_log", "evidence", "blackboxes"}
 NAME = r"(?:[A-Za-z_][A-Za-z0-9_$]*|\\[^\s,()]+)"
 
 
@@ -131,6 +131,8 @@ def export_state_map(manifest, top, adapter, artifacts):
     require(b"No 'black boxes' matched current 'reference and implementation designs'" in
             artifacts["blackboxes"], "blackboxed state or logic unsupported")
     rtl = artifacts["rtl"].decode()
+    require(manifest["reference_sha256"] == sha(artifacts["rtl"]),
+            "semantic manifest/reference RTL identity mismatch")
     mods = modules(rtl)
     require(set(mods) == {top}, "only one flat original RTL module supported")
     expected_rtl = {e["hierarchy"][len(manifest["dut_root"]) + 1:]:
@@ -152,7 +154,8 @@ def export_state_map(manifest, top, adapter, artifacts):
             refs[ref] = dict(state_id=word["state_id"], address=word["address"], bit=bit,
                              original_rtl=path + (f"[{bit}]" if width > 1 else ""))
     registers, proven, proof_inputs = parse_evidence(artifacts["evidence"])
-    require(proof_inputs == {role: sha(artifacts[role]) for role in ("rtl", "models", "netlist", "formal_script")},
+    require(proof_inputs == {role: sha(artifacts[role]) for role in
+                            ("rtl", "models", "netlist", "formal_script", "formal_configuration")},
             "stale formal input identity")
     require(registers["r"] == set(refs), "unmappable or optimized reference state")
     require(registers["i"] == set(gates), "formal/netlist gate inventory mismatch")

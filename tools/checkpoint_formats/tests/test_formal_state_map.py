@@ -22,6 +22,7 @@ def fixture():
                     circuit="Harness", dut_root="Harness.dut", clock_domain="Harness.dut.clock",
                     reference_sha256="a" * 64, state=sorted(state, key=lambda e: e["state_id"]))
     rtl = b"module DUT(input clock); reg [1:0] saved; reg [1:0] ram [0:1]; endmodule\n"
+    manifest["reference_sha256"] = sha(rtl)
     # Unit evidence exercises schema/translation invariants; real tool evidence
     # and simulation are required separately by verify_formal_state_map.py.
     refs = [f"r:/WORK/DUT/{p}" for p in ("saved_reg[0]", "saved_reg[1]", "ram_reg[0][0]",
@@ -40,12 +41,14 @@ def fixture():
     artifacts = dict(rtl=rtl, netlist=netlist.encode(), models=models, library=(base / "cells.lib").read_bytes(),
                      synthesis_script=b"set_db design .retime false", synthesis_log=b"CHECKPOINT_RETIMING=false\n",
                      formal_script=b"verify; report_passing_points -list", formal_log=b"Verification SUCCEEDED\n",
+                     formal_configuration=b"set checkpoint_candidate_polarity -noninverted",
                      evidence=("\n".join(rows) + "\n").encode(),
                      blackboxes=b"No 'black boxes' matched current 'reference and implementation designs'")
     artifacts["synthesis_log"] += ("\n".join(
         f"CHECKPOINT_SYNTH_INPUT\t{role}\t{sha(artifacts[role])}" for role in ("rtl", "library", "synthesis_script"))
         + f"\nCHECKPOINT_SYNTH_OUTPUT\t{sha(artifacts['netlist'])}\n").encode()
-    identities = "\n".join(f"INPUT\t{role}\t{sha(artifacts[role])}" for role in ("rtl", "models", "netlist", "formal_script"))
+    identities = "\n".join(f"INPUT\t{role}\t{sha(artifacts[role])}" for role in
+                           ("rtl", "models", "netlist", "formal_script", "formal_configuration"))
     artifacts["evidence"] = artifacts["evidence"].replace(b"VERIFY\t1\n", ("VERIFY\t1\n" + identities + "\n").encode())
     build = dict(target_configuration="unit-test", rtl_build_hash="a" * 64,
                  state_manifest_hash=manifest_hash(manifest))
@@ -142,9 +145,14 @@ class FormalStateMapTests(unittest.TestCase):
                 gate_deposits(mapping, self.manifest, self.adapter, self.artifacts, payload, build, "tb.gate")
 
     def test_stale_tool_evidence_cannot_certify_new_sources(self):
-        for role in ("rtl", "models", "netlist", "library", "formal_script", "synthesis_script"):
+        for role in ("rtl", "models", "netlist", "library", "formal_script", "synthesis_script", "formal_configuration"):
             with self.subTest(role=role), self.assertRaises(FormatError):
                 self.export(dict(self.artifacts, **{role: self.artifacts[role] + b"\n"}))
+
+    def test_manifest_must_bind_the_formally_proven_reference(self):
+        self.manifest["reference_sha256"] = "b" * 64
+        with self.assertRaisesRegex(FormatError, "manifest/reference RTL identity"):
+            self.export()
 
 
 if __name__ == "__main__":

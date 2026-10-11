@@ -1,6 +1,14 @@
 # Checkpointing progress
 
-Current milestone: M8-formal-state-map, iteration 55. In progress: real Genus/Formality proof and complete build-bound direct mapping of a 24-bit register/RAM DUT, with zero-edge fresh gate VCS initialization and matching continuation. Real synthesis polarity/permutation/duplication/merging/optimization cases and SRAM macro initialization remain. The standard-cell test library is artificial; no process ASIC, FPGA or power validation is claimed.
+Current milestone: M8-formal-state-map, iteration 56. In progress: complete real Genus/Formality/VCS direct and inverted-polarity mapping of the 24-bit register/RAM DUT, with zero-edge gate initialization and matching continuation. Real permutation/duplication/merging/optimization cases and SRAM macro initialization remain. Artificial test cells; no process ASIC, FPGA or power validation.
+
+Iteration 56 (October 10):
+
+- Read the plans' formal correspondence sections, previous progress/verification and both papers' preserved matching/replay extracts before editing. Saved plan/PDF hashes and staging baseline under `runs/m8-iteration56/`; plans remain read-only, including the dirty agent plan. Numbering correction stays only in checkpointing docs.
+- Added a real inverted-output Genus synthesis profile with audited CKDFFN model/Liberty/adapter. Formal configuration is hash-bound before/after proof; name/polarity candidates must verify. Incomplete automatic inversion attempts and the reserved-Tcl-variable diagnostic are retained. Export also rejects a manifest whose original RTL identity differs from the proven reference.
+- Formality proves all 24 state + 12 output points in both direct and inverted profiles; the latter has 24 proven XOR=1 storage mappings, including all four RAM words. Each fresh gate VCS verifies all 24 deposited bits at zero edges from C=17, matches 79 boundaries / 237 outputs, and reaches END C=96. Uninterrupted gate matches ordinary RTL; five loader faults preserve every bit and continuation. Actual storage fault first differs at C=29 after 12 edges; changed netlist and wrong polarity fail fresh proof/export.
+- Both independent audits verify raw human polarity reports, complete identities/state/deposits/containers/traces/logs. Three isolated actual audit mutations reject. All 91 Python tests and complete M2/M3 VCS metasim/ordinary-RTL regressions pass. Exact commands and results are recorded in `runs/m8-iteration56/verification-commands.json`, `summary.json` and the full-path `artifact-manifest.json`. Final invocations: `inverted-complete/invocation-a7eywu05/` and `direct-complete/invocation-d8jx2kwp/`. Recovery/remaining scope: [m8-formal-state-map.md](m8-formal-state-map.md).
+- No remaining external dependency blocks this increment. Real reordering, duplication, merging, optimization/irrelevance and SRAM macro initialization remain unvalidated. No plan/PDF/conda edits, staging, commits, resets, cleaning or FPGA/power claims.
 
 Iteration 55 (October 10):
 

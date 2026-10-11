@@ -1,12 +1,13 @@
 # Run in an isolated directory with CHECKPOINT_FIXTURE pointing to this directory.
 # The test library has artificial timing/area; this is functional validation only.
 set fixture $env(CHECKPOINT_FIXTURE)
-set input_paths [list rtl [file join $fixture dut.v] library [file join $fixture cells.lib] synthesis_script [info script]]
+set library $env(CHECKPOINT_LIBRARY)
+set input_paths [list rtl [file join $fixture dut.v] library $library synthesis_script [info script]]
 set input_hashes [dict create]
 foreach {role path} $input_paths {
   dict set input_hashes $role [lindex [exec sha256sum $path] 0]
 }
-set_db library [file join $fixture cells.lib]
+set_db library $library
 read_hdl [file join $fixture dut.v]
 elaborate StateMapDUT
 set_db [get_db designs StateMapDUT] .retime false

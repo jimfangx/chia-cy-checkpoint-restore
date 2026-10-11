@@ -25,10 +25,19 @@ def audit(run):
     mapping = json.loads((run / "asic_state_map.json").read_text())
     manifest = json.loads((run / "manifest.json").read_text())
     paths = json.loads((run / "inputs.json").read_text())
+    summary = json.loads((run / "summary.json").read_text())
+    adapter = json.loads((run / "cell-adapter.json").read_text())
+    profile = summary["profile"]
+    assert profile in ("direct", "inverted")
+    polarity = int(profile == "inverted")
+    cell = "CKDFFN" if polarity else "CKDFF"
     for role, path in paths.items():
         assert digest(Path(path).read_bytes()) == mapping["build"][role], role
     encoded = json.dumps(manifest, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
     assert digest(encoded) == mapping["state_manifest_hash"]
+    assert manifest["reference_sha256"] == digest(Path(paths["rtl"]).read_bytes())
+    assert digest(json.dumps(adapter, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()) == mapping["cell_adapter_hash"]
+    assert adapter["models_sha256"] == digest(Path(paths["models"]).read_bytes())
     assert mapping["retiming"] is False
     assert "\nCHECKPOINT_RETIMING=false\n" in Path(paths["synthesis_log"]).read_text()
     expected = {(state["state_id"], address, bit) for state in manifest["state"]
@@ -38,12 +47,17 @@ def audit(run):
     assert len(mapping["entries"]) == 24
     # Cross-check the machine export against Formality's human passing report.
     passing = (run / "formal/passing.rpt").read_text()
-    pairs = re.findall(r"Ref\s+DFF\s+(r:\S+)\s+Impl\s+DFF\s+(i:\S+)", passing)
+    pairs = re.findall(r"Ref\s+DFF\s+(r:\S+)\s+Impl\s+DFF\s+(?:\(-\)\s+)?(i:\S+)", passing)
     assert len(pairs) == len(set(pairs)) == 24
     map_pairs = [(e["formal_reference"], gate["formal_implementation"])
                  for e in mapping["entries"] for gate in e["gates"]]
     assert set(pairs) == set(map_pairs)
-    cell_instances = re.findall(r"\bCKDFF\s+\\([^\s]+)\s+\(", Path(paths["netlist"]).read_text())
+    for status, xor in (("noninverted", 0), ("inverted", 1)):
+        report = (run / "formal" / f"passing-{status}.rpt").read_text()
+        status_pairs = re.findall(r"Ref\s+DFF\s+(r:\S+)\s+Impl\s+DFF\s+(?:\(-\)\s+)?(i:\S+)", report)
+        assert set(status_pairs) == {(e["formal_reference"], g["formal_implementation"])
+                                    for e in mapping["entries"] for g in e["gates"] if g["xor"] == xor}
+    cell_instances = re.findall(rf"\b{cell}\s+\\([^\s]+)\s+\(", Path(paths["netlist"]).read_text())
     assert len(cell_instances) == len(set(cell_instances)) == 24
     mapped_instances = [gate["instance"] for e in mapping["entries"] for gate in e["gates"]]
     assert set(mapped_instances) == set(cell_instances) and len(mapped_instances) == 24
@@ -53,7 +67,8 @@ def audit(run):
         name += f"[{entry['address']}]" if state["kind"] == "memory" else ""
         assert entry["original_rtl"] == name + f"[{entry['bit']}]"
         for gate in entry["gates"]:
-            assert gate["xor"] == 0 and gate["storage"] == "state" and gate["proof_status"] == "passing"
+            assert gate["xor"] == polarity and gate["storage"] == "state" and gate["proof_status"] == "passing"
+            assert gate["cell"] == cell
     checkpoint = container(run / "reference/capture.rtlckpt", b"RTLCKP\x00\x01")
     trace = container(run / "reference/capture.trace", b"TRACE\x00\x00\x01")
     assert checkpoint["target_cycle"] == trace["target_cycle"] == 17
@@ -61,6 +76,12 @@ def audit(run):
     layout = json.loads((run / "reference/capture-layout.json").read_text())
     captured = [json.loads(line) for line in (run / "reference/capture.jsonl").read_text().splitlines()]
     records = {r["state_id"]: r for r in checkpoint["records"]}
+    expected_deposits = []
+    for entry in mapping["entries"]:
+        value = int(records[entry["state_id"]]["values"][entry["address"]], 16)
+        for gate in entry["gates"]:
+            expected_deposits.append(f"tb.dut.{gate['instance']}.{gate['storage']} 1 {((value >> entry['bit']) & 1) ^ polarity:x}")
+    assert (run / "restore.txt").read_text().splitlines() == sorted(expected_deposits)
     for field, value in zip(layout, captured[17]["values"]):
         if "state_id" in field:
             assert records[field["state_id"]]["values"][field["address"]] == value
@@ -88,10 +109,15 @@ def audit(run):
     assert "GATE_MISMATCH cycle=29 signal=count_out" in fault
     assert "Verification FAILED" in (run / "formal-fault/formal.log").read_text()
     assert "\nVERIFY\t0\n" in (run / "formal-fault/evidence.tsv").read_text()
+    assert "Verification FAILED" in (run / "formal-wrong-polarity/formal.log").read_text()
+    assert "\nVERIFY\t0\n" in (run / "formal-wrong-polarity/evidence.tsv").read_text()
+    assert summary["wrong_polarity_formal_failed"] is True
     result = dict(status="passed", independently_checked_state_bits=24, ram_words=4,
+                  profile=profile, independently_checked_inverted_bits=24 * polarity,
                   restored_pre_edge_boundaries=79, compared_outputs=237, loader_atomic_rejections=5,
                   first_actual_gate_fault_cycle=29, actual_faulty_netlist_formal_failed=True,
-                  scope="direct correspondence; transformations/macros remain unvalidated")
+                  wrong_polarity_hypothesis_formal_failed=True,
+                  scope="synthesized " + profile + " correspondence; other transformations/macros remain unvalidated")
     (run / "independent-audit.json").write_text(json.dumps(result, indent=2) + "\n")
     print(json.dumps(result, indent=2))
 
