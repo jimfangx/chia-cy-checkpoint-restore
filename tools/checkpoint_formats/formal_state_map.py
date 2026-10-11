@@ -15,6 +15,8 @@ Complete relational induction supports simultaneous merging and duplication;
 all original/gate bits, output equivalence and nonvacuity covers are mandatory.
 It can also prove unread original state irrelevant: the complete relation never
 constrains omitted bits, and both values must be covered under that relation.
+Relational constants additionally constrain the initial relation, but require
+independent arbitrary-state predicates with a loader-enforced horizon and value.
 """
 
 import hashlib
@@ -162,7 +164,7 @@ def export_state_map(manifest, top, adapter, artifacts):
     has_optimization = artifacts.get("evidence", b"").startswith(b"FORMAT\tformality-state-v3\n")
     has_constants = bool(set(artifacts) & CONSTANT_ROLES)
     has_relations = "relation_spec" in artifacts
-    require(set(artifacts) == (RELATION_ROLES if has_relations else
+    require(set(artifacts) == (RELATION_ROLES | (CONSTANT_ROLES if has_constants else set()) if has_relations else
             ROLES | ({"optimization_report"} if has_optimization else set()) |
             (CONSTANT_ROLES if has_constants else set())),
             "incomplete formal build artifacts")
@@ -202,8 +204,9 @@ def export_state_map(manifest, top, adapter, artifacts):
             require(ref not in refs, "ambiguous reference register convention")
             refs[ref] = dict(state_id=word["state_id"], address=word["address"], bit=bit,
                              original_rtl=path + (f"[{bit}]" if width > 1 else ""))
+    constants = validate_constants(artifacts, manifest, top) if has_constants else {}
     if has_relations:
-        proven, optimized = validate_relations(artifacts, refs, gates)
+        proven, optimized = validate_relations(artifacts, refs, gates, constants)
         reversed_proof = False
     else:
         registers, proven, proof_inputs, reversed_proof, optimized = parse_evidence(artifacts["evidence"])
@@ -212,7 +215,6 @@ def export_state_map(manifest, top, adapter, artifacts):
                 "stale formal input identity")
         require(registers["r"] == set(refs), "unmappable or optimized reference state")
         require(registers["i"] == set(gates), "formal/netlist gate inventory mismatch")
-    constants = validate_constants(artifacts, manifest, top) if has_constants else {}
     require(set(constants) <= set(refs) and not (set(constants) & set(optimized)),
             "constant state outside inventory or classified unread")
     if optimized and not has_relations:
@@ -259,7 +261,9 @@ def export_state_map(manifest, top, adapter, artifacts):
         entry["gates"].sort(key=lambda g: g["formal_implementation"])
     proof = (dict(tool="Jasper", export="complete state relation induction and output equivalence",
                   assumptions=[], reset="unconstrained synchronous input",
-                  initial_state="complete map relation; loader enforces merged source consistency")
+                  initial_state="complete map relation; loader enforces merged source consistency",
+                  **(dict(constant_tool="Jasper", constant_horizon="one unconstrained target edge")
+                     if constants else {}))
              if has_relations else
              dict(tool="Formality", export="passing sequential compare points" +
                   ("; gate-reference orientation" if reversed_proof else "") +
@@ -267,7 +271,7 @@ def export_state_map(manifest, top, adapter, artifacts):
                   assumptions=[], reset="unconstrained synchronous input",
                   **(dict(constant_tool="Jasper", constant_horizon="one unconstrained target edge")
                      if constants else {})))
-    return dict(map_version=(6 if optimized else 5) if has_relations else 4 if constants else 3 if optimized else 2 if reversed_proof else 1, map_type="asic_state_map", top=top,
+    return dict(map_version=(7 if constants else 6 if optimized else 5) if has_relations else 4 if constants else 3 if optimized else 2 if reversed_proof else 1, map_type="asic_state_map", top=top,
                 state_manifest_hash=manifest_hash(manifest), retiming=False,
                 build={role: sha(data) for role, data in sorted(artifacts.items())},
                 cell_adapter_hash=sha(canonical(adapter)), entries=ordered,

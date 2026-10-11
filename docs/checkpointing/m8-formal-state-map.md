@@ -1,4 +1,77 @@
-# M8 formal state mapping — iteration 65
+# M8 formal state mapping — iteration 66
+
+Status: in progress. Implemented relational constant composition with native
+merging, duplication, either polarity, indexed destination reordering and
+unread state. Complete audited SRAM macro contents/pipeline/port initialization
+remains unsupported. No required CAD dependency is missing. Artificial functional
+cells; no process ASIC, physical FPGA or power validation.
+
+Use `verify_formal_state_map.py --merge-registers --duplicate-registers
+--constant-registers`, optionally adding `--profile inverted` and
+`--reorder-registers`. The existing original constant fixture, Genus synthesis
+and audited scalar-cell models are reused. Retiming remains queried false.
+Relational candidate schema version 3 and build-bound map version 7 preserve
+all semantic StateIDs, including eliminated unread and constant bits.
+
+The complete initial relation includes constant values. Every candidate state
+relationship and constant must preserve that relation across an edge, and every
+output must agree under it. Separate `constant_state.py` proofs establish each
+exact constant bit/value after one unconstrained target edge, with no input/reset
+assumptions, covered antecedents, real raw engine results and complete source
+hashes. The exporter requires exact agreement between relation candidates and
+these independent predicates. Translation revalidates every artifact and rejects
+C=0 or conflicting constant bits before returning any deposits. Unread original
+state stays outside the relation, with zero/one covers and arbitrary evolution.
+
+The independent auditor reconstructs the complete relation and constant binding,
+checks exact scripts, hashes, assertion/cover statuses and individual engine
+messages, including actual false predicates. A conditional constant update is a
+control where complete relation induction/output equivalence PASS but independent
+arbitrary-state predicates fail; relation PASS alone rejects missing predicates.
+The verifier also checks all four conflicting constant bits, the horizon and
+fresh ordinary RTL replay diverging before any restored edge at C=17.
+
+All four new real Genus/Jasper/VCS profiles and independent audits pass in both
+polarities, with/without reordering: 36 semantic bits, 28 physical bits initialized
+and read back at zero edges, 32 relationships, 39 assertions/104 covers plus four
+independent constant assertions/five covers. All 79 boundaries/237 outputs match
+C=17..95, ending C=96. Every unread checkpoint bit is flipped with identical gate
+deposits and matching fresh RTL replay. Nine fresh counterexample proofs per
+profile, the conditional relation PASS control, the horizon/four conflicting
+constant bits, six atomic loader failures, merged consistency, C=29 clone/shared
+faults and a real contradictory-relation/vacuity rejection are all checked.
+
+All 48 fresh CAD/VCS profiles/audits, all 117 Python tests and complete M2/M3
+metasim/ordinary RTL regressions pass. M2 retains five cuts, all 22 words,
+C=29 divergence and four loader failures. M3 retains 717 transport edges,
+23 semantic advances, six captures, 242 boundary/five semantic replay samples and
+eight invalid reads. Both polarities' supplemental shared-flop faults and fresh
+changed-D proofs pass too.
+
+The complete supplemental scope passed twice: 13 unchanged controls and 269
+distinct actual artifact mutations reject per pass. The new constant composition
+retains all prior relational/unread mutations and adds constant values, horizon,
+predicate and relation mismatches, missing/bounded/vacuous proofs, constrained
+scripts, weakened binding, false raw statuses/input identities, missing engine
+messages, forged checkpoints/replay and unknown proof rows (53 per polarity).
+All four formerly unsupported constant compositions now have complete positive
+profiles. Eight additional fresh missing-predicate synthesis/equivalence builds
+preserve prior proof hashes/inodes. No check was skipped or scope reduced.
+
+`finalize-evidence.py` revalidates all 48 maps against current input bytes and
+complete regression metrics. Commands, raw logs, proof/map artifacts and the
+full-path/hash catalog are under `automations/checkpoint_loop/runs/m8-iteration66/`:
+`verification-commands.json`, `finish-repeat-commands.json`, `summary.json`,
+`matrix-results.json`, `artifact-manifest.json`. Initial pilot diagnostics are
+preserved; the matrix selects the fresh final invocations for acceptance.
+
+Next: complete audited SRAM macro contents and pipeline/port initialization with
+real synthesis/proof/replay. Logical RAM still uses individual flip-flops.
+Level-1 images remain independent of Level-2 state. Both plans/PDFs are read-only,
+the dirty agent plan is preserved, and there are no conda edits, staging, commits,
+resets, cleaning, FPGA claims or ASIC power claims.
+
+## Historical iteration 65 evidence
 
 Status: in progress. Relational unread-state composition now supports native
 merging, duplication, either polarity and indexed destination reordering.

@@ -123,7 +123,16 @@ unread state with empty gate destinations; the verifier flips every unread
 checkpoint bit and checks fresh RTL replay and identical gate deposits. A fresh
 proof with that state connected to an output or a register's next-state update
 must produce a counterexample.
-Relational constant elimination currently rejects explicitly.
+Add `--constant-registers` for version-7 maps combining native merging,
+duplication, unread state and observable constants. Constant bits remain in the
+semantic inventory with empty gate destinations. Their candidate values enter
+the initial relation and must preserve it across every edge. Separate Jasper
+predicates must establish those exact bits/values from arbitrary original state
+after one edge; the loader enforces C>=1 and the values before deposits. A
+complete relation PASS cannot replace these independent predicates. Missing,
+bounded, vacuous or mismatched proofs reject. The verifier also exercises a
+conditional constant update whose complete relation passes while its independent
+constant predicate fails, conflicting checkpoints and zero-edge RTL divergence.
 These fixtures use flip-flops
 for logical RAM; SRAM macros still require a complete storage adapter.
 
@@ -134,7 +143,7 @@ healthy uninterrupted/restored comparisons and real formal/simulation failures.
 containers, captured state, netlist inventory and every replay boundary without
 importing the exporter or codec. Recovery and current M8 scope are recorded in
 `docs/checkpointing/m8-formal-state-map.md`.
-Use `tests.audit_relational_state_map --run <invocation>` for version-5/6 profiles;
+Use `tests.audit_relational_state_map --run <invocation>` for version-5/6/7 profiles;
 it checks the miter, individual raw engine results, inventories and replay.
 
 `python -m tools.checkpoint_formats.tests.verify_formal_missing_proof --out <runs-directory>`

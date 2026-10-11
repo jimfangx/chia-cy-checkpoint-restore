@@ -14,23 +14,126 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def audit_constants(run, artifacts, manifest, checkpoint, summary):
+    """Independent constant/horizon audit, including both actual false proofs."""
+    source = Path(__file__).parents[1] / "constant_state.py"
+    script = next(ast.literal_eval(n.value) for n in ast.parse(source.read_text()).body if
+                  isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "SCRIPT" for t in n.targets))
+    spec = dict(constant_version=1, top="StateMapDUT", bits=[
+        dict(signal="constant", bit=bit, width=4, value=(10 >> bit) & 1) for bit in range(4)])
+
+    def proof(data, expected_spec, success):
+        assert json.loads(data["constant_spec"]) == expected_spec
+        bind = "module checkpoint_constants(input clock, input c0, input c1, input c2, input c3);\n"
+        bind += "".join(f"constant_{n}: assert property (@(posedge clock) 1'b1 |=> c{n} == 1'b{b['value']});\n"
+                        for n, b in enumerate(expected_spec["bits"]))
+        bind += "checkpoint_edge: cover property (@(posedge clock) 1'b1 ##1 1'b1);\nendmodule\n"
+        bind += "bind StateMapDUT checkpoint_constants checkpoint_constant_proof(.clock(clock), .c0(constant[0]), .c1(constant[1]), .c2(constant[2]), .c3(constant[3]));\n"
+        assert data["constant_bind"] == bind.encode() and data["constant_script"] == script.encode()
+        log = data["constant_log"].decode()
+        assert "ERROR" not in log and "CHECKPOINT_CONSTANT_RESET=none" in log and "Exiting the analysis session with status 0." in log
+        lines = data["constant_results"].decode().splitlines()
+        assert lines[0] == "FORMAT\tjasper-constant-v1" and lines[-1] == "END"
+        identities = re.findall(r"^INPUT\t([^\t\n]+)\t([^\t\n]+)$", data["constant_results"].decode(), re.M)
+        expected_inputs = {r: digest(data[r]) for r in ("rtl", "constant_spec", "constant_bind", "constant_script")}
+        raw_inputs = re.findall(r"^CHECKPOINT_CONSTANT_INPUT\t([^\t\n]+)\t([^\t\n]+)$", log, re.M)
+        assert len(identities) == len(raw_inputs) == 4 and dict(identities) == dict(raw_inputs) == expected_inputs
+        expected = {f"<embedded>::StateMapDUT.checkpoint_constant_proof.constant_{n}": "assert" for n in range(4)}
+        expected.update({p + ":precondition1": "cover" for p in list(expected)})
+        expected["<embedded>::StateMapDUT.checkpoint_constant_proof.checkpoint_edge"] = "cover"
+        rows = re.findall(r"^PROPERTY\t([^\t\n]+)\t([^\t\n]+)\t([^\t\n]+)$", data["constant_results"].decode(), re.M)
+        assert len(lines) == 2 + len(identities) + len(rows)
+        assert len(rows) == 9 and {p: k for p, k, s in rows} == expected
+        raw = re.findall(r"^CHECKPOINT_CONSTANT_PROPERTY\t([^\t\n]+)\t([^\t\n]+)\t([^\t\n]+)$", log, re.M)
+        assert len(raw) == 9 and set(raw) == set(rows)
+        for p, kind, status in rows:
+            name = re.escape(p.split("::")[1])
+            if status == "cex":
+                assert not success and kind == "assert"
+                assert re.search(r'A counterexample \(cex\) with \d+ cycles was found for the property "' + name + r'"', log)
+            else:
+                assert status == ("proven" if kind == "assert" else "covered")
+                assert re.search(r'The (?:cover )?property "' + name + r'" was ' + status + r' (?:in|at) ', log)
+        assert success or any(s == "cex" for p, k, s in rows)
+
+    proof(artifacts, spec, True)
+    for case in ("wrong-value", "conditional-update"):
+        directory = run / ("constant-" + case)
+        negative = {"rtl": (run / "conditional-constant.v").read_bytes() if case == "conditional-update" else artifacts["rtl"]}
+        for role, filename in (("constant_spec", "spec.json"), ("constant_bind", "bind.sv"),
+                               ("constant_script", "prove.tcl"), ("constant_log", "jasper.log"), ("constant_results", "constant-results.tsv")):
+            negative[role] = (directory / filename).read_bytes()
+        expected_spec = json.loads(json.dumps(spec))
+        if case == "wrong-value": expected_spec["bits"][0]["value"] ^= 1
+        else:
+            assert negative["rtl"] == artifacts["rtl"].replace(b"constant <= 4'b1010;", b"if (enable) constant <= 4'b1010;")
+        proof(negative, expected_spec, False)
+    conditional_relation = run / "conditional-relation"
+    assert (conditional_relation / "spec.json").read_bytes() == artifacts["relation_spec"]
+    assert (conditional_relation / "prove.tcl").read_bytes() == artifacts["relation_script"]
+    assert (conditional_relation / "miter.sv").read_bytes() == artifacts["relation_miter"].replace(
+        b"constant <= 4'b1010;", b"if (enable) constant <= 4'b1010;", 1)
+    machine = (conditional_relation / "relation-results.tsv").read_text()
+    log = (conditional_relation / "jasper.log").read_text()
+    assert machine.startswith("FORMAT\tjasper-relation-v1\n") and machine.endswith("END\n")
+    assert "ERROR" not in log and "CHECKPOINT_RELATION_RESET=none" in log and "Exiting the analysis session with status 0." in log
+    expected_inputs = {r: digest(artifacts[r]) for r in ("netlist", "models", "relation_spec", "relation_script")}
+    expected_inputs.update(rtl=digest((run / "conditional-constant.v").read_bytes()), relation_miter=digest((conditional_relation / "miter.sv").read_bytes()))
+    inputs = re.findall(r"^INPUT\t([^\t\n]+)\t([^\t\n]+)$", machine, re.M)
+    raw_inputs = re.findall(r"^CHECKPOINT_RELATION_INPUT\t([^\t\n]+)\t([^\t\n]+)$", log, re.M)
+    assert len(inputs) == len(raw_inputs) == 6 and dict(inputs) == dict(raw_inputs) == expected_inputs
+    expected = re.findall(r"^PROPERTY\t([^\t\n]+)\t([^\t\n]+)\t([^\t\n]+)$", artifacts["relation_results"].decode(), re.M)
+    rows = re.findall(r"^PROPERTY\t([^\t\n]+)\t([^\t\n]+)\t([^\t\n]+)$", machine, re.M)
+    assert len(machine.splitlines()) == 2 + len(inputs) + len(rows)
+    raw = re.findall(r"^CHECKPOINT_RELATION_PROPERTY\t([^\t\n]+)\t([^\t\n]+)\t([^\t\n]+)$", log, re.M)
+    assert len(rows) == len(raw) == len(expected) and set(rows) == set(raw) == set(expected)
+    for p, k, s in rows:
+        assert re.search(r'The (?:cover )?property "' + re.escape(p.split("::")[1]) + r'" was ' + s + r' (?:in|at) ', log)
+    assert summary["constant_rejections"]["conditional-relation-only"] == "relational constants lack matching independent predicates"
+    cid = next(s["state_id"] for s in manifest["state"] if s["hierarchy"].endswith(".constant"))
+    for bit in range(4):
+        expected = json.loads(json.dumps(checkpoint))
+        record = next(r for r in expected["records"] if r["state_id"] == cid)
+        assert record["values"] == ["a"]
+        record["values"] = [f"{10 ^ (1 << bit):x}"]
+        assert container(run / f"conflicting-constant-{bit}.rtlckpt", b"RTLCKP\x00\x01") == expected
+        assert summary["constant_rejections"][f"checkpoint-bit-{bit}"] == f"checkpoint conflicts with proven constant state: constant[{bit}]"
+    early = json.loads(json.dumps(checkpoint))
+    early["target_cycle"] = 0
+    assert container(run / "pre-horizon.rtlckpt", b"RTLCKP\x00\x01") == early
+    assert summary["constant_rejections"]["pre-horizon"] == "checkpoint precedes proven constant horizon"
+    replay = run / "rtl-conflicting-constant"
+    assert "Y-2026.03-SP1" in (replay / "compile.log").read_text()
+    assert "FIRST_MISMATCH cycle=17 signal=held_out" in (replay / "simulation.log").read_text()
+    assert "PASS: fresh clean RTL replay" not in (replay / "simulation.log").read_text()
+    assert set(summary["constant_rejections"]) == {f"checkpoint-bit-{b}" for b in range(4)} | {
+        "pre-horizon", "wrong-value", "conditional-update", "missing-proof", "missing-property", "bounded-proof", "vacuous-proof",
+        "wrong-raw-status", "wrong-relation-constant", "missing-relation-constant", "conditional-relation-only"}
+    assert "conditional-relation-only" in summary["constant_rejections"]
+    assert all(summary["constant_rejections"].values()) and summary["constant_semantic_bits"] == 4
+
+
 def audit(run):
     mapping = json.loads((run / "asic_state_map.json").read_text())
     manifest = json.loads((run / "manifest.json").read_text())
     paths = json.loads((run / "inputs.json").read_text())
     summary = json.loads((run / "summary.json").read_text())
     artifacts = {k: Path(v).read_bytes() for k, v in paths.items()}
+    constants = summary.get("constant_registers", False)
+    assert type(constants) is bool
     assert set(artifacts) == {"rtl", "netlist", "models", "library", "synthesis_script", "synthesis_log",
-                              "relation_spec", "relation_miter", "relation_script", "relation_log", "relation_results"}
+                              "relation_spec", "relation_miter", "relation_script", "relation_log", "relation_results"} | \
+                             ({"constant_spec", "constant_bind", "constant_script", "constant_log", "constant_results"} if constants else set())
     assert mapping["build"] == {k: digest(v) for k, v in artifacts.items()}
     optimized = summary.get("optimize_registers", False)
     assert type(optimized) is bool
-    assert mapping["map_version"] == (6 if optimized else 5) and mapping["retiming"] is False
+    assert mapping["map_version"] == (7 if constants else 6 if optimized else 5) and mapping["retiming"] is False
     assert summary["status"] == "passed" and summary["merge_registers"] and summary["duplicate_registers"]
-    assert mapping["semantic_bits"] == 28 + 4 * optimized and mapping["gate_storage_bits"] == 28
+    assert mapping["semantic_bits"] == 28 + 4 * (optimized + constants) and mapping["gate_storage_bits"] == 28
     assert mapping["proof"] == dict(tool="Jasper", export="complete state relation induction and output equivalence",
                                   assumptions=[], reset="unconstrained synchronous input",
-                                  initial_state="complete map relation; loader enforces merged source consistency")
+                                  initial_state="complete map relation; loader enforces merged source consistency",
+                                  **(dict(constant_tool="Jasper", constant_horizon="one unconstrained target edge") if constants else {}))
     canonical = lambda value: json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
     assert digest(canonical(manifest)) == mapping["state_manifest_hash"]
     assert manifest["reference_sha256"] == digest(artifacts["rtl"])
@@ -70,15 +173,17 @@ def audit(run):
             expected_rows.append(dict(original_rtl=f"ram[{address}][{bit}]", gate=f"ram_reg[{address}][{bit}].state", xor=polarity))
     spec = json.loads(artifacts["relation_spec"])
     omitted = [f"unused[{bit}]" for bit in range(4)] if optimized else []
-    assert spec == dict(relation_version=2 if optimized else 1, top="StateMapDUT", relations=expected_rows,
-                        **(dict(unread=omitted) if optimized else {}))
+    constant_bits = [dict(original_rtl=f"constant[{bit}]", value=(10 >> bit) & 1) for bit in range(4)] if constants else []
+    assert spec == dict(relation_version=3 if constants else 2 if optimized else 1, top="StateMapDUT", relations=expected_rows,
+                        **(dict(unread=omitted) if optimized or constants else {}),
+                        **(dict(constants=constant_bits) if constants else {}))
     physical = {r["gate"] for r in expected_rows}
     instances = re.findall(rf"\b{cell}\s+\\([^\s]+)\s+\(", artifacts["netlist"].decode())
     assert len(instances) == len(set(instances)) == 28
     assert {i + ".state" for i in instances} == physical
     expected_state = {(s["state_id"], a, b) for s in manifest["state"] for a in range(s["depth"]) for b in range(s["width"])}
     assert {(e["state_id"], e["address"], e["bit"]) for e in mapping["entries"]} == expected_state
-    assert len(mapping["entries"]) == 28 + 4 * optimized
+    assert len(mapping["entries"]) == 28 + 4 * (optimized + constants)
     pairs = []
     for entry in mapping["entries"]:
         state = next(s for s in manifest["state"] if s["state_id"] == entry["state_id"])
@@ -86,7 +191,12 @@ def audit(run):
         path = name + (f"[{entry['address']}]" if name == "ram" else "") + f"[{entry['bit']}]"
         assert path == entry["original_rtl"]
         assert entry["formal_reference"] == "r:/WORK/StateMapDUT/" + path.replace(name, name + "_reg", 1)
-        if path in omitted:
+        if name == "constant":
+            assert constants and not entry["gates"]
+            assert entry["optimization"] == dict(kind="constant", value=(10 >> entry["bit"]) & 1,
+                min_target_cycle=1, proof_status="proven", report="constant_results",
+                property=f"<embedded>::StateMapDUT.checkpoint_constant_proof.constant_{entry['bit']}")
+        elif path in omitted:
             assert not entry["gates"] and entry["optimization"] == dict(kind="unread", proof_status="proven", report="relation_results")
         else:
             assert entry["gates"] and "optimization" not in entry
@@ -107,6 +217,7 @@ def audit(run):
                      f".held_out({prefix}_held),.count_out({prefix}_count),.read_out({prefix}_read));")
     gate_expr = lambda path: "implementation.\\" + path.split(".")[0] + " ." + path.split(".")[1]
     expressions = [f"(reference.{r['original_rtl']} == ({gate_expr(r['gate'])} ^ 1'b{r['xor']}))" for r in expected_rows]
+    expressions += [f"(reference.{b['original_rtl']} == 1'b{b['value']})" for b in constant_bits]
     lines.append("wire relation = " + " &&\n  ".join(expressions) + ";")
     lines.extend(f"step_{n}: assert property (@(posedge clock) relation |=> {expr});" for n, expr in enumerate(expressions))
     lines.extend(f"output_{port}: assert property (@(posedge clock) relation |-> r_{port} == i_{port});" for port in ("held", "count", "read"))
@@ -123,7 +234,7 @@ def audit(run):
                   isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "SCRIPT" for t in n.targets))
     assert artifacts["relation_script"] == script.encode()
     expected = {}
-    for name in [f"step_{n}" for n in range(32)] + [f"output_{port}" for port in ("held", "count", "read")]:
+    for name in [f"step_{n}" for n in range(32 + 4 * constants)] + [f"output_{port}" for port in ("held", "count", "read")]:
         prop = "<embedded>::checkpoint_relation_miter." + name
         expected[prop] = ("assert", "proven")
         expected[prop + ":precondition1"] = ("cover", "covered")
@@ -159,6 +270,9 @@ def audit(run):
     deposits = {}
     for entry in mapping["entries"]:
         bit = (int(records[entry["state_id"]]["values"][entry["address"]], 16) >> entry["bit"]) & 1
+        if entry.get("optimization", {}).get("kind") == "constant":
+            assert checkpoint["target_cycle"] >= entry["optimization"]["min_target_cycle"]
+            assert bit == entry["optimization"]["value"]
         for gate in entry["gates"]:
             path = "tb.dut." + gate["instance"] + ".state"
             value = str(bit ^ gate["xor"])
@@ -228,7 +342,7 @@ def audit(run):
         assert altered == expected_altered
         replay = run / "rtl-altered-unread"
         assert "Y-2026.03-SP1" in (replay / "compile.log").read_text()
-        assert "PASS: fresh clean RTL replay cycles=17..95 samples=79 outputs_per_cycle=3 restored_words=8" in (replay / "simulation.log").read_text()
+        assert f"PASS: fresh clean RTL replay cycles=17..95 samples=79 outputs_per_cycle=3 restored_words={8 + constants}" in (replay / "simulation.log").read_text()
         state_by_id = {s["state_id"]: s for s in manifest["state"]}
         expected_restore = []
         for r in altered["records"]:
@@ -244,10 +358,11 @@ def audit(run):
             for port, value in record["outputs"].items():
                 assert f"if ({port} !== {value['width']}'h{value['value']})" in bench
         connected = (run / "connected-unread.v").read_text()
-        assert connected == artifacts["rtl"].decode().replace("assign held_out = held & held_copy;", "assign held_out = (held & held_copy) ^ unused;")
+        held_expression = "held & held_copy ^ constant ^ 4'b1010" if constants else "held & held_copy"
+        assert connected == artifacts["rtl"].decode().replace(f"assign held_out = {held_expression};", f"assign held_out = ({held_expression}) ^ unused;")
         assert (run / "connected-unread/spec.json").read_bytes() == artifacts["relation_spec"]
         assert (run / "connected-unread/miter.sv").read_bytes() == artifacts["relation_miter"].replace(
-            b"assign held_out = held & held_copy;", b"assign held_out = (held & held_copy) ^ unused;", 1)
+            f"assign held_out = {held_expression};".encode(), f"assign held_out = ({held_expression}) ^ unused;".encode(), 1)
         assert "checkpoint_relation_miter.output_held\tassert\tcex" in (run / "connected-unread/relation-results.tsv").read_text()
         assert summary["formal_negatives"]["connected-unread"] == "unproven or vacuous state correspondence"
         for name in ("missing-unread", "wrong-unread"):
@@ -263,8 +378,13 @@ def audit(run):
             b"count <= count + 1'b1;", b"count <= count + unused;", 1)
         assert re.search(r"^PROPERTY\t[^\n]+\.step_\d+\tassert\tcex$", (run / "connected-unread-next/relation-results.tsv").read_text(), re.M)
         assert summary["formal_negatives"]["connected-unread-next"] == "unproven or vacuous state correspondence"
-    result = dict(status="passed", semantic_bits=28 + 4 * optimized, physical_bits=28, proven_relations=32,
-                  asserted_properties=35, covered_properties=92 + 8 * optimized, unread_bits=4 * optimized, compared_outputs=237,
+    if constants:
+        audit_constants(run, artifacts, manifest, checkpoint, summary)
+    result = dict(status="passed", semantic_bits=28 + 4 * (optimized + constants), physical_bits=28, proven_relations=32,
+                  asserted_properties=35 + 4 * constants, covered_properties=92 + 8 * optimized + 4 * constants,
+                  independent_constant_assertions=4 * constants, independent_constant_covers=5 * constants,
+                  independent_constant_counterexample_proofs=2 * constants, conditional_relation_only_rejected=constants,
+                  unread_bits=4 * optimized, constant_bits=4 * constants, compared_outputs=237,
                   restore_cycle=17, end_cycle=96, loader_rejections=6, actual_faults=2,
                   fresh_counterexample_proofs=5 + 2 * optimized, actual_vacuous_proof_rejected=True)
     (run / "independent-audit.json").write_text(json.dumps(result, indent=2) + "\n")

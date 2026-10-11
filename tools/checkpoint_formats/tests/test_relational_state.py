@@ -1,11 +1,13 @@
 """Integrity/translation oracles; actual proofs run in the CAD/VCS verifier."""
 
 import json
+import copy
 from pathlib import Path
 import re
 import unittest
 
 from tools.checkpoint_formats.codec import FormatError
+from tools.checkpoint_formats.constant_state import INPUTS as CONSTANT_INPUTS, SCRIPT as CONSTANT_SCRIPT, binding
 from tools.checkpoint_formats.formal_state_map import export_state_map, gate_deposits, sha
 from tools.checkpoint_formats.relational_state import INPUTS, SCRIPT, miter
 from tools.checkpoint_formats.replay import builds
@@ -14,12 +16,13 @@ from tools.checkpoint_formats.tests.verify_formal_state_map import fixture_manif
 from tools.checkpoint_formats.tests.verify_relational_state_map import candidate_spec
 
 
-def fixture(optimized=False):
+def fixture(optimized=False, constant=False):
     base = Path(__file__).with_name("fixtures") / "formal"
-    rtl_path = base / ("merged/optimized/dut.v" if optimized else "merged/dut.v")
-    manifest, boundary = fixture_manifest(rtl_path, merge_registers=True, optimize_registers=optimized)
+    rtl_path = base / ("merged/constants/dut.v" if constant else "merged/optimized/dut.v" if optimized else "merged/dut.v")
+    manifest, boundary = fixture_manifest(rtl_path, merge_registers=True, optimize_registers=optimized,
+                                         constant_registers=constant)
     adapter = json.loads((base / "cell-adapter.json").read_text())
-    spec = candidate_spec("direct", True, optimized)
+    spec = candidate_spec("direct", True, optimized, constant)
     gates = sorted({r["gate"].split(".")[0] for r in spec["relations"]})
     netlist = ("module StateMapDUT(input clock, input reset, input enable, input write, "
                "input [1:0] address, input [3:0] data, output [3:0] held_out, "
@@ -46,6 +49,24 @@ def fixture(optimized=False):
         log += [f"CHECKPOINT_RELATION_PROPERTY\t{prop}\t{kind}\t{status}",
                 f'The {"cover " if kind == "cover" else ""}property "{prop.split("::")[1]}" was {status} in 0 s.']
     artifacts["relation_log"] = ("\n".join(log) + "\n").encode()
+    if constant:
+        predicates = dict(constant_version=1, top="StateMapDUT", bits=[
+            dict(signal="constant", bit=bit, width=4, value=(10 >> bit) & 1) for bit in range(4)])
+        artifacts.update(constant_spec=json.dumps(predicates).encode(), constant_bind=binding(predicates),
+                         constant_script=CONSTANT_SCRIPT.encode())
+        properties = [(f"<embedded>::StateMapDUT.checkpoint_constant_proof.constant_{bit}", "assert", "proven")
+                      for bit in range(4)]
+        properties += [(p + ":precondition1", "cover", "covered") for p, _, _ in properties]
+        properties.append(("<embedded>::StateMapDUT.checkpoint_constant_proof.checkpoint_edge", "cover", "covered"))
+        rows = ["FORMAT\tjasper-constant-v1"] + [f"INPUT\t{r}\t{sha(artifacts[r])}" for r in CONSTANT_INPUTS]
+        rows += ["PROPERTY\t" + "\t".join(p) for p in properties]
+        artifacts["constant_results"] = ("\n".join(rows + ["END"]) + "\n").encode()
+        log = ["CHECKPOINT_CONSTANT_RESET=none", "Exiting the analysis session with status 0."]
+        log += [f"CHECKPOINT_CONSTANT_INPUT\t{r}\t{sha(artifacts[r])}" for r in CONSTANT_INPUTS]
+        for p, k, s in properties:
+            log += [f"CHECKPOINT_CONSTANT_PROPERTY\t{p}\t{k}\t{s}",
+                    f'The {"cover " if k == "cover" else ""}property "{p.split("::")[1]}" was {s} in 0 s.']
+        artifacts["constant_log"] = ("\n".join(log) + "\n").encode()
     build = builds(manifest, boundary, "test")[0]
     checkpoint = dict(format_version=1, checkpoint_type="rtlckpt", target_cycle=17,
                       target_clock_phase="before_rising_edge", build=build,
@@ -159,6 +180,45 @@ class RelationalStateTests(unittest.TestCase):
                         dict(spec, unread=["unused[0]"])):
             with self.subTest(spec=changed), self.assertRaises(FormatError):
                 miter(changed, self.artifacts["rtl"].decode(), self.artifacts["netlist"].decode())
+
+    def test_constant_composition_enforces_independent_predicates_values_and_horizon(self):
+        manifest, adapter, artifacts, build, checkpoint = fixture(True, True)
+        mapping = export_state_map(manifest, "StateMapDUT", adapter, artifacts)
+        self.assertEqual((mapping["map_version"], mapping["semantic_bits"], mapping["gate_storage_bits"]), (7, 36, 28))
+        deposits = lambda cp: gate_deposits(mapping, manifest, adapter, artifacts, encode_semantic(cp, manifest), build, "tb.dut")
+        self.assertEqual(len(deposits(checkpoint)[1]), 28)
+        checkpoint["target_cycle"] = 0
+        with self.assertRaisesRegex(FormatError, "constant horizon"): deposits(checkpoint)
+        checkpoint["target_cycle"] = 1
+        self.assertEqual(len(deposits(checkpoint)[1]), 28)
+        constant_id = next(e["state_id"] for e in manifest["state"] if e["hierarchy"].endswith(".constant"))
+        next(r for r in checkpoint["records"] if r["state_id"] == constant_id)["values"] = ["b"]
+        with self.assertRaisesRegex(FormatError, "conflicts with proven constant"): deposits(checkpoint)
+        missing = {k: v for k, v in artifacts.items() if not k.startswith("constant_")}
+        with self.assertRaisesRegex(FormatError, "lack matching independent predicates"):
+            export_state_map(manifest, "StateMapDUT", adapter, missing)
+
+    def test_relational_constants_cannot_weaken_or_replace_the_independent_proof(self):
+        manifest, adapter, artifacts, _, _ = fixture(True, True)
+        for case in ("wrong-value", "missing", "duplicate", "unread-overlap", "retained-overlap", "outside", "invalid-value"):
+            spec = json.loads(artifacts["relation_spec"])
+            if case == "wrong-value": spec["constants"][0]["value"] ^= 1
+            elif case == "missing": spec["constants"].pop()
+            elif case == "duplicate": spec["constants"].append(copy.deepcopy(spec["constants"][0]))
+            elif case == "unread-overlap": spec["constants"][0]["original_rtl"] = "unused[0]"
+            elif case == "retained-overlap": spec["constants"][0]["original_rtl"] = "held[0]"
+            elif case == "outside": spec["constants"][0]["original_rtl"] = "unknown[0]"
+            else: spec["constants"][0]["value"] = True
+            with self.subTest(case=case), self.assertRaises(FormatError):
+                changed = dict(artifacts, relation_spec=json.dumps(spec).encode(),
+                               relation_miter=miter(spec, artifacts["rtl"].decode(), artifacts["netlist"].decode()))
+                export_state_map(manifest, "StateMapDUT", adapter, changed)
+        for role, needle in (("constant_results", b".constant_0\t"),
+                             ("constant_log", b'The property "StateMapDUT.checkpoint_constant_proof.constant_0"'),
+                             ("relation_results", b".step_32\t")):
+            changed = dict(artifacts, **{role: b"\n".join(r for r in artifacts[role].split(b"\n") if needle not in r)})
+            with self.subTest(role=role), self.assertRaises(FormatError):
+                export_state_map(manifest, "StateMapDUT", adapter, changed)
 
 
 if __name__ == "__main__":

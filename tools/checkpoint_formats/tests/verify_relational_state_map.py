@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 
 from tools.checkpoint_formats.codec import FormatError
+from tools.checkpoint_formats.constant_state import SCRIPT as CONSTANT_SCRIPT, binding, validate_constants
 from tools.checkpoint_formats.formal_state_map import export_state_map, gate_deposits
 from tools.checkpoint_formats.relational_state import SCRIPT, miter
 from tools.checkpoint_formats.replay import builds, package_capture, prepare_capture, prepare_replay
@@ -16,7 +17,7 @@ from tools.checkpoint_formats.semantic import encode_semantic, state_id
 from .verify_formal_state_map import FIXTURE, GENUS, JASPER, ROOT, VCS, fixture_manifest, testbench
 
 
-def candidate_spec(profile, reordered, optimized=False):
+def candidate_spec(profile, reordered, optimized=False, constant=False):
     slots = (2, 0, 3, 1) if reordered else (0, 1, 2, 3)
     rows = []
     for name in ("held", "held_copy", "count"):
@@ -30,17 +31,22 @@ def candidate_spec(profile, reordered, optimized=False):
         for bit in range(4):
             rows.append(dict(original_rtl=f"ram[{address}][{bit}]",
                              gate=f"ram_reg[{address}][{bit}].state", xor=int(profile == "inverted")))
-    return dict(relation_version=2 if optimized else 1, top="StateMapDUT", relations=rows,
-                **(dict(unread=[f"unused[{bit}]" for bit in range(4)]) if optimized else {}))
+    return dict(relation_version=3 if constant else 2 if optimized else 1, top="StateMapDUT", relations=rows,
+                **(dict(unread=[f"unused[{bit}]" for bit in range(4)] if optimized else [])
+                   if optimized or constant else {}),
+                **(dict(constants=[dict(original_rtl=f"constant[{bit}]", value=(10 >> bit) & 1)
+                                   for bit in range(4)]) if constant else {}))
 
 
-def verify(out, profile="direct", reordered=False, optimized=False):
+def verify(out, profile="direct", reordered=False, optimized=False, constant=False):
+    optimized = optimized or constant
     run = Path(tempfile.mkdtemp(prefix="invocation-", dir=out)).resolve()
     cells = FIXTURE if profile == "direct" else FIXTURE / "inverted"
-    rtl_path = FIXTURE / ("merged/optimized/dut.v" if optimized else "merged/dut.v")
-    manifest, boundary = fixture_manifest(rtl_path, merge_registers=True, optimize_registers=optimized)
+    rtl_path = FIXTURE / ("merged/constants/dut.v" if constant else "merged/optimized/dut.v" if optimized else "merged/dut.v")
+    manifest, boundary = fixture_manifest(rtl_path, merge_registers=True, optimize_registers=optimized,
+                                         constant_registers=constant)
     adapter = json.loads((cells / "cell-adapter.json").read_text())
-    spec = candidate_spec(profile, reordered, optimized)
+    spec = candidate_spec(profile, reordered, optimized, constant)
     slots = (2, 0, 3, 1) if reordered else (0, 1, 2, 3)
     counter = lambda bit: f"{'gate_count' if reordered else 'count'}_reg[{slots[bit]}]"
     commands = []
@@ -66,6 +72,25 @@ def verify(out, profile="direct", reordered=False, optimized=False):
     invoke([GENUS, "-no_gui", "-batch", "-files", FIXTURE / "synth.tcl"], synth, "synth.log", env)
     netlist = synth / "netlist.v"
 
+    def prove_constants(directory, reference=rtl_path, predicates=None):
+        directory.mkdir()
+        predicates = predicates or dict(constant_version=1, top="StateMapDUT", bits=[
+            dict(signal="constant", width=4, bit=bit, value=(10 >> bit) & 1) for bit in range(4)])
+        (directory / "spec.json").write_text(json.dumps(predicates, indent=2) + "\n")
+        (directory / "bind.sv").write_bytes(binding(predicates))
+        (directory / "prove.tcl").write_text(CONSTANT_SCRIPT)
+        env = dict(cad_env, CHECKPOINT_RTL=str(reference), CHECKPOINT_CONSTANT_TOP="StateMapDUT",
+                   CHECKPOINT_CONSTANT_SPEC=str(directory / "spec.json"),
+                   CHECKPOINT_CONSTANT_BIND=str(directory / "bind.sv"),
+                   CHECKPOINT_CONSTANT_SCRIPT=str(directory / "prove.tcl"))
+        invoke([JASPER, "-allow_unsupported_OS", "-batch", "-tcl", directory / "prove.tcl"],
+               directory, "jasper.log", env)
+        return dict(constant_spec=directory / "spec.json", constant_bind=directory / "bind.sv",
+                    constant_script=directory / "prove.tcl", constant_log=directory / "jasper.log",
+                    constant_results=directory / "constant-results.tsv")
+
+    constant_paths = prove_constants(run / "constant-proof") if constant else {}
+
     def prove(directory, candidates=spec, implementation=netlist, reference=rtl_path):
         directory.mkdir()
         (directory / "spec.json").write_text(json.dumps(candidates, indent=2) + "\n")
@@ -82,12 +107,13 @@ def verify(out, profile="direct", reordered=False, optimized=False):
                      relation_spec=directory / "spec.json", relation_miter=directory / "miter.sv",
                      relation_script=directory / "prove.tcl", relation_log=directory / "jasper.log",
                      relation_results=directory / "relation-results.tsv")
+        paths.update(constant_paths)
         return {k: p.read_bytes() for k, p in paths.items()}, paths
 
     artifacts, paths = prove(run / "relation")
     mapping = export_state_map(manifest, "StateMapDUT", adapter, artifacts)
-    assert mapping["semantic_bits"] == 28 + 4 * optimized and mapping["gate_storage_bits"] == 28
-    assert mapping["map_version"] == (6 if optimized else 5)
+    assert mapping["semantic_bits"] == 28 + 4 * (optimized + constant) and mapping["gate_storage_bits"] == 28
+    assert mapping["map_version"] == (7 if constant else 6 if optimized else 5)
     assert sum(len(e["gates"]) for e in mapping["entries"]) == 32
     assert len([e for e in mapping["entries"] if len(e["gates"]) == 2]) == 4
     for filename, value in (("asic_state_map.json", mapping), ("manifest.json", manifest),
@@ -176,6 +202,80 @@ def verify(out, profile="direct", reordered=False, optimized=False):
     else:
         raise AssertionError("inconsistent checkpoint accepted")
 
+    constant_checks = {}
+    if constant:
+        for bit in range(4):
+            changed = copy.deepcopy(checkpoint)
+            row = next(r for r in changed["records"] if r["state_id"] == state_id("Harness.dut.constant", "register"))
+            assert row["values"] == ["a"]
+            row["values"] = [f"{10 ^ (1 << bit):x}"]
+            payload = encode_semantic(changed, manifest)
+            (run / f"conflicting-constant-{bit}.rtlckpt").write_bytes(payload)
+            try: gate_deposits(mapping, manifest, adapter, artifacts, payload, expected_build, "tb.dut")
+            except FormatError as error:
+                assert str(error) == f"checkpoint conflicts with proven constant state: constant[{bit}]"
+                constant_checks[f"checkpoint-bit-{bit}"] = str(error)
+            else: raise AssertionError("conflicting constant accepted")
+        early = copy.deepcopy(checkpoint)
+        early["target_cycle"] = 0
+        payload = encode_semantic(early, manifest)
+        (run / "pre-horizon.rtlckpt").write_bytes(payload)
+        try: gate_deposits(mapping, manifest, adapter, artifacts, payload, expected_build, "tb.dut")
+        except FormatError as error:
+            assert str(error) == "checkpoint precedes proven constant horizon"
+            constant_checks["pre-horizon"] = str(error)
+        else: raise AssertionError("unproven initial constant accepted")
+        replay = run / "rtl-conflicting-constant"
+        prepare_replay(manifest, boundary, "formal-small-dut-v1", (run / "conflicting-constant-0.rtlckpt").read_bytes(),
+                       (capture / "capture.trace").read_bytes(), replay)
+        bad_simv = build(replay, [rtl_path, replay / "replay.sv"])
+        bad_log = invoke([bad_simv, f"+restore={replay / 'restore.txt'}",
+                          f"+waveform={replay / 'replay.vcd'}"], replay, "simulation.log", expected=1)
+        assert "FIRST_MISMATCH cycle=17" in bad_log and "signal=held_out" in bad_log
+        wrong = json.loads(artifacts["constant_spec"])
+        wrong["bits"][0]["value"] ^= 1
+        conditional = run / "conditional-constant.v"
+        conditional.write_text(rtl.replace("constant <= 4'b1010;", "if (enable) constant <= 4'b1010;"))
+        for name, reference, predicates in (("wrong-value", rtl_path, wrong), ("conditional-update", conditional, None)):
+            negative_paths = prove_constants(run / ("constant-" + name), reference, predicates)
+            negative = dict(artifacts, rtl=reference.read_bytes(), **{k: p.read_bytes() for k, p in negative_paths.items()})
+            assert b"\tassert\tcex\n" in negative["constant_results"]
+            try: validate_constants(negative, manifest, "StateMapDUT")
+            except FormatError as error: constant_checks[name] = str(error)
+            else: raise AssertionError("false independent predicate accepted")
+        # The conditional design preserves a guessed constant once loaded, so
+        # its complete relation can PASS even though arbitrary state does not
+        # converge in one edge. That relation alone must never classify state.
+        conditional_artifacts, _ = prove(run / "conditional-relation", reference=conditional)
+        assert b"\tcex\n" not in conditional_artifacts["relation_results"]
+        from tools.checkpoint_formats.formal_state_map import flat_inventory
+        from tools.checkpoint_formats.relational_state import validate_relations
+        refs = {e["formal_reference"]: e for e in mapping["entries"]}
+        gates = flat_inventory(netlist.read_text(), artifacts["models"].decode(), adapter, "StateMapDUT")
+        try: validate_relations(conditional_artifacts, refs, gates)
+        except FormatError as error:
+            assert str(error) == "relational constants lack matching independent predicates"
+            constant_checks["conditional-relation-only"] = str(error)
+        else: raise AssertionError("complete relation PASS substituted for independent predicates")
+        variants = {
+            "missing-proof": {k: v for k, v in artifacts.items() if not k.startswith("constant_")},
+            "missing-property": dict(artifacts, constant_results=b"\n".join(
+                r for r in artifacts["constant_results"].split(b"\n") if b".constant_0\t" not in r)),
+            "bounded-proof": dict(artifacts, constant_results=artifacts["constant_results"].replace(b"\tproven", b"\tbounded", 1)),
+            "vacuous-proof": dict(artifacts, constant_results=artifacts["constant_results"].replace(b"\tcovered", b"\tunreachable", 1)),
+            "wrong-raw-status": dict(artifacts, constant_log=artifacts["constant_log"].replace(b"\tproven", b"\tcex", 1))}
+        for name in ("wrong-relation-constant", "missing-relation-constant"):
+            wrong = copy.deepcopy(spec)
+            if name.startswith("wrong"): wrong["constants"][0]["value"] ^= 1
+            else: wrong["constants"].pop()
+            variants[name] = dict(artifacts, relation_spec=(json.dumps(wrong, indent=2) + "\n").encode(),
+                                  relation_miter=miter(wrong, rtl, netlist.read_text()))
+        for name, negative in variants.items():
+            try: export_state_map(manifest, "StateMapDUT", adapter, negative)
+            except FormatError as error: constant_checks[name] = str(error)
+            else: raise AssertionError(name + " accepted")
+        (run / "constant-rejections.json").write_text(json.dumps(constant_checks, indent=2) + "\n")
+
     unread_checks = {}
     if optimized:
         altered = copy.deepcopy(checkpoint)
@@ -221,8 +321,9 @@ def verify(out, profile="direct", reordered=False, optimized=False):
         negatives[name] = "real Jasper counterexample on changed synthesized D connection"
     if optimized:
         connected = run / "connected-unread.v"
-        connected.write_text(rtl.replace("assign held_out = held & held_copy;",
-                                         "assign held_out = (held & held_copy) ^ unused;"))
+        held_expression = "held & held_copy ^ constant ^ 4'b1010" if constant else "held & held_copy"
+        connected.write_text(rtl.replace(f"assign held_out = {held_expression};",
+                                         f"assign held_out = ({held_expression}) ^ unused;"))
         bad_artifacts, _ = prove(run / "connected-unread", reference=connected)
         assert b"\tassert\tcex\n" in bad_artifacts["relation_results"]
         assert b"checkpoint_relation_miter.output_held\tassert\tcex" in bad_artifacts["relation_results"]
@@ -232,7 +333,8 @@ def verify(out, profile="direct", reordered=False, optimized=False):
         from tools.checkpoint_formats.relational_state import validate_relations
         refs = {e["formal_reference"]: e for e in mapping["entries"]}
         gates = flat_inventory(netlist.read_text(), artifacts["models"].decode(), adapter, "StateMapDUT")
-        try: validate_relations(bad_artifacts, refs, gates)
+        constants = validate_constants(artifacts, manifest, "StateMapDUT") if constant else {}
+        try: validate_relations(bad_artifacts, refs, gates, constants)
         except FormatError as error:
             assert str(error) == "unproven or vacuous state correspondence"
             negatives["connected-unread"] = str(error)
@@ -242,7 +344,7 @@ def verify(out, profile="direct", reordered=False, optimized=False):
         bad_next, _ = prove(run / "connected-unread-next", reference=connected_next)
         assert any(b".step_" in row and row.endswith(b"\tassert\tcex")
                    for row in bad_next["relation_results"].splitlines())
-        try: validate_relations(bad_next, refs, gates)
+        try: validate_relations(bad_next, refs, gates, constants)
         except FormatError as error:
             assert str(error) == "unproven or vacuous state correspondence"
             negatives["connected-unread-next"] = str(error)
@@ -281,8 +383,9 @@ def verify(out, profile="direct", reordered=False, optimized=False):
         (run / (name + "-spec.json")).write_bytes(missing["relation_spec"])
     summary = dict(status="passed", profile=profile, reorder_registers=reordered, map_version=mapping["map_version"],
                    merge_registers=True, duplicate_registers=True, optimize_registers=optimized,
+                   constant_registers=constant, constant_semantic_bits=4 * constant, constant_rejections=constant_checks,
                    unread_semantic_bits=4 * optimized, unread_checks=unread_checks,
-                   semantic_bits=28 + 4 * optimized, gate_bits=28,
+                   semantic_bits=28 + 4 * (optimized + constant), gate_bits=28,
                    proven_relationships=32, inverted_gate_bits=28 * int(profile == "inverted"),
                    duplicated_semantic_bits=4, merged_gate_bits=4, ram_words=4,
                    ram_implementation="synthesized flip-flops; no SRAM macro acceptance",
@@ -290,7 +393,7 @@ def verify(out, profile="direct", reordered=False, optimized=False):
                    zero_edge_readback=True, loader_rejections=failures, formal_negatives=negatives,
                    conflicting_merged_checkpoint_rejected=True, clone_fault_cycle=29, shared_fault_cycle=29,
                    initial_state="complete mapped relation; merged sources must agree",
-                   remaining=["SRAM macro initialization", "relational constant composition"])
+                   remaining=["SRAM macro initialization"] + ([] if constant else ["relational constant composition"]))
     (run / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     print(json.dumps(dict(run=str(run), **summary), indent=2))
     return run
