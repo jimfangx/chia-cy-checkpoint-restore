@@ -29,6 +29,11 @@ foreach_in_collection reg [all_registers -cells] {
     # Genus' native duplicate_register suffix proposes a one-to-many match.
     # Every physical copy must pass; the suffix itself certifies nothing.
     regsub {_SYNTHESIS_SEQ_DUP_[0-9]+$} $name {} name
+    # Optional build-bound destination permutation supplies candidates only.
+    # Verification must prove each relation, including every duplicated copy.
+    if {[info exists checkpoint_candidate_names] && [dict exists $checkpoint_candidate_names $name]} {
+      set name [dict get $checkpoint_candidate_names $name]
+    }
     set checkpoint_ref r:/WORK/StateMapDUT/$name
     if {[dict exists $reference_registers $checkpoint_ref]} {
       dict lappend checkpoint_matches $checkpoint_ref $checkpoint_impl

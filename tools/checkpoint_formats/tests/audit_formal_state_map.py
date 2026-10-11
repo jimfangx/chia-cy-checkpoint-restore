@@ -47,6 +47,12 @@ def audit(run):
     cell = "CKDFFN" if polarity else "CKDFF"
     duplicated = summary.get("duplicate_registers", False)
     assert type(duplicated) is bool
+    reordered = summary.get("reorder_registers", False)
+    assert type(reordered) is bool
+    slots = (2, 0, 3, 1) if reordered else (0, 1, 2, 3)
+    counter_name = lambda bit: f"{'gate_count' if reordered else 'count'}_reg[{slots[bit]}]"
+    assert summary.get("counter_bit_to_gate_slot", list(slots)) == list(slots)
+    assert summary.get("reordered_semantic_bits", 0) == (4 if reordered else 0)
     gate_bits = 28 if duplicated else 24
     cases = ("missing", "width", "duplicate", "unknown-value", "incomplete") + (("missing-copy",) if duplicated else ())
     assert mapping["semantic_bits"] == 24 and mapping["gate_storage_bits"] == gate_bits
@@ -92,8 +98,10 @@ def audit(run):
         name += f"[{entry['address']}]" if state["kind"] == "memory" else ""
         assert entry["original_rtl"] == name + f"[{entry['bit']}]"
         expected_instances = {entry["formal_reference"].rsplit("/", 1)[1]}
+        if reordered and name == "count":
+            expected_instances = {counter_name(entry["bit"])}
         if duplicated and name == "count":
-            expected_instances.add(f"count_reg[{entry['bit']}]_SYNTHESIS_SEQ_DUP_0")
+            expected_instances.add(counter_name(entry["bit"]) + "_SYNTHESIS_SEQ_DUP_0")
         assert {gate["instance"] for gate in entry["gates"]} == expected_instances
         for gate in entry["gates"]:
             assert gate["xor"] == polarity and gate["storage"] == "state" and gate["proof_status"] == "passing"
@@ -141,17 +149,36 @@ def audit(run):
     assert "Verification FAILED" in (run / "formal-wrong-polarity/formal.log").read_text()
     assert "\nVERIFY\t0\n" in (run / "formal-wrong-polarity/evidence.tsv").read_text()
     assert summary["wrong_polarity_formal_failed"] is True
+    if reordered:
+        synth_log = Path(paths["synthesis_log"]).read_text()
+        renames = [line.split("\t")[1:] for line in synth_log.splitlines() if line.startswith("CHECKPOINT_REORDER\t")]
+        expected_renames = {(f"count_reg[{bit}]" + suffix, counter_name(bit) + suffix)
+                            for bit in range(4) for suffix in
+                            (("", "_SYNTHESIS_SEQ_DUP_0") if duplicated else ("",))}
+        assert len(renames) == len(expected_renames) and set(map(tuple, renames)) == expected_renames
+        assert "Verification FAILED" in (run / "formal-wrong-permutation/formal.log").read_text()
+        assert "\nVERIFY\t0\n" in (run / "formal-wrong-permutation/evidence.tsv").read_text()
+        assert summary["wrong_permutation_rejected"] == "formal tool did not prove equivalence"
+        assert summary["swapped_destination_map_rejected"] == "ASIC map or build/proof identity mismatch"
+        swapped = json.loads((run / "swapped-destinations-map.json").read_text())
+        expected_swap = json.loads(json.dumps(mapping))
+        count_entries = sorted((e for e in expected_swap["entries"] if e["original_rtl"].startswith("count[")),
+                               key=lambda e: e["bit"])
+        count_entries[0]["gates"], count_entries[1]["gates"] = count_entries[1]["gates"], count_entries[0]["gates"]
+        assert swapped == expected_swap and swapped != mapping
     if duplicated:
         assert "Duplicated 4 register(s), creating 4 new registers" in Path(paths["synthesis_log"]).read_text()
-        assert "i:/WORK/StateMapDUT/count_reg[3]_SYNTHESIS_SEQ_DUP_0/state_reg" in (run / "formal-fault/failing.rpt").read_text()
-        assert "dut.\\count_reg[0]_SYNTHESIS_SEQ_DUP_0 .state" in (run / "gate-restored/tb.sv").read_text()
+        assert f"i:/WORK/StateMapDUT/{counter_name(3)}_SYNTHESIS_SEQ_DUP_0/state_reg" in (run / "formal-fault/failing.rpt").read_text()
+        assert f"dut.\\{counter_name(0)}_SYNTHESIS_SEQ_DUP_0 .state" in (run / "gate-restored/tb.sv").read_text()
         assert summary["missing_copy_proof_rejected"] == "unproven or unmappable gate state"
         missing = (run / "missing-copy-evidence.tsv").read_text().splitlines()
         assert missing == [line for line in evidence if not
-                           (line.startswith("PROVEN\t") and "count_reg[0]_SYNTHESIS_SEQ_DUP_0/state_reg" in line)]
+                           (line.startswith("PROVEN\t") and counter_name(0) + "_SYNTHESIS_SEQ_DUP_0/state_reg" in line)]
     result = dict(status="passed", independently_checked_state_bits=24, ram_words=4,
                   independently_checked_gate_bits=gate_bits, duplicated_semantic_bits=4 if duplicated else 0,
                   profile=profile, independently_checked_inverted_bits=gate_bits * polarity,
+                  reordered_semantic_bits=4 if reordered else 0,
+                  wrong_permutation_hypothesis_formal_failed=reordered,
                   restored_pre_edge_boundaries=79, compared_outputs=237, loader_atomic_rejections=len(cases),
                   first_actual_gate_fault_cycle=29, actual_faulty_netlist_formal_failed=True,
                   wrong_polarity_hypothesis_formal_failed=True,

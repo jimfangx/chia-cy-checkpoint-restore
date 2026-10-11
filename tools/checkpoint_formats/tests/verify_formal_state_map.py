@@ -5,6 +5,7 @@ Diagnostic tool work is isolated under --out (normally the loop runs directory).
 """
 
 import argparse
+import copy
 import json
 import os
 from pathlib import Path
@@ -92,13 +93,16 @@ def testbench(module, start=0, trace=None, deposits=None, fault_storage=None):
     return "\n".join(lines) + "\n"
 
 
-def verify(out, profile="direct", duplicate_registers=False):
+def verify(out, profile="direct", duplicate_registers=False, reorder_registers=False):
     run = Path(tempfile.mkdtemp(prefix="invocation-", dir=out)).resolve()
     commands = []
     cells = FIXTURE if profile == "direct" else FIXTURE / "inverted"
     sequential_cell = "CKDFF" if profile == "direct" else "CKDFFN"
     expected_gate_bits = 28 if duplicate_registers else 24
     counter_suffix = "_SYNTHESIS_SEQ_DUP_0" if duplicate_registers else ""
+    slots = (2, 0, 3, 1) if reorder_registers else (0, 1, 2, 3)
+    counter_name = lambda bit: f"{'gate_count' if reorder_registers else 'count'}_reg[{slots[bit]}]"
+    configuration = cells / "reordered/config.tcl" if reorder_registers else cells / "config.tcl"
 
     def invoke(argv, cwd, log, env=None, timeout=240, expected=0):
         with open(log, "w") as output:
@@ -117,24 +121,25 @@ def verify(out, profile="direct", duplicate_registers=False):
     formal_env["CHECKPOINT_FIXTURE"] = str(FIXTURE)
     formal_env["CHECKPOINT_LIBRARY"] = str(cells / "cells.lib")
     formal_env["CHECKPOINT_DUPLICATE_REGISTERS"] = str(int(duplicate_registers))
+    formal_env["CHECKPOINT_REORDER_REGISTERS"] = str(int(reorder_registers))
     invoke([GENUS, "-no_gui", "-batch", "-files", str(FIXTURE / "synth.tcl")], synth,
            synth / "synth.log", formal_env)
     require_netlist = synth / "netlist.v"
     if not require_netlist.exists():
         raise RuntimeError(f"Genus failed to write the netlist; see {synth / 'synth.log'}")
 
-    def prove(netlist, directory, configuration=None):
+    def prove(netlist, directory, config=None):
         directory.mkdir()
-        configuration = configuration or cells / "config.tcl"
+        config = config or configuration
         env = dict(formal_env, CHECKPOINT_RTL=str(FIXTURE / "dut.v"),
-                   CHECKPOINT_FORMAL_CONFIG=str(configuration),
+                   CHECKPOINT_FORMAL_CONFIG=str(config),
                    CHECKPOINT_NETLIST=str(netlist), CHECKPOINT_CELLS=str(cells / "cells.v"))
         invoke([FORMALITY, "-f", str(FIXTURE / "prove.tcl")], directory, directory / "formal.log", env)
         paths = dict(rtl=FIXTURE / "dut.v", netlist=netlist, models=cells / "cells.v",
                      library=cells / "cells.lib", synthesis_script=FIXTURE / "synth.tcl",
                      synthesis_log=synth / "synth.log", formal_script=FIXTURE / "prove.tcl",
                      formal_log=directory / "formal.log", evidence=directory / "evidence.tsv",
-                     formal_configuration=configuration,
+                     formal_configuration=config,
                      blackboxes=directory / "blackboxes.rpt")
         return {role: path.read_bytes() for role, path in paths.items()}, paths
 
@@ -151,7 +156,13 @@ def verify(out, profile="direct", duplicate_registers=False):
         assert entry["original_rtl"] == f"count[{entry['bit']}]"
         assert len(entry["gates"]) == 2
         assert {g["instance"] for g in entry["gates"]} == {
-            f"count_reg[{entry['bit']}]", f"count_reg[{entry['bit']}]_SYNTHESIS_SEQ_DUP_0"}
+            counter_name(entry["bit"]), counter_name(entry["bit"]) + "_SYNTHESIS_SEQ_DUP_0"}
+    counter_entries = [e for e in mapping["entries"] if e["original_rtl"].startswith("count[")]
+    assert len(counter_entries) == 4
+    for entry in counter_entries:
+        assert {g["instance"] for g in entry["gates"]} == {
+            counter_name(entry["bit"]) + suffix for suffix in
+            (("", "_SYNTHESIS_SEQ_DUP_0") if duplicate_registers else ("",))}
     assert all(g["cell"] == sequential_cell for e in mapping["entries"] for g in e["gates"])
     (run / "cell-adapter.json").write_text(json.dumps(adapter, indent=2) + "\n")
     (run / "asic_state_map.json").write_text(json.dumps(mapping, indent=2) + "\n")
@@ -179,6 +190,21 @@ def verify(out, profile="direct", duplicate_registers=False):
     checkpoint, trace = package_capture(manifest, boundary, "formal-small-dut-v1",
                                         capture / "capture.jsonl", 17, 79, capture)
     checkpoint_data = (capture / "capture.rtlckpt").read_bytes()
+    swapped_map_rejection = None
+    if reorder_registers:
+        guessed = copy.deepcopy(mapping)
+        count_entries = sorted((e for e in guessed["entries"] if e["original_rtl"].startswith("count[")),
+                               key=lambda e: e["bit"])
+        count_entries[0]["gates"], count_entries[1]["gates"] = count_entries[1]["gates"], count_entries[0]["gates"]
+        (run / "swapped-destinations-map.json").write_text(json.dumps(guessed, indent=2) + "\n")
+        try:
+            gate_deposits(guessed, manifest, adapter, artifacts, checkpoint_data,
+                          builds(manifest, boundary, "formal-small-dut-v1")[0], "tb.dut")
+        except FormatError as error:
+            swapped_map_rejection = str(error)
+        else:
+            raise AssertionError("swapped destination map accepted before translation")
+        assert swapped_map_rejection == "ASIC map or build/proof identity mismatch"
     cycle, deposits = gate_deposits(mapping, manifest, adapter, artifacts, checkpoint_data,
                                     builds(manifest, boundary, "formal-small-dut-v1")[0], "tb.dut")
     restore = run / "restore.txt"
@@ -187,7 +213,7 @@ def verify(out, profile="direct", duplicate_registers=False):
     gate.mkdir()
     (gate / "tb.sv").write_text(testbench("StateMapDUT", start=cycle, trace=trace,
                                          deposits=(restore, len(deposits)),
-                                         fault_storage=f"dut.\\count_reg[0]{counter_suffix} .state"))
+                                         fault_storage=f"dut.\\{counter_name(0)}{counter_suffix} .state"))
     simv = build_vcs(gate, [require_netlist, cells / "cells.v", gate / "tb.sv"])
     invoke([str(simv)], gate, gate / "simulation.log")
     text = (gate / "simulation.log").read_text()
@@ -211,7 +237,7 @@ def verify(out, profile="direct", duplicate_registers=False):
             p, w, _ = deposits[-1]
             rows[-1] = f"{p} {w} x"
         elif name == "missing-copy":
-            rows = [row for row in rows if "count_reg[0]_SYNTHESIS_SEQ_DUP_0" not in row]
+            rows = [row for row in rows if counter_name(0) + "_SYNTHESIS_SEQ_DUP_0" not in row]
         else:
             rows.pop()
         bad_restore = gate / (name + ".txt")
@@ -246,7 +272,7 @@ def verify(out, profile="direct", duplicate_registers=False):
     # A fresh formal run on a real faulty implementation must fail closed;
     # no stale successful map is accepted or published for it.
     bad_netlist = run / "bad-netlist.v"
-    bad = re.sub(rf"(\b{sequential_cell}\s+\\count_reg\[3\]{counter_suffix}\s*\([^;]*?\.D\s*\()[^)]*(\))",
+    bad = re.sub(rf"(\b{sequential_cell}\s+\\{re.escape(counter_name(3))}{counter_suffix}\s*\([^;]*?\.D\s*\()[^)]*(\))",
                  r"\g<1>1'b0\2", require_netlist.read_text(), count=1)
     assert bad != require_netlist.read_text()
     bad_netlist.write_text(bad)
@@ -259,7 +285,8 @@ def verify(out, profile="direct", duplicate_registers=False):
         raise AssertionError("faulty gate implementation accepted")
     assert b"Verification FAILED" in bad_artifacts["formal_log"]
     opposite = FIXTURE / "inverted" if profile == "direct" else FIXTURE
-    wrong_artifacts, _ = prove(require_netlist, run / "formal-wrong-polarity", opposite / "config.tcl")
+    opposite_config = opposite / ("reordered/config.tcl" if reorder_registers else "config.tcl")
+    wrong_artifacts, _ = prove(require_netlist, run / "formal-wrong-polarity", opposite_config)
     try:
         export_state_map(manifest, "StateMapDUT", adapter, wrong_artifacts)
     except FormatError as error:
@@ -267,13 +294,30 @@ def verify(out, profile="direct", duplicate_registers=False):
     else:
         raise AssertionError("unproven polarity hypothesis accepted")
     assert b"Verification FAILED" in wrong_artifacts["formal_log"]
+    wrong_permutation_rejection = None
+    if reorder_registers:
+        # Deliberately pair gate slots by their numeric index instead of the
+        # actual permutation. A fresh proof must reject this plausible guess.
+        wrong_config = run / "wrong-permutation.tcl"
+        wrong_config.write_text("set checkpoint_candidate_polarity " +
+                                ("-inverted" if profile == "inverted" else "-noninverted") +
+                                "\nset checkpoint_candidate_names [dict create " +
+                                " ".join(f"{{gate_count_reg[{b}]}} {{count_reg[{b}]}}" for b in range(4)) + "]\n")
+        wrong_artifacts, _ = prove(require_netlist, run / "formal-wrong-permutation", wrong_config)
+        try:
+            export_state_map(manifest, "StateMapDUT", adapter, wrong_artifacts)
+        except FormatError as error:
+            wrong_permutation_rejection = str(error)
+        else:
+            raise AssertionError("unproven destination permutation accepted")
+        assert b"Verification FAILED" in wrong_artifacts["formal_log"]
     missing_copy_rejection = None
     if duplicate_registers:
         # A global successful equivalence result is insufficient when one copy's
         # individual passing relationship is missing. Keep the real tool evidence
         # intact and retain this isolated rejected export as a diagnostic artifact.
         missing = dict(artifacts)
-        omitted = b"count_reg[0]_SYNTHESIS_SEQ_DUP_0/state_reg"
+        omitted = (counter_name(0) + "_SYNTHESIS_SEQ_DUP_0/state_reg").encode()
         missing["evidence"] = b"\n".join(row for row in artifacts["evidence"].split(b"\n")
                                             if not (row.startswith(b"PROVEN\t") and omitted in row))
         (run / "missing-copy-evidence.tsv").write_bytes(missing["evidence"])
@@ -287,6 +331,10 @@ def verify(out, profile="direct", duplicate_registers=False):
     summary = dict(status="passed", scope="flat audited scalar-cell DUT; no retiming",
                    profile=profile, formally_proven_inverted_bits=inverted,
                    duplicate_registers=duplicate_registers, duplicated_semantic_bits=len(duplicated),
+                   reorder_registers=reorder_registers, counter_bit_to_gate_slot=list(slots),
+                   reordered_semantic_bits=4 if reorder_registers else 0,
+                   wrong_permutation_rejected=wrong_permutation_rejection,
+                   swapped_destination_map_rejected=swapped_map_rejection,
                    missing_copy_proof_rejected=missing_copy_rejection,
                    semantic_bits=mapping["semantic_bits"], gate_bits=mapping["gate_storage_bits"],
                    ram_words=4, restore_cycle=cycle, restored_edges=79, uninterrupted_edges=96,
@@ -296,7 +344,8 @@ def verify(out, profile="direct", duplicate_registers=False):
                    faulty_netlist_rejected=rejection, faulty_netlist_formal_failed=True,
                    wrong_polarity_rejected=wrong_polarity_rejection, wrong_polarity_formal_failed=True,
                    remaining=(["real polarity proof case"] if profile == "direct" else []) +
-                             ["real permutation/merging/optimization proof cases"] +
+                             ["real merging/optimization proof cases"] +
+                             ([] if reorder_registers else ["real indexed destination permutation proof case"]) +
                              ([] if duplicate_registers else ["real duplication proof case"]) + [
                               "audited SRAM macro initialization interface"])
     (run / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
@@ -309,9 +358,10 @@ def main():
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--profile", choices=("direct", "inverted"), default="direct")
     parser.add_argument("--duplicate-registers", action="store_true")
+    parser.add_argument("--reorder-registers", action="store_true")
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
-    verify(args.out, args.profile, args.duplicate_registers)
+    verify(args.out, args.profile, args.duplicate_registers, args.reorder_registers)
 
 
 if __name__ == "__main__":

@@ -22,6 +22,27 @@ if {[info exists env(CHECKPOINT_DUPLICATE_REGISTERS)] && $env(CHECKPOINT_DUPLICA
   if {[llength $candidates] != 4} {error "Expected four original counter flops"}
   duplicate_register $candidates -num_copies 2 -verbose
 }
+# A nontrivial bit-index permutation of synthesized scalar storage destinations.
+# Rename native database objects while retaining their actual D/Q connectivity;
+# the emitted successful netlist is never rewritten. This exercises reordered
+# indexed destinations, not packed multibit cells or retimed state.
+if {[info exists env(CHECKPOINT_REORDER_REGISTERS)] && $env(CHECKPOINT_REORDER_REGISTERS) eq "1"} {
+  set slots {2 0 3 1}
+  set candidates [get_db insts -if {.name == *count_reg*}]
+  set renamed 0
+  foreach inst $candidates {
+    set old [get_db $inst .base_name]
+    if {![regexp {^count_reg\[([0-3])\](_SYNTHESIS_SEQ_DUP_[0-9]+)?$} $old -> bit suffix]} {
+      error "Unexpected counter storage name: $old"
+    }
+    set new [format {gate_count_reg[%d]%s} [lindex $slots $bit] $suffix]
+    rename_obj $inst $new
+    if {[get_db $inst .base_name] ne $new} {error "Native register rename failed"}
+    puts "CHECKPOINT_REORDER\t$old\t$new"
+    incr renamed
+  }
+  if {$renamed != 4 && $renamed != 8} {error "Incomplete counter destination permutation"}
+}
 write_hdl > netlist.v
 report_gates > gates.rpt
 foreach {role path} $input_paths {

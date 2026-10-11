@@ -1,4 +1,73 @@
-# M8 formal state mapping — iteration 57
+# M8 formal state mapping — iteration 58
+
+Status: in progress. The new increment proves and replays a nonidentity
+permutation of indexed scalar gate destinations, combined with duplication
+and both storage polarities. Merging, constants/irrelevance and SRAM macro
+initialization remain. No external dependency blocks the supported flow.
+
+Read the agent Phase 10/M9 and human formal correspondence/retiming sections,
+progress, previous verification and both papers' preserved matching/replay
+extracts before edits. Plan/PDF hashes and starting staging are under
+`automations/checkpoint_loop/runs/m8-iteration58/`. Preserve the dirty agent
+plan. The loop M8 versus plan M9 numbering correction remains only here.
+
+`verify_formal_state_map.py --reorder-registers` invokes Genus' native
+`rename_obj` on mapped counter flops after ordinary synthesis and optional
+native duplication. Original counter bits 0,1,2,3 occupy scalar destination
+slots 2,0,3,1; D/Q connectivity is retained. The emitted successful netlist is
+never rewritten. This exercises name/index permutation of scalar storage,
+not packed multibit-cell bit ordering, automatic physical placement or retiming.
+The actual netlist, complete inventory, native rename log, retiming=false and
+all input identities are bound to the build.
+
+The two new hash-bound `reordered/config.tcl` files supply candidate name
+relations and polarity. Formality must prove each state relationship and all
+outputs without reset/input assumptions or black boxes. Only passing compare
+points enter the StateID map. The exporter/translator remains independent of
+the candidate permutation. Unknown or unproven state still rejects explicitly.
+
+All four reordered profiles (direct/inverted, with/without duplication) prove
+complete correspondence for 24 semantic bits and 24/28 physical bits, including
+all four logical RAM words. These memories are synthesized flip-flops.
+Fresh gate VCS deposits/readbacks every bit at zero edges from pre-edge C=17
+and matches 79 boundaries / 237 output values through END C=96. Uninterrupted
+gate execution agrees with the same ordinary-RTL oracle. The inverted profiles
+have XOR=1 at every storage destination. Five/six loader failures preserve all
+bits and continuation; a real counter-storage fault first differs at C=29 after
+12 restored edges.
+
+Fresh proofs of a changed D input, wrong polarity and the plausible guessed
+same-index permutation each fail and reject export. Swapping counter
+destinations in the exported map rejects before checkpoint translation.
+Omitting a duplicate's passing relation still rejects despite global PASS.
+Independent audits cross-check native renames, human/machine passing relations,
+complete inventories, all build identities, deposits and trace/log boundaries.
+An unmodified isolated control passes; eight isolated mutations reject,
+including swapped bit destinations and a guessed-order summary.
+
+All eight real CAD/VCS profiles and independent audits pass: the four new
+reordered combinations and four unchanged direct/inverted/duplicated
+regressions. All 92 Python tests and complete M2/M3 VCS regressions pass.
+M2 retains five cuts, 22 state words, actual C=29 divergence and four loader
+rejections. M3 checks 717 transport edges, 23 semantic advances, six complete
+captures, 242 boundary/five semantic replay samples and eight invalid reads.
+
+Final profile locations, all exact argv arrays, summaries and a full-path
+artifact catalog are under `automations/checkpoint_loop/runs/m8-iteration58/`:
+`matrix-results.json`, `verification-commands.json`, `summary.json` and
+`artifact-manifest.json`. Each invocation retains its inner `commands.json`.
+Every VCS shell sources Chipyard env, FireSim env, then `vcs-env.sh` LAST,
+retaining VCS Y-2026.03-SP1 `-full64` and GCC/G++ 13. Reused metasim builds
+regenerate cached VCS C Makefiles with `-Mupdate`.
+
+Next: extend export to independently proven merging and constants/irrelevance,
+then add a hash-bound SRAM macro adapter covering its complete array and any
+pipeline/port state with zero-edge initialization. Do not infer optimized-away
+state from global equivalence PASS. Artificial functional test cells establish
+no process ASIC, FPGA, gate-activity or power acceptance. Level 1 remains
+independent. No plan/PDF/conda edits, staging, commits, resets or cleaning.
+
+## Historical iteration 57 evidence
 
 Status: in progress. Real Genus/Formality/VCS evidence now validates register
 duplication with both direct and inverted polarity, alongside the existing
