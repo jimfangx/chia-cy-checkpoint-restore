@@ -105,8 +105,18 @@ Both polarities and `--reorder-registers` are supported. The gate-reference
 proof must establish every original alias; unread evidence belongs to the
 original RTL on the implementation side. Constants still require independent
 Jasper predicates. Unread bits cannot excuse conflicting merged values or
-constant checkpoint values. Combining merging with duplication rejects until
-a proof adapter supports both transformations. These fixtures use flip-flops
+constant checkpoint values. Combine `--merge-registers --duplicate-registers`
+to select the complete-state Jasper adapter in `relational_state.py`, optionally
+with inverted polarity and destination reordering. Version-5 maps require an
+unbounded induction assertion for every candidate state relation and equivalence
+of every output under the full relation, without reset or input assumptions.
+Covered assertion antecedents, two-sample relation coverage and both values of
+every physical bit prevent vacuous acceptance. The checkpoint loader enforces
+the relation at initialization, including agreement among merged sources.
+Every original and physical bit must be represented; missing aliases/copies,
+bounded proofs and changed scripts/miter/input identities reject. Composition
+of this adapter with unread/constant elimination currently rejects explicitly.
+These fixtures use flip-flops
 for logical RAM; SRAM macros still require a complete storage adapter.
 
 The verifier produces a fresh invocation directory, raw passing/matching reports,
@@ -116,6 +126,8 @@ healthy uninterrupted/restored comparisons and real formal/simulation failures.
 containers, captured state, netlist inventory and every replay boundary without
 importing the exporter or codec. Recovery and current M8 scope are recorded in
 `docs/checkpointing/m8-formal-state-map.md`.
+Use `tests.audit_relational_state_map --run <invocation>` for version-5 profiles;
+it checks the miter, individual raw engine results, inventories and replay.
 
 The opt-in Golden Gate CLI flag `--semantic-checkpoint-root Top.dut` invokes
 `midas.checkpoint.SemanticStateInventory` after target lowering, before

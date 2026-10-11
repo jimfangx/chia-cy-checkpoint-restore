@@ -103,7 +103,10 @@ def verify(out, profile="direct", duplicate_registers=False, reorder_registers=F
            optimize_registers=False, constant_registers=False):
     optimize_registers = optimize_registers or constant_registers
     if merge_registers and duplicate_registers:
-        raise ValueError("combined merging and duplication requires a separate proof adapter")
+        if optimize_registers:
+            raise ValueError("relational merging/duplication with unread or constant state is unsupported")
+        from .verify_relational_state_map import verify as verify_relational
+        return verify_relational(out, profile, reorder_registers)
     run = Path(tempfile.mkdtemp(prefix="invocation-", dir=out)).resolve()
     commands = []
     cells = FIXTURE if profile == "direct" else FIXTURE / "inverted"

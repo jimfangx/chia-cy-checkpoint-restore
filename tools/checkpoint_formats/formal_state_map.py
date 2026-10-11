@@ -1,9 +1,9 @@
-"""Build-bound, fail-closed Formality state-map exporter.
+"""Build-bound, fail-closed Formality/Jasper state-map exporter.
 
 Initial capability: one flat pre-FAME DUT, no retiming, audited scalar-cell
-simulation models, and memories explicitly synthesized into flip-flops. Only
-passing sequential compare points may initialize state. In particular, a global
-equivalence PASS never excuses missing semantic bits or extra gate storage.
+simulation models, and memories explicitly synthesized into flip-flops. Passing
+sequential compare points or complete Jasper relational induction initialize
+state. A global equivalence PASS never excuses missing bits or extra storage.
 Gate-reference proofs support merged RTL registers; all checkpoint sources of
 shared storage must agree after their proven polarity transformations.
 Unread original registers may be omitted only with explicit tool classification,
@@ -11,6 +11,8 @@ independently cross-checked against the hash-bound human unread-point report.
 Constant original register bits require separate Jasper predicates proved from
 arbitrary state after one edge, with raw results and nonvacuity coverage. Every
 checkpoint must satisfy both their horizon and values before any gate deposits.
+Complete relational induction supports simultaneous merging and duplication;
+all original/gate bits, output equivalence and nonvacuity covers are mandatory.
 """
 
 import hashlib
@@ -18,6 +20,7 @@ import re
 
 from .codec import canonical, keys, require
 from .constant_state import ROLES as CONSTANT_ROLES, validate_constants
+from .relational_state import ROLES as RELATION_ROLES, validate_relations
 from .replay import IDENT, inventory_rtl, modules, state_words
 from .semantic import decode_semantic, manifest_hash, validate_manifest
 
@@ -156,11 +159,14 @@ def export_state_map(manifest, top, adapter, artifacts):
             "incomplete formal build artifacts")
     has_optimization = artifacts.get("evidence", b"").startswith(b"FORMAT\tformality-state-v3\n")
     has_constants = bool(set(artifacts) & CONSTANT_ROLES)
-    require(set(artifacts) == ROLES | ({"optimization_report"} if has_optimization else set()) |
-            (CONSTANT_ROLES if has_constants else set()),
+    has_relations = "relation_spec" in artifacts
+    require(set(artifacts) == (RELATION_ROLES if has_relations else
+            ROLES | ({"optimization_report"} if has_optimization else set()) |
+            (CONSTANT_ROLES if has_constants else set())),
             "incomplete formal build artifacts")
-    require(b"Verification SUCCEEDED\n" in artifacts["formal_log"] and
-            b"Error:" not in artifacts["formal_log"], "formal tool did not prove equivalence")
+    if not has_relations:
+        require(b"Verification SUCCEEDED\n" in artifacts["formal_log"] and
+                b"Error:" not in artifacts["formal_log"], "formal tool did not prove equivalence")
     require(b"CHECKPOINT_RETIMING=false\n" in artifacts["synthesis_log"] and
             b"Error" not in artifacts["synthesis_log"], "retiming disabled synthesis not established")
     for role in ("rtl", "library", "synthesis_script"):
@@ -168,8 +174,9 @@ def export_state_map(manifest, top, adapter, artifacts):
         require(marker in artifacts["synthesis_log"].splitlines(), "stale synthesis input identity")
     marker = f"CHECKPOINT_SYNTH_OUTPUT\t{sha(artifacts['netlist'])}".encode()
     require(marker in artifacts["synthesis_log"].splitlines(), "netlist not bound to this synthesis")
-    require(b"No 'black boxes' matched current 'reference and implementation designs'" in
-            artifacts["blackboxes"], "blackboxed state or logic unsupported")
+    if not has_relations:
+        require(b"No 'black boxes' matched current 'reference and implementation designs'" in
+                artifacts["blackboxes"], "blackboxed state or logic unsupported")
     rtl = artifacts["rtl"].decode()
     require(manifest["reference_sha256"] == sha(artifacts["rtl"]),
             "semantic manifest/reference RTL identity mismatch")
@@ -193,12 +200,16 @@ def export_state_map(manifest, top, adapter, artifacts):
             require(ref not in refs, "ambiguous reference register convention")
             refs[ref] = dict(state_id=word["state_id"], address=word["address"], bit=bit,
                              original_rtl=path + (f"[{bit}]" if width > 1 else ""))
-    registers, proven, proof_inputs, reversed_proof, optimized = parse_evidence(artifacts["evidence"])
-    require(proof_inputs == {role: sha(artifacts[role]) for role in
-                            ("rtl", "models", "netlist", "formal_script", "formal_configuration")},
-            "stale formal input identity")
-    require(registers["r"] == set(refs), "unmappable or optimized reference state")
-    require(registers["i"] == set(gates), "formal/netlist gate inventory mismatch")
+    if has_relations:
+        proven = validate_relations(artifacts, refs, gates)
+        reversed_proof, optimized = False, {}
+    else:
+        registers, proven, proof_inputs, reversed_proof, optimized = parse_evidence(artifacts["evidence"])
+        require(proof_inputs == {role: sha(artifacts[role]) for role in
+                                ("rtl", "models", "netlist", "formal_script", "formal_configuration")},
+                "stale formal input identity")
+        require(registers["r"] == set(refs), "unmappable or optimized reference state")
+        require(registers["i"] == set(gates), "formal/netlist gate inventory mismatch")
     constants = validate_constants(artifacts, manifest, top) if has_constants else {}
     require(set(constants) <= set(refs) and not (set(constants) & set(optimized)),
             "constant state outside inventory or classified unread")
@@ -226,7 +237,7 @@ def export_state_map(manifest, top, adapter, artifacts):
         require(ref in entries and impl in gates, "passing point outside state inventory")
         require(ref not in optimized, "state classified both passing and unread")
         require(ref not in constants, "state classified both passing and constant")
-        require(reversed_proof or impl not in covered, "gate storage has conflicting state relationships")
+        require(reversed_proof or has_relations or impl not in covered, "gate storage has conflicting state relationships")
         covered.add(impl)
         storage = gates[impl]
         entries[ref]["gates"].append(dict(formal_implementation=impl, cell=storage["cell"],
@@ -244,17 +255,22 @@ def export_state_map(manifest, top, adapter, artifacts):
     ordered = sorted(entries.values(), key=lambda e: (e["state_id"], e["address"], e["bit"]))
     for entry in ordered:
         entry["gates"].sort(key=lambda g: g["formal_implementation"])
-    return dict(map_version=4 if constants else 3 if optimized else 2 if reversed_proof else 1, map_type="asic_state_map", top=top,
+    proof = (dict(tool="Jasper", export="complete state relation induction and output equivalence",
+                  assumptions=[], reset="unconstrained synchronous input",
+                  initial_state="complete map relation; loader enforces merged source consistency")
+             if has_relations else
+             dict(tool="Formality", export="passing sequential compare points" +
+                  ("; gate-reference orientation" if reversed_proof else "") +
+                  ("; explicit unread original DFF classification" if optimized else ""),
+                  assumptions=[], reset="unconstrained synchronous input",
+                  **(dict(constant_tool="Jasper", constant_horizon="one unconstrained target edge")
+                     if constants else {})))
+    return dict(map_version=5 if has_relations else 4 if constants else 3 if optimized else 2 if reversed_proof else 1, map_type="asic_state_map", top=top,
                 state_manifest_hash=manifest_hash(manifest), retiming=False,
                 build={role: sha(data) for role, data in sorted(artifacts.items())},
                 cell_adapter_hash=sha(canonical(adapter)), entries=ordered,
                 gate_storage_bits=len(gates), semantic_bits=len(refs),
-                proof=dict(tool="Formality", export="passing sequential compare points" +
-                           ("; gate-reference orientation" if reversed_proof else "") +
-                           ("; explicit unread original DFF classification" if optimized else ""),
-                           assumptions=[], reset="unconstrained synchronous input",
-                           **(dict(constant_tool="Jasper", constant_horizon="one unconstrained target edge")
-                              if constants else {})))
+                proof=proof)
 
 
 def validate_state_map(mapping, manifest, adapter, artifacts):

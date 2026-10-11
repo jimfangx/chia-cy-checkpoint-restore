@@ -1,4 +1,90 @@
-# M8 formal state mapping — iteration 62
+# M8 formal state mapping — iteration 63
+
+Status: in progress. Simultaneous native merging/duplication now has complete
+Jasper induction, version-5 mapping and gate replay in both polarities with
+reordering. All 40 CAD/VCS profiles/audits, 111 Python tests and full M2/M3
+regressions pass. SRAM macro initialization and relational unread/constant
+composition remain unsupported. No required CAD tool/library/license is missing.
+Artificial functional cells; no process ASIC, physical FPGA or power validation.
+
+Use `verify_formal_state_map.py --merge-registers --duplicate-registers`, with
+optional `--profile inverted` and `--reorder-registers`. The original merging DUT
+and successful Genus netlist remain unchanged. Native cloning and renaming run
+in Genus, with retiming queried false. `--optimize-registers`/`--constant-registers`
+with this combination reject before tools launch; existing separate profiles
+retain their Formality/Jasper adapters.
+
+`relational_state.py` generates an audited miter of both complete designs.
+Jasper runs with `reset -none` and unconstrained input/state. Each candidate
+relationship has an unbounded `relation |=> relationship` assertion; all outputs
+have `relation |-> output_equality` assertions. The initial-state condition is
+explicit: the complete candidate relation must hold when the netlist is loaded.
+The loader enforces all merged sources' consistency after proven XOR transforms
+and initializes every physical bit. Induction then guarantees continuation under
+arbitrary subsequent inputs, including resets. No independent arbitrary original
+and gate states are claimed equivalent. Candidates alone are never proof.
+
+Every assertion's antecedent must be covered; a two-sample relation cover and
+zero/one covers for every physical bit prevent vacuous acceptance. Every original
+and physical bit must be represented. Exact input/output directions and widths
+are mandatory for this fixed flat interface, preventing unnoticed output
+truncation. The script and generated miter must equal the audited implementation;
+raw engine messages, machine statuses, raw input markers and before/after hashes
+must agree. Bounded, missing, stale, constrained or vacuous evidence rejects.
+
+All four new profiles prove 32 relationships with 35 assertions and 92 covers:
+four shared held flops retain eight original sources, four counter bits each map
+to two physical copies, and all 16 logical RAM bits map to DFF storage. There are
+28 semantic bits and 28 physical bits. All initialize/read back at zero edges
+from C=17, then match 79 boundaries / 237 outputs through END C=96 against clean
+RTL and uninterrupted gate execution. Inverted profiles initialize all 28 bits
+with XOR=1. Every new profile has five real false-candidate/changed-D proofs with
+counterexamples and a contradictory relation whose covers are proven unreachable
+and whose export rejects. Both original aliases fail changed shared D; changed
+clone D fails that copy's relation. Clone/shared storage faults first differ at
+C=29 after 12 restored edges. All six loader failures preserve storage/time and
+continuation. Conflicting independently checksummed merged checkpoints and
+missing alias/copy evidence reject before deposits/export.
+
+All 40 profiles and independent audits pass, including all 36 previous profiles.
+All 111 Python tests and full M2/M3 metasim/ordinary RTL VCS regressions pass.
+M2 retains five cuts/all 22 words/actual C=29 divergence/four loader failures.
+M3 retains 717 transport edges, 23 semantic advances, six captures, 242 boundary
+and five semantic replay samples, and eight invalid reads. Old supplemental
+shared-flop faults and fresh changed-D proofs pass in both polarities too.
+
+Nine isolated independent controls pass and all 107 actual mutations reject:
+69 previous/combined mutations and 19 new rehashed mutations in each polarity.
+New audits check exact miter/script/interface, individual positive and negative
+raw engine results, all inventories, container checksums and every replay output.
+Two fresh equivalence-only constant builds reject absent predicates despite
+PASS. Eight relational unread/constant combinations reject before tool launch.
+`finalize-evidence.py` revalidates all 40 maps against actual current input bytes,
+all regression metrics and protected inputs. Exact argv/exit codes, profile paths,
+summary and full-path/hash catalog are under `runs/m8-iteration63/`:
+`verification-commands.json`, `finish-commands.json`, `supplemental-commands.json`,
+`summary.json`, `matrix-results.json`, `artifact-manifest.json`. Inner commands,
+raw reports/logs/checkpoint containers remain in each invocation directory.
+
+Proposed plan correction, recorded only here: allow complete Jasper relational
+induction as an alternative to passing compare-point extraction when one-to-many
+Formality matching cannot represent simultaneous merging/duplication. Preserve
+explicit initial relation, complete inventories and proof-mode metadata. The
+two partial Formality attempts failed; their results were rejected. The initial
+Jasper reserved-keyword label failed; corrected retry passed. Raw logs are under
+`runs/m8-iteration63/dual-proof-probe/`. Root-paper extraction hashes match the
+unchanged PDFs; relevant matching/loading/retiming and replay sections were read.
+Protected plans/PDFs and initial staging remain unchanged.
+
+Next: complete hash-bound SRAM macro initialization, including contents and
+pipeline/port state, with synthesis/proof/replay. Current logical RAMs remain
+flip-flops and do not establish macro acceptance. Relational unread/constant
+composition is also unsupported. Level 1 remains independent. Every VCS shell
+sources both project environments then `vcs-env.sh` LAST, retaining Y-2026.03-SP1,
+-full64 and GCC/G++ 13; reused metasim builds use -Mupdate. No plan/PDF/conda edits,
+staging, commits, resets, cleaning or FPGA/power claims.
+
+## Historical iteration 62 evidence
 
 Status: in progress. Native merging now composes with unread optimization and
 observable constants in real synthesized/proven/replayed DUTs. SRAM macro
