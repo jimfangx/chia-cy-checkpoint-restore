@@ -1,4 +1,107 @@
-# M10 production DUT formal map — iteration 70
+# M10 production DUT formal map — iteration 71
+
+Status: in progress. All retained real queue modules now have audited local
+register-induction and memory-port-congruence proofs. Complete production
+hierarchy/optimized-state/memory/boundary composition remains unproven.
+No production map, gate initialization, gate replay or mapped-state corruption
+acceptance is claimed. Completed M6/M7 and small synthesized-DUT M8/M9
+acceptance remain preserved. There is no required missing external dependency.
+
+`tools/checkpoint_formats/production_queue.py` reconstructs the actual 165
+retained Genus queue modules from the selected FCFS DUT. It binds every original
+StateID/bit to a candidate module-relative CKDFF storage relationship and checks
+complete membership of all local semantic and physical register bits. Unknown
+cells, changed models, missing state/ports, unsupported clocks, shared/extra
+queue hierarchy and changed synthesis identities reject. The original and
+architecture RTL, raw/selected netlists, concrete cell/memory models, synthesis
+inputs/log, semantic and boundary manifests and complete physical inventory
+are bound. Module-relative candidates do not establish global instance bindings.
+
+The formal adapter removes only the exact memory instance, exposes every
+memory input (write enable/address/data and read address), and supplies a common
+unconstrained read word. The real original queue logic and emitted gates/cell
+models remain in the miter. Every register relationship must preserve the
+complete local relation over a target edge; every memory input and every queue
+output has its own equality assertion. Independent zero/one state covers,
+edge, reset, write/hold and read-word covers plus every generated implication
+precondition remain mandatory. There are no assumptions, reset sequences,
+blackboxes or instantiated arrays. These are local array-cut obligations:
+composition with equal complete memory contents and the surrounding hierarchy
+is still required. No gate state may be loaded from this artifact.
+
+The final installed Jasper 2025.03 run covers **all 165 retained modules**:
+**1,135 register-bit transitions**, **660 complete memory-port equalities** and
+**917 output equalities** prove, with **6,276 covers**. All **304 other output
+assertions produce actual counterexamples**, retained explicitly in the result:
+160 `io_deq_valid`, 128 `io_deq_bits_echo_tl_state_size` and 16
+`io_deq_bits_tl_state_size`. The selected netlist declares the 160 dequeue-valid
+ports without drivers in their leaf bodies. This diagnostic is recorded in
+`undriven-local-output-diagnostic.json`; it does not prove global irrelevance.
+Full-DUT boundary equivalence must discharge these obligations or synthesis
+must change. Ready/valid qualification or finite trace agreement cannot waive
+any sampled output requirement.
+
+All **eight fresh negative CAD runs** produce counterexamples: wrong polarity,
+missing register relation, inverted write enable and wrong read address, each
+on real `Queue_2` and `Queue_39`. The independent auditor rebuilds the exact
+miters/scripts/bindings, checks every property and raw individual engine result,
+zero assumptions, nonvacuity and absence of blackboxing. **Two final audit
+passes** each reject all **24 actual artifact mutations**, audit all eight
+negative proofs and pass two unchanged controls. Changed/rehashed miters,
+scripts, missing assertions/preconditions, forged statuses, missing raw engine
+or input identities, hidden assumptions/blackboxes, missing StateIDs/physical
+state/pending obligations and forged completeness/authorization reject.
+Positive and negative proof bytes remain unchanged. Both raw and audited local
+proof artifacts reject at the existing gate loader before checkpoint decoding.
+
+The full composition catalog retains all **1,543 semantic entries** and
+**7,457 physical storage spans / 102,992,412 bits**, plus the exact boundary
+manifest. Every global storage relationship stays explicitly unproven. Of
+8,261 semantic and 7,256 physical register bits, 7,126 and 6,121 respectively
+remain outside the local queue theorem. The 1,005-bit difference still needs
+independent merging/constant/irrelevance proofs; counts do not classify state.
+The four flattened depth-one queues, all other pipelines/port registers and
+all 201 complete memories remain full-DUT composition obligations.
+
+Diagnostics are only under
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m10-iteration71/`.
+Final proof: `queue-proofs-final/invocation-6oqtswfn/positive/`, selected by
+`queue-proofs-final/selection.json`. Final independent audits:
+`queue-audit-final/invocation-393al0sn/` and `invocation-qgpj8qej/`, each with
+`summary.json`, `independent-audit.json` and
+`unproven-composition-obligations.json`. Use the selection/catalog files rather
+than treating the run directory itself as a report artifact: the loop requires
+nonempty regular files. The initial property/input reset-name collision and an
+incorrect evidence-directory invocation are retained as diagnostics; the
+complete final production proof and negative scope reran after correction.
+
+All **151 Python tests** and complete **M2/M3 VCS metasim/ordinary-RTL
+regressions** pass. An initial M2 VCS frontend `branch_bb == 0` assertion is
+retained; the fresh complete retry passes with unchanged test scope and pinned
+Y-2026.03-SP1/-full64/GCC 13. Complete production synthesis/disabled-retiming/
+concrete model binding passes a fresh audit. All 17 prior universal memory
+adapter theorems and all 178 memory evidence mutations pass fresh audits.
+Both complete prior production original/extracted-memory RTL waveform audits
+pass with fresh conversions: each checks all 13,503,308 zero-edge words, all
+201 memories/50 boundary ports and 250,185 boundaries/12,008,880 sampled
+input/output values, ending at C=774638. These are prior RTL executions
+re-audited now, not new gate simulations.
+
+`summary.json`, `verification-commands.json`, `artifact-manifest.json` and
+`protected-and-whitespace-audit.json` provide scope, exact argv, full-path/hash
+catalog and protected-input/staging checks. Recover with the self-contained
+M7 inputs and preserved iteration-69 synthesis described below. Next: construct
+the complete top/hierarchy state relation, discharge every local output
+counterexample at the real DUT boundary, prove optimized-state predicates and
+compose all memory transitions/ports, then independently audit a complete map.
+Only then run fresh gate VCS complete zero-edge deposits/readback, the entire
+actual metasim trace against fresh ordinary RTL, and real mapped-state
+corruption with first-divergence checks. Source both repository environments
+and `vcs-env.sh` LAST in every VCS shell. FPGA hardware and power characterization
+are not dependencies. Level-1 images remain independent. Plans/PDFs/conda files,
+staging and history are preserved; no FPGA, process ASIC or power claim.
+
+## Preserved iteration-70 memory adapter evidence
 
 Status: in progress. The original-to-architecture memory adapter now has
 independently audited universal word proofs for the selected real production
