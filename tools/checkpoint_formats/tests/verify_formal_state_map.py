@@ -92,11 +92,13 @@ def testbench(module, start=0, trace=None, deposits=None, fault_storage=None):
     return "\n".join(lines) + "\n"
 
 
-def verify(out, profile="direct"):
+def verify(out, profile="direct", duplicate_registers=False):
     run = Path(tempfile.mkdtemp(prefix="invocation-", dir=out)).resolve()
     commands = []
     cells = FIXTURE if profile == "direct" else FIXTURE / "inverted"
     sequential_cell = "CKDFF" if profile == "direct" else "CKDFFN"
+    expected_gate_bits = 28 if duplicate_registers else 24
+    counter_suffix = "_SYNTHESIS_SEQ_DUP_0" if duplicate_registers else ""
 
     def invoke(argv, cwd, log, env=None, timeout=240, expected=0):
         with open(log, "w") as output:
@@ -114,6 +116,7 @@ def verify(out, profile="direct"):
     formal_env.pop("LD_LIBRARY_PATH", None)  # Isolate CAD tools from the Conda ICU/libc libraries.
     formal_env["CHECKPOINT_FIXTURE"] = str(FIXTURE)
     formal_env["CHECKPOINT_LIBRARY"] = str(cells / "cells.lib")
+    formal_env["CHECKPOINT_DUPLICATE_REGISTERS"] = str(int(duplicate_registers))
     invoke([GENUS, "-no_gui", "-batch", "-files", str(FIXTURE / "synth.tcl")], synth,
            synth / "synth.log", formal_env)
     require_netlist = synth / "netlist.v"
@@ -140,7 +143,15 @@ def verify(out, profile="direct"):
     adapter = json.loads((cells / "cell-adapter.json").read_text())
     mapping = export_state_map(manifest, "StateMapDUT", adapter, artifacts)
     inverted = sum(g["xor"] for e in mapping["entries"] for g in e["gates"])
-    assert inverted == (24 if profile == "inverted" else 0), "profile did not exercise expected polarity"
+    assert inverted == (expected_gate_bits if profile == "inverted" else 0), "profile did not exercise expected polarity"
+    assert mapping["gate_storage_bits"] == expected_gate_bits
+    duplicated = [e for e in mapping["entries"] if len(e["gates"]) > 1]
+    assert len(duplicated) == (4 if duplicate_registers else 0)
+    for entry in duplicated:
+        assert entry["original_rtl"] == f"count[{entry['bit']}]"
+        assert len(entry["gates"]) == 2
+        assert {g["instance"] for g in entry["gates"]} == {
+            f"count_reg[{entry['bit']}]", f"count_reg[{entry['bit']}]_SYNTHESIS_SEQ_DUP_0"}
     assert all(g["cell"] == sequential_cell for e in mapping["entries"] for g in e["gates"])
     (run / "cell-adapter.json").write_text(json.dumps(adapter, indent=2) + "\n")
     (run / "asic_state_map.json").write_text(json.dumps(mapping, indent=2) + "\n")
@@ -176,16 +187,16 @@ def verify(out, profile="direct"):
     gate.mkdir()
     (gate / "tb.sv").write_text(testbench("StateMapDUT", start=cycle, trace=trace,
                                          deposits=(restore, len(deposits)),
-                                         fault_storage="dut.\\count_reg[0] .state"))
+                                         fault_storage=f"dut.\\count_reg[0]{counter_suffix} .state"))
     simv = build_vcs(gate, [require_netlist, cells / "cells.v", gate / "tb.sv"])
     invoke([str(simv)], gate, gate / "simulation.log")
     text = (gate / "simulation.log").read_text()
-    assert f"GATE_ZERO_EDGE_READBACK cycle={cycle} bits=24 edges=0" in text
+    assert f"GATE_ZERO_EDGE_READBACK cycle={cycle} bits={expected_gate_bits} edges=0" in text
     assert "GATE_END cycle=96 edges=79" in text
     assert text.count("GATE_MATCH cycle=") == 79
     # Earlier rows would change stored state if the loader wrote eagerly.
     invalid_cases = {}
-    for name in ("missing", "width", "duplicate", "unknown-value", "incomplete"):
+    for name in ("missing", "width", "duplicate", "unknown-value", "incomplete") + (("missing-copy",) if duplicate_registers else ()):
         rows = [f"{p} {w} {v}" for p, w, v in deposits]
         p, w, v = deposits[0]
         rows[0] = f"{p} {w} {1 - int(v)}"
@@ -199,15 +210,17 @@ def verify(out, profile="direct"):
         elif name == "unknown-value":
             p, w, _ = deposits[-1]
             rows[-1] = f"{p} {w} x"
+        elif name == "missing-copy":
+            rows = [row for row in rows if "count_reg[0]_SYNTHESIS_SEQ_DUP_0" not in row]
         else:
             rows.pop()
         bad_restore = gate / (name + ".txt")
         bad_restore.write_text("\n".join(rows) + "\n")
         log = gate / (name + ".log")
         invoke([str(simv), f"+invalid_restore={bad_restore}"], gate, log)
-        assert "INVALID_GATE_LOAD_REJECTED edges=0 unchanged=24" in log.read_text()
+        assert f"INVALID_GATE_LOAD_REJECTED edges=0 unchanged={expected_gate_bits}" in log.read_text()
         assert "GATE_END cycle=96 edges=79" in log.read_text()
-        invalid_cases[name] = "rejected before writes; all 24 bits unchanged; continuation matched"
+        invalid_cases[name] = f"rejected before writes; all {expected_gate_bits} bits unchanged; continuation matched"
     invoke([str(simv), "+fault_gate=1"], gate, gate / "fault.log", expected=1)
     fault_log = (gate / "fault.log").read_text()
     assert "GATE_MISMATCH cycle=29 signal=count_out" in fault_log
@@ -233,7 +246,7 @@ def verify(out, profile="direct"):
     # A fresh formal run on a real faulty implementation must fail closed;
     # no stale successful map is accepted or published for it.
     bad_netlist = run / "bad-netlist.v"
-    bad = re.sub(rf"(\b{sequential_cell}\s+\\count_reg\[3\]\s*\([^;]*?\.D\s*\()[^)]*(\))",
+    bad = re.sub(rf"(\b{sequential_cell}\s+\\count_reg\[3\]{counter_suffix}\s*\([^;]*?\.D\s*\()[^)]*(\))",
                  r"\g<1>1'b0\2", require_netlist.read_text(), count=1)
     assert bad != require_netlist.read_text()
     bad_netlist.write_text(bad)
@@ -254,8 +267,27 @@ def verify(out, profile="direct"):
     else:
         raise AssertionError("unproven polarity hypothesis accepted")
     assert b"Verification FAILED" in wrong_artifacts["formal_log"]
+    missing_copy_rejection = None
+    if duplicate_registers:
+        # A global successful equivalence result is insufficient when one copy's
+        # individual passing relationship is missing. Keep the real tool evidence
+        # intact and retain this isolated rejected export as a diagnostic artifact.
+        missing = dict(artifacts)
+        omitted = b"count_reg[0]_SYNTHESIS_SEQ_DUP_0/state_reg"
+        missing["evidence"] = b"\n".join(row for row in artifacts["evidence"].split(b"\n")
+                                            if not (row.startswith(b"PROVEN\t") and omitted in row))
+        (run / "missing-copy-evidence.tsv").write_bytes(missing["evidence"])
+        try:
+            export_state_map(manifest, "StateMapDUT", adapter, missing)
+        except FormatError as error:
+            missing_copy_rejection = str(error)
+        else:
+            raise AssertionError("unproven synthesized copy accepted")
+        assert missing_copy_rejection == "unproven or unmappable gate state"
     summary = dict(status="passed", scope="flat audited scalar-cell DUT; no retiming",
                    profile=profile, formally_proven_inverted_bits=inverted,
+                   duplicate_registers=duplicate_registers, duplicated_semantic_bits=len(duplicated),
+                   missing_copy_proof_rejected=missing_copy_rejection,
                    semantic_bits=mapping["semantic_bits"], gate_bits=mapping["gate_storage_bits"],
                    ram_words=4, restore_cycle=cycle, restored_edges=79, uninterrupted_edges=96,
                    compared_output_values=79 * 3, zero_edge_readback=True,
@@ -264,7 +296,8 @@ def verify(out, profile="direct"):
                    faulty_netlist_rejected=rejection, faulty_netlist_formal_failed=True,
                    wrong_polarity_rejected=wrong_polarity_rejection, wrong_polarity_formal_failed=True,
                    remaining=(["real polarity proof case"] if profile == "direct" else []) +
-                             ["real permutation/duplication/merging/optimization proof cases",
+                             ["real permutation/merging/optimization proof cases"] +
+                             ([] if duplicate_registers else ["real duplication proof case"]) + [
                               "audited SRAM macro initialization interface"])
     (run / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     print(json.dumps(dict(run=str(run), **summary), indent=2))
@@ -275,9 +308,10 @@ def main():
     parser = argparse.ArgumentParser(__doc__)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--profile", choices=("direct", "inverted"), default="direct")
+    parser.add_argument("--duplicate-registers", action="store_true")
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
-    verify(args.out, args.profile)
+    verify(args.out, args.profile, args.duplicate_registers)
 
 
 if __name__ == "__main__":

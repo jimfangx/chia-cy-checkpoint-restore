@@ -1,6 +1,14 @@
 # Checkpointing progress
 
-Current milestone: M8-formal-state-map, iteration 56. In progress: complete real Genus/Formality/VCS direct and inverted-polarity mapping of the 24-bit register/RAM DUT, with zero-edge gate initialization and matching continuation. Real permutation/duplication/merging/optimization cases and SRAM macro initialization remain. Artificial test cells; no process ASIC, FPGA or power validation.
+Current milestone: M8-formal-state-map, iteration 57. In progress: real Genus/Formality/VCS register duplication is proven and replayed with both direct and inverted polarity. The 24 semantic bits map completely to 28 physical bits, including both copies of each counter bit and all four logical RAM words. Real reordering, merging, optimization/irrelevance and SRAM macro initialization remain. Artificial test cells; no process ASIC, FPGA or power validation.
+
+Iteration 57 (October 10):
+
+- Read both plans' relevant formal sections, progress/previous verification and both papers' preserved matching/replay extracts before editing. Plan/PDF hashes and initial staging are under `runs/m8-iteration57/`; the dirty agent plan is preserved. Numbering correction remains only in checkpointing docs.
+- Added native Genus counter-register cloning and grouped Formality one-to-many candidate matches. Every copy must pass independently; no successful netlist is rewritten. The inventory accepts actual escaped clone suffixes, with complete semantic/physical membership and build binding preserved.
+- Both duplicated profiles prove 28 state + 12 output points; the inverted profile has 28 XOR=1 storage destinations. Fresh gate VCS deposits/readbacks all 28 bits at zero edges from C=17 and matches 79 boundaries / 237 outputs through END C=96, as does uninterrupted gate execution. Six atomic loader failures preserve all bits and continuation. Actual clone storage fault first differs at C=29 after 12 edges; changed clone D and wrong polarity fail fresh formal/export. A removed copy proof rejects despite global PASS.
+- All four CAD/VCS profiles and independent audits pass, including renewed direct/inverted regressions. Six isolated actual audit mutations reject. All 92 Python tests and complete M2/M3 VCS metasim/ordinary-RTL regressions pass. M2 retains five cuts, all 22 words, real C=29 divergence and four loader rejections; M3 covers 717 transport edges, 23 semantic advances, six complete captures, 242 boundary/five semantic replay samples and eight invalid reads. Exact commands, summary and full-path catalog are under `runs/m8-iteration57/` (`verification-commands.json`, `summary.json`, `artifact-manifest.json`). Recovery/remaining scope: [m8-formal-state-map.md](m8-formal-state-map.md).
+- No missing external dependency blocks this increment. Real reordering, merging, constants/irrelevance and SRAM macro initialization remain. No conda/PDF/plan edits, staging, commits, resets, cleaning or FPGA/power claims.
 
 Iteration 56 (October 10):
 

@@ -22,14 +22,21 @@ foreach_in_collection reg [all_registers -cells] {
   dict set reference_registers [get_attribute $reg full_name] 1
 }
 current_design i:/WORK/StateMapDUT
+set checkpoint_matches [dict create]
 foreach_in_collection reg [all_registers -cells] {
   set checkpoint_impl [get_attribute $reg full_name]
   if {[regexp {^i:/WORK/StateMapDUT/(.+)/state_reg$} $checkpoint_impl -> name]} {
+    # Genus' native duplicate_register suffix proposes a one-to-many match.
+    # Every physical copy must pass; the suffix itself certifies nothing.
+    regsub {_SYNTHESIS_SEQ_DUP_[0-9]+$} $name {} name
     set checkpoint_ref r:/WORK/StateMapDUT/$name
     if {[dict exists $reference_registers $checkpoint_ref]} {
-      set_user_match -type cell $checkpoint_candidate_polarity $checkpoint_ref $checkpoint_impl
+      dict lappend checkpoint_matches $checkpoint_ref $checkpoint_impl
     }
   }
+}
+dict for {checkpoint_ref checkpoint_impls} $checkpoint_matches {
+  eval [list set_user_match -type cell $checkpoint_candidate_polarity $checkpoint_ref] $checkpoint_impls
 }
 match
 set passed [verify]

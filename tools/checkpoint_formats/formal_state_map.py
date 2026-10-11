@@ -71,7 +71,7 @@ def flat_inventory(netlist, models_text, adapter, top):
         require(instance is not None, f"unsupported mapped netlist statement: {statement[:120]}")
         cell, name, ports = instance.groups()
         name = unescape(name)
-        require(re.fullmatch(rf"{IDENT}(?:\[\d+\])*", name),
+        require(re.fullmatch(rf"{IDENT}(?:\[\d+\]|[A-Za-z0-9_$])*", name),
                 "unsupported escaped gate instance name")
         require(name not in instances, "duplicate netlist instance")
         instances.add(name)

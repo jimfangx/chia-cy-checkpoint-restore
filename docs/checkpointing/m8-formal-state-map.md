@@ -1,4 +1,77 @@
-# M8 formal state mapping — iteration 56
+# M8 formal state mapping — iteration 57
+
+Status: in progress. Real Genus/Formality/VCS evidence now validates register
+duplication with both direct and inverted polarity, alongside the existing
+24-bit register/RAM correspondence. Real bit reordering, merging, constant
+propagation/irrelevance and SRAM macro initialization still require proof and
+replay evidence. No missing external dependency blocks this increment.
+
+The read-only plans call this agent Phase 10/M9; the loop calls it M8. Preserve
+that numbering correction only here. Read the relevant sections, progress,
+previous verification and both papers' preserved matching/replay extracts.
+Plan/PDF hashes and starting staging are under `runs/m8-iteration57/`; preserve
+the existing dirty agent plan. No assumptions about reset or initial state are
+added to the formal flow. Retiming remains disabled.
+
+Changes and verified evidence:
+
+- `verify_formal_state_map.py --duplicate-registers` invokes Genus' native
+  `duplicate_register -num_copies 2` after ordinary mapping/optimization. Four
+  original counter flops become eight, with loads split between the copies.
+  Successful emitted netlists are never rewritten. The native tool log, queried
+  retiming=false, exact script/library/RTL identities and output netlist hash
+  remain bound to each map.
+- Formality groups inventory-derived name candidates, including the native
+  `_SYNTHESIS_SEQ_DUP_0` suffix, into one-to-many user matches. Each copy is
+  individually verified against its reference bit. Only *passing* relationships
+  enter the map. There are 40 passing points: 28 physical state and 12 outputs.
+  The inverted duplicated profile proves all 28 storage values have XOR=1.
+- The flat gate inventory accepts escaped register names with suffixes after
+  bracketed indices. Unsupported names/cells, hidden state, unmatched state,
+  merging/optimized reference bits and retiming still reject explicitly.
+- Both duplicated profiles deposit/read back all 28 bits at zero edges from
+  pre-edge C=17. Restored and uninterrupted gate runs match all 79 boundaries /
+  237 outputs through C=95, END C=96. All four logical RAM words participate;
+  these are synthesized flip-flops, not SRAM macro validation.
+- Each duplicated profile retains all five loader failures and adds omission of
+  exactly one physical copy. Every rejection preserves all 28 bits at zero edges
+  and matches continuation. An actual duplicate storage fault first differs at
+  C=29 after 12 restored edges. A changed duplicate D input and wrong polarity
+  each fail fresh formal proof/export. Omitting one copy's passing relationship
+  rejects export despite the retained global equivalence PASS.
+- The independent audit reads every implementation row in human one-to-many
+  passing reports; it checks complete reference/gate inventories, raw machine
+  relationships, netlist/model/configuration identities, all deposits and trace
+  boundaries, and actual clone faults. Six isolated actual artifact mutations
+  reject, including a missing human copy row, exchanged copy sources and an
+  omitted copy deposit.
+
+Final invocations (relative to Chipyard):
+
+- Duplicated direct: `automations/checkpoint_loop/runs/m8-iteration57/duplicated-direct/invocation-yj3u05lt/`
+- Duplicated inverted: `automations/checkpoint_loop/runs/m8-iteration57/duplicated-inverted/invocation-s_x4ijml/`
+- Direct regression: `automations/checkpoint_loop/runs/m8-iteration57/direct-regression/invocation-kpprxnrf/`
+- Inverted regression: `automations/checkpoint_loop/runs/m8-iteration57/inverted-regression/invocation-m3f10yby/`
+
+All four real CAD/VCS profiles and independent audits pass. All 92 Python tests
+and complete M2/M3 metasim/ordinary-RTL VCS regressions pass. M2 retains five
+cuts, all 22 state words, actual C=29 divergence and four loader failures. M3
+checks 717 transport edges, 23 semantic advances, six complete captures, 242
+boundary/five semantic replay samples and eight invalid client reads. Exact
+argv, summary and full-path catalog are under `runs/m8-iteration57/`; inner CAD/simulator
+commands are in each invocation's `commands.json`. Every VCS shell sources
+Chipyard env, FireSim env, then `vcs-env.sh` LAST, retaining system GCC/G++ 13
+and VCS Y-2026.03-SP1 `-full64`; reused M2 Make uses `VCS_FLAGS=-Mupdate`.
+
+Next: obtain real reordering and merging/constants/irrelevance proof cases,
+then implement an audited SRAM macro adapter covering its complete array and
+pipeline/port state with zero-edge initialization. Unit-only transforms and
+an equivalence PASS without complete state correspondence do not establish
+acceptance. These artificial test libraries validate functional synthesis,
+not a foundry ASIC or power result. Level 1 remains independent. No plan/PDF/
+conda edits, staging, commit/reset/clean or physical FPGA validation.
+
+## Historical iteration 56 evidence
 
 Status: in progress. Real Genus/Formality/VCS evidence now validates both direct
 and inverted state correspondence for the complete 24-bit register/RAM DUT.

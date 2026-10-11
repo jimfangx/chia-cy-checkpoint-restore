@@ -15,6 +15,13 @@ create_clock -name clock -period 10 [get_db ports clock]
 syn_generic
 syn_map
 syn_opt
+# Exercise actual synthesis register cloning, not a rewritten emitted netlist.
+# The resulting netlist hash and complete formal inventory bind this option.
+if {[info exists env(CHECKPOINT_DUPLICATE_REGISTERS)] && $env(CHECKPOINT_DUPLICATE_REGISTERS) eq "1"} {
+  set candidates [get_db insts -if {.name == *count_reg*}]
+  if {[llength $candidates] != 4} {error "Expected four original counter flops"}
+  duplicate_register $candidates -num_copies 2 -verbose
+}
 write_hdl > netlist.v
 report_gates > gates.rpt
 foreach {role path} $input_paths {

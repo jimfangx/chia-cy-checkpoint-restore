@@ -154,6 +154,24 @@ class FormalStateMapTests(unittest.TestCase):
         with self.assertRaisesRegex(FormatError, "manifest/reference RTL identity"):
             self.export()
 
+    def test_native_duplicate_suffix_requires_each_copy_proven(self):
+        name = b"saved_reg[0]_SYNTHESIS_SEQ_DUP_0"
+        netlist = self.artifacts["netlist"].replace(b"CKDFF g6(", b"CKDFF \\" + name + b" (")
+        artifacts = self.rebound("netlist", netlist)
+        artifacts["evidence"] = artifacts["evidence"].replace(b"g6/state_reg", name + b"/state_reg")
+        mapping = self.export(artifacts)
+        self.assertEqual(mapping["gate_storage_bits"], 7)
+        self.assertEqual(sum(len(e["gates"]) > 1 for e in mapping["entries"]), 1)
+        row = next(line for line in artifacts["evidence"].splitlines()
+                   if line.startswith(b"PROVEN\t") and name in line)
+        missing = dict(artifacts, evidence=artifacts["evidence"].replace(row + b"\n", b""))
+        with self.assertRaisesRegex(FormatError, "unproven or unmappable gate state"):
+            self.export(missing)
+        conflict = row.replace(b"saved_reg[0]\t", b"saved_reg[1]\t")
+        conflicting = dict(artifacts, evidence=artifacts["evidence"].replace(b"END\n", conflict + b"\nEND\n"))
+        with self.assertRaisesRegex(FormatError, "conflicting state relationships"):
+            self.export(conflicting)
+
 
 if __name__ == "__main__":
     unittest.main()

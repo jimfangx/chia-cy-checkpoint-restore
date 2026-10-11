@@ -21,6 +21,20 @@ def container(path, magic):
     return json.loads(data[16:-32])
 
 
+def passing_pairs(report):
+    """Read every implementation in each human one-to-many DFF group."""
+    pairs = []
+    for block in re.split(r"\n\s*\n", report):
+        refs = re.findall(r"^\s*Ref\s+DFF\s+(r:\S+)\s*$", block, re.M)
+        impls = re.findall(r"^\s*Impl\s+DFF\s+(?:\(-\)\s+)?(i:\S+)\s*$", block, re.M)
+        if refs or impls:
+            assert len(refs) == 1 and impls, "incomplete human passing group"
+            pairs.extend((refs[0], impl) for impl in impls)
+    assert len(pairs) == len(set(pairs)), "duplicate human passing relationship"
+    assert len(pairs) == len(re.findall(r"^\s*Impl\s+DFF\s", report, re.M))
+    return pairs
+
+
 def audit(run):
     mapping = json.loads((run / "asic_state_map.json").read_text())
     manifest = json.loads((run / "manifest.json").read_text())
@@ -31,6 +45,11 @@ def audit(run):
     assert profile in ("direct", "inverted")
     polarity = int(profile == "inverted")
     cell = "CKDFFN" if polarity else "CKDFF"
+    duplicated = summary.get("duplicate_registers", False)
+    assert type(duplicated) is bool
+    gate_bits = 28 if duplicated else 24
+    cases = ("missing", "width", "duplicate", "unknown-value", "incomplete") + (("missing-copy",) if duplicated else ())
+    assert mapping["semantic_bits"] == 24 and mapping["gate_storage_bits"] == gate_bits
     for role, path in paths.items():
         assert digest(Path(path).read_bytes()) == mapping["build"][role], role
     encoded = json.dumps(manifest, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
@@ -47,25 +66,35 @@ def audit(run):
     assert len(mapping["entries"]) == 24
     # Cross-check the machine export against Formality's human passing report.
     passing = (run / "formal/passing.rpt").read_text()
-    pairs = re.findall(r"Ref\s+DFF\s+(r:\S+)\s+Impl\s+DFF\s+(?:\(-\)\s+)?(i:\S+)", passing)
-    assert len(pairs) == len(set(pairs)) == 24
+    pairs = passing_pairs(passing)
+    assert len(pairs) == gate_bits
     map_pairs = [(e["formal_reference"], gate["formal_implementation"])
                  for e in mapping["entries"] for gate in e["gates"]]
     assert set(pairs) == set(map_pairs)
     for status, xor in (("noninverted", 0), ("inverted", 1)):
         report = (run / "formal" / f"passing-{status}.rpt").read_text()
-        status_pairs = re.findall(r"Ref\s+DFF\s+(r:\S+)\s+Impl\s+DFF\s+(?:\(-\)\s+)?(i:\S+)", report)
+        status_pairs = passing_pairs(report)
         assert set(status_pairs) == {(e["formal_reference"], g["formal_implementation"])
                                     for e in mapping["entries"] for g in e["gates"] if g["xor"] == xor}
     cell_instances = re.findall(rf"\b{cell}\s+\\([^\s]+)\s+\(", Path(paths["netlist"]).read_text())
-    assert len(cell_instances) == len(set(cell_instances)) == 24
+    assert len(cell_instances) == len(set(cell_instances)) == gate_bits
     mapped_instances = [gate["instance"] for e in mapping["entries"] for gate in e["gates"]]
-    assert set(mapped_instances) == set(cell_instances) and len(mapped_instances) == 24
+    assert set(mapped_instances) == set(cell_instances) and len(mapped_instances) == gate_bits
+    evidence = Path(paths["evidence"]).read_text().splitlines()
+    proven = [line.split("\t")[2:] for line in evidence if line.startswith("PROVEN\t")]
+    assert len(proven) == gate_bits and {tuple(row) for row in proven} == set(pairs)
+    assert {line.split("\t")[2] for line in evidence if line.startswith("REGISTER\ti\t")} == {impl for _, impl in pairs}
+    assert {line.split("\t")[2] for line in evidence if line.startswith("REGISTER\tr\t")} == {ref for ref, _ in pairs}
+    assert summary.get("duplicated_semantic_bits", 0) == (4 if duplicated else 0)
     for entry in mapping["entries"]:
         state = next(s for s in manifest["state"] if s["state_id"] == entry["state_id"])
         name = state["hierarchy"].split(".")[-1]
         name += f"[{entry['address']}]" if state["kind"] == "memory" else ""
         assert entry["original_rtl"] == name + f"[{entry['bit']}]"
+        expected_instances = {entry["formal_reference"].rsplit("/", 1)[1]}
+        if duplicated and name == "count":
+            expected_instances.add(f"count_reg[{entry['bit']}]_SYNTHESIS_SEQ_DUP_0")
+        assert {gate["instance"] for gate in entry["gates"]} == expected_instances
         for gate in entry["gates"]:
             assert gate["xor"] == polarity and gate["storage"] == "state" and gate["proof_status"] == "passing"
             assert gate["cell"] == cell
@@ -98,12 +127,12 @@ def audit(run):
         expected_line = "GATE_MATCH cycle=%d held=%s count=%s ram=%s" % (
             record["cycle"], fields["held_out"], fields["count_out"], fields["read_out"])
         assert line == expected_line
-    for case in ("missing", "width", "duplicate", "unknown-value", "incomplete"):
+    for case in cases:
         text = (run / "gate-restored" / (case + ".log")).read_text()
-        assert text.count("RESTORE_VERIFY: matched 24 semantic words before first DUT edge") == 2
-        assert "INVALID_GATE_LOAD_REJECTED edges=0 unchanged=24" in text
+        assert text.count(f"RESTORE_VERIFY: matched {gate_bits} semantic words before first DUT edge") == 2
+        assert f"INVALID_GATE_LOAD_REJECTED edges=0 unchanged={gate_bits}" in text
         assert gate_lines(run / "gate-restored" / (case + ".log")) == restored
-    assert "GATE_ZERO_EDGE_READBACK cycle=17 bits=24 edges=0" in (run / "gate-restored/simulation.log").read_text()
+    assert f"GATE_ZERO_EDGE_READBACK cycle=17 bits={gate_bits} edges=0" in (run / "gate-restored/simulation.log").read_text()
     fault = (run / "gate-restored/fault.log").read_text()
     assert len(gate_lines(run / "gate-restored/fault.log")) == 12
     assert "GATE_MISMATCH cycle=29 signal=count_out" in fault
@@ -112,9 +141,18 @@ def audit(run):
     assert "Verification FAILED" in (run / "formal-wrong-polarity/formal.log").read_text()
     assert "\nVERIFY\t0\n" in (run / "formal-wrong-polarity/evidence.tsv").read_text()
     assert summary["wrong_polarity_formal_failed"] is True
+    if duplicated:
+        assert "Duplicated 4 register(s), creating 4 new registers" in Path(paths["synthesis_log"]).read_text()
+        assert "i:/WORK/StateMapDUT/count_reg[3]_SYNTHESIS_SEQ_DUP_0/state_reg" in (run / "formal-fault/failing.rpt").read_text()
+        assert "dut.\\count_reg[0]_SYNTHESIS_SEQ_DUP_0 .state" in (run / "gate-restored/tb.sv").read_text()
+        assert summary["missing_copy_proof_rejected"] == "unproven or unmappable gate state"
+        missing = (run / "missing-copy-evidence.tsv").read_text().splitlines()
+        assert missing == [line for line in evidence if not
+                           (line.startswith("PROVEN\t") and "count_reg[0]_SYNTHESIS_SEQ_DUP_0/state_reg" in line)]
     result = dict(status="passed", independently_checked_state_bits=24, ram_words=4,
-                  profile=profile, independently_checked_inverted_bits=24 * polarity,
-                  restored_pre_edge_boundaries=79, compared_outputs=237, loader_atomic_rejections=5,
+                  independently_checked_gate_bits=gate_bits, duplicated_semantic_bits=4 if duplicated else 0,
+                  profile=profile, independently_checked_inverted_bits=gate_bits * polarity,
+                  restored_pre_edge_boundaries=79, compared_outputs=237, loader_atomic_rejections=len(cases),
                   first_actual_gate_fault_cycle=29, actual_faulty_netlist_formal_failed=True,
                   wrong_polarity_hypothesis_formal_failed=True,
                   scope="synthesized " + profile + " correspondence; other transformations/macros remain unvalidated")
