@@ -31,6 +31,22 @@ def negative_binding(binding, kind):
         require(value.get('optimized_predicates'), 'negative requires opcode predicate profile')
         value['optimized_predicates'][0]['value'] ^= 1
         prop = 'predicate_0_step'
+    elif kind in ('flight_predicate', 'missing_flight_predicate', 'missing_d_flight_predicate'):
+        predicates = value.get('optimized_predicates', [])
+        require(len(predicates) == 130, 'negative requires complete flight predicate profile')
+        index = 1 if kind != 'missing_d_flight_predicate' else 129
+        if kind == 'flight_predicate':
+            predicates[index]['value'] ^= 1
+            prop = f'predicate_{index}_step'
+        elif kind == 'missing_flight_predicate':
+            predicates.pop(index)
+            # The d_flight opcode selects any of the 128 saved flight words.
+            prop = 'predicate_128_step'
+        else:
+            predicates.pop(index)
+            mi = next(i for i, m in enumerate(value['memories'])
+                      if m['entry']['original_path'] == 'model.dec_bytes_0')
+            prop = f'port_ckregister_memory_{mi}_WE'
     else:
         require(kind in ('changed_data', 'read_address'), 'unsupported register negative')
         source = value['implementation_source']
@@ -62,11 +78,12 @@ def negative_binding(binding, kind):
     return value, '<embedded>::production_register_miter.' + prop
 
 
-def verify(architecture, synthesis_evidence, out, positive_proof=None, opcode_predicate=False, reuse_negative_run=None):
+def verify(architecture, synthesis_evidence, out, positive_proof=None, opcode_predicate=False, reuse_negative_run=None,
+           flight_opcode_predicates=False):
     architecture, synthesis_evidence, out = (Path(p).resolve() for p in (architecture, synthesis_evidence, out))
     out.mkdir(parents=True, exist_ok=True)
     run = Path(tempfile.mkdtemp(prefix='invocation-', dir=out))
-    binding = reconstruct(architecture, synthesis_evidence, opcode_predicate)
+    binding = reconstruct(architecture, synthesis_evidence, opcode_predicate, flight_opcode_predicates)
     require(binding['semantic_state_entries'] == 1543 and binding['physical_register_bits'] == 7256 and
             binding['semantic_register_bits'] == 8261 and len(binding['memories']) == 201 and
             sum(len(e['bits']) for e in binding['pending_registers']) == 1005,
@@ -98,7 +115,7 @@ def verify(architecture, synthesis_evidence, out, positive_proof=None, opcode_pr
         return destination
 
     proof = Path(positive_proof).resolve() if positive_proof else prove(binding, run / 'positive')
-    result = audit(architecture, synthesis_evidence, proof, opcode_predicate)
+    result = audit(architecture, synthesis_evidence, proof, opcode_predicate, flight_opcode_predicates)
     (run / 'positive-audit.json').write_bytes(canonical(result))
     (run / 'register-relations.json').write_bytes(canonical(relation_catalog(binding, proof)))
 
@@ -128,15 +145,20 @@ def verify(architecture, synthesis_evidence, out, positive_proof=None, opcode_pr
         kinds = ['polarity', 'missing_register', 'changed_data', 'read_address']
         if opcode_predicate:
             kinds.append('opcode_predicate')
+        if flight_opcode_predicates:
+            kinds.extend(('flight_predicate', 'missing_flight_predicate', 'missing_d_flight_predicate'))
         jobs = [pool.submit(negative, kind) for kind in kinds]
         for job in jobs:
             kind, report = job.result()
             negatives[kind] = report
-    require(audit(architecture, synthesis_evidence, proof, opcode_predicate) == result, 'negative jobs changed positive proof bytes')
+    require(audit(architecture, synthesis_evidence, proof, opcode_predicate, flight_opcode_predicates) == result,
+            'negative jobs changed positive proof bytes')
     summary = dict(status='in_progress', run=str(run), proof=str(proof), positive=result, negative=negatives,
                    formal_state_map_complete=False, gate_restore_authorized=False, external_dependency_missing=None)
     if opcode_predicate:
         summary['opcode_predicate'] = True
+    if flight_opcode_predicates:
+        summary['flight_opcode_predicates'] = True
     (run / 'summary.json').write_bytes(canonical(summary))
     (out / 'selection.json').write_bytes(canonical(dict(run=str(run), proof=str(proof), summary=str(run / 'summary.json'))))
     return summary
@@ -148,10 +170,11 @@ def main():
         parser.add_argument('--' + name, type=Path, required=True)
     parser.add_argument('--positive-proof', type=Path)
     parser.add_argument('--opcode-predicate', action='store_true')
+    parser.add_argument('--flight-opcode-predicates', action='store_true')
     parser.add_argument('--reuse-negative-run', type=Path)
     args = parser.parse_args()
     print(json.dumps(verify(args.architecture, args.synthesis_evidence, args.out, args.positive_proof,
-                            args.opcode_predicate, args.reuse_negative_run), indent=2))
+                            args.opcode_predicate, args.reuse_negative_run, args.flight_opcode_predicates), indent=2))
 
 
 if __name__ == '__main__':

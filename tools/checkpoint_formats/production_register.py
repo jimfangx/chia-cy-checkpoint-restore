@@ -49,7 +49,7 @@ exit
 '''
 
 
-def reconstruct(architecture, synthesis_evidence, opcode_predicate=False):
+def reconstruct(architecture, synthesis_evidence, opcode_predicate=False, flight_opcode_predicates=False):
     architecture, evidence = Path(architecture), Path(synthesis_evidence)
     candidate = audit_architecture(architecture)
     # Reconstruct the complete raw synthesis/model binding, including queried
@@ -110,6 +110,8 @@ def reconstruct(architecture, synthesis_evidence, opcode_predicate=False):
                 semantic_register_bits=prior['semantic_register_bits'], physical_register_bits=len(matched),
                 semantic_state_entries=candidate['state_entries'], retiming=False,
                 formal_state_map_complete=False, gate_restore_authorized=False)
+    require(not flight_opcode_predicates or opcode_predicate,
+            'flight opcode predicates require the upstream opcode predicate')
     if opcode_predicate:
         # The actual selected fuzzer omits atomics. This is an explicit proposed
         # predicate, not an inferred constant: preservation and every memory
@@ -118,6 +120,16 @@ def reconstruct(architecture, synthesis_evidence, opcode_predicate=False):
         require(len(entries) == 1 and entries[0]['width'] == 3 and entries[0]['module'] == 'TLRAMModel' and
                 (entries[0]['state_id'], 1) not in matched, 'unsupported opcode predicate candidate')
         binding['optimized_predicates'] = [dict(entry=entries[0], bit=1, value=0, proof_status='unproven')]
+    if flight_opcode_predicates:
+        # These are proposed inductive predicates on the *reference* storage,
+        # not substitutions for its RTL or assumptions on cut memory words.
+        # Keep all omitted bits and original port obligations in the binding.
+        paths = [f'model.flight_{i}_opcode' for i in range(128)] + ['model.d_flight_opcode']
+        for path in paths:
+            entries = [e for e in registers if e['original_path'] == path]
+            require(len(entries) == 1 and entries[0]['width'] == 3 and entries[0]['module'] == 'TLRAMModel' and
+                    (entries[0]['state_id'], 1) not in matched, 'unsupported flight opcode predicate candidate')
+            binding['optimized_predicates'].append(dict(entry=entries[0], bit=1, value=0, proof_status='unproven'))
     return binding
 
 
@@ -338,8 +350,8 @@ def validate(binding, proof, negative=False):
     return report
 
 
-def audit(architecture, synthesis_evidence, proof, opcode_predicate=False):
-    return validate(reconstruct(architecture, synthesis_evidence, opcode_predicate), proof)
+def audit(architecture, synthesis_evidence, proof, opcode_predicate=False, flight_opcode_predicates=False):
+    return validate(reconstruct(architecture, synthesis_evidence, opcode_predicate, flight_opcode_predicates), proof)
 
 
 def relation_catalog(binding, proof):

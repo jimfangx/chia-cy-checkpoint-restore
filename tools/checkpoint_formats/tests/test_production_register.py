@@ -5,6 +5,7 @@ import unittest
 
 from tools.checkpoint_formats.codec import FormatError
 from tools.checkpoint_formats.production_register import cut_design, miter, proof_inputs, validate
+from tools.checkpoint_formats.tests.verify_production_register import negative_binding
 
 
 def example():
@@ -37,6 +38,36 @@ endmodule
 
 
 class ProductionRegisterTests(unittest.TestCase):
+    def test_all_flight_predicates_keep_individual_induction_and_port_obligations(self):
+        binding = example()
+        paths = ['upstream'] + [f'flight_{i}' for i in range(128)] + ['selected']
+        binding['optimized_predicates'] = [dict(entry=dict(original_path=p, width=3), bit=1, value=0)
+                                           for p in paths]
+        text = miter(binding).decode()
+        self.assertEqual(text.count('_step: assert property'), 131)
+        self.assertEqual(text.count('_holds: cover property'), 130)
+        self.assertIn('port_ckregister_memory_0_WE: assert property', text)
+        self.assertIn('pending_0_bit_1_1: cover property', text)
+        self.assertNotIn('assume property', text)
+
+    def test_missing_flight_predicates_challenge_dependency_without_omitting_memory(self):
+        binding = example()
+        binding['groups'][0]['entry']['original_path'] = 'fuzzer.num_reqs'
+        binding['memories'][0]['entry']['original_path'] = 'model.dec_bytes_0'
+        binding['optimized_predicates'] = [dict(entry=dict(original_path=f'flight_{i}', width=3), bit=1, value=0)
+                                           for i in range(130)]
+        before = copy.deepcopy(binding)
+        for kind, expected in (('missing_flight_predicate', 'predicate_128_step'),
+                               ('missing_d_flight_predicate', 'port_ckregister_memory_0_WE'),
+                               ('flight_predicate', 'predicate_1_step')):
+            with self.subTest(kind=kind):
+                changed, prop = negative_binding(binding, kind)
+                self.assertTrue(prop.endswith('.' + expected))
+                self.assertEqual(changed['memories'], binding['memories'])
+                self.assertEqual(changed['pending_registers'], binding['pending_registers'])
+                self.assertEqual(len(changed['optimized_predicates']), 130 if kind == 'flight_predicate' else 129)
+        self.assertEqual(binding, before)
+
     def test_predicate_requires_preservation_and_retains_pending_state(self):
         binding = example()
         binding['optimized_predicates'] = [dict(entry=dict(original_path='unused', width=2), bit=1, value=0)]

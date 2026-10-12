@@ -1,3 +1,107 @@
+# M10 production DUT formal map — iteration 75
+
+Status: in progress. The complete selected production register/port positive
+Jasper job now proves **2,278 assertions / 18,802 covers**, including all **7,256
+physical register-bit transitions**, all **201 memory write enables** and all
+**35 top output ports**. The eleven prior decrement-memory write-enable
+counterexamples are discharged under 130 explicitly checked opcode predicates.
+Complete original/architecture/netlist state composition, an independently
+audited full map and fresh gate restore/readback/replay remain unproven.
+Completed M6/M7 and small synthesized-DUT M8/M9 acceptance is preserved.
+
+The new `--opcode-predicate --flight-opcode-predicates` profile in
+`tools/checkpoint_formats/tests/verify_production_register.py` adds proposed
+bit-1-zero relationships for `model.a__opcode`, `model.flight_0_opcode` through
+`model.flight_127_opcode`, and `model.d_flight_opcode`. Each has a separate
+preservation assertion and nonvacuity cover. All 130 prove in installed Jasper
+through `jasper-limited.sh`, with zero assumptions/reset initialization/array
+blackboxing. Every previous register transition, concrete memory clock/write/
+read-address obligation, boundary output and pending-bit cover remains present.
+Both complete logic hierarchies and every semantic/physical member are retained.
+No predicate substitutes a value into the reference RTL.
+
+This resolves the decrement-memory enable differences: the selected response
+flight opcode can only retain bit 1 zero when all 128 possible saved flight
+opcodes do so. The upstream request opcode supplies zero on subsequent writes.
+These are conditional inductive lemmas, not inferred synthesis constants. All
+**1,005 optimized semantic bits** remain explicitly pending global composition;
+130 now have conditional constant predicates, while the remaining 875 have no
+exported optimized-state classification. The 130 native unreachable exploratory
+pending-bit covers remain recorded. They cannot authorize an omitted-state map.
+
+The actual metasim checkpoint at **pre-edge C=524453** passes complete semantic
+decoding of **1,543 records / 13,503,308 words** and all 130 predicate checks.
+Four separately encoded, checksummed real checkpoint faults flip the upstream,
+first flight, last flight and selected response flight predicate bits; every
+fault rejects for that exact semantic path. The original complete checkpoint
+passes again. These are semantic compatibility rejections, not mapped-state
+gate corruption or replay acceptance.
+
+The full positive CAD evidence is under
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m10-iteration75/flight-proofs/invocation-8sejkmhw/positive/`:
+`binding.json`, `miter.sv`, `prove.tcl`, `register-results.tsv`, `jasper.log`.
+Its conditional catalog is `register-relations.json` in the parent invocation;
+neither that catalog nor the binding authorizes gate loading. All eight full
+negative CAD jobs and both independent reconstruction/mutation audits complete.
+Seven challenges produce actual counterexamples; the wrong upstream predicate
+is rejected for native unreachable preconditions. A flipped first-flight
+predicate breaks its own and selected-flight preservation; omission of that
+first-flight predicate breaks selected-flight preservation. Omitting the
+selected-flight predicate reproduces exactly eleven memory write-enable
+counterexamples. No original assertion, cover or negative scope is waived.
+All 175 Python tests and fresh complete M2/M3 VCS metasim/ordinary RTL regressions
+pass. Both environments and `vcs-env.sh` LAST were sourced in every VCS shell;
+Y-2026.03-SP1, `-full64`, GCC/G++ 13 and `VCS_FLAGS=-Mupdate` were retained.
+
+Next: complete the original/architecture/netlist memory induction and all
+optimized-state composition, preserving all 201 memories / 102,985,156 contents
+bits, captured pipeline/port registers and complete boundary obligations. Bind
+and independently audit a complete semantic-to-physical map before fresh gate
+VCS deposits, complete zero-edge readback, full actual metasim trace replay
+against ordinary RTL and first-divergence mapped-state corruption. No required
+CAD dependency is missing. FPGA hardware and power characterization are not
+prerequisites; Level-1 checkpoint images remain independent.
+
+## Final iteration-75 verification and recovery
+
+Both independent audits pass. Each reconstructs the exact production proof,
+rechecks all eight native CAD negatives, rejects **27 actual artifact mutations**
+and rejects both incomplete artifact forms before gate loading. New mutations
+remove/change/reorder predicates and remove or forge their catalog authority.
+Every original positive CAD byte remains unchanged. Explicit audit reports:
+
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m10-iteration75/flight-audit-first/invocation-j9wbg1z_/summary.json`
+
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m10-iteration75/flight-audit-second/invocation-s14padtf/summary.json`
+
+Fresh prior synthesis/model binding, all **17 memory theorems / 178 mutations**,
+queue proofs / **eight negatives / 24 mutations**, and hierarchy-context proofs /
+**six negatives / 45 mutations** pass full re-audits. Both complete prior ordinary
+and extracted-memory RTL waveforms pass fresh conversions/audits, each checking
+**13,503,308 zero-edge words**, all **201 memories / 50 boundary ports**, and
+**250,185 boundaries / 12,008,880 input/output values**. These are audits of
+retained RTL executions; no new production gate run is claimed.
+
+Run-root `evidence-selection.json` binds explicit immutable proof/audit reports;
+verification retries cannot silently retarget the selected independent pair
+through mutable latest-run pointers. Run-root `verification-commands.json`,
+`summary.json`, `protection-after.json` and `artifact-manifest.json` record the
+exact argv, complete scope, protected inputs and full-path/hash recovery.
+`finalize-evidence.py` revalidates every selected proof/audit, all four actual
+checkpoint faults, every retained regression scope and protected inputs before
+writing its summary/catalog. `validate-catalog.py` checks complete created-file
+membership and current hashes. All run-root paths are under
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m10-iteration75/`.
+
+Ordinary FireSim push rejects as non-fast-forward. Pending FireSim
+`ef0fff87d1a12230bbc1c0ab07cea7ae0edf4dfd`, Chipyard
+`124b16fda7b16e68a887030eff5b1a62faeb5104` and exact remote tips are in
+`github-publication.json`; Chipyard awaits FireSim publication. No force push,
+plan/PDF/conda edit, staging, local commit, reset, history cleanup, FPGA or power
+validation is claimed. No required CAD dependency is missing.
+
+## Preserved iteration-74 recovery
+
 # M10 production DUT formal map — iteration 74
 
 ## Complete flattened production register candidates

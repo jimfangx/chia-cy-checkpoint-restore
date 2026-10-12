@@ -22,11 +22,12 @@ def verify(architecture, synthesis_evidence, proof_run, out):
     run = Path(tempfile.mkdtemp(prefix='invocation-', dir=out))
     saved = json.loads((proof_run / 'summary.json').read_text())
     profile = saved.get('opcode_predicate', False)
-    require(type(profile) is bool, 'unsupported predicate selection')
-    binding = reconstruct(architecture, synthesis_evidence, profile)
+    flight = saved.get('flight_opcode_predicates', False)
+    require(type(profile) is bool and type(flight) is bool, 'unsupported predicate selection')
+    binding = reconstruct(architecture, synthesis_evidence, profile, flight)
     proof = Path(saved['proof'])
     before = {n: sha((proof / n).read_bytes()) for n in FILES}
-    report = audit(architecture, synthesis_evidence, proof, profile)
+    report = audit(architecture, synthesis_evidence, proof, profile, flight)
     require(report == saved['positive'], 'changed positive register summary')
     catalog = relation_catalog(binding, proof)
     require((proof_run / 'register-relations.json').read_bytes() == canonical(catalog),
@@ -44,7 +45,8 @@ def verify(architecture, synthesis_evidence, proof_run, out):
 
     for mutation in ('missing_assertion', 'missing_cover', 'undetermined', 'vacuous', 'wrong_kind', 'unreachable_nonvacuity',
                      'forged_cex', 'raw_engine', 'conflicting_engine', 'raw_hash', 'blackbox', 'assumption',
-                     'miter', 'script', 'binding_bit', 'binding_missing_state', 'binding_memory', 'binding_authority'):
+                     'miter', 'script', 'binding_bit', 'binding_missing_state', 'binding_memory', 'binding_authority',
+                     *(('binding_missing_predicate', 'binding_predicate_value', 'binding_predicate_order') if flight else ())):
         path = run / 'mutations' / mutation
         path.mkdir(parents=True)
         for name, data in original.items():
@@ -90,6 +92,12 @@ def verify(architecture, synthesis_evidence, proof_run, out):
                 changed['pending_registers'].clear()
             elif mutation == 'binding_memory':
                 changed['memories'].pop()
+            elif mutation == 'binding_missing_predicate':
+                changed['optimized_predicates'].pop()
+            elif mutation == 'binding_predicate_value':
+                changed['optimized_predicates'][1]['value'] ^= 1
+            elif mutation == 'binding_predicate_order':
+                changed['optimized_predicates'].reverse()
             else:
                 changed['gate_restore_authorized'] = True
                 changed['formal_state_map_complete'] = True
@@ -97,7 +105,8 @@ def verify(architecture, synthesis_evidence, proof_run, out):
         (path / 'register-results.tsv').write_text('\n'.join('\t'.join(r) for r in rows) + '\n')
         rejected(mutation, lambda: validate(binding, path), path)
 
-    for mutation in ('catalog_missing_register', 'catalog_missing_optimized_state', 'catalog_missing_memory', 'catalog_authority'):
+    for mutation in ('catalog_missing_register', 'catalog_missing_optimized_state', 'catalog_missing_memory', 'catalog_authority',
+                     *(('catalog_missing_predicate', 'catalog_predicate_authority') if flight else ())):
         changed = json.loads(canonical(catalog))
         if mutation == 'catalog_missing_register':
             changed['registers'].pop()
@@ -105,6 +114,10 @@ def verify(architecture, synthesis_evidence, proof_run, out):
             changed['pending_registers'].clear()
         elif mutation == 'catalog_missing_memory':
             changed['memories'].pop()
+        elif mutation == 'catalog_missing_predicate':
+            changed['optimized_predicates'].pop()
+        elif mutation == 'catalog_predicate_authority':
+            changed['optimized_predicates'][1]['proof_status'] = 'proven'
         else:
             changed['formal_state_map_complete'] = changed['gate_restore_authorized'] = True
         path = run / 'mutations' / mutation / 'register-relations.json'
@@ -116,6 +129,8 @@ def verify(architecture, synthesis_evidence, proof_run, out):
     kinds = {'polarity', 'missing_register', 'changed_data', 'read_address'}
     if profile:
         kinds.add('opcode_predicate')
+    if flight:
+        kinds.update(('flight_predicate', 'missing_flight_predicate', 'missing_d_flight_predicate'))
     require(set(saved['negative']) == kinds,
             'missing actual negative register trials')
     for kind, trial in saved['negative'].items():
