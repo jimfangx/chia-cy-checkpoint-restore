@@ -1,3 +1,136 @@
+# M10 production DUT formal map — iteration 74
+
+## Complete flattened production register candidates
+
+Status: in progress. Installed Jasper now proves the transitions of all **7,256
+physical register bits** against their semantic register candidates in the full
+selected production design. This is conditional register induction with common
+universal memory read-word cuts. Complete original/architecture/netlist memory
+and optimized-state composition, an independently audited full map, fresh gate
+zero-edge readback/replay and first-divergence corruption remain unproven.
+Completed M6/M7 and small synthesized-DUT M8/M9 acceptance is preserved.
+
+`production_register.py` reconstructs the exact iteration-69 architecture and
+iteration-71 synthesis/model evidence before proposing relationships. Genus
+flattened every non-queue module into `AXI4FuzzerDUT`; there are 6,121 top-level
+DFFs and 1,135 retained queue DFFs. Their actual hierarchical instance components
+and register suffixes propose 1,076 grouped relationships covering every physical
+register bit. Names never authorize a map. Jasper checks every group transition
+under the complete current relation. Unsupported cells, ambiguous flattened
+names, duplicate/missing physical members, changed shapes/models/inputs and
+retiming reject before proof generation.
+
+Both complete logic hierarchies remain in the miter. Only the 201 concrete arrays
+are replaced by arbitrary common read words, with every actual clock, write
+enable/address/data and read address exposed as a separate equality obligation.
+Their **102,985,156 contents bits** remain explicit composition obligations.
+Every one of the 35 top output ports is checked, including the forwarded clock.
+No reset initialization, assumptions, forced outputs or array blackboxing is used.
+
+The raw production run proves **2,137 assertions / 18,671 covers**, including
+every physical register transition and every top output. It retains **eleven real
+write-enable counterexamples**: `model.dec_bytes_0..7` and `model.dec_trees_0..2`.
+All other memory-port assertions prove. The 1,005 optimized semantic bits remain
+explicitly pending: 877 model bits and 128 bits in two discarded LFSRs. Their
+exploratory independence covers remain recorded, including the native unreachable
+cover for `model.a__opcode[1] == 1`. Every transition/output precondition, physical
+bit cover and positive next-edge relation cover must be covered. Unreachable
+exploratory covers never establish constant or irrelevant state.
+
+The explicit `--opcode-predicate` profile proposes `model.a__opcode[1] == 0`,
+adds its preservation assertion and nonvacuity cover, and retains every original
+obligation. Jasper proves **2,138 assertions / 18,673 covers**, including that
+predicate, but all eleven write-enable counterexamples remain. The actual
+metasim checkpoint at C=524453 satisfies the proposed predicate after complete
+semantic decoding of all 1,543 records / 13,503,308 words. A newly encoded actual
+checkpoint with that opcode bit flipped rejects for predicate incompatibility.
+This is a semantic compatibility rejection, not a mapped gate-state corruption
+or gate replay result.
+
+`register-relations.json` catalogs conditional native relationships, exact CAD
+artifact hashes, every optimized bit and all memory obligations. It is not
+`asic_state_map.json`; both artifacts and bindings remain gate-loading ineligible.
+`verify_production_register.py` retains complete scopes in real wrong-polarity,
+missing-register, changed-D, changed-read-address and wrong-predicate challenges.
+`audit_production_register.py` reconstructs current inputs, checks every machine
+property against native engine completions and mutates actual artifacts. Positive
+nonvacuity failures reject. A deliberately broken transition's unreachable edge
+cover remains a failed obligation in its negative diagnostic report.
+
+Recovery root:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m10-iteration74/`.
+Raw positive CAD files are in `pilot/`; the additional predicate positive is in
+`opcode-predicate/`. Both keep complete `binding.json`, `miter.sv`, `prove.tcl`,
+`register-results.tsv` and `jasper.log`. Final selections/audits are recorded below.
+The first negative verifier's ambiguous identical-queue-body mutation and rejected
+changed-D edge cover remain diagnostic in `register-proofs.log`; mutation now
+selects an exact module declaration, and negative unreachable covers are retained
+as failures. No positive nonvacuity rule or proof scope is weakened.
+
+Next: discharge the eleven decrement-memory write-enable obligations with
+independently proven optimized-state predicates. The omitted `flight_i_opcode`
+and `d_flight_opcode` bits are candidates to investigate, not proven invariants.
+Then complete original/architecture/netlist register, memory contents and boundary
+composition, independently export/audit the complete map and run fresh gate VCS
+readback, full actual trace replay against ordinary RTL and mapped-state corruption.
+No required CAD dependency is missing; FPGA and power characterization are not
+prerequisites. Level-1 checkpoints remain independent.
+
+## Final iteration-74 verification and recovery
+
+Both whole production positive jobs and all nine deliberate negative CAD jobs
+exit 0 through `jasper-limited.sh`. Eight physical/port fault trials produce
+actual counterexamples. The wrong opcode predicate produces native unreachable
+preconditions; the ordinary positive auditor explicitly rejects that vacuous
+candidate. Its first verifier expected a counterexample and failed; the retained
+CAD bytes are recovered with complete input/result revalidation, not relabeled
+as a passing map. Diagnostic log: `predicate-proofs-final.log`.
+
+Raw selection: `register-proofs-final/invocation-0c2rpyfx/summary.json`, with its
+complete `register-relations.json`. Its negatives bind the three complete CAD
+runs in `register-proofs/invocation-_sh7_1de/negative/` and the fresh read-address
+run in the final invocation. Additional predicate selection:
+`predicate-proof-recovery/invocation-pei5hmy1/summary.json` and
+`register-relations.json`; all five negative CAD runs remain in
+`predicate-proofs-final/invocation-a2marses/negative/`.
+
+Four independently reconstructed audits pass: two per positive scope, each
+rejecting all **22 actual artifact mutations** and both incomplete artifact
+forms in the gate loader. Each audits every corresponding negative property,
+preserves all original CAD bytes and checks native engine completions against
+every machine result. Explicit reports are
+`register-audit-first/invocation-vw50sse2/summary.json`,
+`register-audit-second/invocation-pe0xbjqo/summary.json`,
+`predicate-audit-first/invocation-fk30fbr2/summary.json` and
+`predicate-audit-second/invocation-o_b497wk/summary.json`.
+
+All **173 Python tests** and complete fresh **M2/M3 VCS metasim/ordinary RTL
+regressions** pass. Prior complete synthesis/model binding, all 17 memory
+theorems / 178 actual mutations, queue proofs / eight negatives / 24 mutations
+and hierarchy-context proofs / six negatives / 45 mutations pass fresh audits.
+Both full prior production original/architecture waveforms pass fresh VPD
+conversion and audits: all **13,503,308 zero-edge words**, **201 memories / 50
+boundary ports**, **250,185 boundaries / 12,008,880 input/output values** per
+process. These are audits of prior production RTL executions, not new gate runs.
+Every VCS shell sources both environments and `vcs-env.sh` LAST, using
+Y-2026.03-SP1, `-full64`, GCC/G++ 13 and the helper's compiler variables.
+
+`finalize-evidence.py` revalidates the explicit immutable proof/audit pairs,
+all actual negative results, conditional catalogs, actual checkpoint rejection,
+retained regression scopes, protected inputs, staging, FireSim and whitespace.
+Use run-root `summary.json`, `verification-commands.json`,
+`protection-after.json` and `artifact-manifest.json` for final scope, exact argv
+and full-path/hash recovery. Catalog validation covers all retained created
+files, excluding the catalog itself and its own validation output.
+
+Publication remains pending: ordinary FireSim push rejects as non-fast-forward.
+Exact pending commits/remotes are in `github-publication.json` and the failure is
+in `firesim-push.log`. Chipyard awaits FireSim publication; no force push or merge
+was attempted. Plans/PDFs/conda inputs and staging are preserved. No local commit,
+reset, history cleanup, FPGA, process ASIC or power validation is claimed.
+
+## Preserved iteration-73 recovery
+
 # M10 production DUT formal map — iteration 73
 
 ## Complete original-DUT output-bit context proofs
