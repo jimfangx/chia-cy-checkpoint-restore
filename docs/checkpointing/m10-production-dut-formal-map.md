@@ -1,3 +1,123 @@
+# M10 production DUT formal map — iteration 73
+
+## Complete original-DUT output-bit context proofs
+
+Status: in progress. This increment adds production hierarchy noninterference
+lemmas and live queue-bit equalities. A complete original-to-netlist map, gate
+zero-edge readback, actual production gate replay and mapped-state corruption
+acceptance remain unproven. The local lemmas cannot authorize gate loading.
+Completed M6/M7 and small synthesized-DUT M8/M9 acceptance is preserved.
+
+`production_context.py` reconstructs the exact production architecture, complete
+StateID/boundary manifests, synthesis inputs, raw/selected Genus netlist,
+concrete models/inventory and retained queue proof before generating obligations.
+It covers all 304 prior queue output counterexamples: 160 dequeue-valid ports,
+128 echo-size ports and 16 TL-size ports. Candidate independent bits are
+explicit (valid bit 0 / size bit 3); unknown ports/shapes and missing/duplicate
+parent contexts reject. Masks are proposals requiring proofs, never inference
+from synthesis naming or finite replay.
+
+The complete parent proof checks every parent output, all child input ports and
+all 520 parent register bits. It proves 1,720 assertions / 2,290 covers but
+retains **two real output counterexamples**: the high echo-size bit propagates
+from AXI4UserYanker and AXI4Deinterleaver into the top. These failures cannot be
+waived at the parent boundary. A supplemental queue proof retains every prior
+raw assertion/cover and all 304 counterexamples, adding 144 proven live-size-bit
+equalities (2,856 proven assertions / 6,420 covers total).
+
+The whole-DUT proof preserves the complete original hierarchy and every captured
+register. It replaces only each concrete array's asynchronous read words with
+arbitrary common inputs, exposes every actual memory input port (clock, write
+enable/address/data and read addresses), and injects independent candidate output
+bits at their real parent connections. Under the complete current register
+relation it checks **all 1,342 register transitions / 8,261 register bits**, every
+memory input and every top output, plus nonvacuity covers. No input/reset
+assumptions, reset initialization or array blackboxing are used. The first
+installed Jasper pass proves **2,414 assertions / 5,404 covers**. Equal read
+addresses and the separately proven universal memory word relations remain
+explicit composition premises; all 201 memories / 102,985,156 contents bits
+remain obligations. This is original-hierarchy noninterference, not an
+original-to-gate state relation or a complete formal-map audit.
+
+All new CAD jobs use `automations/checkpoint_loop/jasper-limited.sh` and its
+shared 475 GB / zero-swap budget. Final verification adds actual false parent
+boundary/child-input relationships, a false live high-bit equality and a whole
+DUT `done` dependency on the propagated high size bit. Every false lemma must
+produce a real counterexample. The independent auditor reconstructs the current
+inputs, verifies all engine/machine property records, mutates actual proof
+artifacts and explicitly rejects local proof artifacts in the gate loader.
+
+Diagnostic evidence is under the full path
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m10-iteration73/`.
+Final verification and both independent audits pass; the verification record
+below binds the selected artifacts explicitly. Earlier declaration
+name collision, two parent output counterexamples and no-reset/combinational
+child interface rejection remain diagnostics, with fresh invocations retaining
+every scope. Unsupported clock/interface/state remains a hard error; the
+existing queue adapter's required clock/reset checks are unchanged.
+
+Next: complete original/architecture/netlist register relationships, optimized
+state predicates (including the 1,005-register-bit count difference), concrete
+memory and boundary composition. Only then export and independently audit a
+complete build-bound map, followed by fresh gate VCS initialization/readback of
+all state at zero target edges, full actual metasim trace replay against fresh
+ordinary RTL, and deliberate mapped-state corruption at its first divergence.
+No CAD dependency is missing. FPGA and power characterization are not
+prerequisites. Level-1 checkpoints remain independent; no FPGA, process ASIC or
+power validation is claimed.
+
+## Final iteration-73 verification and recovery
+
+The complete final proof run is `context-proofs-final/invocation-mirolw04/`.
+All **nine** installed Jasper jobs exit 0: parent/live/whole positives and all
+**six** deliberate false lemmas produce real counterexamples. Its `summary.json`,
+`commands.json`, each proof's `binding.json`, `miter.sv`, `prove.tcl`,
+`context-results.tsv` and `jasper.log` retain exact inputs/property results.
+All 304 raw queue and two parent output counterexamples remain recorded; the
+whole-DUT noninterference result and 144 live-bit equalities provide additional
+compositional lemmas without relabeling failed raw assertions as proven.
+
+Two independent audits each pass **six unchanged controls**, reject all **45
+actual artifact mutations**, re-audit all six fresh negative proofs and reject
+both binding/whole-lemma artifacts in the gate loader. All original CAD bytes
+remain unchanged. The explicit audit reports are
+`context-audit-first/invocation-d43k1wz1/summary.json` and
+`context-audit-second/invocation-d1vdr08g/summary.json`. Latest pointers or the
+number of retry directories are not selected-proof validity criteria.
+
+All **168 Python tests** and complete fresh **M2/M3 VCS metasim/ordinary-RTL
+regressions** pass. Every VCS shell sources both repository environments and
+`vcs-env.sh` LAST; Y-2026.03-SP1, `-full64`, system GCC/G++ 13 and the helper's
+CC/CXX/VCS_CC are preserved; reused Make caches use `VCS_FLAGS=-Mupdate`.
+The complete synthesis/model binding, all 17 prior memory theorems / 178 actual
+memory mutations and retained queue proofs / eight prior negatives / 24 actual
+queue mutations pass fresh audits. Both full prior production original and
+memory-extracted RTL waveforms pass fresh VPD conversions/audits: **13,503,308
+zero-edge words**, **201 memories / 50 boundary ports**, **250,185 boundaries /
+12,008,880 input/output values** per process. These are re-audits of iteration-69
+production RTL executions, not new production gate simulations.
+
+The run-local `finalize-evidence.py` verifies the explicit immutable proof/audit
+pair, all engine results and mutation files, complete retained regression scopes,
+exact fresh netlist/model bytes, protected inputs/staging/FireSim and whitespace.
+Use `summary.json`, `protection-after.json`, `verification-commands.json` and
+`artifact-manifest.json` under the iteration-73 run root for final scope, commands
+and full-path/hash recovery. Plans/PDFs/conda inputs and staging remain preserved.
+No local commits, resets or history cleanup were performed. The first catalog
+writer failed because installed Python lacks `hashlib.file_digest`; its log is
+retained as `finalize-evidence.log`. The portable streaming-hash retry rechecks
+the entire scope and writes `finalize-evidence-retry.log`.
+
+Publication remains pending: the ordinary FireSim push rejects as
+non-fast-forward. FireSim commit `37c468df99ea28725f12ff5f02649884245ea339`
+awaits publication against remote main `50cbbddbd4b7596b42b124cba3ad2b4508abc92a`;
+Chipyard `6711aaa3dfc4db97efafbcb2aae2320ee5cda59f` awaits FireSim publication
+(remote main `280e59c1f53b23d03672f9cd13c0dc58b3da37da`). Exact failure/IDs
+are in `firesim-push.log` and `github-publication.json`. No force push or merge
+was attempted; this publication divergence is not a CAD dependency.
+
+## Preserved iteration-72 recovery
+
 # M10 production DUT formal map — iteration 72
 
 ## October 12 recovery: proof selection retry
