@@ -30,7 +30,7 @@ HERE = Path(__file__).resolve().parent
 SCHEMA = HERE / "report.schema.json"
 DEFAULT_RUNS = HERE / "runs"
 VCS = Path("/ecad/tools/synopsys/vcs/W-2024.09-1/bin/vcs")
-JASPER = Path("/ecad/tools/cadence/JASPER/jasper_2025.03/bin/jg")
+JASPER = ROOT / "automations/checkpoint_loop/jasper-limited.sh"
 LOG_BYTES = 16 * 1024 * 1024
 LOG_BACKUPS = 6
 STREAM_CHUNK_CHARS = 64 * 1024
@@ -353,6 +353,13 @@ Use VCS for simulations, run both FireSim metasimulation and ordinary pre FireSi
 You likely need to write something different, especially for cosimulating our FAME transformed RTL in metasim in the background with our pre FireSim FAME transformed design RTL. FireSim also have a working Metasimulation (no restoring) flow already, which you can reference for your restoring into Metasimulation work.
 Source {FIRE / 'sourceme-manager.sh --skip-ssh-setup'} to activate the env for FireSim and Chipyard builds. VCS is {VCS};
 use -full64 and the inherited conda library path. Jasper is {JASPER}.
+Use this Jasper launcher for every matching/proof job, including pilots; never
+invoke the underlying Jasper binary directly. It enforces a shared 475 GB
+memory budget for all Jasper jobs and engines, with zero swap.
+CHECKPOINT_JASPER_MEMORY_GB sets the shared budget at broker startup;
+CHECKPOINT_JASPER_TIMEOUT_SECONDS optionally limits a job's runtime.
+The launcher cleans up engine children if their parent exits. A resource-limit
+failure is an incomplete proof, never a passing result.
 There is no FPGA. Keep FPGA capture/transport code
 synthesizable and test it through FireSim metasim, but do not claim FPGA validation.
 

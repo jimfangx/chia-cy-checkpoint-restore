@@ -73,6 +73,20 @@ Full access is unavailable through the loop's `--sandbox` option.
 agent; Codex still uses its local authentication. The loop explicitly passes
 its model and reasoning effort settings to each Codex turn.
 
+Jasper matching/proof jobs use `jasper-limited.sh` (also available as `jg`
+after sourcing `vcs-env.sh`). A host resource broker places each caller and
+its engine children in a shared kernel memory budget of **475 GB**
+(475,000,000,000 bytes, about 442 GiB), with swap disabled. The broker changes
+resource accounting without changing the caller's bwrap filesystem/network
+sandbox. `run.sh` starts it before the implementation agent.
+Jobs refuse to run if the limit cannot be applied. Memory-limit failures leave
+proofs incomplete. Engine children are killed when their original caller exits,
+including after a verifier timeout. `CHECKPOINT_JASPER_MEMORY_GB` sets the
+budget when the broker starts; `CHECKPOINT_JASPER_TIMEOUT_SECONDS` optionally
+adds a runtime limit (default 0). For standalone host checks, initialize it with
+`python3 automations/checkpoint_loop/jasper_limits.py ensure`.
+Always use the launcher, including for exploratory matching jobs.
+
 There are two remote Chia nodes: one runs Codex, one runs verification. Codex
 receives one focused milestone at a time and reports a structured result with
 artifacts and executable checks. Verification runs independently from the

@@ -30,7 +30,7 @@ HERE = Path(__file__).resolve().parent
 SCHEMA = HERE / "report.schema.json"
 DEFAULT_RUNS = HERE / "runs"
 VCS = Path("/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs")
-JASPER = Path("/ecad/tools/cadence/JASPER/jasper_2025.03/bin/jg")
+JASPER = ROOT / "automations/checkpoint_loop/jasper-limited.sh"
 LOG_BYTES = 16 * 1024 * 1024
 LOG_BACKUPS = 6
 STREAM_CHUNK_CHARS = 64 * 1024
@@ -371,6 +371,13 @@ for the first Make build so VCS regenerates its cached C build Makefile.
 An absolute bin/vcs path alone does not override an older VCS_HOME set by
 login-shell initialization. Use this release for new checks even if saved
 reports or historical logs name an older version. Jasper is {JASPER}.
+Use this Jasper launcher for every matching/proof job, including pilots; never
+invoke the underlying Jasper binary directly. It enforces a shared 475 GB
+memory budget for all Jasper jobs and engines, with zero swap.
+CHECKPOINT_JASPER_MEMORY_GB sets the shared budget at broker startup;
+CHECKPOINT_JASPER_TIMEOUT_SECONDS optionally limits a job's runtime.
+The launcher cleans up engine children if their parent exits. A resource-limit
+failure is an incomplete proof, never a passing result.
 There is no FPGA. Keep FPGA capture/transport code
 synthesizable and test it through metasim, but do not claim FPGA validation.
 

@@ -1,4 +1,140 @@
-# M10 production DUT formal map — iteration 71
+# M10 production DUT formal map — iteration 72
+
+## October 12 recovery: proof selection retry
+
+The retained October 11 finalization **failed**, despite the preceding checks
+passing. Its `audit-pair.json` bound `invocation-6oqtswfn`, but verification
+had updated iteration-71's `queue-proofs-final/selection.json` to
+`invocation-mmcsiddt`. The failure log is retained as
+`runs/m10-iteration72/finalize-evidence.log`. The original directory-count
+failure and this second failure are distinct; neither was a successful final
+evidence publication.
+
+`selected_audit_pair` now derives the proof identity from the explicitly
+selected independent report pair, validates both reports and every proof byte,
+and leaves mutable latest-run pointers untouched. The finalizer reconstructs
+and audits that exact proof and all eight negatives, retaining every prior
+scope/protection check. It writes a separate `proof-selection.json` bound to
+the pair hash and includes selected audit directories, complete check artifacts,
+and concrete synthesis/model evidence in its full-path catalog. A separate
+`--python-test-log` accepts a fresh complete-suite log while preserving the
+prior log. No proof status or obligation changes.
+
+All **161 Python tests** pass, including proof-retry recovery and changed/missing/
+relative proof rejection. The complete repository finalizer passes against the
+actual changed latest pointer and original independent audit pair. Its
+`proof-retry-reproduction.json` records the distinct real runs and confirms
+the latest pointer remains unchanged. Two additional complete independent queue
+audits pass: each rejects all **24 actual artifact mutations**, re-audits all
+**eight prior negative proofs**, and preserves every original proof byte. Their
+reports are `queue-audit/invocation-4nufxhqv/summary.json` and
+`queue-audit/invocation-4s295ner/summary.json`, selected by the recovery
+`audit-pair.json`. The standalone final catalog/protection audit passes and
+checks every concrete full-path file, size and SHA-256, complete created/selected
+artifact coverage, exact selected proof identity, protected input hashes and
+unchanged staging/FireSim worktree. It rejects a real stale checker-file hash
+after an edit; `catalog-change-rejection.json` and its log preserve that
+diagnostic. Catalog regeneration includes the final documentation and audit
+report; no stale or partial catalog is accepted. Latest-run pointers are
+diagnostic, never criteria for selected-proof validity.
+
+Recovery artifacts are under the full path
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m10-iteration72/recovery-finalization/`.
+Use its `verification-commands.json`, `summary.json`, `proof-selection.json`,
+`protected-and-whitespace-audit.json`, `final-catalog-audit.json`, and
+`artifact-manifest.json` for final
+evidence. The older parent command catalog and failed finalizer log remain
+diagnostics. No new Jasper proof or production gate simulation is claimed.
+M10 remains in progress: all 304 local output counterexamples and complete
+global composition remain obligations; gate state loading remains rejected.
+
+GitHub publication is pending. An ordinary FireSim push was rejected as
+non-fast-forward. Local `ac1fc02576f0f76a732f23a0edea2d56c54e2c4a` is absent from
+remote-main ancestry at `50cbbddbd4b7596b42b124cba3ad2b4508abc92a`. Chipyard
+`8e22412b134a14b74d6c14e6f8ac888c667f856f` is also absent from remote-main ancestry
+at `280e59c1f53b23d03672f9cd13c0dc58b3da37da`; its push awaits FireSim publication.
+`github-publication.json` records exact pending IDs. No force push, merge,
+staging, commit, reset or history cleanup was performed. CAD dependencies are
+available; publication divergence does not block synthesis/formal/replay work.
+
+## Preserved October 11 implementation and check scope
+
+Status: in progress. This increment repairs reproducible final evidence
+selection; complete production formal mapping remains unproven. No production
+gate initialization/replay or mapped-state corruption acceptance is claimed.
+Completed M6/M7 and small synthesized-DUT M8/M9 acceptance remains preserved.
+No required external dependency is missing.
+
+The iteration-71 verifier completed another valid queue audit, then failed
+because its run-local finalizer required exactly two `invocation-*` directories.
+Three complete passes existed. Retrying a check therefore invalidated evidence
+without changing any proof. Original reports and failed diagnostics are retained.
+
+`tools/checkpoint_formats/evidence.py` binds two explicitly selected nonempty
+absolute summary files, their hashes, distinct invocation identities and the
+complete unchanged proof-file set. Missing/changed reports, duplicate or aliased
+reports, incorrect provenance, incomplete/forged authorization and changed,
+missing or added proof files reject before selection publication. Extra audit
+runs stay diagnostic; a directory count is no longer a proof criterion.
+
+`tools/checkpoint_formats/tests/finalize_production_queue.py` moves the complete
+final evidence check into repository code. It retains the entire previous
+positive/negative queue proof scope, all composition obligations, two complete
+24-mutation audits, 17 memory theorems/178 mutation rejections, both full prior
+production waveform audits, full M2/M3 regressions, all Python tests and protected
+input/staging/FireSim/whitespace checks. It additionally compares the selected
+independent audit with fresh proof reconstruction, checks exact boundary data,
+requires mutation artifacts to belong to each selected invocation and compares
+fresh synthesis/model-binding bytes with those used by the proof. Catalog entries
+resolve to full concrete file paths and hashes, including selected prior CAD
+proofs and every new diagnostic/replay artifact. Empty diagnostic files are
+cataloged explicitly; user-facing report artifacts are nonempty regular files.
+No state mapping or proof obligation is waived.
+
+Fresh iteration-72 checks pass: **159 Python tests** (eight evidence tests),
+**two full independent queue audits** with all 24 actual mutation rejections and
+all eight prior negative proofs per pass, **all 17 prior memory theorems / 178
+actual artifact rejections**, complete production synthesis/model binding and
+**full M2/M3 VCS metasim/ordinary-RTL regressions**. The CAD proofs were produced
+in iterations 70/71 and re-audited here; they are not new Jasper invocations.
+VCS builds use Y-2026.03-SP1, `-full64`, system GCC/G++ 13 and `vcs-env.sh` LAST.
+Both complete prior production original/extracted-memory waveform audits pass
+with fresh VPD conversions: **13,503,308 zero-edge words**, **201 memories / 50
+boundary ports**, **250,185 boundaries / 12,008,880 input/output values** per
+process, with exact target-cycle/edge timing. These remain prior ordinary RTL
+executions re-audited here, not new production gate simulations. The selector
+also accepts the two original iteration-71 reports while all three real audit
+directories remain intact (`retry-reproduction.json`); no fixture supplies this
+failure reproduction. The failed finalization was intended to publish `summary.json`,
+`protected-and-whitespace-audit.json` and the full-path/hash `artifact-manifest.json`
+after revalidating the complete scope; the recovery above supplies those artifacts.
+
+Diagnostics and exact argv are under
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m10-iteration72/`.
+The original `audit-pair.json` selects `queue-audit/invocation-16d8uhjd/summary.json` and
+`queue-audit/invocation-jdsmw5bf/summary.json`, binding the prior complete queue
+proof `m10-iteration71/queue-proofs-final/invocation-6oqtswfn/`. Recovery commands
+were in `verification-commands.json`; the failed original finalizer used
+`--evidence automations/checkpoint_loop/runs/m10-iteration71`, `--checks` and
+`--out automations/checkpoint_loop/runs/m10-iteration72`, `--audit-pair` pointing
+to its `audit-pair.json`, `--iteration 72 --python-tests 159`. Use the recovery
+command catalog above for the corrected invocation. Verification
+repeats may create further audit directories without changing this selection.
+
+The remaining work is unchanged: discharge all **304 local output
+counterexamples**, complete the top/hierarchy/optimized-state/memory/boundary
+relation over **1,543 semantic entries / 7,457 physical storage spans**, prove
+all remaining register relationships and the 1,005-bit count difference, and
+independently audit a complete exact-build map. Only then restore/read back all
+production gate state at zero edges, replay the complete actual metasim trace
+against fresh ordinary RTL and test first divergence from real mapped-state
+corruption. Local artifacts continue to reject at the gate loader. Level-1
+simulator and Level-2 semantic images remain independent. Plans/PDFs/conda
+requests, staging and history are preserved. FPGA hardware and power
+characterization are not dependencies; no FPGA/process-ASIC/power claim.
+
+## Preserved iteration-71 queue adapter evidence
+
 
 Status: in progress. All retained real queue modules now have audited local
 register-induction and memory-port-congruence proofs. Complete production

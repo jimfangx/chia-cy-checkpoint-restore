@@ -3,6 +3,7 @@ set -eo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
+python3 "$ROOT_DIR/automations/checkpoint_loop/jasper_limits.py" ensure
 source "$ROOT_DIR/env.sh"
 source "$ROOT_DIR/sims/firesim/env.sh"
 source "$ROOT_DIR/automations/checkpoint_loop/vcs-env.sh"

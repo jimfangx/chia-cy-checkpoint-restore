@@ -25,7 +25,7 @@ FIXTURE = Path(__file__).with_name("fixtures") / "formal"
 GENUS = "/ecad/tools/cadence/GENUS/GENUS211/bin/genus"
 FORMALITY = "/ecad/tools/synopsys/fm/P-2019.03-SP2/bin/fm_shell"
 VCS = "/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs"
-JASPER = "/ecad/tools/cadence/JASPER/jasper_2025.03/bin/jg"
+JASPER = str(ROOT / "automations/checkpoint_loop/jasper-limited.sh")
 
 
 def fixture_manifest(rtl_path=FIXTURE / "dut.v", merge_registers=False, optimize_registers=False,
