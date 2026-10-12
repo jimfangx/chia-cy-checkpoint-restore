@@ -1,3 +1,136 @@
+# M10 production DUT formal map — iteration 78
+
+Status: in progress. Complete **original RTL to extracted architecture** induction
+now proves for the actual `AXI4Fuzzer-FCFSConfig-FCFS16GBQuadRank_DefaultF1Config`
+metasim DUT: all **1,543 StateIDs**, **1,342 registers / 8,261 register bits** and
+**201 memories / 102,985,156 contents bits / 13,501,966 words**. This adds the
+previously missing original-to-architecture component. The complete composed
+semantic-to-gate map export/audit and fresh production gate readback/replay are
+still pending. Completed M6/M7 and small synthesized-DUT M8/M9 acceptance is
+preserved; no FPGA, process ASIC or power validation is claimed.
+
+`tools/checkpoint_formats/production_original.py` cuts the actual normalized
+original declarations/read/write statements, preserving every scalar transition
+and complete hierarchy. It binds exact original, normalized and architecture RTL,
+semantic and boundary manifests, concrete memory models/stubs, and all 17 retained
+native universal original memory adapter proofs. Every semantic register remains
+in the identity relation, including all 1,005 bits later optimized by synthesis.
+No optimized-state predicate is needed or assumed for this original/architecture
+relation. Native array contents remain universally quantified through the complete
+word/read adapters, rather than selected finite addresses or array blackboxes.
+
+The read-closure job independently quantifies both read words at every one of
+**233 actual read ports**, then proves **836 assertions / 1,070 covers**. Equal
+complete arrays supply common reads only after their actual addresses agree.
+The word job proves **3,017 assertions / 20,345 covers**: every original register
+transition, every full memory port/output cone and every universally addressed
+memory-word next value. It preserves one native unreachable exploratory cover,
+`register_1136_bit_1_1` (upstream opcode bit 1). This probe does not authorize state
+elimination or constrain the relation. Every assertion precondition is covered;
+no induction premise is vacuous. Clocks are independently checked for continuous
+target-clock aliases and exact original storage events, rejecting extra/gated
+edges. All four single-word memories require actual zero read-address domains.
+
+The complete fresh selected proof is:
+
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m10-iteration78/original-verified/invocation-zen10t0b/`
+
+Its `address/` and `word/` directories contain the exact binding, full-DUT miter,
+Tcl, native results and engine log. `original-composition.json` establishes complete
+original/architecture register-and-array equality. It is a component certificate,
+**not a gate-loading authority**; `formal_state_map_complete` and
+`gate_restore_authorized` both remain false. The retained architecture/netlist
+register, memory and optimized-predicate obligations are unchanged.
+
+Five fresh whole-production fault jobs alter actual queue-macro read address,
+introduce read-data address feedback, alter write data/write enable, and invert an
+actual scalar register transition. Each completes through `jasper-limited.sh` and
+has its expected native counterexample. No direct Jasper invocation, assumptions,
+reset initialization or reduced negative obligation scope is used.
+
+`tests/audit_production_original.py` reconstructs the certificate without importing
+its exporter. It separately walks the actual original hierarchy, removes only
+exact original array statements and matching cut witnesses, and compares every
+remaining scalar logic/storage statement. It checks full register/array membership,
+independent read inputs, universal word premises and raw native engines. Both full
+independent audits pass: each rejects 27 actual certificate/CAD mutations,
+rechecks all five complete native fault jobs and rejects incomplete gate loading
+(**33 rejection checks**). Every positive CAD byte remains unchanged.
+
+Selected independent reports:
+
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m10-iteration78/original-audit-first/invocation-4ocsyzec/summary.json`
+
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m10-iteration78/original-audit-second/invocation-8rij3u1n/summary.json`
+
+All **199 Python tests** pass. Fresh complete M2/M3 VCS metasim/ordinary RTL
+regressions pass, with both environments sourced and `vcs-env.sh` LAST, pinned
+Y-2026.03-SP1, `-full64`, GCC/G++ 13 and the initial `VCS_FLAGS=-Mupdate`. Complete
+actual metasim checkpoint decoding again checks all 1,543 records / 13,503,308
+words at pre-edge C=524453 and rejects all four separately encoded opcode faults.
+Retained synthesis/model, register, memory and queue audits pass. Complete retained
+hierarchy, waveform and architecture/netlist memory-composition audits also pass. These are fresh audits of prior
+production waveforms/proofs; no fresh production gate process is claimed.
+
+Initial exploratory-cover rejection and the subsequent fault runner's unsupported
+nested port-expression diagnostics remain under `original-complete/` and
+`original-final/`. Neither failed attempt is selected. The successful full retry
+uses the supported actual named-port grammar, retains every original obligation
+and runs all five native faults. Unit regressions cover both parser recovery and
+independent rejection of changed/dropped scalar storage/logic.
+
+Publication: the ordinary FireSim push rejects as non-fast-forward. Pending
+FireSim `d19dd6601848d7857e2c713cc7ec8882d762a678` and Chipyard
+`60e8b8bb21650fcebd873e67cda65390e52d71dd`, exact remote tips and the rejection
+log are in `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m10-iteration78/github-publication.json` and `firesim-push.log`.
+Chipyard awaits FireSim publication. No force push, staging, local commit,
+reset, history cleanup, or protected plan/PDF/conda edit is performed.
+
+Next: independently export/audit the full build-bound production map from this
+original component, the retained register/predicate classification and complete
+architecture/netlist memory induction. Then restore the actual metasim checkpoint
+into fresh gate VCS, read back every physical word before any edge, replay the
+entire 250,185-cycle trace against ordinary clean RTL and verify actual mapped-state
+corruption at its first divergent cycle. No required CAD dependency is missing.
+Level-1 checkpoints remain independent; power characterization is not a dependency
+for formal mapping or functional gate replay.
+
+Recovery commands and complete full-path/hash catalog:
+
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m10-iteration78/verification-commands.json`
+
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m10-iteration78/artifact-manifest.json`
+
+## Iteration-78 verification and recovery
+
+Both independent original-component reports pass all 33 rejection checks each:
+27 actual certificate/CAD mutations, all five complete native counterexample
+jobs and incomplete gate loading. Fresh retained audits cover complete synthesis
+and concrete models, all 17 memory theorems / 178 mutations, queue proofs / eight
+negatives / 24 mutations, hierarchy proofs / six negatives / 45 mutations and
+register/predicate proofs / eight negatives / 27 mutations. Both full retained
+architecture/netlist memory-composition audits pass all 31 checks each and retain
+every assertion/result and all 130 exploratory unreachable covers unchanged.
+No new execution of those retained native proofs is claimed.
+
+Both prior full production RTL waveforms pass fresh pinned-release conversions
+and complete audits: all 13,503,308 zero-edge words, 201 memories / 50 ports and
+250,185 boundaries / 12,008,880 input/output values each. These waveform audits
+are not a fresh production gate process or mapped-state corruption acceptance.
+
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m10-iteration78/evidence-selection.json` pins the exact independent and retained reports.
+`verification-commands.json` records exact argv with relative working directories.
+`finalize-evidence.py` revalidates all seven selected native launcher jobs, exact
+proof/certificate/independent results, complete retained scopes and protected inputs.
+`summary.json` remains in progress; `protection-after.json` records unchanged
+protected inputs/staging/FireSim. `artifact-manifest.json` records every created
+regular file's full path/hash plus source and recovery files; its own output logs
+are excluded to avoid circular hashes. `validate-catalog.py` verifies every file
+hash and complete created-file membership. Report concrete files rather than the
+run directory, addressing the previous missing/empty-artifact feedback.
+
+## Preserved iteration-77 recovery
+
 # M10 production DUT formal map — iteration 77
 
 Status: in progress. The complete selected architecture/netlist memory induction
