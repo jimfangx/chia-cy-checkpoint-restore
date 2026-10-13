@@ -1,3 +1,58 @@
+# M10 production DUT formal map — iteration 81
+
+Status: ready for the selected actual production FCFS metasim DUT.
+The iteration-80 report was rejected because its submitted verification list
+omitted a VCS command. The completed map and production evidence below remain
+preserved. This iteration passes the full fresh native gate verifier, including
+all nine complete-state atomic loader rejections, and a separate fresh ordinary
+RTL VCS replay of the actual metasim checkpoint and trace. No synthesis or
+formal obligation changes; current native CAD artifacts are independently audited.
+
+Recovery files are under
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m10-iteration81/`.
+`baseline.json` records protected plan/PDF bytes, untouched index and repository
+heads. `production-gate-validation.log` records the complete fresh gate scope;
+`ordinary-vcs.log` and `ordinary-rtl/commands.json` record the separate ordinary
+build/replay/memory-inclusive waveform conversion. `python-tests.log` records
+all 215 passing tests. `verify-acceptance.py` independently compares every new
+gate/ordinary/metasim boundary and rechecks the complete build bindings and state.
+All twelve native gate commands and all three ordinary build/replay/conversion
+commands complete with their expected statuses. No native report recovery is
+needed. Gate initialization/readback covers all 13,509,222 words / 102,992,412
+bits at zero edges. All 250,185 cycles / 8,506,290 outputs / 12,008,880 boundary
+values agree. The mapped AR queue contents bit first diverges at C=524453 with
+zero edges and zero acknowledged samples. All nine full-state atomic rejection
+cases and four actual checkpoint predicate faults pass; an incomplete actual map
+rejects before any loader files are published.
+
+The separate ordinary waveform audit checks all 13,503,308 semantic words,
+250,185 boundaries and edges, and 12,008,880 input/output values. The final
+acceptance audit independently revalidates the current complete native CAD/map
+evidence, exact compiled sources/models, every actual checkpoint word, and all
+observed rows from the two fresh gate processes and fresh ordinary RTL. M2/M3
+regression results from iteration 80 remain preserved and rechecked; they are
+not claimed as new metasim runs. No new synthesis/Jasper engine, process ASIC,
+FPGA or power validation is claimed.
+
+`summary.json`, `evidence-selection.json`, `executed-commands.json` and
+`artifact-manifest.json` record complete acceptance and full-path/hash recovery.
+The ready report's `verification-commands.json` includes a direct native gate
+VCS `simv` command sourcing both environments and `vcs-env.sh` LAST, followed
+by the independent acceptance audit. The native command itself ran and passed;
+`verification-replay-matched.txt` contains every newly observed boundary.
+`validate-report.py` checks the actual controller's artifact/VCS-command guards
+and JSON schema without initializing Ray/Chia. To recheck complete acceptance:
+`PYTHONPATH=. python automations/checkpoint_loop/runs/m10-iteration81/verify-acceptance.py`.
+
+Already-created iteration-80 controller commits were pushed normally, FireSim
+`6caedae3e9d3e066781eaedccf3a09ff81d87216` followed by Chipyard
+`8812b6ae21437365a58283d130da9dfbfe74ed9f`. Independent remote-tip checks
+confirm both. Local tracking-ref updates report the read-only-filesystem
+diagnostic; exact logs and successful remote tips are in `github-publication.json`.
+The controller still owns staging, local commits and its next publication.
+
+## Preserved iteration-80 acceptance
+
 # M10 production DUT formal map — iteration 80
 
 Status: ready for the selected actual production FCFS metasim DUT.
