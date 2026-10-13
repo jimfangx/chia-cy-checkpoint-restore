@@ -1,3 +1,132 @@
+# M10 production DUT formal map — iteration 80
+
+Status: ready for the selected actual production FCFS metasim DUT.
+The actual FCFS metasim sample now passes complete fresh production gate
+restore/readback, finite replay and mapped-state first-divergence validation.
+Completed M6/M7 and small synthesized-DUT M8/M9 evidence remains preserved.
+
+`tools/checkpoint_formats/production_gate_replay.py` adds a separate production
+loader preparation path. It runs the independent original/memory/optimized/map
+CAD auditors against current bytes before accepting any state. All 130 preserved
+checkpoint predicates and every semantic record are checked before publication.
+The retained composed map stays unchanged and rejected by the fixture loader;
+only the audited production request authorizes this supported backend.
+
+The loader file keeps all 201 arrays as spans, with compact word values:
+7,457 descriptors cover every one of the 13,509,222 physical words and
+102,992,412 bits. No per-address JSON entries or unrolled trace testbench are
+created. `production_gate_restore.cc` validates every handle, shape, value,
+span and total before its first deposit. It retains compact hex bytes rather
+than one heap string/handle/set entry for each memory address. VCS exposes
+SystemVerilog arrays as `vpiRegArray`; both that form and legacy `vpiMemory`
+are checked through every actual indexed child. All deposits use `vpiNoDelay`,
+with no continuing force, reset, or target edge during initialization.
+
+`tests/audit_production_gate_restore.py` does not import the translator for
+value computation. It independently derives all scalar and array destinations
+from the currently audited map and compares every deposited word against the
+fully decoded actual checkpoint. It also checks every trace row, exact compiled
+design source selection, current dependency hashes and harness reproduction.
+The final request and independent report are under:
+
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m10-iteration80/gate-verified/request.json`
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m10-iteration80/restore-audit-final.json`
+
+`tests/verify_production_gate_replay.py` builds fresh pinned-release VCS with
+only the proven Genus netlist, hash-bound functional cell/memory models, the
+streaming bench and the production VPI loader. The selected native invocation:
+
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m10-iteration80/production-gate-validation/invocation-3mi8s144/`
+
+Its healthy process reads back all 13,509,222 gate words at C=524453 with zero
+target edges. It matches all 250,185 cycles / 8,506,290 outputs through
+C=774637, takes exactly 250,185 edges and ends at C=774638. Observed gate
+outputs are recorded, rather than copied from the oracle. Every one of the
+12,008,880 sampled boundary values agrees with the actual metasim trace and a
+separate fresh ordinary clean RTL replay. The ordinary process additionally
+has a full memory-inclusive VPD/VCD audit: all 13,503,308 semantic words match
+before any edge, and all 250,185 boundaries / 12,008,880 values and edge labels
+are independently verified. Report: `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m10-iteration80/ordinary-waveform-audit.json`.
+
+A second fresh gate process first initializes and verifies the complete healthy
+checkpoint, then flips actual mapped contents bit 0 in
+`production_gate_tb.dut.axi4buf_nodeOut_ar_deq_q.ckmem_ram_flattened.contents[0]`.
+It reads back that flip and detects `ep_axi4_ar_bits_qos expected=0 actual=1`
+at C=524453 with zero acknowledged cycles/target edges. No divergent edge or
+later boundary is accepted. This checks sampled payloads even when valid is
+low, matching the established finite replay contract. Semantic StateID:
+`dbb26407038badbc0716dab88bf269e7c6a08a3b3c598780eb5f2eae03cfd264`.
+
+All nine full-DUT native atomic rejection cases pass. Each initializes
+**every** physical word to the complement of the attempted restore, verifies
+that complete baseline, rejects a malformed file and then reads back every
+word again at zero edges. This detects any partial deposit, including a late
+failure. Cases cover missing/duplicate/unknown scalar state, wrong scalar or
+memory shape, unknown value/padding, absent END and trailing data. The same
+actual malformed files also reject in the independent translator audit. Four
+decoded actual checkpoint predicate faults reject separately. An actual map
+marked incomplete rejects at the production preparation entry before publishing
+any loader files; every native proof byte remains unchanged. The retained
+iteration-79 independently audited map/CAD mutation scope is preserved.
+
+All 215 Python tests and complete fresh M2/M3 VCS metasim/ordinary RTL
+regressions pass. Initial concurrent M2/M3 builds collided in VCS's temporary
+name (same sandbox-local PID/time); complete retries use separate `TMPDIR`
+roots and retain both failed logs. Initial parent-array type diagnostics and
+earlier pilot attempts remain preserved; the complete successful pilot and
+selected fresh build both replay the entire actual trace. No formal obligation
+or test scope is weakened. No new synthesis/Jasper engine run is claimed;
+current complete native proof artifacts are independently revalidated.
+
+A path-variable collision in the verifier's final summary serialization occurred
+**after all twelve native commands completed with their expected statuses**.
+The raw failure stays in `production-gate-validation.log`. The report code now
+captures the mapped corruption identity before iterating diagnostic file paths;
+three new regressions check JSON serialization, exact gate-object identity and
+invalid mapped addresses. `recover-native-report.py` reconstructs the selected
+summary from current bound sources, recorded commands and actual native logs,
+recompares every sampled gate/ordinary/metasim value, repeats all nine actual
+independent deposit rejections and all four decoded predicate faults. It does
+not claim another native execution. The selected summary explicitly records
+this recovery. Final `verify-acceptance.py` passes exact compilation-source and
+release checks, all current proof/capture/code hashes, every native rejection,
+all ordinary semantic words against the actual checkpoint, complete fresh
+waveform evidence and protected inputs. No native test was skipped or reduced.
+
+Completed recovery and verification artifacts:
+
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m10-iteration80/summary.json` — ready acceptance metrics.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m10-iteration80/production-gate-validation/invocation-3mi8s144/summary.json`
+  and `commands.json` — all actual native commands and recovered report.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m10-iteration80/unproven-map-rejection.json`.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m10-iteration80/evidence-selection.json` and `verification-commands.json`.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m10-iteration80/artifact-manifest.json` — full paths, sizes and hashes of
+  every created run file plus exact prerequisites and changed source/docs.
+  `validate-catalog.py` checks every hash and complete file membership.
+
+Revalidate the completed acceptance from the Chipyard root:
+`PYTHONPATH=. python automations/checkpoint_loop/runs/m10-iteration80/verify-acceptance.py`.
+For another complete fresh native run, source `env.sh`, `sims/firesim/env.sh`,
+then `vcs-env.sh` LAST and invoke `tests.verify_production_gate_replay` with
+`--replay` set to `gate-verified`, `--ordinary` to `ordinary-rtl` and a fresh
+`--out`. The verifier re-audits the actual map, builds fresh VCS and runs all
+healthy/fault/nine-rejection processes. Every native word remains in scope.
+
+Existing controller commits were published FireSim first, then Chipyard:
+FireSim `1d884e5cfda3f11accd72dd0d84f59a18ac42e32`, Chipyard
+`1d2a1e21f1344285a5433b3f9ca9bef265b1e87b`. Both remote tips are independently
+confirmed. Both pushes updated GitHub but local tracking-ref updates emitted
+read-only-filesystem diagnostics. Exact logs and remote IDs:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m10-iteration80/github-publication.json`.
+The loop still owns staging, local commits and publication of its next checkpoint.
+Protected plan/PDF inputs, staging, repository heads and FireSim worktree are
+unchanged. No conda files are edited. Level-1 checkpoints remain independent.
+These are complete production **functional** zero-delay gate results with the
+proven CK* cells/memory models; no process ASIC, FPGA, timing-aware gate or
+power validation is claimed. Power characterization is not a dependency here.
+
+## Preserved iteration-79 recovery
+
 # M10 production DUT formal map — iteration 79
 
 Status: in progress. The actual selected FCFS metasim DUT now has a complete
