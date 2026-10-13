@@ -312,6 +312,8 @@ def export_state_map(manifest, top, adapter, artifacts):
 
 def validate_state_map(mapping, manifest, adapter, artifacts):
     require(type(mapping) is dict and "top" in mapping, "invalid ASIC state map")
+    require("production_state_map_version" not in mapping,
+            "production state map requires its independently audited production loader; gate restore unsupported")
     rebuilt = export_state_map(manifest, mapping["top"], adapter, artifacts)
     require(mapping == rebuilt, "ASIC map or build/proof identity mismatch")
 

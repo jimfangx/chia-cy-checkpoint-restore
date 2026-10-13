@@ -1,3 +1,117 @@
+# M10 production DUT formal map — iteration 79
+
+Status: in progress. The actual selected FCFS metasim DUT now has a complete
+build-bound composed semantic-to-gate map and two independent passing map audits.
+Fresh production gate loading/readback, actual finite trace replay and first
+divergent mapped-state corruption remain pending. Completed M6/M7 and small
+synthesized-DUT M8/M9 acceptance is preserved. No FPGA, process ASIC or power
+validation is claimed.
+
+`tools/checkpoint_formats/production_state_map.py` composes the retained native
+original/architecture equality, architecture/netlist register/predicate induction,
+independent read closure and universally addressed memory-word theorems. It
+reconstructs all current proof inputs, exact native assertion/cover membership,
+engine completions, concrete models, complete physical inventory, queried
+disabled retiming and original/normalized/architecture/raw/selected RTL identities.
+Names propose destinations; proven induction authorizes the relationships.
+The original conditional component certificates remain unchanged.
+
+The new map is:
+
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m10-iteration79/map/asic_state_map.json`
+
+It includes all **1,543 StateIDs**, **1,342 registers / 8,261 semantic register
+bits** and **201 memories / 102,985,156 contents bits / 13,501,966 words**.
+Every scalar bit is explicitly mapped, a preserved checkpoint predicate, or
+irrelevant to the proven relation: **7,256 mapped bits / 130 predicates / 875
+irrelevant bits**. Memory mappings retain complete identity address/bit spans,
+with original and gate universal word theorems and independently proven read
+closure. There is no selected-address approximation. Every physical object is
+consumed exactly once: **102,992,412 bits / 13,509,222 writable words**. This
+includes all captured pipeline/port registers, with no hidden macro storage.
+
+The full map is conditional on each explicitly listed predicate matching its
+proven value. It does not claim that those predicates hold for arbitrary original
+initial states. Other semantic values remain unconstrained. The actual metasim
+checkpoint compatibility check is part of retained verification.
+
+`tests/audit_production_state_map.py` does not import the exporter or its partition
+code. Its existing independent component auditors reconstruct native proof cuts;
+it separately walks the semantic manifest and physical inventory and reconstructs
+each bit classification, full-array span, theorem reference and build dependency.
+Both final independent passes reject **39 altered actual production maps** plus
+the unsupported loader (**40 rejection checks each**), preserving all positive
+CAD bytes. Neither proof status nor recomputed artifact hashes can replace
+native obligations. Canonical JSON comparison also rejects boolean bit indices
+and floating-point storage counts that Python numeric equality would conflate.
+
+`formal_state_map_complete` is true for this separate production map format.
+`gate_restore_authorized` remains false: the existing flat/fixture loader now
+rejects this format explicitly with a production-loader diagnostic. The next
+production loader must revalidate the independent audit, fully decode the actual
+checkpoint and check every preserved predicate before publishing any deposits.
+The approximately 13.5 million destination words require a bounded-memory
+translation/readback path; do not expand the map to one JSON entry per memory bit
+or reuse the small fixture's unrolled replay bench.
+
+Selected independent reports:
+
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m10-iteration79/map-audit-final-first/invocation-phf9td1f/summary.json`
+
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m10-iteration79/map-audit-final-second/invocation-ifpomr4i/summary.json`
+
+`tests/verify_production_state_map.py` additionally rejects **12 copied actual
+native CAD artifact faults**, after rebinding the map/component paths and
+recomputing every changed dependency hash. Both original and gate memory scopes
+reject shared read words, restricted watched addresses, failed/missing assertions,
+vacuous word premises and missing native engine completions. These are evidence
+integrity challenges, not new tool counterexample runs. All positive bytes remain
+unchanged. Selected report:
+
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m10-iteration79/map-evidence-negatives/invocation-5hqsoly2/summary.json`
+
+All **207 Python tests**, complete fresh M2/M3 VCS metasim/ordinary RTL
+regressions and complete actual metasim checkpoint/four predicate corruption
+checks pass. All **13 retained verification scopes** pass, including complete
+synthesis/model, register, memory, queue and hierarchy audits; both full production
+RTL waveforms; both architecture/netlist memory-composition audits; and both
+original-composition audits. Each waveform checks all 13,503,308 zero-edge words,
+250,185 boundaries and 12,008,880 input/output values. The retained composition
+audits preserve all assertions/results and the 130 exploratory unreachable
+predicate covers; both original audits pass all 33 rejection checks. No new
+Jasper engine execution, synthesis, production gate process, mapped gate
+corruption or power result is claimed by this increment.
+
+Publication: ordinary FireSim push rejects as non-fast-forward. Pending FireSim
+`cecf8deb01fd9fbc6bdb517edcce244da2d5d4e3` and Chipyard
+`9861414b6db0266b1556ce3ce6a6942f5565baf0`, exact remote tips and the full rejection
+are in `runs/m10-iteration79/github-publication.json`. Chipyard awaits FireSim
+publication. No force push, staging, local commit, reset, cleaning or protected
+plan/PDF/conda edit is performed.
+
+Next: implement the audited production translator and streaming gate harness,
+restore the actual `.rtlckpt` into fresh pinned-release gate VCS and read back
+every mapped word before any edge. Replay all 250,185 captured cycles against
+ordinary clean RTL, then corrupt an actual mapped state bit and independently
+verify its first divergent boundary. No required CAD dependency is missing.
+Level-1 simulator checkpoints remain independent; power characterization is not
+a dependency for this functional acceptance.
+
+Recovery files under the full path
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m10-iteration79/`:
+`evidence-selection.json` pins every final selected report;
+`verification-commands.json` records exact argv and relative working directories;
+`finalize-evidence.py` revalidates the current complete map, selected audits,
+all 13 retained scopes and protected inputs; `summary.json` records in-progress
+status and pending gate acceptance. `artifact-manifest.json` catalogs full paths,
+sizes and hashes of all regular files under this run plus exact CAD prerequisites
+and changed sources/documentation. `validate-catalog.py` checks every hash and
+complete created-file membership. No protected input, staging, FireSim worktree
+or repository head is changed. Earlier 38-check map passes are preserved; the
+selected final passes include both additional typed-JSON challenges (40 each).
+
+## Preserved iteration-78 recovery
+
 # M10 production DUT formal map — iteration 78
 
 Status: in progress. Complete **original RTL to extracted architecture** induction
