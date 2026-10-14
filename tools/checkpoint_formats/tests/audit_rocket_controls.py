@@ -24,14 +24,14 @@ def audit(summary_path, source_archive=None):
             summary['level1_verified'] is False and summary['level2_verified'] is False,
             'incomplete or falsely authorized CPU control result')
     require(summary['recipe'] == recipe_settings(RECIPES['Rocket']), 'changed exact Rocket recipe')
+    archived = {} if source_archive is None else {b['path']: b for b in json.loads(Path(source_archive).read_text())['files']}
     for path, digest in summary['input_hashes'].items():
-        require(file_sha(path) == digest, 'changed control input ' + path)
+        check_native_input(ROOT, path, digest, archived)
     identity = json.loads((out / 'rocket-build-identity.json').read_text())
     require(identity['recipe'] == summary['recipe'] and identity['checkpoint_profile'] is None and
             identity['level1_verified'] is False and identity['level2_verified'] is False and
             identity['vcs_home'] == VCS_HOME and len(identity['translation_units']) == 58,
             'incomplete or incompatible executed native CPU build')
-    archived = {} if source_archive is None else {b['path']: b for b in json.loads(Path(source_archive).read_text())['files']}
     for path, digest in identity['sources_sha256'].items():
         check_native_input(ROOT, path, digest, archived)
     binary = Path(identity['native_binary'])
@@ -98,6 +98,9 @@ def audit(summary_path, source_archive=None):
                      '+heartbeat-output=' + str(runtime / 'heartbeat.csv'))) and
                     (runtime / 'input.bin').read_bytes() == b'' and
                     (runtime / 'output.bin').read_bytes() == b'', 'incomplete buffered CPU control endpoints')
+        if control.get('tracerv_checkpoint_buffered', False):
+            require(name == 'rocket-buffered' and '+tracerv-checkpoint-buffered' in native_argv,
+                    'missing buffered TracerV native CPU control')
         require(control['status'] == 'passed' and control['level1_verified'] is False and
                 control['level2_verified'] is False and control['native_binary'] == str(binary) and
                 control['native_binary_sha256'] == file_sha(binary) and

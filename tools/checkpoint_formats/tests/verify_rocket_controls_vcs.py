@@ -54,7 +54,7 @@ def control(binary, workload, reference, reference_audit, out, buffered):
             '+tracefile=' + str(runtime / 'TRACEFILE')]
     if buffered:
         (runtime / 'input.bin').write_bytes(b'')
-        argv += ['+heartbeat-checkpoint-buffered',
+        argv += ['+tracerv-checkpoint-buffered', '+heartbeat-checkpoint-buffered',
                  '+heartbeat-output=' + str(runtime / 'heartbeat.csv'),
                  '+uart-checkpoint-file0', '+uart-in0=' + str(runtime / 'input.bin'),
                  '+uart-out0=' + str(runtime / 'output.bin')]
@@ -95,6 +95,7 @@ def control(binary, workload, reference, reference_audit, out, buffered):
                   mode=name, end_target_count=int(matches[0]), comparisons=comparisons,
                   native_binary=str(binary), native_binary_sha256=file_sha(binary),
                   workload_sha256=file_sha(elf), full_backing_memory_bytes=17179869184,
+                  tracerv_checkpoint_buffered=buffered,
                   level1_verified=False, level2_verified=False)
     (out / (name + '-control-summary.json')).write_text(json.dumps(result, indent=2) + '\n')
     return [run, audit], result

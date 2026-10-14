@@ -4,6 +4,7 @@
 
 #include "core/bridge_driver.h"
 #include "core/clock_info.h"
+#include "core/widget_checkpoint.h"
 #include <functional>
 #include <vector>
 
@@ -46,7 +47,14 @@ public:
 
   virtual void init();
   virtual void tick();
-  virtual void finish() { flush(); };
+  virtual void finish();
+
+  // Completed host calls only. Stream transport/queues and generated trigger
+  // hardware remain independent owners. Live files and fireperf are unsupported.
+  std::string checkpoint_schema() const override { return "firesim.bridge.tracerv.v1"; }
+  std::vector<uint8_t> save_checkpoint() const override;
+  void validate_checkpoint(const std::vector<uint8_t> &) const override;
+  void load_checkpoint(const std::vector<uint8_t> &) override;
 
   static void serialize(const uint64_t *OUTBUF,
                         size_t bytes_received,
@@ -71,7 +79,7 @@ private:
   FILE *tracefile;
 
 public:
-  uint64_t cur_cycle;
+  uint64_t cur_cycle = 0;
   uint64_t trace_trigger_start, trace_trigger_end;
   uint32_t trigger_start_insn = 0;
   uint32_t trigger_start_insn_mask = 0;
@@ -83,8 +91,8 @@ public:
 
 private:
   // TODO: rename this from linuxbin
-  ObjdumpedBinary *linuxbin;
-  TraceTracker *trace_tracker;
+  ObjdumpedBinary *linuxbin = nullptr;
+  TraceTracker *trace_tracker = nullptr;
 
   bool human_readable = false;
   // If no filename is provided, the instruction trace is not collected
@@ -93,10 +101,26 @@ private:
   // Used in unit testing to check TracerV is correctly pulling instuctions off
   // the target
   bool test_output = false;
-  long dma_addr;
+  long dma_addr = 0;
   std::string tracefilename;
   std::string dwarf_file_name;
   bool fireperf = false;
+
+  widget_checkpoint_state_t checkpoint_state;
+  bool buffered = false;
+  bool initialized = false;
+  bool finished = false;
+  std::vector<uint8_t> output_bytes;
+  std::string output_path;
+  void require_checkpointable() const;
+  widget_checkpoint_config_t checkpoint_configuration() const;
+  struct decoded_checkpoint_t {
+    bool initialized;
+    uint64_t cur_cycle;
+    std::vector<uint8_t> output;
+  };
+  decoded_checkpoint_t decode_checkpoint(const std::vector<uint8_t> &) const;
+  void flush_tokens();
 
   size_t process_tokens(int num_beats, int minium_batch_beats);
   int beats_available_stable();

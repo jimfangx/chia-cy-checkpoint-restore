@@ -1,13 +1,13 @@
 # CPU checkpoint matrix
 
-Current milestone: M11 Rocket, iteration 93. Level-1 and Level-2 acceptance
+Current milestone: M11 Rocket, iteration 94. Level-1 and Level-2 acceptance
 remain **in_progress**. No CPU checkpoint continuation or clean CPU RTL replay
 has passed. Physical FPGA validation, standalone Shuttle and ASIC power are
 outside this matrix. The verified FCFS evidence remains in its existing docs.
 
 | Family / existing recipe | Level 1 | Level 2 | Workload evidence |
 | --- | --- | --- | --- |
-| Rocket / `firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3` | in_progress: generated RTL inventory audited; host component continuations pass; complete runtime ownership and fresh CPU continuation pending | in_progress: complete ChipTop inventory/readback retained; explicit event-phase image/replay contract passes ordinary RTL component checks; coherent metasim CPU capture/replay pending | Retained full four-hart controls pass at C=3,329,794; CPU checkpoint cuts remain pending; see iteration 93 below |
+| Rocket / `firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3` | in_progress: generated RTL inventory audited; host component continuations pass including TracerV; complete runtime ownership and fresh CPU continuation pending | in_progress: complete ChipTop inventory/readback retained; explicit event-phase image/replay contract passes ordinary RTL component checks; coherent metasim CPU capture/replay pending | New full four-hart default/buffered TracerV controls pass at C=3,329,794; CPU checkpoint cuts remain pending; see iteration 94 below |
 | BOOM / `firesim_boom_singlecore_no_nic_l2_llc4mb_ddr3` | pending | pending | No execution claimed |
 | Shuttle + Saturn / `firesim_saturn_GENV256D128_shuttle_singlecore_no_nic_l2_llc4mb_ddr3` | pending | pending | No vector execution claimed |
 
@@ -32,6 +32,107 @@ The recipe also specifies frequency 140 MHz and TIMING build strategy; these
 are retained in the recipe record, with no FPGA implementation invoked.
 VCS uses Y-2026.03-SP1, `-full64`, `VCS_FLAGS=-Mupdate`, system GCC/G++ 13,
 and the sourced Conda library/include directories. No Conda files are edited.
+
+## Iteration 94: complete TracerV host ownership and exact-recipe controls
+
+Diagnostic root:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration94/`.
+
+`+tracerv-checkpoint-buffered` adds `firesim.bridge.tracerv.v1` for completed
+host calls. Save/restore does not pull/flush streams, change MMIO or publish an
+output file. Own initialization, `cur_cycle` and the entire serialized history,
+including the clock header. Bind all fifteen MMIO addresses, stream index/depth,
+core IPC, clock name/ratio, trace enable, output/test mode, and every cycle/PC/
+instruction trigger field. An output path is a fresh-process sink; its history
+comes from captured bytes. Base simulator/stream references are rebound to
+separate owners. Active/poisoned calls, finished/live-file/fireperf/tracker modes
+and nonzero legacy DMA state reject. Temporary serializer FILE/buffer state
+exists only inside guarded calls. `tracerv-owner-audit.json` lists every member,
+including explicitly absent/rebound fields and separately owned hardware.
+Generated TracerV FIFO/trigger/cycle state and CPU AXI queues remain separate;
+this host adapter does not authorize an aggregate CPU profile.
+
+The selected original host-component invocation is
+`tracerv-native/invocation-ou6pxbr8/summary.json`: 256 fresh continuations,
+296 executed processes including two builds, all four exact Rocket constructors
+(streams 0–3, depth 6,144, IPC 1, 1/1 clock ratio), human/binary/test/disabled
+modes and trigger selectors 0–3. Eight host-call cuts per case have fixture
+labels C=100/107/114/121/128/135/142/149. They include complete batches, queued
+traffic below the drain threshold, flushes and the final pre-publication state.
+An independent byte/MMIO oracle verifies every owner and separately captured
+fixture queue before edges and all 1,152 continued calls. Each backend passes
+1,482 unchanged-state/configuration/lifecycle assertions. Reentrant calls and
+interrupted pulls poison/reject rather than expose a suspended buffer.
+Valid lifecycle corruption rejects before init MMIO; valid captured-history
+corruption first reports `tracerv_output` at fixture C=149 without completing
+that boundary. These are host fixtures, not active CPU checkpoint cuts.
+
+Separate original `tracerv-invalid-native/invocation-375e7cg0/summary.json`
+records sixteen actual fresh native/VCS processes rejecting missing/truncated/
+trailing/unknown/incompatible/invalid-length/lifecycle/empty images before
+fixture edges or readback publication, preserving the fresh sink sentinel.
+All 312 selected process logs have no ASan/UBSan/leak diagnostics. Original
+source snapshots and complete artifact catalogs seal both invocations. The
+first VCS link failed because as-needed linking discarded libraries placed
+before its objects; corrected link flags retain libelf/libdwarf. The failed
+invocation remains preserved separately.
+
+The exact Rocket VCS build is retained under
+`rocket-controls/invocation-s3q7sujf/`. `rocket-tracerv-integration-audit.json`
+binds its actual binary/header/source hashes, all three linked hooks and exact
+constructor equality with the component evidence. The default and buffered
+UART/heartbeat/TracerV complete four-hart controls both pass at C=3,329,794.
+All four full hart files match the uninterrupted reference byte-for-byte
+(37,582,346 / 49,976,156 / 50,391,641 / 50,189,006 bytes); all decoded phase,
+completion, failure and tohost labels match independently. This covers actual
+active execution on all four cores through the late memory phase. These are
+uninterrupted controls; complete CPU checkpoint continuation and CPU RTL
+replay remain pending. Workload SHA256 remains
+`f3d86f54caf42b9589385e8021dba46777f647134f19595e38a3d452b745f3d4`.
+The new CPU binary still rejects preflight at TSI (`widget/12`) and rejects
+capture/restore without a durable capability, before run or output publication.
+Those requests do not establish malformed CPU-image loader acceptance.
+
+All 245 Python tests and eight preserved native checks pass in
+`native-regressions/invocation-axtrckf_/summary.json`, guarding the iteration-93
+archive before/after. Five independent retained audits pass: complete Rocket
+inventory/readback, both full original controls, complete memory/policy replay,
+clock-event replay and original archived bytes. The old control launcher was
+not in its iteration-90 archive; `rocket-original-input-archives.json` selects
+only exact original recorded hashes/snapshots from later archives. No native
+path or audit rule is relaxed. A fresh ordinary Rocket VCS process again reads
+all 318,637 diagnostic words before seven clocks advance. This is a storage
+probe, not a workload image/replay. Failed initial audit/link diagnostics are
+retained alongside passing checks. `native-input-archives.json` seals 8,814
+original bindings; both internal and executable CLI audits pass.
+`verification-commands.json` records the exact executable argv/relative cwd.
+
+Executable native checks from the Chipyard root (all native build/runtime
+shells independently source `vcs-env.sh` last):
+
+```sh
+source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh
+checkpoint_rocket_header=automations/checkpoint_loop/runs/m11-iteration87/build/f2/f2-firesim-FireSim-WithDefaultFireSimBridges_WithFireSimTestChipConfigTweaks_chipyard.QuadRocketConfig-WithAutoILA_FRFCFS16GBQuadRankLLC4MB_BaseF2Config/FireSim-generated.const.h
+python -m tools.checkpoint_formats.tests.verify_tracerv_checkpoint_vcs --rocket-header "$checkpoint_rocket_header" --out automations/checkpoint_loop/runs/m11-iteration94/tracerv-recheck
+python -m tools.checkpoint_formats.tests.verify_tracerv_checkpoint_vcs --audit automations/checkpoint_loop/runs/m11-iteration94/tracerv-native/invocation-ou6pxbr8/summary.json
+python -m tools.checkpoint_formats.tests.verify_tracerv_invalid_vcs --summary automations/checkpoint_loop/runs/m11-iteration94/tracerv-native/invocation-ou6pxbr8/summary.json --out automations/checkpoint_loop/runs/m11-iteration94/tracerv-invalid-recheck
+python -m tools.checkpoint_formats.tests.verify_rocket_controls_vcs --out automations/checkpoint_loop/runs/m11-iteration94/rocket-controls-recheck --seed-build automations/checkpoint_loop/runs/m11-iteration94/rocket-controls/invocation-s3q7sujf/build --workload automations/checkpoint_loop/runs/m11-iteration82/workload --reference-runtime automations/checkpoint_loop/runs/m11-iteration85/rocket-runtime --reference-audit automations/checkpoint_loop/runs/m11-iteration85/rocket-workload-audit.json
+python -m tools.checkpoint_formats.tests.audit_rocket_controls --summary automations/checkpoint_loop/runs/m11-iteration94/rocket-controls/invocation-s3q7sujf/summary.json
+python -m tools.checkpoint_formats.native_regressions --audit automations/checkpoint_loop/runs/m11-iteration94/native-regressions/invocation-axtrckf_/summary.json
+python -m tools.checkpoint_formats.retained_evidence --archive automations/checkpoint_loop/runs/m11-iteration94/native-input-archives.json --protected automations/checkpoint_loop/runs/m11-iteration94/protected-inputs.json
+python -m tools.checkpoint_formats.tests.audit_rocket_controls --summary automations/checkpoint_loop/runs/m11-iteration90/rocket-controls/invocation-6f3ulwfs/summary.json --source-archive automations/checkpoint_loop/runs/m11-iteration94/rocket-original-input-archives.json
+```
+
+Acceptance remains **in_progress**: complete run-loop/TSI/FESVR and remaining
+runtime owners, bind all semantic owners through actual FAME metasim with
+coherent clock events, then fresh complete Level-1 continuation and independent
+Level-2 readback/captured CPU trace replay at early, warmed-cache,
+outstanding-memory and late cuts. No required CPU checkpoint cut has passed.
+BOOM/Saturn remain pending; standalone Shuttle/physical FPGA/ASIC work is
+excluded. Existing iteration-93 commits FireSim
+`e3b78c81021ac14a5db17e33725a1ebe477377af`, then Chipyard
+`30b335fba5a8f3f8c59981ba8851635dc17e12bf`, were published and remote tips
+confirmed in `publication.json`. No staging or local commits; plans are intact.
 
 ## Iteration 93: retain native evidence across verification reruns
 

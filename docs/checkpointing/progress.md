@@ -14,7 +14,7 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 93, in progress. Recovery:
+Current milestone: M11-rocket-level1-level2, iteration 94, in progress. Recovery:
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Exact Rocket discovery now
 emits a complete pre-FAME storage/clock inventory and compiler-bound clean access
 map: 8,644 entries / 318,637 words / seven state clocks plus six initialized values.
@@ -23,6 +23,49 @@ readback pass. These are storage probes, not workload checkpoints. Explicit
 clock-event images and fresh ordinary RTL replay now pass component checks.
 Complete CPU runtime ownership, coherent metasim workload cuts, fresh Level-1
 continuation and independent Level-2 CPU image/captured-trace replay remain pending.
+
+Iteration 94 (October 14):
+
+- Added opt-in `+tracerv-checkpoint-buffered` Level-1 host ownership. Own the
+  entire output prefix, initialization and cycle value; bind every MMIO address,
+  stream, clock, trigger and output mode. Restore validates/allocates before
+  mutation and never drains tokens or publishes files. Active/poisoned calls,
+  finished/live-file/fireperf/tracker modes reject explicitly.
+- All 256 fresh sanitized-native/VCS component continuations pass for the four
+  actual Rocket constructors, four trace modes and eight host-call cuts with
+  queued tokens. Independent byte/MMIO oracle verifies complete pre-edge
+  readback and 1,152 continued calls. Each backend passes 1,482 atomic/config/
+  lifecycle assertions. Actual valid history corruption first differs at
+  fixture C=149; lifecycle corruption rejects before initialization MMIO.
+  Sixteen separate fresh malformed requests reject before edges/publication.
+  These are host components, not CPU checkpoints or generated queue captures.
+- All 245 Python tests and eight preserved native regressions pass. Five retained
+  independent audits pass, plus a fresh complete Rocket ordinary RTL diagnostic
+  readback of 318,637 words / seven clocks before edges. Old CPU-control launcher
+  hashes now use their exact previously recorded source snapshot; original
+  native paths remain mandatory. Initial link/archive diagnostics are retained.
+- Exact Rocket VCS rebuilt with the pinned environment and GCC/G++ 13. All three
+  TracerV hooks and four constructor settings match the component evidence.
+  Both complete four-hart default/buffered controls pass at C=3,329,794; all
+  four full traces and decoded workload/store labels match the uninterrupted
+  reference. These are controls, not CPU checkpoints. New CPU requests
+  still reject before run; TSI is the first unsupported widget owner.
+- Existing iteration-93 controller commits FireSim
+  `e3b78c81021ac14a5db17e33725a1ebe477377af`, then Chipyard
+  `30b335fba5a8f3f8c59981ba8851635dc17e12bf`, were published and remote tips
+  independently confirmed. No local staging/commits; plans stay read-only.
+- Recovery: `runs/m11-iteration94/`, especially
+  `tracerv-native/invocation-ou6pxbr8/summary.json`,
+  `tracerv-invalid-native/invocation-375e7cg0/summary.json`,
+  `native-regressions/invocation-axtrckf_/summary.json`,
+  `rocket-controls/invocation-s3q7sujf/`, `tracerv-owner-audit.json`,
+  `rocket-tracerv-integration-audit.json`, `retained-audit-final-results.json`,
+  `native-input-archives.json` (8,814 bindings), `verification-commands.json`
+  and final summary.
+  Next: finish complete runtime run-loop/TSI/FESVR and remaining owners, bind
+  semantic state through actual FAME metasim/coherent CPU clock events, then
+  both levels at all required active four-hart cuts. No dependency is missing.
+  BOOM/Saturn remain pending; physical FPGA/ASIC work is deferred.
 
 Iteration 93 (October 14):
 
