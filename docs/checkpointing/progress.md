@@ -14,7 +14,7 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 92, in progress. Recovery:
+Current milestone: M11-rocket-level1-level2, iteration 93, in progress. Recovery:
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Exact Rocket discovery now
 emits a complete pre-FAME storage/clock inventory and compiler-bound clean access
 map: 8,644 entries / 318,637 words / seven state clocks plus six initialized values.
@@ -23,6 +23,45 @@ readback pass. These are storage probes, not workload checkpoints. Explicit
 clock-event images and fresh ordinary RTL replay now pass component checks.
 Complete CPU runtime ownership, coherent metasim workload cuts, fresh Level-1
 continuation and independent Level-2 CPU image/captured-trace replay remain pending.
+
+Iteration 93 (October 14):
+
+- Fixed the previous controller verification failure without weakening the
+  retained-evidence audit. The historical regression launcher overwrote four
+  archived logs on rerun. Recovered their exact original bytes from recorded
+  content-addressed snapshots; preserved displaced verification logs and the
+  recovery ledger in `runs/m11-iteration93/retained-log-recovery.json`.
+- Added maintained `tools.checkpoint_formats.native_regressions`: every call
+  allocates separate build/runtime/log/result paths, seals all invocation files,
+  and audits prior evidence before and after execution. Source snapshots preserve
+  original inputs; a source change during execution rejects. Failed processes
+  and failed evidence guards cannot publish a passing result. Five retention
+  tests pass, including actual subprocess mutations.
+- Both complete eight-check suites pass in separate native invocations. The
+  first retains 4,416 bindings; the second preserves all those bytes and the
+  iteration-92 archive, binds 672 source inputs, and passes all 245 final Python
+  tests. Both include full M2/M3 metasim/ordinary RTL, widget/UART/blockdev/
+  heartbeat continuation/negative checks and FCFS guards. Selected originals:
+  `native-regressions/invocation-7e9aw5m8/summary.json` and
+  `native-regressions/invocation-gk0gj8s_/summary.json`. Use the maintained module
+  for future regressions; historical fixed-path launchers overwrite evidence.
+- Six retained audits pass: original complete Rocket inventory/readback,
+  controller archives, both full four-hart controls, complete memory/policy
+  replay and clock-event recurrence/native waveforms. Fresh exact Rocket ordinary
+  RTL VCS also reads all 318,637 diagnostic words with seven clocks and zero
+  edges. This remains a storage probe; no new CPU workload checkpoint is claimed.
+  Recovery includes `summary.json`, `verification-commands.json`,
+  `native-input-archives.json`, `final-native-evidence-audit.json` and
+  `protected-turn-check.json` under `runs/m11-iteration93/`.
+- Published existing iteration-92 controller commits FireSim
+  `0cba18f411f8fc98f74145f67b5854a546586553`, then Chipyard
+  `1c55ffeb7c34b2f7bae6fd44b33a38a873e5a07d`; remote tips independently confirmed
+  in `publication.json`. Local tracking refs remain read-only. Plans,
+  environments, local heads and index are preserved; no staging/local commits.
+- Next: bind semantic owners through actual FAME metasim and coherent CPU clock
+  events, finish run-loop/TSI/FESVR/TracerV and remaining runtime ownership, then
+  both complete levels at all required active four-hart cuts. No external
+  dependency is missing. BOOM/Saturn remain pending; FPGA/ASIC work is deferred.
 
 Iteration 92 (October 14):
 

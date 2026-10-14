@@ -1,13 +1,13 @@
 # CPU checkpoint matrix
 
-Current milestone: M11 Rocket, iteration 92. Level-1 and Level-2 acceptance
+Current milestone: M11 Rocket, iteration 93. Level-1 and Level-2 acceptance
 remain **in_progress**. No CPU checkpoint continuation or clean CPU RTL replay
 has passed. Physical FPGA validation, standalone Shuttle and ASIC power are
 outside this matrix. The verified FCFS evidence remains in its existing docs.
 
 | Family / existing recipe | Level 1 | Level 2 | Workload evidence |
 | --- | --- | --- | --- |
-| Rocket / `firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3` | in_progress: generated RTL inventory audited; host component continuations pass; complete runtime ownership and fresh CPU continuation pending | in_progress: complete ChipTop inventory/readback retained; explicit event-phase image/replay contract passes ordinary RTL component checks; coherent metasim CPU capture/replay pending | Retained full four-hart controls pass at C=3,329,794; CPU checkpoint cuts remain pending; see iteration 92 below |
+| Rocket / `firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3` | in_progress: generated RTL inventory audited; host component continuations pass; complete runtime ownership and fresh CPU continuation pending | in_progress: complete ChipTop inventory/readback retained; explicit event-phase image/replay contract passes ordinary RTL component checks; coherent metasim CPU capture/replay pending | Retained full four-hart controls pass at C=3,329,794; CPU checkpoint cuts remain pending; see iteration 93 below |
 | BOOM / `firesim_boom_singlecore_no_nic_l2_llc4mb_ddr3` | pending | pending | No execution claimed |
 | Shuttle + Saturn / `firesim_saturn_GENV256D128_shuttle_singlecore_no_nic_l2_llc4mb_ddr3` | pending | pending | No vector execution claimed |
 
@@ -32,6 +32,84 @@ The recipe also specifies frequency 140 MHz and TIMING build strategy; these
 are retained in the recipe record, with no FPGA implementation invoked.
 VCS uses Y-2026.03-SP1, `-full64`, `VCS_FLAGS=-Mupdate`, system GCC/G++ 13,
 and the sourced Conda library/include directories. No Conda files are edited.
+
+## Iteration 93: retain native evidence across verification reruns
+
+Diagnostic root:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration93/`.
+
+The iteration-92 controller verification failed because its fixed-path regression
+launcher overwrote archived `regression-{0,5,6,7}.log` files when rerun. The audit
+correctly rejected the changed bytes. Exact original logs have been recovered
+from their original content-addressed snapshots. Displaced verifier output and
+both hashes remain in `retained-log-recovery.json`; no audit rule was relaxed.
+Use the maintained `tools.checkpoint_formats.native_regressions` module for new
+checks. Historical launchers and their selected invocations remain preserved.
+
+Every maintained invocation receives fresh build, simulation, log and result
+directories. All generated RTL, images, traces, readback, binaries and native
+logs are sealed in a complete file catalog. Prior native evidence is audited
+before and after execution. Original local checker/compiler sources are copied
+to content-addressed snapshots and must remain unchanged during the run; later
+source evolution uses the exact original snapshot. Failed commands and failed
+evidence guards retain diagnostics and cannot publish a passing result. Five
+new tests pass, including actual processes that overwrite retained logs or
+change source files, and changed/missing/extra artifact rejection.
+
+Both full native eight-check suites actually pass:
+
+| Selected original invocation | Python tests | Sealed files excluding summary | Original source bindings |
+| --- | ---: | ---: | ---: |
+| `native-regressions/invocation-7e9aw5m8/summary.json` | 243 | 4,415 | Original iteration-92 archive guard |
+| `native-regressions/invocation-gk0gj8s_/summary.json` | 245 | 5,086 | 672 |
+
+The second full suite additionally guards all 4,416 original first-invocation
+bindings. Both runs preserve full M2/M3 metasim/ordinary RTL replay, 52 widget,
+18 UART, 30 blockdev and 96 heartbeat continuations, their native rejection and
+corruption cases, and eight FCFS Make/four generator guards. Separate source,
+captured state, complete readback and native continuation artifacts remain
+inside each selected invocation. Both catalogs and original controller archives
+re-audit after the rerun. `first-native-archives.json` binds the original first
+suite; `native-input-archives.json` binds the final selected evidence and source
+snapshots. `verification-commands.json` records exact argv and relative cwd.
+
+Six retained audits also pass: complete Rocket storage/clock/readback, original
+controller archives, both full four-hart controls, complete memory/policy replay
+and the 172-sample clock-event capture/replay (2,064 stored words / 1,720 outputs).
+A new fresh ordinary RTL VCS process reads and deposits all 318,637 Rocket
+diagnostic words before any of seven clocks advances; its log is under
+`native-rocket-probe-*/run.log`. This uses the exact retained recipe's pre-FAME
+RTL and pinned Y-2026.03-SP1 runtime. It is a storage probe. No CPU workload cut,
+checkpoint continuation or captured CPU boundary replay is claimed. Original
+four-hart workload SHA256 remains
+`f3d86f54caf42b9589385e8021dba46777f647134f19595e38a3d452b745f3d4`.
+
+Executable checks from the Chipyard root (the module also sources both repository
+environments and `vcs-env.sh` last in every native build/run shell):
+
+```sh
+source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh
+checkpoint_rocket_header=automations/checkpoint_loop/runs/m11-iteration87/build/f2/f2-firesim-FireSim-WithDefaultFireSimBridges_WithFireSimTestChipConfigTweaks_chipyard.QuadRocketConfig-WithAutoILA_FRFCFS16GBQuadRankLLC4MB_BaseF2Config/FireSim-generated.const.h
+checkpoint_fcfs_inventory=automations/checkpoint_loop/runs/m3-metasim/f2/f2-fasedtests-AXI4Fuzzer-FCFSConfig-FCFS16GBQuadRank_DefaultF1Config/checkpoint-native
+python -m tools.checkpoint_formats.native_regressions --out automations/checkpoint_loop/runs/m11-iteration93/native-regressions --rocket-header "$checkpoint_rocket_header" --production "$checkpoint_fcfs_inventory" --guard automations/checkpoint_loop/runs/m11-iteration92/native-input-archives.json automations/checkpoint_loop/runs/m11-iteration92/protected-inputs.json --guard automations/checkpoint_loop/runs/m11-iteration93/first-native-archives.json automations/checkpoint_loop/runs/m11-iteration93/protected-inputs.json
+python -m tools.checkpoint_formats.native_regressions --audit automations/checkpoint_loop/runs/m11-iteration93/native-regressions/invocation-gk0gj8s_/summary.json
+python -m tools.checkpoint_formats.retained_evidence --archive automations/checkpoint_loop/runs/m11-iteration93/native-input-archives.json --protected automations/checkpoint_loop/runs/m11-iteration93/protected-inputs.json
+python -m tools.checkpoint_formats.tests.audit_multiclock_replay --summary automations/checkpoint_loop/runs/m11-iteration92/multiclock-replay-current/invocation-pub5jaqh/summary.json
+```
+
+The exact new Rocket diagnostic VCS command is recorded in
+`verification-commands.json`; the full native build/probe commands remain in the
+iteration-91 inventory summary. Recipe settings are freshly re-read in
+`recipe.json`. Acceptance remains in progress: bind semantic owners through
+actual FAME metasim/coherent clock events, complete CPU host/runtime owners,
+then fresh Level-1 CPU continuation and independent Level-2 CPU readback/trace
+replay at early, warmed-cache, outstanding-memory and late cuts. BOOM/Saturn
+remain pending. No external dependency is missing; FPGA/ASIC work is deferred.
+Existing iteration-92 commits FireSim
+`0cba18f411f8fc98f74145f67b5854a546586553` and Chipyard
+`1c55ffeb7c34b2f7bae6fd44b33a38a873e5a07d` were published in that order and
+independently confirmed in `publication.json`. Plans, environments, index and
+local HEADs remain preserved; no staging or local commits were performed.
 
 ## Iteration 92: clock-event images and fresh ordinary RTL replay
 
@@ -98,7 +176,7 @@ Executable native checks from the Chipyard root:
 source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh && python -m tools.checkpoint_formats.tests.verify_multiclock_replay_vcs --base automations/checkpoint_loop/runs/m11-iteration91/scala-retained-artifacts/semantic-multiclock --out automations/checkpoint_loop/runs/m11-iteration92/multiclock-replay-recheck
 python -m tools.checkpoint_formats.tests.audit_multiclock_replay --summary automations/checkpoint_loop/runs/m11-iteration92/multiclock-replay-current/invocation-pub5jaqh/summary.json
 python -m unittest discover -s tools/checkpoint_formats/tests -v
-PYTHONPATH="$PWD" python automations/checkpoint_loop/runs/m11-iteration92/run-regressions.py
+# Use the maintained invocation-preserving suite in iteration 93 above.
 ```
 
 Rocket acceptance remains in progress: bind original owners through the actual
