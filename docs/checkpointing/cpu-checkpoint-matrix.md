@@ -1,13 +1,13 @@
 # CPU checkpoint matrix
 
-Current milestone: M11 Rocket, iteration 99. Level-1 and Level-2 acceptance
+Current milestone: M11 Rocket, iteration 100. Level-1 and Level-2 acceptance
 remain **in_progress**. No CPU checkpoint continuation or clean CPU RTL replay
 has passed. Physical FPGA validation, standalone Shuttle and ASIC power are
 outside this matrix. The verified FCFS evidence remains in its existing docs.
 
 | Family / existing recipe | Level 1 | Level 2 | Workload evidence |
 | --- | --- | --- | --- |
-| Rocket / `firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3` | in_progress: generated RTL inventory audited; TracerV and FireSim driver/termination-loop continuations pass; production TSI read, all four load-memory queues and bridge host control pass fresh component restores; complete HTIF/context/serial/idle/reset/transport ownership and fresh CPU continuation pending | in_progress: complete ChipTop inventory/readback retained; explicit event-phase image/replay contract passes ordinary RTL component checks; coherent metasim CPU capture/replay pending | Both complete current four-hart default/buffered controls pass at C=3,329,794; all full traces and workload/store labels match; CPU checkpoint cuts remain pending |
+| Rocket / `firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3` | in_progress: generated RTL inventory audited; TracerV and FireSim driver/termination-loop continuations pass; production TSI read, all four load-memory queues, bridge host control and FireSim idle/reset control pass fresh component restores; complete HTIF/context/serial/TestChip/cross-owner ownership and fresh CPU continuation pending | in_progress: complete ChipTop inventory/readback retained; explicit event-phase image/replay contract passes ordinary RTL component checks; coherent metasim CPU capture/replay pending | Both complete current four-hart default/buffered controls pass at C=3,329,794; all full traces and workload/store labels match; CPU checkpoint cuts remain pending |
 | BOOM / `firesim_boom_singlecore_no_nic_l2_llc4mb_ddr3` | pending | pending | No execution claimed |
 | Shuttle + Saturn / `firesim_saturn_GENV256D128_shuttle_singlecore_no_nic_l2_llc4mb_ddr3` | pending | pending | No vector execution claimed |
 
@@ -32,6 +32,124 @@ The recipe also specifies frequency 140 MHz and TIMING build strategy; these
 are retained in the recipe record, with no FPGA implementation invoked.
 VCS uses Y-2026.03-SP1, `-full64`, `VCS_FLAGS=-Mupdate`, system GCC/G++ 13,
 and the sourced Conda library/include directories. No Conda files are edited.
+
+## Iteration 100: production FireSim idle/reset control
+
+Diagnostic root:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration100/`.
+See [tsi-host-control.md](tsi-host-control.md). Complete Rocket Level-1 and
+Level-2 acceptance remain in_progress. No real CPU checkpoint continuation or
+captured CPU RTL replay has passed.
+
+`firesim.tsi.host-control.v1` owns the production FireSim TSI's exact parsed idle
+count, busy/host-loaded/target-loaded flags, remaining idle yields and explicit
+ready/idle/reset-wait/reset-child phase. The idle cursor changes before each
+original switch, including the final suspended yield. Reset enters the original
+TestChip child exactly once after target drain. Every candidate word and
+configuration byte validates before mutation; restore performs no context
+switch, FESVR service, MMIO, serial traffic or target edge. Escaping switch/child
+exceptions permanently invalidate component access. Production inspection is
+const and the aggregate bridge/CPU checkpoint contract remains unsupported.
+
+Selected component evidence:
+`host-control/invocation-lknimday/summary.json`. All 362 fresh sanitizer/VCS
+fixture restores pass for idle counts 0/1/3/10 and an active UINT64_MAX cursor.
+The original-loop oracle compares 7,866 complete readbacks and 7,504 resumed
+records. Each backend passes 1,100 phase/atomic/interruption checks. All 36 fresh
+missing/truncated/extra/incompatible/configuration/phase/cursor/flag images
+reject atomically. Valid semantic corruption first differs at fixture C=125 /
+operation 25 (idle return versus yield) and C=129 / operation 29 (reset yield
+versus child entry), with zero resumed operations acknowledged in both backends.
+The additional independent exact-scope audit is
+`host-control-independent-scope-audit.json`. These are component operation
+labels, not Rocket target-cycle boundaries.
+
+Installed-FESVR loader evidence:
+`real-fesvr/invocation-dvoja8gh/summary.json`. All 14 prior complete read images
+and 22 prior complete queue images pass, and all 68 actual host-control images
+match independently constructed payloads at loader/reset-wait/idle-yield cuts.
+All 68 images restore in both fresh sanitizer/native and VCS component processes:
+136 complete zero-edge readbacks with no FESVR context or services. The installed
+FESVR archive remains SHA-256
+`08a1cc5ae67f20e6912b8add62ce6e24da0b2931a212f35b31d08c652943819d`.
+Additional actual TestChip child-reset/HTIF polling checks pass in
+`host-fesvr/invocation-y60aa977/summary.json`: 162 independently checked payloads
+restore in both fresh backends, totaling 324 complete zero-edge readbacks.
+Its 584-byte ELF has real tohost/fromhost symbols,
+an init read and duplicate idle-count arguments. It exercises all idle yields,
+suspended child read, both poll-response halves and subsequent busy polls.
+Its component restores still do not restore HTIF or a CPU.
+
+Prior component regressions pass: 260 read continuations
+(`loadmem-read/invocation-n2q6l21r/summary.json`), 340 queue restores
+(`loadmem-queues/invocation-s3pe7v94/summary.json`), 228 bridge-control restores
+(`bridge-control/invocation-7oto0h22/summary.json`), and 48 actual bridge restores
+(`actual-bridge-restores/invocation-d9j8cfdz/summary.json`). Actual transport
+retains all 1,012 requests / 566,096 records
+(`loadmem-transport/invocation-gjd6k2h9/summary.json`); four private transport
+faults still reject at their first wrong word
+(`loadmem-transport-faults/invocation-242y_s17/summary.json`).
+
+Exact recipe rebuild:
+`rocket-controls/invocation-6ktgjmr4/rocket-build-identity.json` and
+`rocket-host-control-linkage-audit.json` bind the new header and all three native
+checkpoint methods, with all 59 translation units unchanged and no CPU profile.
+Both complete four-hart default/buffered controls pass at target count
+3,329,794 (`rocket-controls/invocation-6ktgjmr4/summary.json`). All four complete
+traces per mode (37,582,346 / 49,976,156 / 50,391,641 / 50,189,006 bytes) and
+all workload/store labels match the uninterrupted reference. These are CPU
+controls, not checkpoint continuations. The self-checking
+workload remains
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration82/workload/rocket-quad.riscv`,
+6,712 bytes, SHA-256
+`f3d86f54caf42b9589385e8021dba46777f647134f19595e38a3d452b745f3d4`.
+All 245 Python tests and the final eight-check preserved source-stable native
+regression batch pass in `native-regressions/invocation-rxa8jg_3/summary.json`,
+retaining 5,125 artifacts / 707 source bindings. Four retained complete inventory/
+clock/memory/policy/TracerV audits and a fresh ordinary Rocket RTL probe pass
+all 318,637 words / seven clocks before edges (`retained-audit-results.json`).
+That probe remains diagnostic storage, not captured CPU state.
+
+Complete CPU preflight/capture/restore reject before run/publication in
+`cpu-request-rejections/summary.json`. Remaining ownership: FESVR private serial
+queues and suspended caller/read destination, HTIF poll/fromhost/device/stop/
+signature, TestChip loader/cache-flush/init-access progress, and cross-owner
+coherence. HTIF's nonvirtual run path still needs audited source integration or
+a pointer-free engine. Required early/warmed-cache/outstanding-memory/late CPU
+checkpoint cuts and both independently restored checkpoint levels remain
+pending. BOOM/Saturn remain pending; standalone Shuttle, physical FPGA and ASIC
+power remain deferred. No dependency is missing.
+
+Existing iteration-99 controller commits were published FireSim first
+(`76250b8830fbd6371ff1f71a43ab23bb81a5d0e7`), then Chipyard
+(`32b41598af5c621b5d88d655d1f32914491a8abf`). Independently queried remote tips
+and the Chipyard submodule pointer match (`github-publication.json`). No staging,
+local commits or protected input edits. Initial transcript formatting, VCS temp
+collision, source-stability rejection and actual-host pilot diagnostics remain
+separate. Failed runs are not passing evidence. VCS retries use distinct TMPDIR
+roots because separate tool shells can share timestamp/PID namespaces.
+
+All created paths are recorded in `artifact-manifest.json`; selected native
+reports are in `selected-results.json`. Original executed argv/exit/log records
+are in `executed-native-commands.json`; executable checks are in
+`verification-commands-native.json`. `native-input-archives.json` retains 929
+original native source/build bindings; `protected-native-inputs.json` and the
+retained-evidence checks preserve protected files and controller ancestry.
+Independent original native audits are in `independent-audit-results.json`.
+
+Executable complete native checks from the Chipyard root (VCS environment
+sourced last; separate temporary roots prevent tool-shell PID collisions):
+
+```sh
+source env.sh && source sims/firesim/env.sh && checkpoint_m11_recheck_tmp=$(mktemp -d "$PWD/automations/checkpoint_loop/runs/m11-iteration100/vcs-recheck-XXXXXX") && export TMPDIR="$checkpoint_m11_recheck_tmp" && source automations/checkpoint_loop/vcs-env.sh
+python -m tools.checkpoint_formats.tests.verify_firesim_tsi_loadmem_vcs --out automations/checkpoint_loop/runs/m11-iteration100/controller-real-fesvr-recheck
+python -m tools.checkpoint_formats.tests.verify_tsi_host_control_vcs --out automations/checkpoint_loop/runs/m11-iteration100/controller-host-control-recheck --fesvr-summary automations/checkpoint_loop/runs/m11-iteration100/real-fesvr/invocation-dvoja8gh/summary.json
+python -m tools.checkpoint_formats.tests.verify_tsi_host_control_fesvr_vcs --out automations/checkpoint_loop/runs/m11-iteration100/controller-host-fesvr-recheck --component-summary automations/checkpoint_loop/runs/m11-iteration100/host-control/invocation-lknimday/summary.json
+python -m tools.checkpoint_formats.native_regressions --audit automations/checkpoint_loop/runs/m11-iteration100/native-regressions/invocation-rxa8jg_3/summary.json
+python -m tools.checkpoint_formats.tests.audit_rocket_controls --summary automations/checkpoint_loop/runs/m11-iteration100/rocket-controls/invocation-6ktgjmr4/summary.json --source-archive automations/checkpoint_loop/runs/m11-iteration100/native-input-archives.json
+python -m tools.checkpoint_formats.tests.verify_rocket_controls_vcs --out automations/checkpoint_loop/runs/m11-iteration100/controller-rocket-controls-recheck --seed-build automations/checkpoint_loop/runs/m11-iteration100/rocket-controls/invocation-6ktgjmr4/build --workload automations/checkpoint_loop/runs/m11-iteration82/workload --reference-runtime automations/checkpoint_loop/runs/m11-iteration85/rocket-runtime --reference-audit automations/checkpoint_loop/runs/m11-iteration85/rocket-workload-audit.json
+python -m tools.checkpoint_formats.retained_evidence --archive automations/checkpoint_loop/runs/m11-iteration100/native-input-archives.json --protected automations/checkpoint_loop/runs/m11-iteration100/protected-native-inputs.json
+```
 
 ## Iteration 99: production TSI bridge host control
 

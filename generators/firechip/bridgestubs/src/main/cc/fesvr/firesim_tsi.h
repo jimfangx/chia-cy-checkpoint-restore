@@ -5,6 +5,7 @@
 #include "testchip_tsi.h"
 #include "loadmem_read.h"
 #include "loadmem_queues.h"
+#include "tsi_host_control.h"
 
 struct firesim_loadmem_t {
   firesim_loadmem_t() : addr(0), size(0) {}
@@ -18,9 +19,9 @@ public:
   firesim_tsi_t(int argc, char **argv, bool has_loadmem);
   ~firesim_tsi_t() {}
 
-  bool busy() { return is_busy; };
-  bool loaded_in_host() { return is_loaded_in_host; };
-  void set_loaded_in_target(bool loaded) { is_loaded_in_target = loaded; };
+  bool busy() { return host_control.busy(); };
+  bool loaded_in_host() { return host_control.loaded_in_host(); };
+  void set_loaded_in_target(bool loaded) { host_control.set_loaded_in_target(loaded); };
 
   void tick();
   void tick(bool out_valid, uint32_t out_bits, bool in_ready) { tick(); };
@@ -38,6 +39,7 @@ public:
   // also be reconstructed before complete TSI checkpointing can be enabled.
   const checkpoint_owner_t &loadmem_read_owner() const { return loadmem_read; }
   const checkpoint_owner_t &loadmem_queue_owner() const { return loadmem_queues; }
+  const checkpoint_owner_t &host_control_owner() const { return host_control; }
 
 protected:
   void idle() override;
@@ -55,14 +57,6 @@ protected:
 private:
   firesim_loadmem_read_t loadmem_read;
   firesim_loadmem_queues_t loadmem_queues;
-  size_t idle_counts;
-  bool is_busy;
-  // program load has completed in the host thread (i.e. all fesvr xacts for
-  // program load have been sent by fesvr)
-  bool is_loaded_in_host;
-  // program load has completed in the target thread (i.e. all in-flight fesvr
-  // xacts for program load have been synced/drained by the target
-  // thread/bridge)
-  bool is_loaded_in_target;
+  firesim_tsi_host_control_t host_control;
 };
 #endif // __FIRESIM_TSI_H

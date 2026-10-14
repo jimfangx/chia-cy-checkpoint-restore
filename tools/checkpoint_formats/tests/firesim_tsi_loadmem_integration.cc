@@ -21,6 +21,10 @@ static void snapshot(const firesim_tsi_t &tsi,const std::filesystem::path &out,i
   file.write(reinterpret_cast<const char *>(bytes.data()),bytes.size());
   require(bool(file),"cannot save real suspended owner");
   queue_snapshot(tsi,out,"suspended-"+std::to_string(index));
+  auto control=tsi.host_control_owner().save_checkpoint();
+  std::ofstream host(out/("suspended-"+std::to_string(index)+".host"),std::ios::binary);
+  host.write(reinterpret_cast<const char *>(control.data()),control.size());
+  require(bool(host),"cannot save real host control");
 }
 static int run(const char *elf,const char *destination) {
   try {
@@ -64,11 +68,27 @@ static int run(const char *elf,const char *destination) {
     tsi.recv_loadmem_data(merged.data(),sizeof(merged));
     require(merged[0]==0xaabbccdd && merged[1]==0x77665544,"lost partial read/ELF merge bytes");
     require(!tsi.has_loadmem_reqs() && !tsi.data_available(),"duplicate request before reset drain");
+    for(int i=0;i<2;++i) {
+      tsi.tick();
+      auto bytes=tsi.host_control_owner().save_checkpoint();
+      std::ofstream file(out/("reset-wait-"+std::to_string(i)+".host"),std::ios::binary);
+      file.write(reinterpret_cast<const char *>(bytes.data()),bytes.size());
+      require(bool(file) && tsi.loaded_in_host() && !tsi.busy(),"changed repeated reset wait");
+    }
     tsi.set_loaded_in_target(true); tsi.tick();
     snapshot(tsi,out,6);
     std::array<uint32_t,6> msip{1,0x02000000,0,0,0,1};
     for(auto expected:msip) require(tsi.data_available() && tsi.recv_word()==expected,"changed reset serial word");
     require(!tsi.data_available() && !tsi.done(),"changed actual HTIF idle/reset lifecycle");
+    for(int i=1;i<=25;++i) {
+      tsi.tick();
+      auto bytes=tsi.host_control_owner().save_checkpoint();
+      std::ofstream file(out/("idle-yield-"+std::to_string(i)+".host"),std::ios::binary);
+      file.write(reinterpret_cast<const char *>(bytes.data()),bytes.size());
+      require(bool(file) && tsi.loaded_in_host() && !tsi.busy() && !tsi.data_available() && !tsi.done(),
+              "changed actual no-tohost idle loop");
+    }
+    std::cout<<"REAL_FESVR_HOST_CONTROL reset_waits=2 idle_yields=26 host_images=34\n";
     std::cout<<"REAL_FESVR_LOADMEM_READ partial_words=1 merged_bytes=8 reset_words=6 suspended_cuts=7\n";
     return 0;
   } catch(const std::exception &error) { std::cerr<<"FAIL "<<error.what()<<"\n"; return 2; }

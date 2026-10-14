@@ -14,17 +14,57 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 99, in progress. Recovery:
-[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Exact Rocket discovery now
-emits a complete pre-FAME storage/clock inventory and compiler-bound clean access
-map: 8,644 entries / 318,637 words / seven state clocks plus six initialized values.
-Independent emitted-RTL audit and full ordinary RTL VCS diagnostic zero-edge
-readback pass. These are storage probes, not workload checkpoints. Explicit
-clock-event images and fresh ordinary RTL replay pass component checks.
-Production TSI read/queue and bridge host-control ownership now pass fresh
-component restores. Complete HTIF/context/serial/idle/reset ownership, coherent
-CPU cuts, fresh Level-1 continuation and independent Level-2 CPU replay remain
-pending. No CPU checkpoint acceptance or missing dependency is claimed.
+Current milestone: M11-rocket-level1-level2, iteration 100, in progress. Recovery:
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Production TSI read, queues,
+bridge control and FireSim idle/reset control now have separate audited owners.
+Complete FESVR/HTIF/TestChip caller/protocol ownership, coherent CPU cuts, fresh
+Level-1 continuation and independent Level-2 CPU replay remain pending. No CPU
+checkpoint acceptance or missing dependency is claimed.
+
+Iteration 100 (October 14):
+
+- Added production `firesim.tsi.host-control.v1`: busy/loaded flags, exact idle
+  yield cursor and reset wait/child phase, with full validation before mutation.
+  The final idle yield remains explicit until its resume; escaping switches/
+  child exceptions invalidate checkpoint access. No aggregate CPU support is
+  enabled. See [tsi-host-control.md](tsi-host-control.md).
+- Complete component suite passes 362 fresh sanitizer/VCS fixture restores,
+  7,866 full readbacks, 7,504 continuation records and 1,100 atomic/interruption
+  checks per backend. All 36 invalid images reject atomically. Valid idle/target
+  corruption first differs at fixture C=125/C=129 before acknowledgement.
+- Actual installed-FESVR loader retains all 14 read and 22 queue checks; 68
+  complete actual host-control payloads match independently reconstructed bytes.
+  All 68 restore in both fresh backends: 136 zero-edge/no-service readbacks.
+  Additional actual TestChip child/reset and HTIF poll/idle checks pass all
+  162 captured payloads / 324 fresh complete readbacks. The exact Rocket recipe
+  rebuild links the owner and retains all 59 native units. Both complete four-
+  hart controls pass at C=3,329,794; every full trace and workload/store label
+  matches the uninterrupted reference. These remain CPU controls.
+- Prior read/queue/bridge continuations and transport/fault checks pass. Four
+  retained inventory/clock/memory/policy/TracerV audits and the complete ordinary
+  Rocket RTL 318,637-word/seven-clock zero-edge diagnostic probe pass. Complete
+  CPU preflight/capture/restore continue to reject before run/publication.
+- All 245 Python tests and the final eight-check source-stable native regression
+  batch pass, retaining 5,125 artifacts / 707 source bindings. Initial transcript
+  formatting,
+  VCS temporary-directory collision, source-stability rejection and actual-host
+  pilot diagnostics are retained separately. Failed checks are not acceptance.
+- Published existing iteration-99 controller commits FireSim
+  `76250b8830fbd6371ff1f71a43ab23bb81a5d0e7`, then Chipyard
+  `32b41598af5c621b5d88d655d1f32914491a8abf`; independently queried remote tips
+  and the submodule pointer match. No staging, local commit or protected edit.
+- Recovery root: `automations/checkpoint_loop/runs/m11-iteration100/`. All created
+  paths are in `artifact-manifest.json`; selected results, original executed
+  commands and executable native checks are in `selected-results.json`,
+  `executed-native-commands.json` and `verification-commands-native.json`.
+  `native-input-archives.json` retains 929 original native input bindings. Next
+  ownership: FESVR private serial queues and suspended caller/read
+  destination; HTIF poll/fromhost/device/stop/signature; TestChip loader/cache-
+  flush/init-access progress; and cross-owner coherence. The nonvirtual HTIF
+  run path still requires audited source integration or a pointer-free engine.
+  Real early/warmed/outstanding-memory/late CPU checkpoint cuts remain pending.
+  BOOM/Saturn remain pending; standalone Shuttle, physical FPGA and ASIC power
+  remain deferred. Neither plan was edited or staged.
 
 Iteration 99 (October 14):
 

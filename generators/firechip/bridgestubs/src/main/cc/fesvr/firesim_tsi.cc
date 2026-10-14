@@ -5,25 +5,33 @@
 
 #define fprintf(stdout, fmt, ...) (0)
 
-firesim_tsi_t::firesim_tsi_t(int argc, char **argv, bool can_have_loadmem)
-    : testchip_tsi_t(argc, argv, can_have_loadmem), is_busy(false),
-      is_loaded_in_host(false), is_loaded_in_target(false) {
-  idle_counts = 10;
+static size_t idle_count(int argc, char **argv) {
+  size_t result = 10;
   std::vector<std::string> args(argv + 1, argv + argc);
   for (auto &arg : args) {
     if (arg.find("+idle-counts=") == 0)
-      idle_counts = atoi(arg.c_str() + 13);
+      result = atoi(arg.c_str() + 13);
   }
+  return result;
+}
+
+firesim_tsi_t::firesim_tsi_t(int argc, char **argv, bool can_have_loadmem)
+    : testchip_tsi_t(argc, argv, can_have_loadmem),
+      host_control(idle_count(argc, argv)) {
 
   // always use loadmem if the target supports it
   has_loadmem = can_have_loadmem;
 }
 
 void firesim_tsi_t::idle() {
-  is_busy = false;
-  for (size_t i = 0; i < idle_counts; i++)
-    switch_to_target();
-  is_busy = true;
+  host_control.begin_idle();
+  try {
+    while (host_control.advance_idle())
+      switch_to_target();
+  } catch (...) {
+    host_control.interrupt();
+    throw;
+  }
 }
 
 void firesim_tsi_t::send_loadmem_word(uint32_t word) {
@@ -85,14 +93,20 @@ void firesim_tsi_t::tick() { switch_to_host(); }
 void firesim_tsi_t::reset() {
   // after program loading, this function is called and spins until the target
   // thread/bridge has synced/drained all in-flight fesvr xacts
-  is_loaded_in_host = true;
-  while (!is_loaded_in_target)
-    switch_to_target();
-  fprintf(
-      stdout,
-      "firesim_tsi_t::reset done loading program. sending reset signal(s)\n");
-  fflush(stdout);
-  testchip_tsi_t::reset();
+  host_control.begin_reset();
+  try {
+    while (host_control.advance_reset())
+      switch_to_target();
+    fprintf(
+        stdout,
+        "firesim_tsi_t::reset done loading program. sending reset signal(s)\n");
+    fflush(stdout);
+    testchip_tsi_t::reset();
+    host_control.finish_reset();
+  } catch (...) {
+    host_control.interrupt();
+    throw;
+  }
 }
 
 bool firesim_tsi_t::has_loadmem_reqs() {

@@ -49,6 +49,7 @@ def audit(path):
     for name,digest in catalog.items(): require(file_sha(name) == digest, 'changed actual FESVR artifact ' + name)
     bindings = {b['path']:b for b in report['source_inputs']}
     queue_checked = str(STUBS/'fesvr/loadmem_queues.h') in bindings
+    host_checked = str(STUBS/'fesvr/tsi_host_control.h') in bindings
     for binding in bindings.values():
         require(file_sha(binding['snapshot']) == binding['sha256'], 'changed FESVR source snapshot')
         check_native_input(ROOT, binding['path'], binding['sha256'], bindings)
@@ -84,12 +85,23 @@ def audit(path):
                     'actual FESVR partial-write/queued-response owner mismatch ' + name)
         require('REAL_FESVR_LOADMEM_READ partial_words=1 merged_bytes=8 reset_words=6 suspended_cuts=7' in
                 (path.parent / (backend+'.log')).read_text(), 'actual FESVR did not complete read/merge/reset')
+        if host_checked:
+            hosts={f'suspended-{i}.host':config(18,10)+words(0,0,0) for i in range(5)}
+            hosts.update({'suspended-5.host':config(18,10)+words(2,0,2),
+                          'suspended-6.host':config(18,10)+words(1,9,6)})
+            hosts.update({f'reset-wait-{i}.host':config(18,10)+words(2,0,2) for i in range(2)})
+            hosts.update({f'idle-yield-{i}.host':config(18,10)+words(1,(9-i)%10,6) for i in range(1,26)})
+            for name,payload in hosts.items():
+                require((path.parent/backend/name).read_bytes()==payload,'actual suspended host control differs '+name)
+            require('REAL_FESVR_HOST_CONTROL reset_waits=2 idle_yields=26 host_images=34' in
+                    (path.parent/(backend+'.log')).read_text(),'actual idle/reset control did not execute')
     for command in report['commands']:
         require(Path(command['log']).read_text().rstrip().endswith('exit=0') and
                 command['argv'][:2] == ['bash','-lc'] and command['argv'][2].startswith(ENVIRONMENT),
                 'unbound real FESVR command/environment/result')
     return dict(status='passed', summary=str(path), actual_fesvr_suspended_owner_checks=14,
                 actual_fesvr_complete_queue_checks=22 if queue_checked else 0,
+                actual_fesvr_complete_host_checks=68 if host_checked else 0,
                 level1_verified=False, level2_verified=False)
 
 
@@ -112,6 +124,7 @@ def main():
     inputs=[*sources,library,Path(__file__),TESTS/'verify_loadmem_read_checkpoint_vcs.py',
             TESTS/'firesim_tsi_loadmem_integration_tb.sv',STUBS/'fesvr/firesim_tsi.h',STUBS/'fesvr/loadmem_read.h',
             STUBS/'fesvr/loadmem_queues.h',
+            STUBS/'fesvr/tsi_host_control.h',
             TESTCHIP/'testchip_tsi.h',TESTCHIP/'testchip_htif.h',CC/'core/checkpoint.h',CC/'core/widget_checkpoint.h',
             *sorted((FESVR/'include/fesvr').glob('*.h')),
             ROOT/'env.sh',ROOT/'sims/firesim/env.sh',ROOT/'automations/checkpoint_loop/vcs-env.sh']
