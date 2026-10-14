@@ -14,13 +14,70 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 88, in progress. Recovery:
-[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Exact Rocket generated RTL
-inventory passes independently; private-memory blockdev and explicit
-buffered-file UART and buffered heartbeat host components pass fresh native/VCS continuations.
-Complete runtime ownership/fresh Level-1 continuation and multi-clock Level-2
-restore/replay remain pending.
-No CPU checkpoint acceptance yet.
+Current milestone: M11-rocket-level1-level2, iteration 89, in progress. Recovery:
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). The pre-FAME inventory owns
+supported synchronous/readwrite memory pipelines and Rocket discovery now reaches
+unowned `plusarg_reader` cells. Native memory component restore/replay passes;
+complete CPU runtime ownership, fresh Level-1 continuation and multi-clock
+Level-2 restore/replay remain pending. No CPU checkpoint acceptance yet.
+
+Iteration 89 (October 14):
+
+- Implemented exact one-cycle passthrough memory owners: read-first reader data,
+  write-first/undefined reader addresses, and read-first/undefined readwriter data.
+  Own exact field types/names and resolved port clocks, alongside every RAM word.
+  Clean emission retains this layout. Unsupported policies/latencies/clocks and
+  owner collisions still reject. All 15 final Scala inventory checks pass.
+- Native self-checking metasim capture plus eight fresh ordinary RTL continuations
+  pass at fixture C=0/5/13/21/24/26/28/30, with all 37 words / nine entries read
+  back before any edge and all 149 samples / five outputs compared. Separate
+  native ordinary checks cover all five policies, twenty fresh continuations,
+  six words each, and 245 samples. Four metasim-captured and five ordinary
+  stored-pipeline corruptions fail at their first boundary, acknowledging no
+  edge. Five invalid images and four native loader cases reject without partial
+  publication/deposit. Independent original-artifact audit passes with 37
+  distinct fresh native process IDs. The combined evidence audit passes with
+  1,340 retained original native input/report bindings. These are component tests,
+  not CPU cuts.
+- Exact Rocket ChipTop discovery passes memory ownership and now rejects opaque
+  `plusarg_reader`, publishing no partial semantic outputs. Raw complete
+  hierarchy diagnostics find 1,488 instances, 7,734 registers, 500 memories /
+  310,493 logical words, six opaque cells and 404 candidate implicit read-data
+  owners. All synchronous memories are undefined-policy readwriters. These
+  counts are diagnostics, not a complete semantic manifest.
+- Golden Gate changes undefined readers from stored addresses to read-first data;
+  the unchanged-hierarchy oracle rejects this mapping. Its initial diagnostic,
+  incorrect fixture readwriter hold expectation and missing ordinary initreg
+  compile option are retained with corrected full retries. Undefined-reader
+  ordinary checks pass; conversion across the GG policy change remains unsupported.
+- All 221 final Python tests, eight preserved native regression checks and the
+  full five-cut forwarded-clock native regression pass. Fresh current native
+  CPU preflight/save/restore reject incomplete runtime ownership before execution.
+  Both exact-recipe default/buffered four-hart controls pass at C=3,329,794;
+  all full traces and decoded workload/store labels match the uninterrupted
+  reference. Workload SHA256 remains
+  `f3d86f54caf42b9589385e8021dba46777f647134f19595e38a3d452b745f3d4`.
+- Published controller checkpoints FireSim
+  `a8d3ed98c000f2fa46ce31b5c12b3c2bc9ce878b`, then Chipyard
+  `b0fb1ef48f5f8949c4c40f9187e28e8f453c77c3`, confirming remote tips. Local
+  remote-tracking writes hit read-only metadata; remote pushes succeeded. No
+  staging or local commits. Plans, environment inputs, indexes and heads remain
+  preserved. The loop's prior artifact complaint came from reporting a directory
+  where its validator requires a nonempty file; report concrete summary files.
+- Recovery under `runs/m11-iteration89/`: `memory-complete-native/summary.json`,
+  `ordinary-memory-policies-complete/summary.json`, `independent-memory-audit.json`,
+  `rocket-semantic-final-inventory/summary.json`, `rocket-memory-policy-counts.json`,
+  `forwarded-native/summary.json`, `regression-results.json` and
+  `native-input-archives.json`. Complete controls are retained in
+  `rocket-controls/invocation-t0bmlj86/`; final `summary.json`,
+  `artifact-manifest.json`, `executed-native-commands.json` and
+  `verification-commands.json` recover exact scope and original artifacts.
+  Executable checks are in the CPU matrix.
+  Next: exact plusarg semantic ownership and complete clock-event scheduling,
+  then coherent CPU cuts, run-loop, TSI/FESVR, TracerV and remaining runtime
+  owners; complete fresh CPU Level-1 continuation and independent Level-2
+  capture/readback/replay at all active cuts with image rejection and corruption.
+  Physical FPGA/ASIC work remains deferred; no external dependency is missing.
 
 Iteration 88 (October 13–14):
 

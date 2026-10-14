@@ -187,11 +187,28 @@ across source renames or different target lowering algorithms. Manifest hash is
 SHA-256 of its canonical JSON bytes. Signed values keep their raw bits.
 
 Opaque modules, unresolved/non-bit state, derived/gated clocks, asynchronous
-resets, multiple target clocks, and memories with read latency other than zero,
-write latency other than one, or readwrite ports fail explicitly. Synchronous
-memory read pipelines need their own inventory before support can be enabled.
+resets, multiple target clocks, and unsupported memory pipelines fail explicitly.
+One-cycle passthrough readers own stored data for read-first and stored addresses
+for write-first/undefined policies. Read-first/undefined readwriters own stored
+read data. These additional registers use the exact FIRRTL port field type and
+lowered name, alongside all logical RAM words. Read latency above one, write
+latency other than one, asynchronous readwriters, write-first readwriters and
+different port clocks reject. The clean emitter preserves these same owners.
+Golden Gate can resolve undefined readers to read-first, changing address state
+to data state; the unchanged-hierarchy capture oracle rejects that mismatch.
+No semantic conversion between those representations is claimed.
 No memory ports are added. General mapping through FAME and hardware capture are
 future work; the reference manifest is retained as a separate artifact.
+
+`tests.verify_semantic_memory_vcs` exercises defined readers and both supported
+readwriters in native metasim, including disabled reads and same-address writes,
+then restores every word in fresh ordinary RTL VCS. The independent recurrence
+checks all captured contents, port state and outputs. The separate
+`tests.verify_semantic_memory_policies_vcs` consumes Scala's actual emitted
+fixtures to check all five policies in ordinary VCS, including undefined readers.
+Both checks preserve original cycle labels and inject actual stored-pipeline
+corruption after complete zero-edge readback. These are component checks; CPU
+checkpoint acceptance requires complete CPU/runtime ownership and active cuts.
 
 `replay.py` provides a VCS backdoor oracle for a single hierarchy-preserving DUT
 instance. It rejects missing, extra, renamed, reshaped, or threaded state and
