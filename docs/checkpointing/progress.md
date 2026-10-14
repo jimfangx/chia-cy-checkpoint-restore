@@ -14,12 +14,59 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 101, in progress. Recovery:
-[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Production FESVR serial FIFOs
-now have an audited owner through source integration; installed HTIF/context/
-library bytes remain unchanged. Complete read/caller, HTIF, TestChip and cross-
-owner ownership, coherent CPU cuts, fresh Level-1 continuation and independent
-Level-2 CPU replay remain pending. No CPU acceptance or missing dependency.
+Current milestone: M11-rocket-level1-level2, iteration 102, in progress. Recovery:
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Production FESVR serial read
+progress now has a pointer-free owner alongside the serial FIFOs; complete fresh
+component continuations and actual-HTIF image readbacks pass. Evidence is under
+`runs/m11-iteration102/`. See
+[tsi-serial-read.md](tsi-serial-read.md), including the remaining caller audit.
+Installed HTIF/context/library bytes remain unchanged. Complete caller, HTIF,
+TestChip and cross-owner ownership, coherent CPU cuts, fresh Level-1 continuation
+and independent Level-2 CPU replay remain pending. No CPU acceptance or missing
+dependency. Neither plan was edited or staged.
+
+Iteration 102 (October 14):
+
+- Added production `firesim.tsi.serial-read.v1`: original address/length,
+  issue/response/complete phase, response cursor and every collected word, with
+  complete validation before mutation and capacity reserved before dequeue.
+  Packet order and original empty-response yields are preserved. No service,
+  context switch or target edge occurs during component restore. See
+  [tsi-serial-read.md](tsi-serial-read.md), including the remaining caller audit.
+- Sanitizer/VCS checks pass 522 fresh fixture continuations, 71,828 complete
+  read/FIFO readbacks, 35,392 records and 581 atomic/interruption checks per
+  backend. Fifty malformed/incompatible/missing-owner cases reject atomically.
+  Actual valid address/data corruption first differs at fixture C=103/C=115,
+  without acknowledging the failing operation. These are component labels.
+- All 384 complete actual installed-HTIF read/FIFO pairs match independent bytes
+  and restore in 768 fresh processes before edges, with no restore services.
+  Preserved serial FIFO tests pass 78 fixture continuations and 768 actual
+  restores. Actual loader, read/queue/bridge/host-control/child-poll and transport
+  regressions pass, including all four transport-fault checks.
+- Exact Rocket recipe rebuild retains all 60 units and binds the new header in
+  the owned implementation and all three TestChip/FireSim/bridge consumers.
+  Installed FESVR, generated RTL/reference/manifests/constants and recipe
+  settings remain unchanged. Both complete four-hart controls pass at
+  C=3,329,794; every full instruction trace and workload/store label matches
+  the uninterrupted reference. These remain controls, not CPU restores.
+- All 245 Python tests and eight preserved native regressions pass; four retained
+  inventory/clock/replay/memory-policy/TracerV audits and a fresh ordinary Rocket
+  RTL 318,637-word/seven-clock zero-edge diagnostic probe pass. Complete CPU
+  preflight rejects TSI widget/12; capture/restore reject the unavailable public
+  durable runtime capability before execution/checkpoint publication. Initial
+  guard/selector/import diagnostic failures remain separate from passing checks.
+- Published existing iteration-101 controller commits FireSim first, then
+  Chipyard; independent remote tips and the submodule pointer match. Local
+  read-only tracking-ref diagnostics are retained. No staging/local commits,
+  plan/environment/library edits or history cleanup were performed.
+- Recovery: `automations/checkpoint_loop/runs/m11-iteration102/`; selected native
+  results, original inputs, actual commands and executable checks are recorded
+  in the root JSON reports (18 independent audits, 944 input bindings and 4,236
+  native command records). Next: pointer-free HTIF/memif/device/TestChip caller
+  reconstruction and cross-owner coherence, then required active-workload CPU
+  cuts and both independently restored levels. No CPU acceptance is claimed; no
+  external dependency is missing. BOOM/Saturn remain pending; standalone Shuttle,
+  physical FPGA validation and ASIC power remain deferred.
 
 Iteration 101 (October 14):
 

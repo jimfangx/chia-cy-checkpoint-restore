@@ -1,6 +1,6 @@
 // See LICENSE for license details.
 // Audited source integration of the original FESVR tsi.cc protocol. Only FIFO
-// ownership changes. The suspended host stack/read destination remain unowned.
+// and pointer-free read progress. The suspended host caller remains unowned.
 #include "tsi.h"
 
 void firesim_fesvr_tsi_t::host_thread(void *arg) {
@@ -20,11 +20,21 @@ void firesim_fesvr_tsi_t::reset() {
 }
 
 void firesim_fesvr_tsi_t::read_chunk(addr_t address, size_t bytes, void *destination) {
-  auto result = static_cast<uint32_t *>(destination);
-  serial.issue_read(address, bytes);
-  for (size_t i = 0; i < bytes / sizeof(uint32_t); ++i) {
-    while (!serial.response_available()) switch_to_target();
-    result[i] = serial.pop_response();
+  if (!destination) throw std::runtime_error("missing serial read destination");
+  serial_read.begin(address, bytes);
+  firesim_tsi_serial_read_services_t services(serial);
+  try {
+    for (;;) {
+      const auto progress = serial_read.advance(services);
+      if (progress == firesim_tsi_serial_read_t::result_t::complete) break;
+      if (progress == firesim_tsi_serial_read_t::result_t::blocked) switch_to_target();
+    }
+    const auto &words = serial_read.result();
+    std::copy(words.begin(), words.end(), static_cast<uint32_t *>(destination));
+    serial_read.finish();
+  } catch (...) {
+    serial_read.interrupt();
+    throw;
   }
 }
 

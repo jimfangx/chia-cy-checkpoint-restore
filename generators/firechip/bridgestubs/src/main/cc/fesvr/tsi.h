@@ -9,6 +9,7 @@
 #include <fesvr/htif.h>
 #include <fesvr/context.h>
 #include "tsi_serial_state.h"
+#include "tsi_serial_read.h"
 
 #define SAI_CMD_READ 0
 #define SAI_CMD_WRITE 1
@@ -28,6 +29,7 @@ public:
   bool out_ready() { return true; }
   void tick(bool out_valid, uint32_t out_bits, bool in_ready) { serial.tick(out_valid, out_bits, in_ready); }
   const checkpoint_owner_t &serial_queue_owner() const { return serial; }
+  const checkpoint_owner_t &serial_read_owner() const { return serial_read; }
 protected:
   void reset() override;
   void read_chunk(addr_t address, size_t bytes, void *destination) override;
@@ -39,6 +41,7 @@ private:
   context_t host;
   context_t *target;
   firesim_tsi_serial_state_t serial;
+  firesim_tsi_serial_read_t serial_read;
   static void host_thread(void *tsi);
 };
 
