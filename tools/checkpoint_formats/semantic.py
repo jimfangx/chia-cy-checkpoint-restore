@@ -122,8 +122,14 @@ def manifest_hash(manifest):
 
 def validate_records(doc, manifest):
     validate_manifest(manifest)
-    require(manifest["manifest_version"] != 3,
-            "multi-clock inventory cannot authorize restore without an event-phase cut binding")
+    if manifest["manifest_version"] == 3:
+        require(doc["format_version"] == 2,
+                "multi-clock inventory cannot authorize restore without an event-phase cut binding")
+        require(set(doc["event_phase"]["clock_levels"]) == set(manifest["clock_inputs"]),
+                "incomplete or unknown semantic event-phase clocks")
+        require(doc["build"]["rtl_build_hash"] == manifest["reference_sha256"], "semantic RTL build mismatch")
+    else:
+        require(doc["format_version"] == 1, "single-clock manifest cannot authorize a multi-clock image")
     require(doc["build"]["state_manifest_hash"] == manifest_hash(manifest), "semantic manifest hash mismatch")
     expected = {entry["state_id"]: (entry["width"], entry["depth"]) for entry in manifest["state"]}
     actual = {record["state_id"]: (record["width"], record["depth"]) for record in doc["records"]}

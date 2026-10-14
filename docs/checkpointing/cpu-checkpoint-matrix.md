@@ -1,13 +1,13 @@
 # CPU checkpoint matrix
 
-Current milestone: M11 Rocket, iteration 91. Level-1 and Level-2 acceptance
+Current milestone: M11 Rocket, iteration 92. Level-1 and Level-2 acceptance
 remain **in_progress**. No CPU checkpoint continuation or clean CPU RTL replay
 has passed. Physical FPGA validation, standalone Shuttle and ASIC power are
 outside this matrix. The verified FCFS evidence remains in its existing docs.
 
 | Family / existing recipe | Level 1 | Level 2 | Workload evidence |
 | --- | --- | --- | --- |
-| Rocket / `firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3` | in_progress: generated RTL inventory audited; private-memory blockdev, explicit buffered-file UART and buffered heartbeat host adapters pass native component continuation; complete runtime ownership and fresh CPU continuation pending | in_progress: complete ChipTop storage/clock inventory and native diagnostic zero-edge readback; coherent workload capture and event-phase replay pending | Retained full four-hart controls pass at C=3,329,794; CPU checkpoint cuts remain pending; see iteration 91 below |
+| Rocket / `firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3` | in_progress: generated RTL inventory audited; host component continuations pass; complete runtime ownership and fresh CPU continuation pending | in_progress: complete ChipTop inventory/readback retained; explicit event-phase image/replay contract passes ordinary RTL component checks; coherent metasim CPU capture/replay pending | Retained full four-hart controls pass at C=3,329,794; CPU checkpoint cuts remain pending; see iteration 92 below |
 | BOOM / `firesim_boom_singlecore_no_nic_l2_llc4mb_ddr3` | pending | pending | No execution claimed |
 | Shuttle + Saturn / `firesim_saturn_GENV256D128_shuttle_singlecore_no_nic_l2_llc4mb_ddr3` | pending | pending | No vector execution claimed |
 
@@ -32,6 +32,86 @@ The recipe also specifies frequency 140 MHz and TIMING build strategy; these
 are retained in the recipe record, with no FPGA implementation invoked.
 VCS uses Y-2026.03-SP1, `-full64`, `VCS_FLAGS=-Mupdate`, system GCC/G++ 13,
 and the sourced Conda library/include directories. No Conda files are edited.
+
+## Iteration 92: clock-event images and fresh ordinary RTL replay
+
+Diagnostic root:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration92/`.
+
+Added an independent Level-2 version-2 payload for schema-3 inventories. Images
+bind every boundary clock's settled level and completed rising-edge count, an
+absolute event index and an explicitly selected cycle clock. Only all-low cuts
+are supported. Traces capture every upcoming full clock vector, including
+falling and simultaneous rising/falling transitions. Cycle labels count actual
+completed rises of the selected clock; they can repeat across events. Inputs
+settle and all outputs (including forwarded clocks) compare before the full
+clock vector advances together. Both artifacts validate before loader files
+are published; native restore/readback completes before any edge. Legacy
+single-clock formats, StateIDs and Level-1 ownership remain independent.
+
+Native evidence is **an ordinary RTL component capture**, not a Rocket workload
+or metasim capture. The original compiler-emitted seven-clock component owns
+seven counters, four RAM words and its synchronous read-data register: nine
+entries / twelve words. Its 192 actual source events exercise every domain,
+120 simultaneous-rise events, 24 mixed-rise/fall events and 137 events without
+a cycle-clock rise. Independent source recurrence checks every stored word.
+Source workload bench SHA256:
+`e55ae29ea3e73b3ebd892c8315301ed7c12d8ca11b0c159023a43d173a799006`.
+The source exits before fresh restore processes start. Component cuts are:
+
+| Event index | Completed cycle-clock rises | Compared event samples |
+| ---: | ---: | ---: |
+| 0 | 0 | 48 |
+| 12 | 3 | 48 |
+| 80 | 23 | 48 |
+| 164 | 47 | 28 |
+
+The independent native waveform audit verifies every word before edges and at
+all 172 continuation samples: 2,064 state comparisons and 1,720 output
+comparisons. Direct continuous probes expose RAM words omitted by VCS's default
+waveform dump. Two actual post-readback corruptions (`s0`, `ram_r_data`) fail at
+event 80 / C=23, first reporting `crossing` and `readData`, respectively, with
+zero acknowledged events. Seven invalid images (truncation, checksum, build,
+missing/unknown owner, missing clock, missing output) reject without publishing
+loader files. Four native loader requests (missing, duplicate, unknown,
+wrong-width word) reject without depositing state and read back the complete
+initial baseline with zero edges. Evidence includes thirteen fresh simulator
+processes plus five builds, exact argv, snapshots, images, traces, logs and VCS
+waveforms. Original final evidence is
+`multiclock-replay-current/invocation-pub5jaqh/summary.json` and
+`multiclock-replay-current-independent-audit.json`. Initial invocations and an
+audit output-count correction remain retained.
+
+All 240 final Python tests and eight preserved regression checks pass, including
+M2/M3 metasim/ordinary RTL, 52 widget, 18 UART, 30 blockdev and 96 heartbeat
+continuations and FCFS Make/generator guards. Results are in
+`python-final.log` and `regression-results.json`. Four retained evidence audits
+pass in `retained-audit-results.json`: complete Rocket inventory/readback,
+controller-aware archives, both original full four-hart controls and complete
+memory/policy evidence. Exact Rocket settings are re-read in `recipe.json`;
+no new CPU workload run is claimed. Original four-hart workload SHA256 remains
+`f3d86f54caf42b9589385e8021dba46777f647134f19595e38a3d452b745f3d4`.
+
+Executable native checks from the Chipyard root:
+
+```sh
+source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh && python -m tools.checkpoint_formats.tests.verify_multiclock_replay_vcs --base automations/checkpoint_loop/runs/m11-iteration91/scala-retained-artifacts/semantic-multiclock --out automations/checkpoint_loop/runs/m11-iteration92/multiclock-replay-recheck
+python -m tools.checkpoint_formats.tests.audit_multiclock_replay --summary automations/checkpoint_loop/runs/m11-iteration92/multiclock-replay-current/invocation-pub5jaqh/summary.json
+python -m unittest discover -s tools/checkpoint_formats/tests -v
+PYTHONPATH="$PWD" python automations/checkpoint_loop/runs/m11-iteration92/run-regressions.py
+```
+
+Rocket acceptance remains in progress: bind original owners through the actual
+metasim, capture coherent events at real four-hart workload cuts, finish
+run-loop/TSI/FESVR/TracerV and other runtime owners, then demonstrate fresh
+Level-1 continuation and independent complete Level-2 CPU replay at early,
+warmed-cache, outstanding-memory and late cuts. This component contract cannot
+authorize a CPU checkpoint profile. No external dependency is missing. The
+iteration-91 controller commits FireSim
+`fde729a95721c4e5d0dd3dd00368600ea4cd9a7c` and Chipyard
+`d13fca04982c1d9f311daa9ab6a096c4f927882d` were published in that order;
+`publication.json` confirms both remote tips. Local tracking refs are read-only.
+No staging or local commits were performed.
 
 ## Iteration 91: complete Rocket clean storage and explicit clock ownership
 

@@ -1,4 +1,4 @@
-# Checkpoint container v1
+# Checkpoint containers
 
 `codec.py` is a standard-library-only container prototype. It does not capture,
 restore, discover state, or certify completeness. The caller must provide an
@@ -13,14 +13,14 @@ JSON uses sorted keys, no whitespace, and no duplicate keys. Unknown fields,
 versions, noncanonical encoding, trailing data, and invalid values fail with
 `FormatError`.
 
-All documents have `format_version: 1`, `checkpoint_type`, `target_cycle`,
+Version-1 documents have `format_version: 1`, `checkpoint_type`, `target_cycle`,
 `target_clock_phase: "before_rising_edge"`, `build`, and `records`. For Level-2
 checkpoints and traces, cycle C means immediately before target rising edge C.
 Level-1 profiles separately bind the model counter and consistent-cut indexing
 contract; the production v3 contract is described below. Trace inputs are the values to
 apply for that edge; outputs are the values to compare immediately before that
 edge after input settling. No host-cycle interpretation is implied. Other
-phases and multiple clock domains are not represented by this prototype.
+phases and multiple clock domains require the explicit version-2 payload below.
 
 | Type | Magic (hex) | Build keys in addition to target_configuration and rtl_build_hash | Record fields |
 | --- | --- | --- | --- |
@@ -55,6 +55,28 @@ Run from the Chipyard root:
 ```sh
 python -m unittest discover -s tools/checkpoint_formats/tests -v
 ```
+
+Version-2 **Level-2 only** payloads preserve the same outer framing and build
+keys. They use `target_clock_phase: "before_clock_event"` and add `event_phase`:
+`event_index`, `cycle_clock`, `clock_levels` and `rising_edges`. Clock maps own
+every boundary clock input by its full manifest path. A supported cut has every
+clock low after settling; counters record completed rising edges since event 0,
+and `target_cycle` equals the selected `cycle_clock` counter. High-clock cuts
+reject. Schema-3 semantic manifests require this binding; single-clock schemas
+remain on version 1. Level-1 images/profiles are unchanged.
+
+Version-2 traces add `event_index` and the **upcoming** complete `clock_levels`
+vector to each row. Events are consecutive, contain at least one transition,
+and include falling edges. Row `cycle` is the selected clock's completed rise
+count before that event; repeated labels are valid. Drive captured data inputs,
+settle, compare every output including clock aliases, then apply the full clock
+vector together. No period, clock ratio or schedule is inferred. A failing row
+acknowledges no event. `multiclock_replay.py` validates both complete artifacts
+before emitting loader inputs, restores/readbacks all semantic words before
+any edge, and replays this finite contract in ordinary RTL VCS. It uses the
+compiler-bound clean access map; the caller independently audits the actual
+emitted storage/clock inventory. This component backend does not supply FAME
+state mapping, a coherent metasim capture protocol or CPU runtime ownership.
 
 `formal_state_map.py` exports `asic_state_map.json` from actual Formality passing
 sequential compare points. It checks complete original semantic bits and complete
