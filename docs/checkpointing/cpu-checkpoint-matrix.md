@@ -1,13 +1,13 @@
 # CPU checkpoint matrix
 
-Current milestone: M11 Rocket, iteration 84. Level-1 and Level-2 acceptance
+Current milestone: M11 Rocket, iteration 85. Level-1 and Level-2 acceptance
 remain **in_progress**. No CPU checkpoint continuation or clean CPU RTL replay
 has passed. Physical FPGA validation, standalone Shuttle and ASIC power are
 outside this matrix. The verified FCFS evidence remains in its existing docs.
 
 | Family / existing recipe | Level 1 | Level 2 | Workload evidence |
 | --- | --- | --- | --- |
-| Rocket / `firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3` | in_progress: generated RTL inventory audited; private-memory blockdev host adapter passes native component continuation; complete runtime ownership and fresh CPU continuation pending | in_progress: fresh complete ChipTop inventory rejects its block-device clock alias | Full 16 GiB native VCS controls and all four instruction traces retained; four actual memory faults pass in Spike; see iteration 84 below |
+| Rocket / `firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3` | in_progress: generated RTL inventory audited; private-memory blockdev and explicit buffered-file UART host adapters pass native component continuation; complete runtime ownership and fresh CPU continuation pending | in_progress: fresh complete ChipTop inventory rejects its block-device clock alias | Full 16 GiB native VCS controls and all four instruction traces retained; four actual memory faults pass in Spike; see iteration 85 below |
 | BOOM / `firesim_boom_singlecore_no_nic_l2_llc4mb_ddr3` | pending | pending | No execution claimed |
 | Shuttle + Saturn / `firesim_saturn_GENV256D128_shuttle_singlecore_no_nic_l2_llc4mb_ddr3` | pending | pending | No vector execution claimed |
 
@@ -32,6 +32,102 @@ The recipe also specifies frequency 140 MHz and TIMING build strategy; these
 are retained in the recipe record, with no FPGA implementation invoked.
 VCS uses Y-2026.03-SP1, `-full64`, `VCS_FLAGS=-Mupdate`, system GCC/G++ 13,
 and the sourced Conda library/include directories. No Conda files are edited.
+
+## Iteration 85: UART ownership and reusable evidence
+
+Diagnostic root:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration85/`.
+
+`firesim.widget.uart.v1` supports completed, unpoisoned host calls before
+`finish()` with explicit `+uart-checkpoint-file0`, `+uart-in0=<regular-file>`
+and `+uart-out0=<destination>`. The constructor owns every input byte; the
+image binds those bytes, the UART index and all six actual Rocket MMIO
+addresses (1056 through 1076). It captures the entire input cursor, binary
+output prefix, both data bytes and all four handshake flags. Active/poisoned
+call state and finished lifecycle are rejected rather than omitted. Output
+stays in owned memory until successful `finish()`, so construction, validation
+and restore do not overwrite an existing destination. A fresh process may
+select a new output destination but must supply the identical input bytes.
+Default stdin/signals, PTYs and ordinary file descriptors explicitly reject
+checkpointing. No CPU whitelist or semantic schema is extended.
+
+`uart-native/latest.json` selects the retained component summary. Native
+ASan/UBSan and VCS DPI each pass all nine cuts in independent processes,
+including startup, binary input/output and EOF. An independent Python oracle
+compares every state byte before the first edge, full final readback, every
+MMIO transaction with its original **fixture** label, and the complete output
+including its restored prefix. Each backend passes 723 rejection assertions
+without owner/MMIO/destination mutation. Structurally valid actual cursor
+corruption first fails `uart_in_bits` at fixture C=128, operation 4; no input
+valid acknowledgement or operation 5 is issued. Positive raw traces are
+rechecked after all negative cases. These checks establish the host component,
+not Rocket CPU `.fsckpt` or Level-2 semantic replay acceptance.
+
+Run from the Chipyard root; each invocation preserves previous component runs:
+
+```sh
+source env.sh && source sims/firesim/env.sh
+source automations/checkpoint_loop/vcs-env.sh
+python -m tools.checkpoint_formats.tests.verify_uart_checkpoint_vcs \
+  --rocket-header automations/checkpoint_loop/runs/m11-iteration85/build/f2/f2-firesim-FireSim-WithDefaultFireSimBridges_WithFireSimTestChipConfigTweaks_chipyard.QuadRocketConfig-WithAutoILA_FRFCFS16GBQuadRankLLC4MB_BaseF2Config/FireSim-generated.const.h \
+  --out automations/checkpoint_loop/runs/m11-iteration85/uart-native
+```
+
+The exact-recipe native VCS rebuild links the adapter and retains the settings
+above, full 16-GiB functional backing, GCC/G++ 13.3 and 58 actual host translation
+units. `rocket-build-identity.json` binds 207 current native inputs, including
+actual compiler dependencies. Two complete four-hart workload controls, with
+default and explicit buffered UART modes, independently pass at target count
+3,329,794. Every complete hart trace matches the prior uninterrupted control
+(37,582,346 / 49,976,156 / 50,391,641 / 50,189,006 bytes), as do independently
+decoded phase/completion/failure/HTIF store and CPU-print labels. The generated
+RTL, compared constant headers and complete simulator inventory match too.
+These are uninterrupted controls; all four required CPU checkpoint cuts and
+fresh CPU restore comparisons remain pending. Workload ELF SHA256 remains
+`f3d86f54caf42b9589385e8021dba46777f647134f19595e38a3d452b745f3d4`.
+
+Full M2/M3 metasim/ordinary RTL VCS, 52 existing widget continuations, all 219
+Python tests and eight FCFS Make/four generator guards pass. Fresh exact-source
+ChipTop discovery still rejects `FireSim.chiptop0.system.bdev_clock`, emitting
+no partial semantic manifest/clean RTL. Fresh native CPU preflight/save/restore
+requests still reject unsupported runtime ownership without publishing an
+incomplete image. Full CPU cuts, fresh Level-1 continuation, independent
+multi-clock semantic capture, fresh ordinary RTL zero-edge readback/replay and
+CPU-level image/corruption tests remain pending.
+
+The initial buffered post-run audit lacked `command.json`; the full native
+run had passed. The executed launcher is retained as
+`run-buffered-rocket-control.initial.py`. Command metadata was reconstructed
+from that exact launcher, and the independent decoder/full trace comparison
+was rerun against the complete finished run. Initial diagnostics and the
+passing `rocket-buffered-control-audit-retry.log` are retained; no workload
+was shortened or reported passing without actual execution. The interim
+combined audit also correctly rejected while the buffered summary was pending.
+The completed reusable audit checks all artifacts after both controls finish.
+
+The previous verification failure was an old Git index/HEAD snapshot compared
+after the controller's next checkpoint. Historical logs remain intact. The
+retained-evidence audit now binds old UART sources to exact archived bytes and
+pinned Git objects; current native evidence separately binds current sources.
+The reusable check validates immutable protected inputs and controller
+ancestry. `verify-protected-turn.py` additionally checks raw index/HEAD bytes
+at turn end. See [evidence-lifecycle.md](evidence-lifecycle.md).
+
+Executable native controls (no FPGA build):
+
+```sh
+source env.sh && source sims/firesim/env.sh
+source automations/checkpoint_loop/vcs-env.sh
+PYTHONPATH="$PWD" python automations/checkpoint_loop/runs/m11-iteration85/run-rocket-control.py
+PYTHONPATH="$PWD" python automations/checkpoint_loop/runs/m11-iteration85/record-rocket-build.py
+PYTHONPATH="$PWD" python automations/checkpoint_loop/runs/m11-iteration85/run-buffered-rocket-control.py
+```
+
+Independent saved-evidence verification:
+
+```sh
+python -m automations.checkpoint_loop.runs.m11-iteration85.verify-evidence
+```
 
 ## Iteration 84: block-device host ownership
 

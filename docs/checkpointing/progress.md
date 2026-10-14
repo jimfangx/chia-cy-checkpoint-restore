@@ -14,12 +14,59 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 84, in progress. Recovery:
+Current milestone: M11-rocket-level1-level2, iteration 85, in progress. Recovery:
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Exact Rocket generated RTL
-inventory passes independently; the private-memory blockdev host component is
-native-validated, but complete runtime ownership/fresh
-Level-1 continuation and multi-clock Level-2 restore/replay remain pending.
+inventory passes independently; private-memory blockdev and explicit
+buffered-file UART host components pass fresh native/VCS continuations.
+Complete runtime ownership/fresh Level-1 continuation and multi-clock Level-2
+restore/replay remain pending.
 No CPU checkpoint acceptance yet.
+
+Iteration 85 (October 13):
+
+- Re-read read-only current plan priorities, relevant simulator/semantic
+  contracts, progress and publication instructions before editing. Rechecked
+  root-paper hashes and complete-state/finite-I/O replay extracts.
+- Added `firesim.widget.uart.v1`, gated on explicit
+  `+uart-checkpoint-file0` with finite regular-file input and buffered output.
+  Own all input bytes/cursor, output bytes and six handshake/data fields;
+  bind the actual six MMIO addresses and UART index. Completed, unpoisoned
+  calls before finish are the supported lifecycle; live stdio/signals/PTYs,
+  ordinary descriptors and finished/interrupted/suspended calls reject.
+- Native ASan/UBSan and fresh VCS DPI each pass all nine cuts, complete
+  zero-edge readback, all bus operations and binary output prefix retention.
+  Each passes 723 malformed/incompatible/incomplete/lifecycle assertions
+  without partial owner mutation or MMIO. A valid cursor corruption first
+  fails `uart_in_bits` at fixture C=128, operation 4, before its valid handshake.
+  These are host component checks, not whole-CPU or semantic replay acceptance.
+- Exact-recipe native Rocket rebuild links the adapter and binds 207 inputs,
+  58 actual host translation units and GCC/G++ 13.3. Default and buffered UART
+  full four-hart controls both pass at target count 3,329,794. All four complete
+  traces, decoded workload/store/HTIF labels and generated artifacts match the
+  prior uninterrupted control. These are controls, not CPU checkpoint restores.
+  Fresh complete ChipTop semantic discovery still rejects `bdev_clock`,
+  publishing no partial manifest/ordinary RTL. Native CPU preflight/save/
+  restore still reject incomplete runtime ownership without partial images.
+- All 219 Python tests, full M2/M3 VCS metasim/ordinary RTL regressions, 52
+  existing widget continuations and eight FCFS Make/four generator guards pass.
+  The independent retained iteration-84 audit now passes using pinned Git
+  source objects for its old UART inputs. Persistent evidence checks retain
+  protected file hashes and controller ancestry; raw index/HEAD preservation
+  is checked at implementation-turn end. See [evidence-lifecycle.md](evidence-lifecycle.md).
+- Published existing controller commits FireSim
+  `9a0944cae10a90ca8f5950f013dad72e743efe2f`, then Chipyard
+  `f9253bdbd7d469045389739b1f4db7c798737bec`, confirming both remote tips.
+  No staging/local commits; plans, environments, indexes and heads preserved.
+- Recovery: `runs/m11-iteration85/` contains executable controls, source and
+  owner bindings, component selection and reusable evidence checks. Next:
+  implement coherent CPU cuts, run-loop,
+  TSI/FESVR, TracerV, heartbeat and remaining owners; independent multi-clock
+  semantic inventory, fresh full CPU restores/replay and CPU image/fault cases.
+  The initial buffered post-run audit lacked its command metadata; the actual
+  native run passed, and the metadata correction plus independent re-audit/full
+  comparison passes without rerunning or shortening the workload. Initial
+  diagnostics are retained. No required external dependency is missing. Both
+  CPU levels remain in progress.
 
 Iteration 84 (October 13):
 

@@ -5,6 +5,7 @@
 
 #include "bridges/serial_data.h"
 #include "core/bridge_driver.h"
+#include "core/widget_checkpoint.h"
 
 #include <cstdint>
 #include <memory>
@@ -31,12 +32,13 @@ struct UARTBRIDGEMODULE_struct {
 /**
  * Base class for callbacks handling data coming in and out a UART stream.
  */
-class uart_handler {
+class uart_handler : public checkpoint_owner_t {
 public:
   virtual ~uart_handler() = default;
 
   virtual std::optional<char> get() = 0;
   virtual void put(char data) = 0;
+  virtual void finish() {}
 };
 
 class uart_t final : public bridge_driver_t {
@@ -53,12 +55,32 @@ public:
   ~uart_t() override;
 
   void tick() override;
+  void finish() override;
+
+  // Completed-call ownership requires an explicitly bound input/output
+  // handler. Live stdin, signal input, PTYs and ordinary file descriptors
+  // remain unsupported; generated UART/MMIO state has separate owners.
+  std::string checkpoint_schema() const override { return "firesim.widget.uart.v1"; }
+  std::vector<uint8_t> save_checkpoint() const override;
+  void validate_checkpoint(const std::vector<uint8_t> &) const override;
+  void load_checkpoint(const std::vector<uint8_t> &) override;
 
 private:
   const UARTBRIDGEMODULE_struct mmio_addrs;
+  const int uartno;
   std::unique_ptr<uart_handler> handler;
+  widget_checkpoint_state_t checkpoint_state;
+  bool finished = false;
 
-  serial_data_t<char> data;
+  serial_data_t<char> data{};
+
+  struct decoded_checkpoint_t {
+    serial_data_t<char> data;
+    std::vector<uint8_t> handler;
+  };
+  widget_checkpoint_config_t checkpoint_config() const;
+  decoded_checkpoint_t decode_checkpoint(const std::vector<uint8_t> &) const;
+  void require_checkpointable() const;
 
   void send();
   void recv();
