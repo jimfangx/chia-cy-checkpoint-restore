@@ -14,11 +14,60 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 83, in progress. Recovery:
+Current milestone: M11-rocket-level1-level2, iteration 84, in progress. Recovery:
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Exact Rocket generated RTL
-inventory now passes independently; complete native runtime ownership/fresh
+inventory passes independently; the private-memory blockdev host component is
+native-validated, but complete runtime ownership/fresh
 Level-1 continuation and multi-clock Level-2 restore/replay remain pending.
 No CPU checkpoint acceptance yet.
+
+Iteration 84 (October 13):
+
+- Re-read current read-only plan priorities, relevant simulator/semantic
+  sections, progress and publication instructions before editing. Revisited
+  both papers' complete-state/finite-I/O replay contract through hash-checked
+  saved extracts. Plans, environment inputs, indexes and heads are protected.
+- Implemented `firesim.widget.blockdev.v1` for the actual Rocket private-memory
+  disk and disconnected mode. Complete ordered queues, lifecycle/pending state,
+  every tracker word, all backing bytes and FILE position are captured. Bind
+  all actual MMIO/geometry/latency settings. Parse/allocation precedes mutation;
+  suspended/interrupted calls and unsupported external disks/logs reject.
+  CPU profile/whitelist and Level-2 schemas remain unchanged.
+- Native ASan/UBSan and fresh VCS DPI each pass all 15 cuts, complete zero-edge
+  owner readback, 128 read response words/two acks at the original fixture
+  labels, and 1,639 negative assertions without partial restore or MMIO.
+  Full varied-disk/end-position readback passes too. Actual partial-write
+  tracker corruption first fails `bdev_rresp_data_lower` at fixture C=142,
+  operation 6, exit 1, issuing no operation 7. These are component checks;
+  they do not establish complete CPU restore or Level-2 semantic replay.
+- A new exact-recipe VCS build links the current adapter and preserves prior
+  evidence. Its full 16-GiB, four-hart control passes at C=3,329,794. Every
+  complete hart instruction trace, independently decoded phase/completion/
+  failure/HTIF store and CPU-print label matches the prior uninterrupted
+  control. Generated RTL, compared headers and full inventory bytes match.
+  These are workload controls, not restored CPU execution.
+  Fresh current-source ChipTop discovery still explicitly rejects
+  `FireSim.chiptop0.system.bdev_clock`, with no partial semantic outputs.
+  Rebuilt native preflight/save/restore requests still reject unsupported CPU
+  runtime ownership and publish no partial image.
+- All 219 Python tests, full M2/M3 metasim/ordinary RTL regressions, 52 existing
+  native/VCS widget continuations, eight FCFS Make/four generator guards pass.
+  The initial M3 invocation used the wrong module name; its diagnostic remains
+  in `banked-regression.log`, and the actual `verify_banked_vcs` retry passes
+  the complete scope. The independent evidence audit caught a negative fixture
+  overwriting the positive cut-5 trace; isolated its output, reran both complete
+  native component suites and now retain/recheck all positive traces. Initial
+  diagnostics remain preserved. Logs and executable commands stay under
+  `runs/m11-iteration84/`; recovery is in the CPU matrix.
+- Published existing controller checkpoints FireSim
+  `2427333a9c89070d515cf02b553c79b28f9f5fd7`, then Chipyard
+  `4eb16eae84b8dbad899c7070e9e941bed13b694b`; both remote tips independently
+  confirmed. No staging or local commits; the controller owns its next one.
+- Next: run-loop/TSI/FESVR/UART/TracerV/heartbeat and remaining native owners,
+  coherent CPU cuts and full fresh Level-1 continuation; independent multi-clock
+  semantic lowering, complete CPU zero-edge Level-2 restore/finite replay and
+  CPU image/semantic corruption checks. No required external dependency is
+  missing. Physical FPGA and ASIC power remain deferred.
 
 Iteration 83 (October 13):
 

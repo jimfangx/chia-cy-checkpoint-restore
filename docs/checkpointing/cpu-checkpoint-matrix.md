@@ -1,13 +1,13 @@
 # CPU checkpoint matrix
 
-Current milestone: M11 Rocket, iteration 83. Level-1 and Level-2 acceptance
+Current milestone: M11 Rocket, iteration 84. Level-1 and Level-2 acceptance
 remain **in_progress**. No CPU checkpoint continuation or clean CPU RTL replay
 has passed. Physical FPGA validation, standalone Shuttle and ASIC power are
 outside this matrix. The verified FCFS evidence remains in its existing docs.
 
 | Family / existing recipe | Level 1 | Level 2 | Workload evidence |
 | --- | --- | --- | --- |
-| Rocket / `firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3` | in_progress: complete generated RTL inventory and four active diagnostic samples audited; complete runtime ownership and fresh continuation pending | in_progress: fresh complete ChipTop inventory rejects its block-device clock alias | Two full 16 GiB native VCS controls pass at 3,329,794 target cycles; all four complete instruction traces and audited store timing match; four actual memory faults pass in Spike |
+| Rocket / `firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3` | in_progress: generated RTL inventory audited; private-memory blockdev host adapter passes native component continuation; complete runtime ownership and fresh CPU continuation pending | in_progress: fresh complete ChipTop inventory rejects its block-device clock alias | Full 16 GiB native VCS controls and all four instruction traces retained; four actual memory faults pass in Spike; see iteration 84 below |
 | BOOM / `firesim_boom_singlecore_no_nic_l2_llc4mb_ddr3` | pending | pending | No execution claimed |
 | Shuttle + Saturn / `firesim_saturn_GENV256D128_shuttle_singlecore_no_nic_l2_llc4mb_ddr3` | pending | pending | No vector execution claimed |
 
@@ -32,6 +32,108 @@ The recipe also specifies frequency 140 MHz and TIMING build strategy; these
 are retained in the recipe record, with no FPGA implementation invoked.
 VCS uses Y-2026.03-SP1, `-full64`, `VCS_FLAGS=-Mupdate`, system GCC/G++ 13,
 and the sourced Conda library/include directories. No Conda files are edited.
+
+## Iteration 84: block-device host ownership
+
+Diagnostic root:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration84/`.
+
+Added `firesim.widget.blockdev.v1` for completed host calls with a private
+in-memory disk, including the actual workload's `+blkdev-in-mem0=128`, and for a
+disconnected device. The disk now has an explicit owned, initially zeroed byte
+buffer behind `fmemopen`; both memory and external FILE streams close at
+destruction. The adapter binds all 26 generated MMIO addresses, the actual one
+tracker/24-bit latency configuration, sector geometry and runtime latencies.
+It captures initialization, response-pending status, ordered request/data/read
+response/ack queues, every tracker offset/count/size and all 1,024 tracker data
+words, all 65,536 disk bytes and the logical FILE position. FILE buffering is
+flushed at the completed-call boundary; restore reconstructs an independent
+stream at the captured position without MMIO or target advancement.
+
+Decode and allocation precede all restore mutation. Invalid booleans, lengths,
+tags, ranges, tracker shapes, pending flags, lifecycle contradictions,
+configuration mismatches and incomplete disk bytes reject. Every public host
+operation guards suspended/reentrant cuts and poisons interrupted calls.
+External disk paths, debug logs and failed/EOF FILE state explicitly reject;
+they need external ownership adapters. No CPU runtime whitelist is extended.
+
+`blockdev-native/latest.json` selects the final component run under
+`blockdev-native/native-xb8o3fpu/`. ASan/UBSan native execution and native VCS
+DPI each terminate the source and independently restore all 15 cuts in fresh
+processes. An independent Python oracle checks every owner byte, including
+inactive tracker words and the full disk; native VCS reports readback at zero
+edges. All MMIO operations, 128 actual read response words and two write
+acknowledgements retain their fixture release labels. Cuts include data queued
+before a request, queued requests, partial writes with 5/21 beats retained,
+stalled acks and partially drained read responses. Each backend passes 1,639
+negative assertions, including malformed/incompatible payloads, unsupported
+external modes and interrupted calls, without partial owner mutation or MMIO.
+A separate zero-edge roundtrip varies every disk byte, including its first and
+last bytes, at a legal end-of-file position, checking libc reconstruction.
+The final evidence audit also rechecks every positive raw continuation after
+the negatives. It caught the initial negative fixture overwriting cut 5's
+trace; the corrected suite isolates that fixture and retains all 15 traces.
+Earlier diagnostics remain under their original run directories.
+
+Actual partial-write tracker corruption passes structural loading, then fails
+at the first changed `bdev_rresp_data_lower` write at **fixture** cycle 142,
+operation 6, exit 1; no operation 7 is issued. These are host component fixtures,
+not Rocket target-cycle cuts, CPU `.fsckpt` acceptance, or Level-2 semantic
+replay. The complete Rocket run loop, TSI/FESVR, UART, four TracerV sinks and
+heartbeat owners, coherent cuts, fresh full CPU restores and CPU image/fault
+checks still remain. Independent current-source ChipTop discovery continues to
+reject `FireSim.chiptop0.system.bdev_clock`, emitting no partial semantic
+manifest or ordinary CPU RTL. The six clocks, async reset and original CPU
+storage require a separate versioned semantic adapter.
+
+Executable component check from the Chipyard root (creates a new run directory):
+
+```sh
+source env.sh && source sims/firesim/env.sh
+source automations/checkpoint_loop/vcs-env.sh
+python -m tools.checkpoint_formats.tests.verify_blockdev_checkpoint_vcs \
+  --rocket-header automations/checkpoint_loop/runs/m11-iteration84/build/f2/f2-firesim-FireSim-WithDefaultFireSimBridges_WithFireSimTestChipConfigTweaks_chipyard.QuadRocketConfig-WithAutoILA_FRFCFS16GBQuadRankLLC4MB_BaseF2Config/FireSim-generated.const.h \
+  --out automations/checkpoint_loop/runs/m11-iteration84/blockdev-native
+```
+
+The exact-recipe build and complete four-hart control are reproducible through
+`run-rocket-control.py`; its `rocket-native-commands.json` records each native
+build/runtime/audit argv and result. Every VCS shell sources both environments,
+then `vcs-env.sh` last. The source-bound recipe helper retains
+all settings above and builds no bitstream. Native build artifacts use a new
+iteration-84 directory, preserving prior controls.
+
+The current exact-recipe build and full 16-GiB workload pass at C=3,329,794.
+All four complete TracerV files match iteration 83 byte-for-byte (37,582,346 /
+49,976,156 / 50,391,641 / 50,189,006 bytes). Independent retired-store decoding
+confirms phases 1/2/3/4, completion 1, failure 0 on every hart and the actual
+HTIF PASS store; every audited CPU-print cycle field also matches the prior
+control. Workload ELF SHA256 remains
+`f3d86f54caf42b9589385e8021dba46777f647134f19595e38a3d452b745f3d4`.
+Generated RTL, both compared constant headers and the complete generated-state
+manifest retain their original bytes. `rocket-build-identity.json` binds 130
+current input files and 58 native host translation units, GCC/G++ 13.3, the
+normal executable and the newly linked blockdev methods. These are workload
+and build controls, not restored CPU execution or complete boundary replay.
+
+Full-path selection and executable checks are `selected-evidence.json`,
+`verification-commands.json`, `verify-evidence.py`, `summary.json` and
+`artifact-manifest.json`. The independent evidence checker re-audits complete
+generated ownership, current source hashes, every component cut's full disk
+and tracker words, all retained raw MMIO traces, native process statuses, CPU
+controls, explicit runtime/semantic rejection, regressions and protected inputs.
+
+```sh
+source env.sh && source sims/firesim/env.sh
+source automations/checkpoint_loop/vcs-env.sh
+PYTHONPATH="$PWD" python automations/checkpoint_loop/runs/m11-iteration84/run-rocket-control.py
+```
+
+Run the independent saved-evidence audit without rerunning the workload:
+
+```sh
+python -m automations.checkpoint_loop.runs.m11-iteration84.verify-evidence
+```
 
 ## Iteration 83: exact generated RTL ownership
 
@@ -247,7 +349,7 @@ clock hooks likewise require exact CPU configuration binding.
 | --- | --- |
 | FireSim run loop | `terminated`, local exit/run-loop phase, scheduler credits/deadlines/callbacks, base lifecycle and completed-operation dispatch |
 | TSI/FESVR | Wait/step/loading flags; loadmem and serial queues; inherited testchip/HTIF state; suspended `context_t` execution, which contains process-specific pointers and a ucontext or pthread |
-| Blockdev | Pending responses, request/data/ack queues, every write tracker and sector buffer, full backing-file contents and position, geometry/latency and lifecycle |
+| Blockdev integration / external modes | Private-memory/disconnected host hooks now pass native component checks; complete CPU atomic cut integration and external disk/log ownership remain pending |
 | UART | Serial handshake data, handler/input positions, pending external bytes, global `specialchar` and endpoint/signal behavior |
 | Four TracerV sinks | Cycle/trigger/clock state, file history and positions, tracker/mode state, stream identities and any suspended token buffer; draining streams affects target timing |
 | Heartbeat | Poll/trip/last-cycle/timeout state, time origin, configuration and log history; it can terminate execution |

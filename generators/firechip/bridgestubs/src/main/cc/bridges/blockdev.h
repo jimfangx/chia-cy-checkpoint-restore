@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "core/bridge_driver.h"
+#include "core/widget_checkpoint.h"
 
 struct BLOCKDEVBRIDGEMODULE_struct {
   uint64_t read_latency;
@@ -83,8 +84,36 @@ public:
   void send();
   void recv();
 
+  // Complete completed-call host owner for the exact CPU recipe's private
+  // in-memory disk (or disconnected device). External files/debug logs require
+  // a separate external-output adapter and explicitly reject here.
+  std::string checkpoint_schema() const override { return "firesim.widget.blockdev.v1"; }
+  std::vector<uint8_t> save_checkpoint() const override;
+  void validate_checkpoint(const std::vector<uint8_t> &) const override;
+  void load_checkpoint(const std::vector<uint8_t> &) override;
+
 private:
   const BLOCKDEVBRIDGEMODULE_struct mmio_addrs;
+  widget_checkpoint_state_t checkpoint_state;
+  bool initialized = false;
+  uint32_t latency_bits;
+  // fmemopen uses this owned buffer; no opaque libc allocation is omitted.
+  std::vector<uint8_t> memory_disk;
+
+  struct decoded_checkpoint_t {
+    bool initialized, resp_data_pending;
+    uint64_t position;
+    std::vector<uint8_t> disk;
+    std::queue<blkdev_request> requests;
+    std::queue<blkdev_data> req_data, read_responses;
+    std::queue<uint32_t> write_acks;
+    std::vector<blkdev_write_tracker> trackers;
+  };
+  void require_checkpointable() const;
+  widget_checkpoint_config_t checkpoint_config() const;
+  decoded_checkpoint_t decode_checkpoint(const std::vector<uint8_t> &) const;
+  void send_impl();
+  void recv_impl();
 
   // Set if, on the previous tick, we couldn't write back all of our response
   // data

@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <string>
+#include <memory>
 
 char blockdev_t::KIND;
 
@@ -41,7 +42,7 @@ blockdev_t::blockdev_t(simif_t &sim,
                        const std::vector<std::string> &args,
                        uint32_t num_trackers,
                        uint32_t latency_bits)
-    : bridge_driver_t(sim, &KIND), mmio_addrs(mmio_addrs) {
+    : bridge_driver_t(sim, &KIND), mmio_addrs(mmio_addrs), latency_bits(latency_bits) {
   this->_file = nullptr;
   this->logfile = nullptr;
   _ntags = num_trackers;
@@ -123,8 +124,9 @@ blockdev_t::blockdev_t(simif_t &sim,
       abort();
     }
   } else if (mem_filesize > 0) {
-    size = mem_filesize << SECTOR_SHIFT;
-    _file = fmemopen(nullptr, size, "r+");
+    size = mem_filesize * long(SECTOR_SIZE);
+    memory_disk.resize(size);
+    _file = fmemopen(memory_disk.data(), memory_disk.size(), "r+");
     if (!_file) {
       perror("fmemopen");
       abort();
@@ -138,7 +140,7 @@ blockdev_t::blockdev_t(simif_t &sim,
 }
 
 blockdev_t::~blockdev_t() {
-  if (filename) {
+  if (_file) {
     fclose(_file);
   }
   if (logfile)
@@ -149,11 +151,15 @@ blockdev_t::~blockdev_t() {
  * Here, we set control regs e.g. for # sectors, allowed request length
  * at boot */
 void blockdev_t::init() {
+  widget_checkpoint_state_t::call_t call(checkpoint_state);
+  if (initialized)
+    throw std::runtime_error("blockdev already initialized");
   // setup blk dev widget
   write(mmio_addrs.bdev_nsectors, nsectors());
   write(mmio_addrs.bdev_max_req_len, max_request_length());
   write(mmio_addrs.read_latency, read_latency);
   write(mmio_addrs.write_latency, write_latency);
+  initialized = true;
 }
 
 /* Take a read request, get data from the disk file, and fill the beats
@@ -255,6 +261,8 @@ void blockdev_t::do_write(struct blkdev_request &req) {
 /* Confirm that a write_tracker has been setup for a chunk of data that
  * we have received from the block device widget, to be written to file */
 bool blockdev_t::can_accept(struct blkdev_data &data) {
+  if (data.tag >= _ntags)
+    throw std::runtime_error("blockdev data tag out of range");
   return write_trackers[data.tag].size > 0;
 }
 
@@ -303,6 +311,12 @@ void blockdev_t::handle_data(struct blkdev_data &data) {
 
 /* Read all pending request data from the widget */
 void blockdev_t::recv() {
+  widget_checkpoint_state_t::call_t call(checkpoint_state);
+  if (!initialized) throw std::runtime_error("blockdev not initialized");
+  recv_impl();
+}
+
+void blockdev_t::recv_impl() {
   /* Read all pending requests from the widget */
   while (read(mmio_addrs.bdev_req_valid)) {
     /* Take a request from the FPGA and put it in SW processing queues */
@@ -337,6 +351,12 @@ void blockdev_t::recv() {
  * possible In the event the widget buffers fill up; set resp_data_pending,
  * indicating that we must try again on the next tick() invocation */
 void blockdev_t::send() {
+  widget_checkpoint_state_t::call_t call(checkpoint_state);
+  if (!initialized) throw std::runtime_error("blockdev not initialized");
+  send_impl();
+}
+
+void blockdev_t::send_impl() {
   /* Return as many write acknowledgements as the blockdev widget can accept */
   while (!write_acks.empty() && read(mmio_addrs.bdev_wack_ready)) {
     uint32_t tag = write_acks.front();
@@ -371,6 +391,8 @@ bool blockdev_t::idle() {
  * No target time is modelled here; the widget will stall stimulation if
  * we have not yet serviced a transaction that is scheduled to be released. */
 void blockdev_t::tick() {
+  widget_checkpoint_state_t::call_t call(checkpoint_state);
+  if (!initialized) throw std::runtime_error("blockdev not initialized");
 
   /* If there's nothing to do, early out and save a bunch of MMIO */
   if (idle()) {
@@ -380,11 +402,11 @@ void blockdev_t::tick() {
   /* If there's pending response data from the last invocation of tick(),
    * write that back first as it might be locking up the simulator */
   if (resp_data_pending) {
-    this->send();
+    send_impl();
   }
 
   /* Collect all of the requests sitting in the widget queues */
-  this->recv();
+  recv_impl();
 
   /* Do software processing of request queues. (requests coming from the
    * block dev widget) */
@@ -413,5 +435,179 @@ void blockdev_t::tick() {
   }
 
   /* Write state back to block device widget */
-  this->send();
+  send_impl();
+}
+
+void blockdev_t::require_checkpointable() const {
+  checkpoint_state.require_idle();
+  if (filename || logfile)
+    throw std::runtime_error("blockdev external disk/log checkpoint unsupported");
+  if (bool(_file) != !memory_disk.empty() ||
+      memory_disk.size() != uint64_t(_nsectors) * SECTOR_SIZE ||
+      write_trackers.size() != _ntags)
+    throw std::runtime_error("blockdev backing/tracker ownership mismatch");
+  if (_file && (ferror(_file) || feof(_file)))
+    throw std::runtime_error("blockdev failed/EOF backing stream unsupported");
+}
+
+widget_checkpoint_config_t blockdev_t::checkpoint_config() const {
+  widget_checkpoint_config_t c(8, {_ntags, _nsectors, latency_bits,
+                                  read_latency, write_latency, SECTOR_SIZE,
+                                  MAX_REQ_LEN, memory_disk.size()});
+  // List fields explicitly: object layout/padding is never a wire format.
+#define BDEV_ADDRESS(field) c.word(mmio_addrs.field)
+  BDEV_ADDRESS(read_latency); BDEV_ADDRESS(write_latency);
+  BDEV_ADDRESS(bdev_nsectors); BDEV_ADDRESS(bdev_max_req_len);
+  BDEV_ADDRESS(bdev_req_valid); BDEV_ADDRESS(bdev_req_write);
+  BDEV_ADDRESS(bdev_req_offset); BDEV_ADDRESS(bdev_req_len);
+  BDEV_ADDRESS(bdev_req_tag); BDEV_ADDRESS(bdev_req_ready);
+  BDEV_ADDRESS(bdev_data_valid); BDEV_ADDRESS(bdev_data_data_upper);
+  BDEV_ADDRESS(bdev_data_data_lower); BDEV_ADDRESS(bdev_data_tag);
+  BDEV_ADDRESS(bdev_data_ready); BDEV_ADDRESS(bdev_rresp_data_upper);
+  BDEV_ADDRESS(bdev_rresp_data_lower); BDEV_ADDRESS(bdev_rresp_tag);
+  BDEV_ADDRESS(bdev_rresp_valid); BDEV_ADDRESS(bdev_rresp_ready);
+  BDEV_ADDRESS(bdev_wack_tag); BDEV_ADDRESS(bdev_wack_valid);
+  BDEV_ADDRESS(bdev_wack_ready); BDEV_ADDRESS(bdev_reqs_pending);
+  BDEV_ADDRESS(bdev_wack_stalled); BDEV_ADDRESS(bdev_rresp_stalled);
+#undef BDEV_ADDRESS
+  return c;
+}
+
+std::vector<uint8_t> blockdev_t::save_checkpoint() const {
+  require_checkpointable();
+  // Flush the fmemopen write buffer into its owned bytes without seeking or
+  // advancing target time. No restore payload is accepted during a host call.
+  if (_file && fflush(_file))
+    throw std::runtime_error("blockdev checkpoint backing flush failed");
+  const auto position = _file ? ftello(_file) : 0;
+  if (position < 0)
+    throw std::runtime_error("blockdev checkpoint backing position failed");
+  auto c = checkpoint_config();
+  c.word(initialized); c.word(resp_data_pending); c.word(position);
+  auto reqs = requests;
+  c.word(reqs.size());
+  while (!reqs.empty()) {
+    const auto &r = reqs.front();
+    c.word(r.write); c.word(r.offset); c.word(r.len); c.word(r.tag);
+    reqs.pop();
+  }
+  auto beats = [&](std::queue<blkdev_data> q) {
+    c.word(q.size());
+    while (!q.empty()) { c.word(q.front().data); c.word(q.front().tag); q.pop(); }
+  };
+  beats(req_data); beats(read_responses);
+  auto acks = write_acks;
+  c.word(acks.size());
+  while (!acks.empty()) { c.word(acks.front()); acks.pop(); }
+  // Retain even stale tracker words: the independent owner readback is full,
+  // rather than assuming that currently inactive storage is irrelevant.
+  for (const auto &t : write_trackers) {
+    c.word(t.offset); c.word(t.count); c.word(t.size);
+    for (auto word : t.data) c.word(word);
+  }
+  c.bytes.insert(c.bytes.end(), memory_disk.begin(), memory_disk.end());
+  (void)decode_checkpoint(c.bytes);
+  return std::move(c.bytes);
+}
+
+blockdev_t::decoded_checkpoint_t
+blockdev_t::decode_checkpoint(const std::vector<uint8_t> &payload) const {
+  require_checkpointable();
+  const auto config = checkpoint_config();
+  if (payload.size() < config.bytes.size() ||
+      !std::equal(config.bytes.begin(), config.bytes.end(), payload.begin()))
+    throw std::runtime_error("blockdev checkpoint configuration mismatch");
+  size_t offset = config.bytes.size();
+  auto word = [&]() {
+    if (payload.size() - offset < 8)
+      throw std::runtime_error("blockdev truncated checkpoint");
+    uint64_t v = 0;
+    for (unsigned i = 0; i < 8; ++i) v |= uint64_t(payload[offset++]) << (8 * i);
+    return v;
+  };
+  auto boolean = [&]() {
+    const auto v = word();
+    if (v > 1) throw std::runtime_error("blockdev invalid boolean");
+    return bool(v);
+  };
+  auto count = [&](size_t row_bytes) {
+    const auto n = word();
+    if (n > (payload.size() - offset) / row_bytes)
+      throw std::runtime_error("blockdev invalid queue length");
+    return n;
+  };
+  auto tag = [&]() {
+    const auto t = word();
+    if (t >= _ntags) throw std::runtime_error("blockdev invalid tag");
+    return uint32_t(t);
+  };
+  decoded_checkpoint_t d;
+  d.initialized = boolean(); d.resp_data_pending = boolean(); d.position = word();
+  if (d.position > memory_disk.size())
+    throw std::runtime_error("blockdev invalid backing position");
+  auto n = count(32);
+  for (uint64_t i = 0; i < n; ++i) {
+    const bool write = boolean();
+    const auto start = word(), len = word();
+    if (len == 0 || len > MAX_REQ_LEN || start > _nsectors || len > _nsectors - start)
+      throw std::runtime_error("blockdev invalid request range");
+    d.requests.push({write, uint32_t(start), uint32_t(len), tag()});
+  }
+  auto beats = [&](std::queue<blkdev_data> &q) {
+    const auto n = count(16);
+    for (uint64_t i = 0; i < n; ++i) { const auto data = word(); q.push({data, tag()}); }
+  };
+  beats(d.req_data); beats(d.read_responses);
+  n = count(8);
+  for (uint64_t i = 0; i < n; ++i) d.write_acks.push(tag());
+  // Size-check before allocating tracker arrays, including their full buffers.
+  if (_ntags > (payload.size() - offset) / (8 * (3 + MAX_REQ_LEN * SECTOR_BEATS)))
+    throw std::runtime_error("blockdev truncated trackers");
+  d.trackers.resize(_ntags);
+  for (auto &t : d.trackers) {
+    t.offset = word(); t.count = word(); t.size = word();
+    if ((t.size == 0 && (t.offset || t.count)) ||
+        (t.size && (t.size > MAX_REQ_LEN * SECTOR_BEATS || t.size % SECTOR_BEATS ||
+                    t.count >= t.size || t.offset % SECTOR_SIZE ||
+                    t.offset > memory_disk.size() || t.size * 8 > memory_disk.size() - t.offset)))
+      throw std::runtime_error("blockdev invalid write tracker");
+    for (auto &v : t.data) v = word();
+  }
+  if (payload.size() - offset != memory_disk.size())
+    throw std::runtime_error("blockdev incomplete/trailing backing bytes");
+  d.disk.assign(payload.begin() + offset, payload.end());
+  if (d.resp_data_pending != (!d.read_responses.empty() || !d.write_acks.empty()))
+    throw std::runtime_error("blockdev response-pending flag mismatch");
+  if (!d.initialized && (d.resp_data_pending || d.position || !d.requests.empty() ||
+      !d.req_data.empty() || std::any_of(d.trackers.begin(), d.trackers.end(), [](const auto &t) {
+        return t.offset || t.count || t.size ||
+               std::any_of(std::begin(t.data), std::end(t.data), [](auto v) { return v != 0; });
+      }) || std::any_of(d.disk.begin(), d.disk.end(), [](auto v) { return v != 0; })))
+    throw std::runtime_error("blockdev uninitialized checkpoint has active state");
+  return d;
+}
+
+void blockdev_t::validate_checkpoint(const std::vector<uint8_t> &payload) const {
+  (void)decode_checkpoint(payload);
+}
+
+void blockdev_t::load_checkpoint(const std::vector<uint8_t> &payload) {
+  auto d = decode_checkpoint(payload);
+  // Prepare a fresh owned libc stream before touching any current driver state.
+  // The vector swap keeps its backing address stable. No MMIO or source-disk
+  // writes occur, and malformed payloads never reach this preparation step.
+  using file_ptr = std::unique_ptr<FILE, int (*)(FILE *)>;
+  file_ptr file(nullptr, fclose);
+  if (!d.disk.empty()) {
+    file.reset(fmemopen(d.disk.data(), d.disk.size(), "r+"));
+    if (!file || fseeko(file.get(), d.position, SEEK_SET))
+      throw std::runtime_error("blockdev restore backing preparation failed");
+  }
+  if (_file) fclose(_file);
+  _file = file.release();
+  memory_disk.swap(d.disk);
+  requests.swap(d.requests); req_data.swap(d.req_data);
+  read_responses.swap(d.read_responses); write_acks.swap(d.write_acks);
+  write_trackers.swap(d.trackers);
+  initialized = d.initialized; resp_data_pending = d.resp_data_pending;
 }
