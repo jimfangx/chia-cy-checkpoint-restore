@@ -3,6 +3,7 @@
 #define __FIRESIM_TSI_H
 
 #include "testchip_tsi.h"
+#include "loadmem_read.h"
 
 struct firesim_loadmem_t {
   firesim_loadmem_t() : addr(0), size(0) {}
@@ -32,6 +33,10 @@ public:
 
   void load_program() override;
 
+  // Component owner only. HTIF/context and all request/response queues must
+  // also be reconstructed before complete TSI checkpointing can be enabled.
+  const checkpoint_owner_t &loadmem_read_owner() const { return loadmem_read; }
+
 protected:
   void idle() override;
 
@@ -52,6 +57,7 @@ protected:
   std::deque<uint32_t> loadmem_out_data;
 
 private:
+  firesim_loadmem_read_t loadmem_read;
   size_t idle_counts;
   bool is_busy;
   // program load has completed in the host thread (i.e. all fesvr xacts for

@@ -43,7 +43,7 @@ private:
   const TSIBRIDGEMODULE_struct mmio_addrs;
   loadmem_t &loadmem_widget;
 
-  firesim_tsi_t *fesvr;
+  firesim_tsi_t *fesvr = nullptr;
   bool has_mem;
   // host memory offset based on the number of memory models and their size
   int64_t mem_host_offset;

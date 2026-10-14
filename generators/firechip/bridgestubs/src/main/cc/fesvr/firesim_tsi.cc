@@ -53,18 +53,42 @@ void firesim_tsi_t::load_mem_read(addr_t addr, size_t nbytes, void *dst) {
           nbytes);
   fflush(stdout);
 
-  while (!loadmem_write_reqs.empty())
-    switch_to_target();
-  loadmem_read_reqs.push_back(firesim_loadmem_t(addr, nbytes));
-
-  uint32_t *result = static_cast<uint32_t *>(dst);
-  size_t len = nbytes / sizeof(uint32_t);
-  for (size_t i = 0; i < len; i++) {
-    while (loadmem_out_data.empty())
+  // The response cursor and data no longer live only on a suspended stack.
+  // The caller/destination still belongs to HTIF's unsupported coroutine; do
+  // not infer a complete TSI owner from this component's serializable state.
+  class services_t final : public firesim_loadmem_read_t::services_t {
+  public:
+    services_t(std::deque<firesim_loadmem_t> &writes,
+               std::deque<firesim_loadmem_t> &reads,
+               std::deque<uint32_t> &responses)
+        : writes(writes), reads(reads), responses(responses) {}
+    bool writes_pending() override { return !writes.empty(); }
+    void issue(uint64_t address, uint64_t bytes) override {
+      reads.emplace_back(address, bytes);
+    }
+    bool receive(uint32_t &word) override {
+      if (responses.empty())
+        return false;
+      word = responses.front();
+      responses.pop_front();
+      return true;
+    }
+  private:
+    std::deque<firesim_loadmem_t> &writes;
+    std::deque<firesim_loadmem_t> &reads;
+    std::deque<uint32_t> &responses;
+  } services(loadmem_write_reqs, loadmem_read_reqs, loadmem_out_data);
+  loadmem_read.begin(addr, nbytes);
+  for (;;) {
+    const auto progress = loadmem_read.advance(services);
+    if (progress == firesim_loadmem_read_t::result_t::complete)
+      break;
+    if (progress == firesim_loadmem_read_t::result_t::blocked)
       switch_to_target();
-    result[i] = loadmem_out_data.front();
-    loadmem_out_data.pop_front();
   }
+  const auto &words = loadmem_read.result();
+  std::copy(words.begin(), words.end(), static_cast<uint32_t *>(dst));
+  loadmem_read.finish();
 }
 
 void firesim_tsi_t::tick() { switch_to_host(); }

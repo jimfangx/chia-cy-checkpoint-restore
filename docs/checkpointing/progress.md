@@ -14,7 +14,7 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 95, in progress. Recovery:
+Current milestone: M11-rocket-level1-level2, iteration 96, in progress. Recovery:
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Exact Rocket discovery now
 emits a complete pre-FAME storage/clock inventory and compiler-bound clean access
 map: 8,644 entries / 318,637 words / seven state clocks plus six initialized values.
@@ -23,6 +23,48 @@ readback pass. These are storage probes, not workload checkpoints. Explicit
 clock-event images and fresh ordinary RTL replay now pass component checks.
 Complete CPU runtime ownership, coherent metasim workload cuts, fresh Level-1
 continuation and independent Level-2 CPU image/captured-trace replay remain pending.
+
+Iteration 96 (October 14):
+
+- Added a pointer-free production TSI load-memory read operation owner: phase,
+  address/length and all consumed response words. Atomic restore performs no
+  request/dequeue work; active/interrupted callbacks reject. The actual FireSim
+  TSI uses the owner, while HTIF/context/queues remain independently pending.
+  Initialize the bridge's previously indeterminate FESVR pointer to null.
+- Actual installed-FESVR native/VCS ELF read/modify/write integration passes,
+  including a one-word suspended response, seven complete owner images per
+  backend, merged bytes and original reset request. Selected evidence:
+  `runs/m11-iteration96/real-fesvr-native/invocation-4ed87qfs/summary.json`.
+  All 260 fresh sanitizer/VCS read-component restores pass, with 520 complete
+  pre-edge owners and 193,094 continued records. Each backend passes 306 atomic
+  checks; 28 fresh invalid images reject. Actual valid response corruption first
+  differs at fixture C=127 without acknowledging operation 27. Selected evidence:
+  `loadmem-read-current/invocation-gauvuay_/summary.json`. Initial fixture/oracle
+  diagnostics are preserved. These are host-component cuts, not CPU checkpoints.
+- All 245 Python tests and eight final native regressions pass:
+  `native-regressions-current/invocation-kf453gp_/summary.json`. Retained
+  inventory, clocks, memory/policy, TracerV, driver and CPU-control audits pass.
+  Both complete current four-hart default/buffered controls pass at C=3,329,794;
+  all four complete instruction traces and workload/store labels match the
+  uninterrupted reference. These are CPU controls, not CPU checkpoints.
+- Exact recipe rebuild binds the new owner with all 59 native units unchanged.
+  A fresh ordinary Rocket storage probe passes all 318,637 words / seven clocks
+  before edges. Current CPU preflight/capture/restore still reject TSI or missing
+  durable capability before execution or output publication.
+- Published existing iteration-95 controller commits FireSim
+  `b4e1daad6df62fda628ee56e69e5e71a43cac9d0`, then Chipyard
+  `a20c3f2a2ddac0f63e3627575d25302a9c96890b`; remote tips independently confirmed.
+  Read-only local tracking-ref update diagnostics are retained. No staging or
+  local commits; plans, environments, indexes and local heads remain intact.
+- Recovery: `runs/m11-iteration96/`; ownership details in
+  [tsi-loadmem-read.md](tsi-loadmem-read.md). Selected controls:
+  `rocket-controls/invocation-hh3w9zq2/summary.json`; exact executable checks in
+  `verification-commands.json`. All 37,119 original native artifacts/input
+  bindings are sealed in `native-input-archives.json`; both retention audits
+  pass. Complete file paths are
+  in `artifact-manifest.json`. Complete HTIF caller/context and
+  transport ownership, coherent CPU capture and both independent checkpoint
+  levels remain pending. BOOM/Saturn remain pending. No dependency is missing.
 
 Iteration 95 (October 14):
 
