@@ -1,13 +1,13 @@
 # CPU checkpoint matrix
 
-Current milestone: M11 Rocket, iteration 85. Level-1 and Level-2 acceptance
+Current milestone: M11 Rocket, iteration 86. Level-1 and Level-2 acceptance
 remain **in_progress**. No CPU checkpoint continuation or clean CPU RTL replay
 has passed. Physical FPGA validation, standalone Shuttle and ASIC power are
 outside this matrix. The verified FCFS evidence remains in its existing docs.
 
 | Family / existing recipe | Level 1 | Level 2 | Workload evidence |
 | --- | --- | --- | --- |
-| Rocket / `firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3` | in_progress: generated RTL inventory audited; private-memory blockdev and explicit buffered-file UART host adapters pass native component continuation; complete runtime ownership and fresh CPU continuation pending | in_progress: fresh complete ChipTop inventory rejects its block-device clock alias | Full 16 GiB native VCS controls and all four instruction traces retained; four actual memory faults pass in Spike; see iteration 85 below |
+| Rocket / `firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3` | in_progress: generated RTL inventory audited; private-memory blockdev, explicit buffered-file UART and buffered heartbeat host adapters pass native component continuation; complete runtime ownership and fresh CPU continuation pending | in_progress: complete ChipTop inventory rejects its block-device clock alias | Full 16 GiB native VCS controls and all four instruction traces retained; four actual memory faults pass in Spike; see iterations 85/86 below |
 | BOOM / `firesim_boom_singlecore_no_nic_l2_llc4mb_ddr3` | pending | pending | No execution claimed |
 | Shuttle + Saturn / `firesim_saturn_GENV256D128_shuttle_singlecore_no_nic_l2_llc4mb_ddr3` | pending | pending | No vector execution claimed |
 
@@ -32,6 +32,125 @@ The recipe also specifies frequency 140 MHz and TIMING build strategy; these
 are retained in the recipe record, with no FPGA implementation invoked.
 VCS uses Y-2026.03-SP1, `-full64`, `VCS_FLAGS=-Mupdate`, system GCC/G++ 13,
 and the sourced Conda library/include directories. No Conda files are edited.
+
+## Iteration 86: heartbeat host ownership
+
+Diagnostic root:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration86/`.
+
+`firesim.widget.heartbeat.v1` supports completed, unpoisoned calls before
+`finish()` with explicit `+heartbeat-checkpoint-buffered`. The payload owns
+`trip_count`, `last_cycle`, sticky `has_timed_out`, the signed 64-bit start epoch
+and every `(target count, signed elapsed seconds)` log sample. Configuration
+binds `polling_interval`, `ignore_heartbeat` and the complete clock host
+configuration: actual Rocket MMIO addresses 1088 through 1108. Generated
+clock counters/latches and transport queues remain separate owners. A fresh
+process may choose a new `+heartbeat-output` destination; construction and
+restore leave its existing bytes untouched, and successful `finish()` publishes
+the full log including the restored prefix. Default live-file mode rejects
+checkpointing. Finished, suspended/reentrant and interrupted calls reject.
+Parse, consistency checks and allocations precede all restore mutations.
+The CPU profile/whitelist and independent Level-2 schemas remain unchanged.
+
+`heartbeat-native/latest.json` selects `native-wshv6rpb/summary.json`.
+Native ASan/UBSan and VCS DPI each pass 48 fresh continuations across all 16
+cuts in three scenarios: interval two with termination enabled/ignored, and
+interval zero polling every call. The independent oracle checks every state
+byte before the first edge, full final state, every MMIO operation/termination
+result at its original **fixture** boundary, and all published CSV bytes.
+Cuts cover startup, pre-poll counts, 64-bit cycle progress, no-progress timeout,
+sticky timeout and late samples. Test-only wall time also steps backwards;
+the saved signed diagnostic timestamps survive independently of termination.
+Production wall-clock timestamps remain diagnostic and may reflect restore
+downtime; target behavior depends only on polling/observed cycle state.
+
+Each backend passes 772 malformed/incompatible/incomplete/lifecycle assertions
+without partial owner mutation or MMIO. Checks bind all clock addresses,
+interval/partition settings and reject missing rows, bad counters/epochs/flags,
+inconsistent timeout/history, live logs, reentrancy and interrupted operations.
+Structurally valid actual polling-counter corruption first fails
+`heartbeat_poll` at fixture C=107, operation 1; no cycle read, termination
+result or next operation occurs. All positive readbacks/traces are re-audited
+after negative cases. These are host component checks, not Rocket target-cycle
+cuts, complete `.fsckpt` continuation or semantic CPU replay acceptance.
+
+Run from the Chipyard root (new retained component directory per invocation):
+
+```sh
+source env.sh && source sims/firesim/env.sh
+source automations/checkpoint_loop/vcs-env.sh
+python -m tools.checkpoint_formats.tests.verify_heartbeat_checkpoint_vcs \
+  --rocket-header automations/checkpoint_loop/runs/m11-iteration85/build/f2/f2-firesim-FireSim-WithDefaultFireSimBridges_WithFireSimTestChipConfigTweaks_chipyard.QuadRocketConfig-WithAutoILA_FRFCFS16GBQuadRankLLC4MB_BaseF2Config/FireSim-generated.const.h \
+  --out automations/checkpoint_loop/runs/m11-iteration86/heartbeat-native
+```
+
+The exact-recipe current native rebuild links the heartbeat adapter, binds 207
+actual inputs and 58 host translation units, and uses the pinned native
+VCS/GCC/G++ settings above. Full default/buffered four-hart controls pass at
+target count 3,329,794, with all four complete traces and decoded phase,
+completion, failure, retired-store and HTIF labels matching the previous
+uninterrupted control. A third full run through `run-rocket-polling-control.py`
+uses `+heartbeat-polling-interval=1024 +partitioned=1`, exercising real clock
+MMIO with timeout checks disabled during boot stalls. It also passes at target
+count 3,329,794 and captures 202 actual clock samples from C=16,459 through
+3,322,351. Every full hart trace and decoded workload/store label matches the
+same uninterrupted reference. Physical host timing differs; sampled target
+labels remain identical. Workload ELF SHA256 remains
+`f3d86f54caf42b9589385e8021dba46777f647134f19595e38a3d452b745f3d4`.
+The earlier controls retain the default interval 1,000,000 and correctly emit
+header-only heartbeat logs for this workload. All 219 Python tests, full M2/M3 VCS metasim/ordinary RTL,
+52 existing widget continuations, current UART/blockdev native/VCS component
+checks and eight FCFS Make/four generator guards pass. All seven executable
+checks/results are `regression-commands.json` / `regression-results.json`.
+Historical iteration-84/85 evidence remains independently audited using
+archived original heartbeat sources bound to exact pinned FireSim Git objects;
+it does not substitute for current native source binding.
+Fresh current-source ChipTop discovery still rejects `bdev_clock`, publishing
+no partial semantic manifest/ordinary RTL. Rebuilt CPU preflight/save/restore
+still reject incomplete runtime ownership without partial images.
+
+The initial control wrapper incorrectly asserted a heartbeat sample at the
+legacy interval. Both full native runs passed; the corrected complete audit
+passes using the exact executed command metadata and archived launcher
+`run-rocket-controls.initial.py`. Initial diagnostics remain in
+`rocket-controls.log` and the passing re-audit is
+`rocket-controls-audit-retry.log`. No native run was shortened or skipped.
+
+Reproduce complete exact-recipe native VCS controls and the regression scope
+from the Chipyard root (no FPGA build):
+
+```sh
+source env.sh && source sims/firesim/env.sh
+source automations/checkpoint_loop/vcs-env.sh
+PYTHONPATH="$PWD" python automations/checkpoint_loop/runs/m11-iteration86/run-rocket-controls.py
+PYTHONPATH="$PWD" python automations/checkpoint_loop/runs/m11-iteration86/run-rocket-polling-control.py
+python automations/checkpoint_loop/runs/m11-iteration86/run-regressions.py
+```
+
+Every nested VCS shell independently sources both environments and
+`vcs-env.sh` last. `rocket-native-commands.json`, `rocket-polling-commands.json`
+and the component `commands.json` retain executed argv, logs and results.
+`selected-evidence.json` selects complete current artifacts;
+`artifact-manifest.json` lists generated artifacts by full path and hash.
+`summary.json` preserves both CPU levels as incomplete. Independently audit:
+
+```sh
+python -m automations.checkpoint_loop.runs.m11-iteration86.verify-evidence
+```
+
+The reusable check binds current native sources, generated declarations,
+every component readback/transaction, complete CPU controls, preserved
+regressions, explicit runtime/semantic rejection, historical source objects
+and publication/protected-input/controller ancestry. Raw index/HEAD bytes
+are separately checked only at implementation-turn end, preserving the loop
+controller's next staging/commit. Existing controller commits were published
+FireSim first (`4e564603726d151e0a0ad020b13259148297ad01`), then Chipyard
+(`5577b7b9288d77512d093e45bf3ddcac50478d75`), with confirmed remote tips.
+No new commits/staging, protected plan/environment edits or external dependency
+failure. Complete CPU restore/replay and all required active cuts remain pending.
+Complete run-loop, TSI/FESVR, TracerV and remaining owners, coherent CPU cuts,
+fresh full Level-1 restores and independent multi-clock semantic CPU
+capture/restore/finite replay remain pending.
 
 ## Iteration 85: UART ownership and reusable evidence
 

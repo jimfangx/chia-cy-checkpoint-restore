@@ -14,13 +14,68 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 85, in progress. Recovery:
+Current milestone: M11-rocket-level1-level2, iteration 86, in progress. Recovery:
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Exact Rocket generated RTL
 inventory passes independently; private-memory blockdev and explicit
-buffered-file UART host components pass fresh native/VCS continuations.
+buffered-file UART and buffered heartbeat host components pass fresh native/VCS continuations.
 Complete runtime ownership/fresh Level-1 continuation and multi-clock Level-2
 restore/replay remain pending.
 No CPU checkpoint acceptance yet.
+
+Iteration 86 (October 13):
+
+- Re-read the current read-only priorities, relevant simulator/semantic plan
+  sections, progress/publication instructions and root-paper capture/replay
+  extracts before editing. Protected inputs and controller heads/indexes are
+  recorded under `runs/m11-iteration86/`.
+- Implemented `firesim.widget.heartbeat.v1`, gated on explicit
+  `+heartbeat-checkpoint-buffered`. Own the polling counter, last observed
+  64-bit target count, sticky timeout, start epoch and complete log samples;
+  bind interval/partition mode and the actual clock owner's six MMIO addresses.
+  Completed calls before finish are supported. Live log files and
+  finished/suspended/interrupted calls reject; decode/allocation precede mutation.
+- Native ASan/UBSan and fresh VCS DPI pass 96 continuations, complete zero-edge
+  readback, all MMIO/termination boundaries and full buffered log retention.
+  Each backend passes 772 negative assertions without partial restore/MMIO.
+  Actual valid poll-counter corruption first fails `heartbeat_poll` at fixture
+  C=107, operation 1, before reading the cycle or returning termination status.
+  Fixture wall time is deterministic; production timestamps remain diagnostic.
+  These checks establish a host component, not complete CPU checkpoint support.
+- Exact-recipe native Rocket rebuild links the adapter, with 207 current
+  inputs, 58 host translation units and the pinned VCS/GCC/G++ setup.
+  Default and buffered full four-hart controls pass at C=3,329,794, with all
+  four complete traces and decoded workload/store labels matching the previous
+  uninterrupted run. A third full control with actual frequent heartbeat
+  polling also passes at C=3,329,794, retaining 202 real clock samples
+  (C=16,459 through 3,322,351) and identical complete traces/store labels.
+  Workload SHA256 remains
+  `f3d86f54caf42b9589385e8021dba46777f647134f19595e38a3d452b745f3d4`.
+  All 219 Python tests, full M2/M3
+  VCS metasim/ordinary RTL checks, 52 existing widget continuations, UART and
+  blockdev native/VCS continuations and eight FCFS Make/four generator guards
+  pass. Historical iteration-84/85 evidence passes with archived original
+  heartbeat sources independently checked against pinned Git objects.
+- Fresh current-source ChipTop discovery still rejects `bdev_clock`, emitting
+  no partial semantic outputs. Rebuilt CPU preflight/save/restore still reject
+  incomplete runtime ownership without partial checkpoint publication.
+  The initial control wrapper incorrectly required heartbeat samples at the
+  default interval; both actual native runs passed, and the corrected full
+  audit passes. Preserve `run-rocket-controls.initial.py`, `rocket-controls.log`
+  and the separate passing retry. Frequent polling is checked independently
+  by the third full run, retaining the original control scope.
+- Published existing controller commits FireSim
+  `4e564603726d151e0a0ad020b13259148297ad01`, then Chipyard
+  `5577b7b9288d77512d093e45bf3ddcac50478d75`, confirming both remote tips.
+  No staging/local commits; plans, environment inputs, indexes and heads
+  remain preserved. An interim direct Python checker lacked `PYTHONPATH`;
+  the correct package invocation passes, and the original diagnostic remains.
+- Complete CPU Level-1 ownership/continuation and independent
+  multi-clock Level-2 inventory/zero-edge readback/replay remain pending.
+  Recovery and executable native checks: [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md).
+  `runs/m11-iteration86/selected-evidence.json`, `summary.json`,
+  `verification-commands.json`, `artifact-manifest.json` and `verify-evidence.py`
+  recover exact artifacts and source-bound checks. No required external
+  dependency is missing; physical FPGA/ASIC work remains deferred.
 
 Iteration 85 (October 13):
 
