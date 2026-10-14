@@ -14,13 +14,69 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 87, in progress. Recovery:
+Current milestone: M11-rocket-level1-level2, iteration 88, in progress. Recovery:
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Exact Rocket generated RTL
 inventory passes independently; private-memory blockdev and explicit
 buffered-file UART and buffered heartbeat host components pass fresh native/VCS continuations.
 Complete runtime ownership/fresh Level-1 continuation and multi-clock Level-2
 restore/replay remain pending.
 No CPU checkpoint acceptance yet.
+
+Iteration 88 (October 13–14):
+
+- Implemented pre-FAME clock provenance through concrete nested/sibling outputs,
+  transparent one-bit IO cells and exact Clock/UInt bitcasts. Dependencies resolve
+  lazily and distinguish parent pins from child ports. Generated/gated/undriven/
+  cyclic clocks, data inputs, registers used as aliases, opaque definitions and
+  distinct state domains continue to reject. No CPU profile/schema is enabled.
+- All 13 Scala inventory checks pass. The new forwarded-clock fixture passes
+  native VCS metasim capture and five fresh ordinary RTL VCS restores/replays
+  at fixture C=0/5/22/24/26: all 22 words / 15 semantic entries read back before
+  edges, and all 108 continuation samples compare all 13 outputs. Five actual
+  invalid/incompatible/incomplete images and four native loader cases reject
+  before partial publication/deposit. Actual stored `a.saved` corruption after
+  full readback first fails `io_left` at fixture C=26, acknowledging zero edges.
+  The independent fixture audit passes. This is compiler/fixture evidence,
+  not CPU checkpoint acceptance.
+- Exact Rocket ChipTop discovery gets past the clock aliases and now rejects
+  L2 directory `cc_dir_0` (read=1/write=1, readwrite port), publishing no partial
+  semantic outputs. The raw hierarchy diagnostic records 1,488 instances,
+  7,734 explicit registers and 500 memories / 310,493 logical words, including
+  404 memory-pipeline obligations and six opaque plusarg readers. Implicit
+  pipeline/opaque state remains unowned; these totals are not a full manifest.
+- All 221 Python tests and eight preserved native regression checks pass,
+  including M2/M3 metasim/ordinary RTL, 52 widget, 18 UART, 30 blockdev and
+  96 heartbeat continuations and FCFS Make/generator guards. Full exact-recipe
+  default/buffered four-hart controls pass at C=3,329,794; all full traces and
+  decoded workload/store labels match the uninterrupted reference. All six
+  complete generated source/inventory comparisons match the prior build.
+  The workload hash remains `f3d86f54caf42b9589385e8021dba46777f647134f19595e38a3d452b745f3d4`.
+  Fresh CPU preflight/save/restore reject incomplete runtime support without
+  partial images. These controls/rejections do not establish CPU continuation.
+  The combined independent evidence audit passes with 527 retained native
+  input/report bindings; plans/environment inputs/indexes/heads are preserved.
+- Published existing controller checkpoints FireSim
+  `aa143ccc404eb97faff3a23249e2d38027a6d969`, then Chipyard
+  `c9b10d3634173bdd010df5092efcdff81ad83381`, confirming remote tips. Git could
+  not update local remote-tracking refs on read-only metadata; both remote
+  pushes succeeded. No local staging/commits or required external dependency
+  failure. Initial compiler/fixture launcher diagnostics and complete retries
+  remain under `runs/m11-iteration88/`.
+- Recovery: `forwarded-verified-native/summary.json`,
+  `independent-fixture-audit.json`, `rocket-semantic-final-inventory/summary.json`,
+  `rocket-semantic-memory-obligations.json`, `regression-complete/`,
+  `selected-evidence.json` and `native-input-archives.json` under that run root.
+  `rocket-controls/invocation-8mdtqxuy/summary.json` retains the complete native
+  controls; `verification-commands.json` and `verify-evidence.py` check the
+  selected original artifacts without replacing them.
+  `summary.json` and `artifact-manifest.json` enumerate final scope and full
+  artifact paths. Exact native inner argv are in `executed-native-commands.json`.
+  Executable native checks are in [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md).
+  Next: own synchronous/readwrite memory pipeline state and multi-clock events;
+  implement coherent CPU cuts, run-loop, TSI/FESVR, TracerV and remaining runtime
+  owners; then fresh complete CPU Level-1 restores and independent Level-2
+  capture/zero-edge readback/finite replay at all active cuts, with CPU image
+  rejection and first-divergence cases. Physical FPGA/ASIC work stays deferred.
 
 Iteration 87 (October 13):
 
