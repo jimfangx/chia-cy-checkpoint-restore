@@ -28,20 +28,20 @@ tsibridge_t::tsibridge_t(simif_t &simif,
   args_vec.push_back("firesim_tsi");
 
   // This particular selection is vestigial. You may change it freely.
-  step_size = 2004765L;
+  uint32_t step_size = 2004765L;
 
   // During the initial program phase speed up when FESVR is called
   // (i.e. speed up program loading when loadmem isn't/can't be used)
   // (disabled by default)
-  fast_fesvr = false;
+  bool fast_fesvr = false;
 
   // This particular selection is correlated to the amount of reset cycles.
   // It should be larger than the reset period.
-  wait_ticks = 8;
+  uint32_t wait_ticks = 8;
 
   // This particular selection is vestigial. You may change it freely.
   // This * wait_ticks is should be larger than the reset period.
-  loading_step_size = fast_fesvr ? 8 : step_size;
+  const uint32_t loading_step_size = fast_fesvr ? 8 : step_size;
 
   for (auto &arg : args) {
     if (arg.find("+fesvr-step-size=") == 0) {
@@ -84,6 +84,20 @@ tsibridge_t::tsibridge_t(simif_t &simif,
   printf("\n");
 
   tsi_argc = argc_count + 1;
+
+  // Bind the selected bridge, every MMIO address, memory transport and the
+  // exact per-TSI argv. Parent build/workload identity remains independently
+  // required by the future aggregate coordinator.
+  widget_checkpoint_config_t identity(17, {
+      uint64_t(tsino), mmio_addrs.in_bits, mmio_addrs.in_valid,
+      mmio_addrs.in_ready, mmio_addrs.out_bits, mmio_addrs.out_valid,
+      mmio_addrs.out_ready, mmio_addrs.step_size, mmio_addrs.done,
+      mmio_addrs.start, uint64_t(has_mem), uint64_t(mem_host_offset),
+      loadmem_widget.get_mem_data_chunk(), uint64_t(tsi_argc)});
+  for (const auto &arg : args_vec)
+    identity.text(arg);
+  control = std::make_unique<tsi_bridge_state_t>(
+      std::move(identity), step_size, loading_step_size, wait_ticks, fast_fesvr);
 }
 
 tsibridge_t::~tsibridge_t() {
@@ -98,21 +112,32 @@ tsibridge_t::~tsibridge_t() {
   }
 }
 
-void tsibridge_t::init() {
-  // `ucontext` used by tsi cannot be created in one thread and resumed in
-  // another. To ensure that the tsi process is on the correct thread, it is
-  // built here, as the bridge constructor may be invoked from a thread other
-  // than the one it will run on later in meta-simulations.
-  fesvr = new firesim_tsi_t(tsi_argc, tsi_argv, has_mem);
-  if (fast_fesvr) {
-    printf("tsibridge_t::init set FESVR step-size to %" PRIu32 " initially\n",
-           loading_step_size);
-    write(mmio_addrs.step_size, loading_step_size);
-  } else {
-    write(mmio_addrs.step_size, step_size);
-    fesvr->set_loaded_in_target(true); // pre-set to unblock fs_tsi_t::reset
+class tsibridge_t::services_t final : public tsi_bridge_state_t::services_t {
+public:
+  explicit services_t(tsibridge_t &bridge) : bridge(bridge) {}
+  void create() override {
+    // Create ucontext on the execution thread, as in the original bridge.
+    bridge.fesvr = new firesim_tsi_t(bridge.tsi_argc, bridge.tsi_argv, bridge.has_mem);
   }
-  go();
+  void write_step(uint32_t step) override { bridge.write(bridge.mmio_addrs.step_size, step); }
+  void loaded_in_target() override { bridge.fesvr->set_loaded_in_target(true); }
+  void go() override { bridge.go(); }
+  bool done() override { return bridge.read(bridge.mmio_addrs.done); }
+  void receive() override { bridge.recv(); }
+  bool data_available() override { return bridge.fesvr->data_available(); }
+  void advance() override { bridge.fesvr->tick(); }
+  bool requests_pending() override { return bridge.fesvr->has_loadmem_reqs(); }
+  void bypass() override { bridge.tsi_bypass_via_loadmem(); }
+  bool terminated() override { return bridge.fesvr->done(); }
+  void send() override { bridge.send(); }
+  bool loaded_in_host() override { return bridge.fesvr->loaded_in_host(); }
+private:
+  tsibridge_t &bridge;
+};
+
+void tsibridge_t::init() {
+  services_t services(*this);
+  control->initialize(services);
 }
 
 void tsibridge_t::go() { write(mmio_addrs.start, 1); }
@@ -171,41 +196,9 @@ void tsibridge_t::tsi_bypass_via_loadmem() {
 }
 
 void tsibridge_t::tick() {
-  // First, check to see step_size tokens have been enqueued
-  if (!read(mmio_addrs.done))
-    return;
-  if (wait_ticks != 0) {
-    wait_ticks -= 1;
-    printf("tsibridge_t::tick skipping tick\n");
-    go();
-    return;
-  }
-  // Collect all the responses from the target
-  this->recv();
-  // Punt to FESVR
-  if (!fesvr->data_available()) {
-    fesvr->tick();
-  }
-  if (fesvr->has_loadmem_reqs()) {
-    tsi_bypass_via_loadmem();
-  }
-  if (!terminate()) {
-    // Write all the requests to the target
-    this->send();
-    if (fast_fesvr) {
-      if (fesvr->loaded_in_host()) {
-        if (!fesvr->data_available()) {
-          fesvr->set_loaded_in_target(true); // done w/ firesim loading
-          printf("tsibridge_t::tick reverting FESVR step-size to %" PRIu32 "\n",
-                 step_size);
-          write(mmio_addrs.step_size, step_size);
-          fast_fesvr = false; // only write this user-defined step size once
-        }
-      }
-    }
-    go();
-  }
+  services_t services(*this);
+  control->tick(services);
 }
 
-bool tsibridge_t::terminate() { return fesvr->done(); }
-int tsibridge_t::exit_code() { return fesvr->exit_code(); }
+bool tsibridge_t::terminate() { return control->query([this] { return fesvr->done(); }); }
+int tsibridge_t::exit_code() { return control->query([this] { return fesvr->exit_code(); }); }

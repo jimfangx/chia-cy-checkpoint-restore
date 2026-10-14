@@ -16,7 +16,7 @@ from tools.checkpoint_formats.codec import require
 from tools.checkpoint_formats.evidence import file_sha
 from tools.checkpoint_formats.retained_evidence import check_native_input
 from tools.checkpoint_formats.tests.verify_semantic_vcs import ROOT, run
-from tools.checkpoint_formats.tests.verify_loadmem_read_checkpoint_vcs import ENVIRONMENT
+from tools.checkpoint_formats.tests.verify_loadmem_read_checkpoint_vcs import ENVIRONMENT, config, words
 from tools.checkpoint_formats.tests.verify_firesim_tsi_loadmem_vcs import elf_bytes
 
 TESTS = Path(__file__).resolve().parent
@@ -99,6 +99,11 @@ def audit(path):
         require(file_sha(binding['snapshot']) == binding['sha256'], 'changed source snapshot')
         check_native_input(ROOT, binding['path'], binding['sha256'], bindings)
     require((path.parent / 'partial-write.elf').read_bytes() == elf_bytes(), 'changed actual integration ELF')
+    control_checked = str(STUBS/'bridges/tsi_bridge_state.h') in bindings
+    if control_checked:
+        require(all((path.parent/backend/f'bridge-{chunk}-control-{cut}.owner').is_file()
+                    for backend in ('native','vcs-dpi') for chunk in (1,2) for cut in range(6)),
+                'incomplete actual bridge control capture')
     counts = audit_outputs(path.parent)
     for command in report['commands']:
         log = Path(command['log']).read_text()
@@ -107,6 +112,7 @@ def audit(path):
         require(not any(marker in log for marker in ('ERROR: AddressSanitizer', 'runtime error:',
                                                      'LeakSanitizer: detected')), 'sanitizer error')
     return dict(status='passed', summary=str(path), **counts,
+                actual_bridge_control_readbacks=24 if control_checked else 0,
                 level1_verified=False, level2_verified=False)
 
 
@@ -128,6 +134,20 @@ def audit_outputs(out):
             require((base / f'bridge-{chunk}-result.txt').read_text() ==
                     f'REAL_BRIDGE chunk={chunk} merged_bytes=8 reset_words=6 ticks=4 unsupported_checkpoint=1\n',
                     'incomplete real bridge test')
+            # Historical evidence retains its original transport-only scope.
+            # New invocations include complete actual bridge host payloads.
+            if (base / f'bridge-{chunk}-control-0.owner').exists():
+                args=['firesim_tsi','+permissive','+fesvr-wait-ticks=0',
+                      '+fesvr-step-size=128','+permissive-off',str(out/'partial-write.elf')]
+                expected=config(17,0,1024,1028,1032,1036,1040,1044,1048,1052,1056,
+                                1,(-0x80000000) % 2**64,chunk,len(args))
+                for arg in args:
+                    encoded=arg.encode();expected+=words(len(encoded))+encoded
+                expected+=words(128,2004765,0,0)
+                for cut in range(6):
+                    require((base/f'bridge-{chunk}-control-{cut}.owner').read_bytes()==
+                            expected+words(0,int(cut>0)),
+                            'actual TSI bridge complete host control mismatch '+str((backend,chunk,cut)))
     return dict(direct_requests=2*len(cases()), compared_direct_records=2*len(direct),
                 actual_bridge_runs=4, invalid_requests_before_io=32, callback_unwind_checks=4)
 
@@ -154,7 +174,7 @@ def main():
             TESTS/'verify_firesim_tsi_loadmem_vcs.py',TESTS/'verify_semantic_vcs.py',
             TESTS/'loadmem_transport_tb.sv',STUBS/'fesvr/firesim_tsi.h',STUBS/'fesvr/loadmem_read.h',STUBS/'fesvr/loadmem_read_transport.h',
             STUBS/'fesvr/loadmem_queues.h',
-            STUBS/'bridges/tsibridge.h',STUBS/'bridges/serial_data.h',CC/'bridges/loadmem.h',
+            STUBS/'bridges/tsibridge.h',STUBS/'bridges/tsi_bridge_state.h',STUBS/'bridges/serial_data.h',CC/'bridges/loadmem.h',
             CC/'core/simif.h',CC/'core/bridge_driver.h',CC/'core/widget.h',CC/'core/config.h',
             CC/'core/stream_engine.h',CC/'core/widget_registry.h',CC/'core/timing.h',
             TESTCHIP/'testchip_tsi.h',TESTCHIP/'testchip_htif.h',CC/'core/checkpoint.h',CC/'core/widget_checkpoint.h',

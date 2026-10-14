@@ -14,15 +14,65 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 98, in progress. Recovery:
+Current milestone: M11-rocket-level1-level2, iteration 99, in progress. Recovery:
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Exact Rocket discovery now
 emits a complete pre-FAME storage/clock inventory and compiler-bound clean access
 map: 8,644 entries / 318,637 words / seven state clocks plus six initialized values.
 Independent emitted-RTL audit and full ordinary RTL VCS diagnostic zero-edge
 readback pass. These are storage probes, not workload checkpoints. Explicit
-clock-event images and fresh ordinary RTL replay now pass component checks.
-Complete CPU runtime ownership, coherent metasim workload cuts, fresh Level-1
-continuation and independent Level-2 CPU image/captured-trace replay remain pending.
+clock-event images and fresh ordinary RTL replay pass component checks.
+Production TSI read/queue and bridge host-control ownership now pass fresh
+component restores. Complete HTIF/context/serial/idle/reset ownership, coherent
+CPU cuts, fresh Level-1 continuation and independent Level-2 CPU replay remain
+pending. No CPU checkpoint acceptance or missing dependency is claimed.
+
+Iteration 99 (October 14):
+
+- Added production `firesim.tsi.bridge-control.v1`: initialized state, remaining
+  reset-delay cursor and one-time fast-loading transition, bound to MMIO/TSI/
+  memory/argument/step configuration. Whole init/tick/status calls guard active,
+  reentrant and interrupted access. Restore validates both words before mutation
+  and executes no services. Aggregate TSI/CPU support remains disabled. See
+  [tsi-bridge-control.md](tsi-bridge-control.md).
+- All 228 fresh sanitizer/VCS component restores pass: 2,584 complete readbacks,
+  2,356 continuation records and 3,090 atomic/lifecycle/callback checks per
+  backend. Forty invalid images reject atomically. Valid wait-cursor corruption
+  first differs at fixture C=119 / operation 19 (`RECEIVE` versus `GO`), with
+  zero resumed operations acknowledged. These are component fixture cuts.
+- Actual installed-FESVR transport retains all 1,012 requests / 566,096 records,
+  invalid/callback/merge/reset tests and 24 independent actual bridge-control
+  payload checks. All 24 actual images additionally restore in both fresh native
+  sanitizer and VCS processes: 48 complete readbacks, no services or edges.
+  Fourteen actual read images / 22 queue images pass. Prior read and queue suites
+  pass again: 260 and 340 fresh continuations/restores, respectively. All four
+  private transport faults still reject their first unacknowledged wrong word.
+- All 245 Python tests and eight preserved native regressions pass; independent
+  audits retain 5,116 artifacts / 698 original source bindings. Four retained
+  inventory/clock/memory/policy/TracerV audits and a fresh ordinary Rocket RTL
+  318,637-word / seven-clock diagnostic probe pass. Complete CPU preflight,
+  capture and restore still reject before run/publication.
+- Exact recipe rebuild binds the bridge-control owner with all 59 native units
+  unchanged. Both complete four-hart default/buffered controls pass at C=3,329,794;
+  all four full traces per mode and workload/store labels match the uninterrupted
+  reference. These are CPU controls, not CPU checkpoint continuations.
+- Published existing iteration-98 controller commits FireSim
+  `bd38643e84405ca75f02092ce2e2615e6042d419`, then Chipyard
+  `9d909c6ff114d8eb73268badc17663b8f84f73ca`; both independent remote tips match.
+  Local read-only tracking-ref diagnostics are retained. No staging/local
+  commits or protected plan/environment edits.
+- Recovery: `runs/m11-iteration99/`; exact selected native paths and executable
+  checks are recorded in [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md).
+  All created paths are in `artifact-manifest.json`; original native artifacts
+  and inputs are sealed in `native-input-archives.json`. Original executed
+  commands/exits and runnable checks are retained in `executed-native-commands.json`
+  and `verification-commands-native.json`.
+  The next required ownership includes FESVR private serial queues and suspended
+  caller/context, HTIF poll/fromhost/device state, TestChip load/init progress,
+  FireSim idle/reset cursors and cross-owner validation. The nonvirtual HTIF
+  run path prevents a derived-name override from replacing its suspended caller.
+  Coherent early/warmed/outstanding-memory/late CPU cuts and both independent
+  checkpoint levels remain pending. No dependency is missing. BOOM/Saturn remain
+  pending; standalone Shuttle, physical FPGA and ASIC work remain deferred.
 
 Iteration 98 (October 14):
 

@@ -136,9 +136,22 @@ static void actual_bridge(const std::filesystem::path &out,const char *elf,unsig
   tsibridge_t bridge(io,memory,ts,0,{"+permissive","+fesvr-wait-ticks=0","+fesvr-step-size=128",
                                    "+permissive-off",elf},true,-0x80000000LL);
   check(bridge.checkpoint_schema().empty(),"incomplete TSI checkpoint enabled");
+  const auto stem="bridge-"+std::to_string(chunk);
+  auto snapshot=[&](unsigned cut) {
+    const auto before=io.calls;
+    auto image=bridge.control_owner().save_checkpoint();
+    bridge.control_owner().validate_checkpoint(image);
+    check(before==io.calls,"control capture/validation executed MMIO");
+    std::ofstream owner(out/(stem+"-control-"+std::to_string(cut)+".owner"),std::ios::binary);
+    owner.write(reinterpret_cast<const char *>(image.data()),image.size());
+    check(bool(owner),"cannot write actual bridge owner");
+  };
+  snapshot(0);
   bridge.init();
+  snapshot(1);
   for(unsigned tick=0;tick<4;++tick) {
     trace<<"TICK "<<tick<<'\n';bridge.tick();
+    snapshot(tick+2);
   }
   for(unsigned i=0;i<4;++i) {
     const uint32_t value=(4*i)|((4*i+1)<<8)|((4*i+2)<<16)|((4*i+3)<<24);

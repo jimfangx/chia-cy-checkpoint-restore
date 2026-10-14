@@ -4,6 +4,8 @@
 
 #include "bridges/serial_data.h"
 #include "core/bridge_driver.h"
+#include "tsi_bridge_state.h"
+#include <memory>
 
 class loadmem_t;
 class firesim_tsi_t;
@@ -39,6 +41,10 @@ public:
   virtual bool terminate();
   virtual int exit_code();
 
+  // Inspection of this component does not enable the bridge's unsupported
+  // aggregate checkpoint contract or restore the FESVR coroutine.
+  const checkpoint_owner_t &control_owner() const { return *control; }
+
 private:
   const TSIBRIDGEMODULE_struct mmio_addrs;
   loadmem_t &loadmem_widget;
@@ -47,16 +53,8 @@ private:
   bool has_mem;
   // host memory offset based on the number of memory models and their size
   int64_t mem_host_offset;
-  // Number of target cycles between fesvr interactions
-  uint32_t step_size;
-  // Same as step_size but value during initial programing phase
-  uint32_t loading_step_size;
-  // During the initial program phase speed up when FESVR is called
-  // (i.e. speed up program loading when loadmem isn't/can't be used)
-  bool fast_fesvr;
-  // Delay n ticks to avoid race-condition where target reset resets the bridge
-  // state and drops xacts
-  uint32_t wait_ticks;
+  std::unique_ptr<tsi_bridge_state_t> control;
+  class services_t;
 
   // Arguments passed to firesim_tsi.
   char **tsi_argv = nullptr;
