@@ -8,13 +8,24 @@
 #include <cstdlib>
 namespace fs=std::filesystem;
 static void require(bool b,const char *s) {if(!b) throw std::runtime_error(s);}
+static void serial_snapshot(firesim_tsi_t &tsi,const fs::path &out,const std::string &name) {
+  auto bytes=tsi.serial_queue_owner().save_checkpoint();
+  std::ofstream f(out/(name+".serial"),std::ios::binary);
+  f.write(reinterpret_cast<const char *>(bytes.data()),bytes.size());require(bool(f),"cannot save serial owner");
+}
 static void snapshot(firesim_tsi_t &tsi,const fs::path &out,const std::string &name) {
   auto bytes=tsi.host_control_owner().save_checkpoint();
   std::ofstream f(out/(name+".host"),std::ios::binary);
   f.write(reinterpret_cast<const char *>(bytes.data()),bytes.size());require(bool(f),"cannot save owner");
+  serial_snapshot(tsi,out,name);
 }
-static void serial(firesim_tsi_t &tsi,const std::vector<uint32_t> &expected) {
-  for(auto word:expected) require(tsi.data_available() && tsi.recv_word()==word,"serial reset/poll word differs");
+static void serial(firesim_tsi_t &tsi,const std::vector<uint32_t> &expected,const fs::path &out,const std::string &name) {
+  serial_snapshot(tsi,out,name+"-queued");
+  size_t index=0;
+  for(auto word:expected) {
+    require(tsi.data_available() && tsi.in_valid() && tsi.in_bits()==word && tsi.recv_word()==word,"serial reset/poll word differs");
+    serial_snapshot(tsi,out,name+"-pop-"+std::to_string(index++));
+  }
   require(!tsi.data_available(),"extra serial word");
 }
 static int run(const char *elf,const char *destination,const char *count_text) {
@@ -37,20 +48,23 @@ static int run(const char *elf,const char *destination,const char *count_text) {
     std::array<uint32_t,2> merged{};tsi.recv_loadmem_data(merged.data(),8);
     require(merged[0]==0xaabbccdd && merged[1]==0x77665544,"ELF merge bytes differ");
     snapshot(tsi,out,"reset-wait");tsi.set_loaded_in_target(true);tsi.tick();
-    serial(tsi,{0,0x10000010,0,0,0});snapshot(tsi,out,"reset-child");
+    serial(tsi,{0,0x10000010,0,0,0},out,"init");snapshot(tsi,out,"reset-child");
     for(unsigned i=0;i<3;++i) {tsi.tick();snapshot(tsi,out,"child-wait-"+std::to_string(i));}
-    tsi.send_word(0x89abcdef);tsi.tick();serial(tsi,{0,0x80002000,0,1,0});
+    tsi.send_word(0x89abcdef);serial_snapshot(tsi,out,"init-response");
+    tsi.tick();serial(tsi,{0,0x80002000,0,1,0},out,"first");
     snapshot(tsi,out,"first-poll");
     require(!tsi.busy() && tsi.loaded_in_host(),"first poll flags differ");
     for(unsigned loop=0;loop<3;++loop) {
       // Complete both halves of the original serial read. The final half
       // resumes HTIF's real idle callback rather than a fixture invocation.
-      tsi.send_word(0);tsi.tick();snapshot(tsi,out,"poll-half-"+std::to_string(loop));
-      tsi.send_word(0);tsi.tick();snapshot(tsi,out,"idle-"+std::to_string(loop)+"-0");
+      tsi.send_word(0);serial_snapshot(tsi,out,"poll-response-"+std::to_string(loop)+"-0");
+      tsi.tick();snapshot(tsi,out,"poll-half-"+std::to_string(loop));
+      tsi.send_word(0);serial_snapshot(tsi,out,"poll-response-"+std::to_string(loop)+"-1");
+      tsi.tick();snapshot(tsi,out,"idle-"+std::to_string(loop)+"-0");
       for(unsigned yield=1;yield<count;++yield) {
         tsi.tick();snapshot(tsi,out,"idle-"+std::to_string(loop)+"-"+std::to_string(yield));
       }
-      tsi.tick();serial(tsi,{0,0x80002000,0,1,0});snapshot(tsi,out,"busy-poll-"+std::to_string(loop));
+      tsi.tick();serial(tsi,{0,0x80002000,0,1,0},out,"busy-"+std::to_string(loop));snapshot(tsi,out,"busy-poll-"+std::to_string(loop));
       require(tsi.busy() && tsi.loaded_in_host() && !tsi.done(),"busy HTIF poll differs");
     }
     std::cout<<"REAL_HTIF_HOST_CONTROL idle_count="<<count<<" child_waits=3 poll_loops=3 serial_words=25\n";return 0;

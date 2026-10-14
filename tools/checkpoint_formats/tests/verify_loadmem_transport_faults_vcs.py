@@ -111,7 +111,7 @@ def main():
             os.environ.get('CXX') == '/usr/bin/g++-13', 'source vcs-env.sh LAST')
     args.out.resolve().mkdir(parents=True,exist_ok=True)
     out = Path(tempfile.mkdtemp(prefix='invocation-',dir=args.out.resolve()))
-    sources=[TESTS/'loadmem_transport.cc',STUBS/'fesvr/firesim_tsi.cc',
+    sources=[TESTS/'loadmem_transport.cc',STUBS/'fesvr/firesim_tsi.cc',STUBS/'fesvr/owned_fesvr_tsi.cc',
              TESTCHIP/'testchip_tsi.cc',TESTCHIP/'testchip_htif.cc',
              STUBS/'bridges/tsibridge.cc',CC/'bridges/loadmem.cc',CC/'core/widget.cc']
     library=FESVR/'lib/libfesvr.a'; header=STUBS/'fesvr/loadmem_read_transport.h'

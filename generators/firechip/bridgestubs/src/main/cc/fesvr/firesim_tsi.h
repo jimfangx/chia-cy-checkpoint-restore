@@ -2,6 +2,10 @@
 #ifndef __FIRESIM_TSI_H
 #define __FIRESIM_TSI_H
 
+// Include the owned base through a normal project header before TestChip's
+// system include. GCC -MMD otherwise omits this transitive ABI dependency from
+// firesim_tsi/bridge objects in VCS's cached external-C Makefile.
+#include "tsi.h"
 #include "testchip_tsi.h"
 #include "loadmem_read.h"
 #include "loadmem_queues.h"

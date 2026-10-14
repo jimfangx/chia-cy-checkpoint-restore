@@ -118,13 +118,13 @@ def main():
     args.out.resolve().mkdir(parents=True,exist_ok=True)
     out = Path(tempfile.mkdtemp(prefix='invocation-',dir=args.out.resolve()))
     elf=out/'partial-write.elf'; elf.write_bytes(elf_bytes())
-    sources=[TESTS/'firesim_tsi_loadmem_integration.cc',STUBS/'fesvr/firesim_tsi.cc',
+    sources=[TESTS/'firesim_tsi_loadmem_integration.cc',STUBS/'fesvr/firesim_tsi.cc',STUBS/'fesvr/owned_fesvr_tsi.cc',
              TESTCHIP/'testchip_tsi.cc',TESTCHIP/'testchip_htif.cc']
     library=FESVR/'lib/libfesvr.a'
     inputs=[*sources,library,Path(__file__),TESTS/'verify_loadmem_read_checkpoint_vcs.py',
             TESTS/'firesim_tsi_loadmem_integration_tb.sv',STUBS/'fesvr/firesim_tsi.h',STUBS/'fesvr/loadmem_read.h',
             STUBS/'fesvr/loadmem_queues.h',
-            STUBS/'fesvr/tsi_host_control.h',
+            STUBS/'fesvr/tsi_host_control.h',STUBS/'fesvr/tsi.h',STUBS/'fesvr/tsi_serial_state.h',
             TESTCHIP/'testchip_tsi.h',TESTCHIP/'testchip_htif.h',CC/'core/checkpoint.h',CC/'core/widget_checkpoint.h',
             *sorted((FESVR/'include/fesvr').glob('*.h')),
             ROOT/'env.sh',ROOT/'sims/firesim/env.sh',ROOT/'automations/checkpoint_loop/vcs-env.sh']

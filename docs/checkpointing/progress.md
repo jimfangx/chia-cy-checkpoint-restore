@@ -14,12 +14,43 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 100, in progress. Recovery:
-[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Production TSI read, queues,
-bridge control and FireSim idle/reset control now have separate audited owners.
-Complete FESVR/HTIF/TestChip caller/protocol ownership, coherent CPU cuts, fresh
-Level-1 continuation and independent Level-2 CPU replay remain pending. No CPU
-checkpoint acceptance or missing dependency is claimed.
+Current milestone: M11-rocket-level1-level2, iteration 101, in progress. Recovery:
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Production FESVR serial FIFOs
+now have an audited owner through source integration; installed HTIF/context/
+library bytes remain unchanged. Complete read/caller, HTIF, TestChip and cross-
+owner ownership, coherent CPU cuts, fresh Level-1 continuation and independent
+Level-2 CPU replay remain pending. No CPU acceptance or missing dependency.
+
+Iteration 101 (October 14):
+
+- Added `firesim.tsi.serial-queues.v1`, complete request/response FIFOs with full
+  validation before atomic restore. No services, context switch or target edge
+  during component restore. See [tsi-serial-queues.md](tsi-serial-queues.md).
+- Across sanitizer/VCS backends, 78 fresh fixture continuations, 1,560 full
+  readbacks and 1,482 records pass; each backend passes 904 atomic/interruption
+  checks. All 40 malformed images reject atomically; valid request/response corruption
+  first differs at fixture C=108/C=112 with no divergent operation acknowledged.
+  All 384 real installed-HTIF queue images restore in 768 fresh processes.
+- Exact recipe rebuild adds precisely one unit to the prior 59; all three TSI
+  consumers retain the owned base-header dependency. Both complete four-hart
+  controls pass at C=3,329,794, with all full traces and workload/store labels
+  matching the uninterrupted reference. These are controls, not CPU restores.
+- All 245 Python tests and eight preserved native regressions pass. Prior TSI
+  read/queue/bridge/host-control suites, actual HTIF child/poll restores, transport
+  and four transport faults pass. Retained inventory/clock/memory/policy/TracerV
+  audits and the full 318,637-word/seven-clock ordinary RTL diagnostic probe pass.
+  Complete CPU requests still reject before execution/publication (widget/12).
+- Published existing iteration-100 commits FireSim first, then Chipyard;
+  independently queried remote tips and submodule pointer match. Push logs retain
+  the local read-only tracking-ref diagnostic. No staging or local commits.
+- Recovery: `automations/checkpoint_loop/runs/m11-iteration101/`; exact selection,
+  native inputs, original commands, executable checks and all created paths are
+  in the root JSON reports. Initial checker/path/dependency/source-stability
+  failures remain separate. Neither plan nor environment input was edited.
+  Next: serial read/caller and HTIF/TestChip progress, cross-owner coherence,
+  then required active-workload CPU cuts and both independently restored levels.
+  BOOM/Saturn remain pending; standalone Shuttle, physical FPGA and ASIC power
+  remain deferred.
 
 Iteration 100 (October 14):
 

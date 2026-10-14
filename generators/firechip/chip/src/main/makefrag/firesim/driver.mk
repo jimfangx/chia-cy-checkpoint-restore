@@ -28,6 +28,7 @@ DRIVER_CC += \
 		$(testchipip_csrc_dir)/testchip_dtm.cc \
 		$(testchipip_csrc_dir)/testchip_htif.cc \
 		$(firechip_bridgestubs_lib_dir)/fesvr/firesim_tsi.cc \
+		$(firechip_bridgestubs_lib_dir)/fesvr/owned_fesvr_tsi.cc \
 		$(firechip_bridgestubs_lib_dir)/fesvr/firesim_dtm.cc \
 		$(RISCV)/lib/libfesvr.a
 # Disable missing override warning for testchipip.

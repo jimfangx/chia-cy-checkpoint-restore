@@ -103,7 +103,7 @@ def main():
     a.out.resolve().mkdir(parents=True,exist_ok=True); out=Path(tempfile.mkdtemp(prefix='invocation-',dir=a.out.resolve()))
     elf=out/'polling.elf'; elf.write_bytes(polling_elf())
     source=TESTS/'tsi_host_control_fesvr.cc'; sv=TESTS/'tsi_host_control_fesvr_tb.sv'; library=FESVR/'lib/libfesvr.a'
-    sources=[source,STUBS/'fesvr/firesim_tsi.cc',TESTCHIP/'testchip_tsi.cc',TESTCHIP/'testchip_htif.cc']
+    sources=[source,STUBS/'fesvr/firesim_tsi.cc',STUBS/'fesvr/owned_fesvr_tsi.cc',TESTCHIP/'testchip_tsi.cc',TESTCHIP/'testchip_htif.cc']
     inputs=[*sources,sv,library,Path(__file__),TESTS/'verify_tsi_host_control_vcs.py',TESTS/'verify_firesim_tsi_loadmem_vcs.py',
             TESTS/'verify_semantic_vcs.py',TESTS/'verify_loadmem_read_checkpoint_vcs.py',
             *sorted((STUBS/'fesvr').glob('*.h')),*sorted(TESTCHIP.glob('*.h')),*sorted((FESVR/'include/fesvr').glob('*.h')),

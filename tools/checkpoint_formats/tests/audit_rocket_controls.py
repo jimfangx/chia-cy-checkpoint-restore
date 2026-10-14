@@ -45,9 +45,12 @@ def audit(summary_path, source_archive=None):
                            if token.startswith('/') and Path(token).suffix in ('.cc', '.cpp', '.c')})
     require(actual_units == identity['translation_units'], 'native source inventory differs from executed VCS argv')
     bridge_loop = str(ROOT / 'sims/firesim/sim/midas/src/main/cc/core/bridge_run_loop.cc')
+    owned_tsi = str(ROOT / 'generators/firechip/bridgestubs/src/main/cc/fesvr/owned_fesvr_tsi.cc')
     if identity.get('bridge_run_loop_adapter_linked', False):
+        serial_owned = identity.get('owned_fesvr_serial_adapter_linked', False)
         require(identity.get('firesim_driver_adapter_linked') is True and
-                len(actual_units) == 59 and bridge_loop in actual_units,
+                len(actual_units) == (60 if serial_owned else 59) and bridge_loop in actual_units and
+                (owned_tsi in actual_units) == serial_owned,
                 'incomplete current FireSim driver/loop translation units')
         symbols = subprocess.check_output(['nm', '-C', str(binary)], text=True)
         require(all(name in symbols for name in (
@@ -55,6 +58,12 @@ def audit(summary_path, source_archive=None):
             'bridge_run_loop_t::load_checkpoint(', 'firesim_top_t::simulation_run_step()',
             'firesim_top_t::concrete_checkpoint_t::save_checkpoint() const')),
             'missing actual native FireSim driver/loop adapters')
+        if serial_owned:
+            require(all(name in symbols for name in (
+                'firesim_fesvr_tsi_t::read_chunk(', 'firesim_fesvr_tsi_t::write_chunk(',
+                'firesim_tsi_serial_state_t::save_checkpoint() const',
+                'firesim_tsi_serial_state_t::validate_checkpoint(', 'firesim_tsi_serial_state_t::load_checkpoint('))
+                and ' tsi_t::read_chunk(' not in symbols, 'native serial owner linkage differs')
     else:
         # Historical controls retain their exact original executable and input
         # hashes. Do not invent current adapters for a 58-unit archived build.

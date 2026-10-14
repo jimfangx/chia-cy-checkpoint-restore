@@ -42,9 +42,10 @@ def record_build(recipe, build, log, destination):
     units = sorted({str(Path(token)) for token in argv
                     if token.startswith('/') and Path(token).suffix in ('.cc', '.cpp', '.c')})
     cc = ROOT / 'sims/firesim/sim/midas/src/main/cc'
-    # Iteration 95 adds exactly the independently audited FireSim bridge loop
-    # to the previously recorded 58 units. It owns no FCFS cursor or TSI stack.
-    require(len(units) == 59 and str(cc / 'core/bridge_run_loop.cc') in units,
+    # Iteration 101 adds the source-integrated FESVR serial adapter to the 59
+    # audited units. Its distinct class name avoids patching the library ABI.
+    owned_tsi = ROOT / 'generators/firechip/bridgestubs/src/main/cc/fesvr/owned_fesvr_tsi.cc'
+    require(len(units) == 60 and str(cc / 'core/bridge_run_loop.cc') in units and str(owned_tsi) in units,
             'changed CPU native translation unit inventory; audit it explicitly')
     paths = [binary, Path(log).resolve(), Path(recipe['recipe_file']),
              ROOT / 'env.sh', ROOT / 'sims/firesim/env.sh',
@@ -89,6 +90,11 @@ def record_build(recipe, build, log, destination):
         'firesim_top_t::simulation_run_step()',
         'firesim_top_t::concrete_checkpoint_t::save_checkpoint() const')),
         'missing audited FireSim concrete driver/loop adapters')
+    require(all(name in symbols for name in (
+        'firesim_fesvr_tsi_t::read_chunk(', 'firesim_fesvr_tsi_t::write_chunk(',
+        'firesim_tsi_serial_state_t::save_checkpoint() const',
+        'firesim_tsi_serial_state_t::validate_checkpoint(', 'firesim_tsi_serial_state_t::load_checkpoint('))
+        and ' tsi_t::read_chunk(' not in symbols, 'native CPU uses an unaudited serial implementation')
     report = dict(scope='executed exact CPU native build; full CPU restores remain unsupported',
                   native_binary=str(binary), vcs_home=VCS_HOME,
                   compilers={name: os.environ[name] for name in ('CC', 'CXX', 'VCS_CC')},
@@ -97,6 +103,7 @@ def record_build(recipe, build, log, destination):
                   sources_sha256={str(path): file_sha(path) for path in paths},
                   uart_adapter_linked=True, heartbeat_adapter_linked=True,
                   firesim_driver_adapter_linked=True, bridge_run_loop_adapter_linked=True,
+                  owned_fesvr_serial_adapter_linked=True,
                   checkpoint_profile=None, level1_verified=False, level2_verified=False)
     Path(destination).write_text(json.dumps(report, indent=2) + '\n')
     return report
