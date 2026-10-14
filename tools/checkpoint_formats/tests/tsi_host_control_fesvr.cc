@@ -15,6 +15,9 @@ static void serial_snapshot(firesim_tsi_t &tsi,const fs::path &out,const std::st
   auto read=tsi.serial_read_owner().save_checkpoint();
   std::ofstream r(out/(name+".read"),std::ios::binary);
   r.write(reinterpret_cast<const char *>(read.data()),read.size());require(bool(r),"cannot save serial read owner");
+  auto init=tsi.init_accesses_owner().save_checkpoint();
+  std::ofstream i(out/(name+".init"),std::ios::binary);
+  i.write(reinterpret_cast<const char *>(init.data()),init.size());require(bool(i),"cannot save init caller owner");
 }
 static void snapshot(firesim_tsi_t &tsi,const fs::path &out,const std::string &name) {
   auto bytes=tsi.host_control_owner().save_checkpoint();

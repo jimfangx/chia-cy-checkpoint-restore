@@ -68,14 +68,16 @@ cannot substitute for explicit ownership or a checked configuration restriction.
 | FESVR devices (`fesvr/device.h`, `fesvr/syscall.h`) | Ordered device/command configuration, BCD pending commands and response identity, syscall file-descriptor mapping/chroot and in-progress dispatch; explicitly reject unsupported external descriptors/devices before any aggregate restore |
 | FESVR stop/signal handling (`fesvr/htif.cc`) | Static `signal_exit`, stop/signature-read progress and complete signature bytes/output state; do not serialize a process-global signal-handler pointer |
 | TestChip TSI (`testchip_tsi.h/.cc`) | `has_loadmem`, `is_loadmem`, `cflush_addr`, loader entry/return phase and pending cache-flush/read/write caller; bind exact parsed arguments |
-| TestChip init (`testchip_htif.h/.cc`) | `write_hart0_msip`, full ordered `init_accesses`, current access index, read result and before/after access/MSIP phase; the current range-for element and `rdata` still live on its stack |
+| TestChip init (`testchip_htif.h/.cc`) | FireSim's production cursor, ordered configuration, result/source buffers and access/MSIP phases now have the iteration-103 [initialization caller owner](tsi-init-accesses.md); fresh child/caller dispatch and cross-owner validation remain pending |
 | Owned FESVR host/context (`owned_fesvr_tsi.cc`, `tsi.h`) | Before/after `run()` and terminal-yield phase, explicit caller reconstruction and current context binding; raw `context_t` stacks and `target` pointers are not image state |
 
-The new read owner removes the original per-word loop cursor and partially
+The serial read owner removes the original per-word loop cursor and partially
 collected response from the serial coroutine's stack. It does not remove any
 of the callers above. The actual TestChip init-read fixture demonstrates this:
-the owner can restore all collected data while the original caller's local
-`rdata` and access-loop position remain unavailable in a fresh HTIF instance.
+iteration 102 could restore collected data while the caller's local `rdata`
+and access-loop position remained unavailable. Iteration 103 moves those two
+values into an independent production caller owner; fresh HTIF child/context
+reconstruction is still unavailable.
 The original `htif_t::run()` is nonvirtual; a same-named derived method alone
 cannot replace the call currently made by `host_thread`. Source integration or
 an explicit pointer-free engine must replace that call before coherent complete

@@ -15,9 +15,18 @@ static size_t idle_count(int argc, char **argv) {
   return result;
 }
 
+static std::vector<firesim_tsi_init_accesses_t::access_t>
+owned_accesses(const std::vector<init_access_t> &accesses) {
+  std::vector<firesim_tsi_init_accesses_t::access_t> result;
+  result.reserve(accesses.size());
+  for (const auto &a : accesses) result.push_back({a.address, a.stdata, a.store});
+  return result;
+}
+
 firesim_tsi_t::firesim_tsi_t(int argc, char **argv, bool can_have_loadmem)
     : testchip_tsi_t(argc, argv, can_have_loadmem),
-      host_control(idle_count(argc, argv)) {
+      host_control(idle_count(argc, argv)),
+      init_control(owned_accesses(init_accesses), write_hart0_msip) {
 
   // always use loadmem if the target supports it
   has_loadmem = can_have_loadmem;
@@ -101,11 +110,38 @@ void firesim_tsi_t::reset() {
         stdout,
         "firesim_tsi_t::reset done loading program. sending reset signal(s)\n");
     fflush(stdout);
-    testchip_tsi_t::reset();
+    perform_owned_init_accesses();
     host_control.finish_reset();
   } catch (...) {
+    init_control.interrupt();
     host_control.interrupt();
     throw;
+  }
+}
+
+void firesim_tsi_t::perform_owned_init_accesses() {
+  // Same TestChip order/routing and MSIP policy, with the current access and
+  // read destination owned independently of the suspended reset stack.
+  using phase_t = firesim_tsi_init_accesses_t::phase_t;
+  init_control.begin();
+  for (;;) {
+    const auto phase = init_control.select();
+    if (phase == phase_t::complete) return;
+    if (phase == phase_t::read_child) {
+      (fprintf)(stderr, "Reading %" PRIx64 " ...", init_control.address());
+      read_chunk(init_control.address(), sizeof(uint32_t), init_control.read_destination());
+    } else {
+      if (phase == phase_t::write_child)
+        (fprintf)(stderr, "Writing %" PRIx64 " with %x\n", init_control.address(), *init_control.write_source());
+      write_chunk(init_control.address(), sizeof(uint32_t), init_control.write_source());
+    }
+    init_control.child_returned();
+    if (phase == phase_t::read_child)
+      (fprintf)(stderr, " got %x\n", init_control.read_result());
+    else if (phase == phase_t::write_child)
+      (fprintf)(stderr, "Done writing %" PRIx64 " with %x\n", init_control.address(), init_control.write_result());
+    init_control.retire();
+    if (phase == phase_t::msip_child) return;
   }
 }
 
