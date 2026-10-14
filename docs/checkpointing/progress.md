@@ -14,7 +14,56 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 103, in progress. Recovery:
+Current milestone: M11-rocket-level1-level2, iteration 104, in progress. Recovery:
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). This increment repairs the
+durable artifact check that incorrectly required raw indexes/HEADs to remain
+equal across Git cache refreshes and authorized controller commits. The new hash-pinned audit
+checks complete diagnostic membership/bytes, protected files, source provenance,
+permitted controller history and plan exclusion. Native validation results and
+exact commands are retained under `runs/m11-iteration104/`. Complete HTIF/context/
+child-caller and cross-owner reconstruction, coherent active CPU cuts, complete
+Level-1 continuation and independent Level-2 captured CPU replay remain pending.
+No CPU acceptance or missing external dependency is claimed. Both plans remain
+read-only inputs; the controller owns staging and local checkpoint commits.
+
+Iteration 104 (October 14):
+
+- Added `tools.checkpoint_formats.run_artifacts`, with explicit manifest hash
+  selection and no mutation of old seals. Diagnostic bytes cannot fall back to
+  archived sources. Changed source bytes must exist in permitted controller
+  ancestry. Index/HEAD equality remains a turn-local check; durable checks
+  require linear controller checkpoints and reject protected plans in commits
+  or the current index. Protected plan/environment/PDF/Conda bytes remain checked.
+- The old file catalog omitted 14 dangling VCS cache symlinks. Their exact paths
+  and targets now have a separately hash-pinned supplemental catalog, bound to
+  the unchanged original manifest. New seals can include dangling links directly.
+  Unlisted links, changed targets, altered/missing/extra files and changed seals
+  reject; no diagnostic file is removed or omitted to pass verification.
+- All 18 new tests pass, including real disposable controller histories, source
+  evolution, rewritten/unexpected commits, staged/committed/changed protected
+  plans, corrupt diagnostic bytes, incomplete audits and false CPU claims.
+- The full 142,367-file / 9,085,529,263-byte catalog and all 14 supplemental
+  link targets pass. All 19 retained native audits and a fresh ordinary Rocket
+  RTL 318,637-word / seven-clock zero-edge diagnostic readback pass. All 263
+  Python tests and eight frozen-source native regressions pass. Preliminary
+  link-membership and source-stability failures remain separate diagnostics.
+- Full native validation and publication records: see the iteration-104 section
+  of the CPU matrix. Remaining CPU acceptance work is unchanged.
+- Both exact-recipe four-hart controls pass at C=3,329,794 with complete traces
+  and workload/store labels matching the uninterrupted reference. Initialization
+  components pass 294 fresh fixture continuations, 7,264 complete readbacks,
+  60 atomic invalid cases and four first-divergence checks; all 768 actual caller
+  and 320 mixed caller restores pass before edges/services. These are component
+  restores and uninterrupted CPU controls, not complete CPU checkpoints.
+- Recovery: `runs/m11-iteration104/summary.json`, `selected-results.json`,
+  `native-input-archives.json`, `verification-commands-native.json` and
+  `artifact-manifest.json`. All selected audits use frozen sources. Existing
+  iteration-103 commits are published in both forks; no local checkpoint commit
+  or staging was performed. Next: complete HTIF/memif/device/TestChip child-caller/
+  context reconstruction and cross-owner coherence, then required active CPU
+  cuts and both independently restored levels. BOOM/Saturn remain pending.
+
+Previous recovery (iteration 103):
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Production TestChip init
 cursor, child/return phases and result/source buffers now have a pointer-free
 owner bound to the complete ordered access list and MSIP policy. See

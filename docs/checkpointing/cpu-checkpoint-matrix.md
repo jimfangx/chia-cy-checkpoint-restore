@@ -1,6 +1,6 @@
 # CPU checkpoint matrix
 
-Current milestone: M11 Rocket, iteration 103. Level-1 and Level-2 acceptance
+Current milestone: M11 Rocket, iteration 104. Level-1 and Level-2 acceptance
 remain **in_progress**. No CPU checkpoint continuation or clean CPU RTL replay
 has passed. Physical FPGA validation, standalone Shuttle and ASIC power are
 outside this matrix. The verified FCFS evidence remains in its existing docs.
@@ -32,6 +32,94 @@ The recipe also specifies frequency 140 MHz and TIMING build strategy; these
 are retained in the recipe record, with no FPGA implementation invoked.
 VCS uses Y-2026.03-SP1, `-full64`, `VCS_FLAGS=-Mupdate`, system GCC/G++ 13,
 and the sourced Conda library/include directories. No Conda files are edited.
+
+## Iteration 104: durable complete artifact verification
+
+Diagnostic root:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration104/`.
+The previous verification failed on raw `.git/index` equality. Git cache refreshes
+and authorized controller commits can change index bytes; the log does not
+identify the exact cache writer. Index/HEAD invariance is a turn-local guard,
+not a durable evidence invariant. The durable verifier validates permitted linear controller ancestry,
+original protected file bytes, unstaged plans, archived native inputs and every
+cataloged diagnostic byte. Source evolution requires original committed bytes
+in that history. No source fallback is allowed for captured state, traces,
+binaries or logs under `runs/`.
+
+The original iteration-103 seal is unchanged, SHA-256
+`08431527f96df89f7a75cb8a900775a1e5ce3d16ef75b45a829d4dd6b353f77d`.
+It catalogs 142,367 files / 9,085,529,263 bytes. Fourteen dangling VCS cache links
+were absent from its regular-file walk. Their paths and targets are separately
+bound in `iteration103-dangling-links.json`, SHA-256
+`eaec6ca08508c308a90bd8d6c13530e0be6f6bdbc1ddc047b7dc48d7cea4aebf`.
+The audit requires exact combined membership and rejects new links, changed
+targets, corrupt/missing/extra files and mismatched seals. The supplemental
+catalog records present dangling-link metadata; the old seal made no historical
+claim about those link targets. New seals bind such links directly.
+
+All 18 new verifier tests pass. They create disposable Git repositories to test
+post-turn controller commits, source provenance, rewritten/unexpected histories,
+plan exclusion and diagnostic corruption. These are evidence-verifier tests,
+not CPU checkpoint acceptance.
+
+The full catalog/protected-input check passes in `retained-final-19.log`.
+All 19 retained native audits pass, and a fresh ordinary Rocket RTL diagnostic
+probe matches all 318,637 words / seven clocks before edges in
+`retained-final-20.log`. All eight frozen-source native regressions pass in
+`native-regressions-final/invocation-tjsmc73w/summary.json`, including all 263
+Python tests and complete preserved FCFS checks. The preliminary regression
+attempt ran all eight checks but its source-stability guard correctly rejected
+the earlier verifier version; it remains separate in `native-regressions/`.
+The initial strict catalog rejection for previously unlisted dangling links
+also remains separate in `retained-19.log`; neither failure is selected as a
+passing result.
+
+The exact recipe rebuilt with all 60 native translation units and both complete
+four-hart controls pass in `rocket-controls/invocation-3e_6lfkl/summary.json`.
+Default and buffered runs finish at target C=3,329,794; every complete instruction
+trace and workload/store label matches the independent uninterrupted reference.
+The workload remains the original 6,712-byte `rocket-quad.riscv`, SHA-256
+`f3d86f54caf42b9589385e8021dba46777f647134f19595e38a3d452b745f3d4`.
+These runs establish uninterrupted controls, not fresh CPU checkpoint restores.
+
+The full initialization component suite passes in
+`init/invocation-tvmgxkbu/summary.json`: 294 fresh fixture continuations, 7,264
+complete readbacks, 6,970 continuation records, 7,766 atomic/phase/interruption
+checks per backend, 60 fresh atomic invalid-image rejections and four first
+divergences at fixture C=102/C=105 with no failed operation acknowledged. All
+384 actual caller images restore in 768 fresh processes, and all 160 mixed
+cache-flush/MSIP images restore in 320 fresh processes before edges/services.
+These restore caller components; fresh HTIF/child/context/CPU dispatch remains
+unsupported. No complete CPU checkpoint profile is enabled.
+
+`selected-results.json`, `native-input-archives.json`,
+`executed-native-commands.json` and `verification-commands-native.json` retain
+the selected native results, original input snapshots and executable commands.
+The latter includes full native VCS builds/runs and a fresh ordinary Rocket RTL
+probe, sourcing both environments and `vcs-env.sh` last. Recheck destinations
+are outside the sealed iteration, so later verification preserves its membership.
+`artifact-manifest.json` binds every created diagnostic file plus dangling-link
+targets; `implementation-turn-guard.json` records the separate index/HEAD/input
+checks before the controller's next commit. The implementation created no local
+repository checkpoint commit and staged no plan. Existing iteration-103 commits
+were published FireSim first, then Chipyard; remote tips and submodule pointer
+match in `github-publication.json`.
+
+Run the complete old catalog check from the Chipyard root with:
+
+```sh
+python -m tools.checkpoint_formats.run_artifacts \
+  --manifest automations/checkpoint_loop/runs/m11-iteration103/artifact-manifest.json \
+  --manifest-sha256 08431527f96df89f7a75cb8a900775a1e5ce3d16ef75b45a829d4dd6b353f77d \
+  --dangling-links automations/checkpoint_loop/runs/m11-iteration104/iteration103-dangling-links.json \
+  --dangling-links-sha256 eaec6ca08508c308a90bd8d6c13530e0be6f6bdbc1ddc047b7dc48d7cea4aebf
+```
+
+Native build/simulation commands and results are recorded under this iteration's
+diagnostic root. Both Rocket levels remain in_progress: complete HTIF/context/
+child-caller and cross-owner ownership, required early/warm/outstanding/late CPU
+cuts, fresh-process Level-1 continuation and independently captured Level-2 CPU
+replay remain pending. No external dependency is missing.
 
 ## Iteration 103: production TestChip initialization caller
 
