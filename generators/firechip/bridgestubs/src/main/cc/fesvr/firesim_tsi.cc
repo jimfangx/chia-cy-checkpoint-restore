@@ -27,7 +27,7 @@ void firesim_tsi_t::idle() {
 }
 
 void firesim_tsi_t::send_loadmem_word(uint32_t word) {
-  loadmem_out_data.push_back(word);
+  loadmem_queues.push_response(word);
 }
 
 void firesim_tsi_t::load_mem_write(addr_t addr,
@@ -40,9 +40,7 @@ void firesim_tsi_t::load_mem_write(addr_t addr,
           nbytes);
   fflush(stdout);
 
-  loadmem_write_reqs.push_back(firesim_loadmem_t(addr, nbytes));
-  loadmem_write_data.insert(
-      loadmem_write_data.end(), (const char *)src, (const char *)src + nbytes);
+  loadmem_queues.enqueue_write(addr, nbytes, src);
 }
 
 void firesim_tsi_t::load_mem_read(addr_t addr, size_t nbytes, void *dst) {
@@ -58,26 +56,17 @@ void firesim_tsi_t::load_mem_read(addr_t addr, size_t nbytes, void *dst) {
   // not infer a complete TSI owner from this component's serializable state.
   class services_t final : public firesim_loadmem_read_t::services_t {
   public:
-    services_t(std::deque<firesim_loadmem_t> &writes,
-               std::deque<firesim_loadmem_t> &reads,
-               std::deque<uint32_t> &responses)
-        : writes(writes), reads(reads), responses(responses) {}
-    bool writes_pending() override { return !writes.empty(); }
+    explicit services_t(firesim_loadmem_queues_t &queues) : queues(queues) {}
+    bool writes_pending() override { return queues.writes_pending(); }
     void issue(uint64_t address, uint64_t bytes) override {
-      reads.emplace_back(address, bytes);
+      queues.enqueue_read(address, bytes);
     }
     bool receive(uint32_t &word) override {
-      if (responses.empty())
-        return false;
-      word = responses.front();
-      responses.pop_front();
-      return true;
+      return queues.pop_response(word);
     }
   private:
-    std::deque<firesim_loadmem_t> &writes;
-    std::deque<firesim_loadmem_t> &reads;
-    std::deque<uint32_t> &responses;
-  } services(loadmem_write_reqs, loadmem_read_reqs, loadmem_out_data);
+    firesim_loadmem_queues_t &queues;
+  } services(loadmem_queues);
   loadmem_read.begin(addr, nbytes);
   for (;;) {
     const auto progress = loadmem_read.advance(services);
@@ -107,35 +96,29 @@ void firesim_tsi_t::reset() {
 }
 
 bool firesim_tsi_t::has_loadmem_reqs() {
-  return (!loadmem_write_reqs.empty() || !loadmem_read_reqs.empty());
+  return loadmem_queues.requests_pending();
 }
 
 bool firesim_tsi_t::recv_loadmem_write_req(firesim_loadmem_t &loadmem) {
-  if (loadmem_write_reqs.empty())
+  firesim_loadmem_queues_t::request_t request;
+  if (!loadmem_queues.pop_write(request))
     return false;
-  auto r = loadmem_write_reqs.front();
-  loadmem.addr = r.addr;
-  loadmem.size = r.size;
-  loadmem_write_reqs.pop_front();
+  loadmem.addr = request.address;
+  loadmem.size = request.bytes;
   return true;
 }
 
 bool firesim_tsi_t::recv_loadmem_read_req(firesim_loadmem_t &loadmem) {
-  if (loadmem_read_reqs.empty())
+  firesim_loadmem_queues_t::request_t request;
+  if (!loadmem_queues.pop_read(request))
     return false;
-  auto r = loadmem_read_reqs.front();
-  loadmem.addr = r.addr;
-  loadmem.size = r.size;
-  loadmem_read_reqs.pop_front();
+  loadmem.addr = request.address;
+  loadmem.size = request.bytes;
   return true;
 }
 
 void firesim_tsi_t::recv_loadmem_data(void *buf, size_t len) {
-  std::copy(loadmem_write_data.begin(),
-            loadmem_write_data.begin() + len,
-            (char *)buf);
-  loadmem_write_data.erase(loadmem_write_data.begin(),
-                           loadmem_write_data.begin() + len);
+  loadmem_queues.pop_write_data(buf, len);
 }
 
 // re-enable fprintfs in file

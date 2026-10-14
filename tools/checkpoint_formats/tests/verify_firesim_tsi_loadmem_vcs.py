@@ -48,6 +48,7 @@ def audit(path):
             'changed actual FESVR native evidence membership')
     for name,digest in catalog.items(): require(file_sha(name) == digest, 'changed actual FESVR artifact ' + name)
     bindings = {b['path']:b for b in report['source_inputs']}
+    queue_checked = str(STUBS/'fesvr/loadmem_queues.h') in bindings
     for binding in bindings.values():
         require(file_sha(binding['snapshot']) == binding['sha256'], 'changed FESVR source snapshot')
         check_native_input(ROOT, binding['path'], binding['sha256'], bindings)
@@ -57,10 +58,30 @@ def audit(path):
                  config(14,4096,4)+words(3,0x80001000,8,0),
                  config(14,4096,4)+words(3,0x80001000,8,1,0xaabbccdd)]
     expected += [config(14,4096,4)+words(0,0,0,0)] * 2
+    def queues(active=(0,0), consumed=0, writes=(), reads=(), data=b'', responses=()):
+        return (config(16,4096,4)+words(*active,consumed,len(writes))+
+                b''.join(words(*request) for request in writes)+words(len(reads))+
+                b''.join(words(*request) for request in reads)+words(len(data))+data+
+                words(len(responses),*responses))
+    empty=queues()
+    merged=bytes.fromhex('ddccbbaa44556677')
+    expected_queues=[empty,empty,queues(writes=((0x80000000,16),),data=bytes(range(16))),
+                     queues(reads=((0x80001000,8),)),empty,
+                     queues(writes=((0x80001000,8),),data=merged),empty]
+    extra_queues={'write0-popped':queues(active=(0x80000000,16),data=bytes(range(16))),
+                  'write0-partial':queues(active=(0x80000000,16),consumed=1,data=bytes(range(1,16))),
+                  'write1-popped':queues(active=(0x80001000,8),data=merged),
+                  'response-queued':queues(responses=(0xaabbccdd,))}
     for backend in ('native','vcs-dpi'):
         for cut,payload in enumerate(expected):
             require((path.parent / backend / f'suspended-{cut}.owner').read_bytes() == payload,
                     'actual FESVR suspended read owner mismatch ' + str((backend,cut)))
+            if queue_checked:
+                require((path.parent / backend / f'suspended-{cut}.queues').read_bytes() == expected_queues[cut],
+                        'actual FESVR suspended queue owner mismatch ' + str((backend,cut)))
+        for name,payload in (extra_queues.items() if queue_checked else ()):
+            require((path.parent / backend / (name+'.queues')).read_bytes() == payload,
+                    'actual FESVR partial-write/queued-response owner mismatch ' + name)
         require('REAL_FESVR_LOADMEM_READ partial_words=1 merged_bytes=8 reset_words=6 suspended_cuts=7' in
                 (path.parent / (backend+'.log')).read_text(), 'actual FESVR did not complete read/merge/reset')
     for command in report['commands']:
@@ -68,6 +89,7 @@ def audit(path):
                 command['argv'][:2] == ['bash','-lc'] and command['argv'][2].startswith(ENVIRONMENT),
                 'unbound real FESVR command/environment/result')
     return dict(status='passed', summary=str(path), actual_fesvr_suspended_owner_checks=14,
+                actual_fesvr_complete_queue_checks=22 if queue_checked else 0,
                 level1_verified=False, level2_verified=False)
 
 
@@ -89,6 +111,7 @@ def main():
     library=FESVR/'lib/libfesvr.a'
     inputs=[*sources,library,Path(__file__),TESTS/'verify_loadmem_read_checkpoint_vcs.py',
             TESTS/'firesim_tsi_loadmem_integration_tb.sv',STUBS/'fesvr/firesim_tsi.h',STUBS/'fesvr/loadmem_read.h',
+            STUBS/'fesvr/loadmem_queues.h',
             TESTCHIP/'testchip_tsi.h',TESTCHIP/'testchip_htif.h',CC/'core/checkpoint.h',CC/'core/widget_checkpoint.h',
             *sorted((FESVR/'include/fesvr').glob('*.h')),
             ROOT/'env.sh',ROOT/'sims/firesim/env.sh',ROOT/'automations/checkpoint_loop/vcs-env.sh']

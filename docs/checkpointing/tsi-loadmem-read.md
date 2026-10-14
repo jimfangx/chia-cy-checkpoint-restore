@@ -39,6 +39,12 @@ requests exercise the operation owner with fixture IO. Transport correctness
 and read-operation ownership are separate evidence; neither reconstructs HTIF
 or enables the complete CPU checkpoint profile.
 
+Iteration 98 groups the four production request/data/response queues and a
+partially drained write into one pointer-free owner; see
+[tsi-loadmem-queues.md](tsi-loadmem-queues.md). The read-operation schema and
+its independent evidence remain unchanged. Cross-owner validation, HTIF and
+bridge transport ownership remain required before a complete TSI cut.
+
 The native/VCS continuation suite independently expands the original drain,
 enqueue and response-pop loop. It captures each completed component operation,
 restores selected cuts in separate processes, reads both complete owners before

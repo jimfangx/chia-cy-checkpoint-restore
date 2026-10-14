@@ -153,6 +153,7 @@ def main():
     inputs=[*sources,library,Path(__file__),TESTS/'verify_loadmem_read_checkpoint_vcs.py',
             TESTS/'verify_firesim_tsi_loadmem_vcs.py',TESTS/'verify_semantic_vcs.py',
             TESTS/'loadmem_transport_tb.sv',STUBS/'fesvr/firesim_tsi.h',STUBS/'fesvr/loadmem_read.h',STUBS/'fesvr/loadmem_read_transport.h',
+            STUBS/'fesvr/loadmem_queues.h',
             STUBS/'bridges/tsibridge.h',STUBS/'bridges/serial_data.h',CC/'bridges/loadmem.h',
             CC/'core/simif.h',CC/'core/bridge_driver.h',CC/'core/widget.h',CC/'core/config.h',
             CC/'core/stream_engine.h',CC/'core/widget_registry.h',CC/'core/timing.h',
