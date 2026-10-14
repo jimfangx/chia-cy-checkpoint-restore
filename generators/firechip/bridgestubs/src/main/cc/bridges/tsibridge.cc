@@ -4,6 +4,7 @@
 #include "bridges/loadmem.h"
 #include "core/simif.h"
 #include "fesvr/firesim_tsi.h"
+#include "fesvr/loadmem_read_transport.h"
 
 #include <cassert>
 #include <gmp.h>
@@ -131,33 +132,10 @@ void tsibridge_t::recv() {
 }
 
 void tsibridge_t::handle_loadmem_read(firesim_loadmem_t loadmem) {
-  assert(loadmem.size % sizeof(uint32_t) == 0);
-  assert(has_mem);
-  // Loadmem reads are in granularities of the width of the FPGA-DRAM bus
-  mpz_t buf;
-  mpz_init(buf);
-  while (loadmem.size > 0) {
-    loadmem_widget.read_mem(loadmem.addr + mem_host_offset, buf);
-
-    // If the read word is 0; mpz_export seems to return an array with length 0
-    size_t beats_requested =
-        (loadmem.size / sizeof(uint32_t) > loadmem_widget.get_mem_data_chunk())
-            ? loadmem_widget.get_mem_data_chunk()
-            : loadmem.size / sizeof(uint32_t);
-    // The number of beats exported from buf; may be less than beats requested.
-    size_t non_zero_beats;
-    uint32_t *data = (uint32_t *)mpz_export(
-        NULL, &non_zero_beats, -1, sizeof(uint32_t), 0, 0, buf);
-    for (size_t j = 0; j < beats_requested; j++) {
-      if (j < non_zero_beats) {
-        fesvr->send_loadmem_word(data[j]);
-      } else {
-        fesvr->send_loadmem_word(0);
-      }
-    }
-    loadmem.size -= beats_requested * sizeof(uint32_t);
-  }
-  mpz_clear(buf);
+  if (!has_mem)
+    throw std::runtime_error("TSI loadmem read without a memory widget");
+  firesim_read_loadmem(loadmem_widget, loadmem.addr, loadmem.size, mem_host_offset,
+                       [this](uint32_t word) { fesvr->send_loadmem_word(word); });
   // Switch back to fesvr for it to process read data
   fesvr->tick();
 }

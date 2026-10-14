@@ -32,12 +32,12 @@ or callback-pointer image can reconstruct that caller in a fresh process.
 enable an aggregate TSI checkpoint or provide a parent-context restore hook.
 The TSI bridge continues to inherit the unsupported checkpoint contract.
 
-The bridge's existing multi-beat read helper still needs a separate correctness
-check: `handle_loadmem_read` reduces the remaining size without advancing the
-address, and does not free `mpz_export`'s allocated response buffer. The actual
-integration below exercises an eight-byte read. Larger component requests
-exercise the operation owner with fixture IO and do not certify this bridge
-helper. Preserve this distinction when implementing the complete transport.
+Iteration 97 fixes and independently tests the bridge's multi-beat read helper;
+see [tsi-loadmem-transport.md](tsi-loadmem-transport.md). The iteration-96
+integration below still exercises only an eight-byte read. Its larger component
+requests exercise the operation owner with fixture IO. Transport correctness
+and read-operation ownership are separate evidence; neither reconstructs HTIF
+or enables the complete CPU checkpoint profile.
 
 The native/VCS continuation suite independently expands the original drain,
 enqueue and response-pop loop. It captures each completed component operation,
