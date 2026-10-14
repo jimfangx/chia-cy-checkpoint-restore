@@ -1,5 +1,20 @@
 # FireSim checkpoint/restore Chia loop
 
+Current priority (October 13, 2026): Level-1 and Level-2 checkpoint/restore
+for existing F2 Rocket quad-core, BOOM single-core and Shuttle + Saturn recipes
+in `sims/firesim-staging/sample_config_build_recipes.yaml`. The detailed workload,
+cut, state-coverage and negative-test requirements are at the top of
+`plan_agent.md`. There is no standalone Shuttle milestone. Physical FPGA
+validation and ASIC power analysis are deferred.
+
+M11-M13 append one CPU family at a time after the preserved M0-M10 milestones.
+A completed saved run at milestone index 11 / iteration 81 resumes at Rocket
+using the ordinary `run.sh` command below; do not delete or reset `state.json`.
+This instruction update does not start a run. Completion of M0-M10 establishes
+FCFS/fixture support, while CPU support remains pending until each new milestone
+passes its own Level-1 and Level-2 acceptance. Track that acceptance in
+`docs/checkpointing/cpu-checkpoint-matrix.md` as implementation proceeds.
+
 This local Chia loop drives Codex through the metasimulation and ordinary RTL
 parts of `plan_agent.md`. It does not report FPGA validation on this machine.
 The loop is an implementation workflow; its presence alone is not a completed

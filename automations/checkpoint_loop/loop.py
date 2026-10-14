@@ -338,7 +338,10 @@ def make_prompt(milestone: Milestone, iteration: int, state: dict[str, Any],
     return f"""Implement the current milestone of the FireSim checkpoint/restore plan.
 
 Read the sections of {ROOT / 'plan_agent.md'} and {ROOT / 'plan_human.md'}
-relevant to this milestone before editing. Read {ROOT / 'docs/checkpointing/progress.md'}.
+relevant to this milestone before editing. Re-read the top of plan_agent.md
+on every iteration and apply its current user priorities. Physical FPGA
+validation and ASIC power are deferred for the CPU checkpoint milestones.
+Read {ROOT / 'docs/checkpointing/progress.md'}.
 Read and follow {ROOT / 'docs/checkpointing/github-publication.md'}.
 You may push existing loop checkpoint commits to the configured GitHub forks;
 the loop controller remains responsible for staging and creating local commits.

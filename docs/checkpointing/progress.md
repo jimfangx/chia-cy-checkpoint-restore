@@ -1,10 +1,63 @@
 # Checkpointing progress
 
+Current user priority (October 13, 2026): implement and verify complete
+Level-1 and Level-2 checkpoint/restore for the existing Rocket, BOOM and
+Shuttle + Saturn recipes in `sims/firesim-staging/sample_config_build_recipes.yaml`.
+Standalone Shuttle is excluded because no recipe exists. Physical FPGA
+validation and ASIC power are deferred. Follow the detailed current instructions
+at the top of `plan_agent.md` and the appended M11-M13 loop milestones.
+Rocket preparation is in progress; BOOM and Shuttle + Saturn remain pending.
+No CPU checkpoint acceptance is claimed. Preserve the verified iteration-81
+FCFS state and evidence below; resume without resetting saved loop progress.
+
 Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M10-production-dut-formal-map, iteration 81. Ready for the actual FCFS production DUT: independently audited complete map, fresh full-state gate VCS restore/replay, separate fresh ordinary RTL/waveform audit, first-divergence mapped corruption and all rejection checks. The corrected ready report includes an explicitly executed native VCS verification command. Completed M6/M7/M8/M9 progress remains preserved; no process ASIC, FPGA or power validation.
+Current milestone: M11-rocket-level1-level2, iteration 82, in progress. Recovery:
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Exact Rocket elaboration
+and regular VCS build pass; independent complete Level-1/Level-2 inventories
+reject unsupported state explicitly. No CPU checkpoint acceptance yet.
+
+Iteration 82 (October 13):
+
+- Read current read-only plan priorities, relevant semantic/simulator sections,
+  previous verification, progress and publication instructions before editing.
+  Exact recipe command generation records YAML/source hashes and manager-relative
+  Makefrag resolution. Native Rocket elaboration includes all four tiles, six
+  ChipTop clock inputs and async reset; no FPGA bitstream build.
+- Added a self-checking RV64IMA/Zicsr workload requiring all four harts to check
+  64 KiB each across four phases. Spike passes the actual ELF; all four actual
+  memory-corruption ELFs return the expected hart failure codes. Workload hashes
+  and commands are under `runs/m11-iteration82/workload/`. Native full-16-GiB
+  VCS baseline passes at 3,329,794 target cycles. Independent actual retired-store
+  decoding verifies phases 1/2/3/4, completion 1 and failure 0 on every hart,
+  plus the real HTIF PASS store. This is workload evidence, not CPU checkpoint
+  continuation/readback/replay acceptance.
+- Complete generated inventory rejects an actual unadapted `plusarg_reader`
+  inside Rocket's PlusArgTimeout. Independent pre-FAME ChipTop inventory rejects
+  `FireSim.chiptop0.system.bdev_clock`. The actual registry contains a CPU stream,
+  one functional-memory channel, four TracerV drivers, TSI/FESVR, UART, blockdev
+  and added heartbeat, beyond the FCFS profile. Both complete CPU adapters,
+  captured active cuts, fresh restores and negative images remain required.
+- Fixed stale sbt assembly destination reuse when changing BUILD_DIR; output is
+  reassembled into the requested directory and checked nonempty. Full isolated
+  M2/M3 native VCS metasim/ordinary RTL regressions pass, including 22-word
+  readback, first divergence C=29 and rejection checks. All 218 Python tests and
+  eight FCFS Make/four generator guards pass. The exact Rocket build separately
+  rejects the FCFS profile without changing baseline bytes. The observed empty
+  reused M2 JAR is repaired from the isolated native-validated JAR. Initial
+  cache/include-path/runtime diagnostics are preserved separately; no missing
+  dependency is claimed. Final recovery includes `summary.json`,
+  `verification-commands.json`, `artifact-manifest.json` and `verify-evidence.py`.
+- Published existing controller checkpoints FireSim
+  `5d9be59f8898ee9e93241126ef94e85924d080a0`, then Chipyard
+  `87627ac6d0b7a8dd772ff903b2fa708ae1ada550`; remote tips independently confirmed.
+  Local tracking-ref writes failed on the read-only filesystem, with exact logs
+  in `runs/m11-iteration82/github-publication.json`. Plans/environment files,
+  indexes and heads remain unchanged; no staging or local commits.
+
+Previous milestone: M10-production-dut-formal-map, iteration 81. Ready for the actual FCFS production DUT: independently audited complete map, fresh full-state gate VCS restore/replay, separate fresh ordinary RTL/waveform audit, first-divergence mapped corruption and all rejection checks. The corrected ready report includes an explicitly executed native VCS verification command. Completed M6/M7/M8/M9 progress remains preserved; no process ASIC, FPGA or power validation.
 
 Iteration 81 (October 12):
 

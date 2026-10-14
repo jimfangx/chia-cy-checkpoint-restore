@@ -140,4 +140,107 @@ MILESTONES = (
         ("docs/checkpointing/m10-production-dut-formal-map.md",),
         needs_vcs=True,
     ),
+    Milestone(
+        'M11-rocket-level1-level2',
+        'Implement and validate both Level-1 and Level-2 checkpoint/restore for Rocket,'
+        ' using existing recipe firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3 from '
+        'sims/firesim-staging/sample_config_build_recipes.yaml. Re-read the current '
+        'instructions at the top of plan_agent.md. Use exact recipe build settings in '
+        'VCS metasim without building an FPGA bitstream. Audit and implement all '
+        'CPU/configuration-specific simulator, bridge, host-driver and semantic DUT '
+        'state owners; do not assume fcfs-fased-v1 support applies. Test real '
+        'self-checking CPU workloads at early, warmed-cache, outstanding-memory and '
+        'late cuts. For Rocket exercise all four cores; for BOOM speculative/in-flight '
+        'execution; for Shuttle + Saturn actual vector compute and vector memory '
+        'operations with in-flight vector state. Restore Level 1 in fresh metasim and '
+        'independently restore Level 2 in fresh pre-FAME ordinary RTL VCS, read back '
+        'complete state before any edge, and compare captured target-cycle behavior. '
+        'Add invalid-image/build/state-owner rejection and first-divergence corruption '
+        'cases, preserve existing regressions, and record exact artifacts and '
+        'executable native VCS checks in docs/checkpointing/cpu-checkpoint-matrix.md. '
+        'Standalone Shuttle, physical FPGA validation and ASIC power are outside the '
+        'current task.',
+        'The exact Rocket recipe passes independently audited complete Level-1 '
+        'fresh-process metasim continuation against an uninterrupted workload run, and '
+        'complete Level-2 zero-edge state readback plus finite captured-trace replay in'
+        ' ordinary RTL VCS. All sampled outputs and transaction timing match at '
+        'original target-cycle labels across the required active-workload cuts. '
+        'Required malformed/incompatible/incomplete images reject before partial '
+        'restore, and actual semantic corruption is detected at its first divergent '
+        'boundary. Per-recipe/per-level evidence records workload hashes, exact state '
+        'ownership and build settings, tested cuts, native VCS commands and results. '
+        'Fixture-only, FCFS-only, boot-only, idle-only and scalar-only Saturn tests '
+        'cannot satisfy this milestone.',
+        ("docs/checkpointing/cpu-checkpoint-matrix.md",),
+        needs_vcs=True,
+    ),
+    Milestone(
+        'M12-boom-level1-level2',
+        'Implement and validate both Level-1 and Level-2 checkpoint/restore for BOOM, '
+        'using existing recipe firesim_boom_singlecore_no_nic_l2_llc4mb_ddr3 from '
+        'sims/firesim-staging/sample_config_build_recipes.yaml. Re-read the current '
+        'instructions at the top of plan_agent.md. Use exact recipe build settings in '
+        'VCS metasim without building an FPGA bitstream. Audit and implement all '
+        'CPU/configuration-specific simulator, bridge, host-driver and semantic DUT '
+        'state owners; do not assume fcfs-fased-v1 support applies. Test real '
+        'self-checking CPU workloads at early, warmed-cache, outstanding-memory and '
+        'late cuts. For Rocket exercise all four cores; for BOOM speculative/in-flight '
+        'execution; for Shuttle + Saturn actual vector compute and vector memory '
+        'operations with in-flight vector state. Restore Level 1 in fresh metasim and '
+        'independently restore Level 2 in fresh pre-FAME ordinary RTL VCS, read back '
+        'complete state before any edge, and compare captured target-cycle behavior. '
+        'Add invalid-image/build/state-owner rejection and first-divergence corruption '
+        'cases, preserve existing regressions, and record exact artifacts and '
+        'executable native VCS checks in docs/checkpointing/cpu-checkpoint-matrix.md. '
+        'Standalone Shuttle, physical FPGA validation and ASIC power are outside the '
+        'current task.',
+        'The exact BOOM recipe passes independently audited complete Level-1 '
+        'fresh-process metasim continuation against an uninterrupted workload run, and '
+        'complete Level-2 zero-edge state readback plus finite captured-trace replay in'
+        ' ordinary RTL VCS. All sampled outputs and transaction timing match at '
+        'original target-cycle labels across the required active-workload cuts. '
+        'Required malformed/incompatible/incomplete images reject before partial '
+        'restore, and actual semantic corruption is detected at its first divergent '
+        'boundary. Per-recipe/per-level evidence records workload hashes, exact state '
+        'ownership and build settings, tested cuts, native VCS commands and results. '
+        'Fixture-only, FCFS-only, boot-only, idle-only and scalar-only Saturn tests '
+        'cannot satisfy this milestone.',
+        ("docs/checkpointing/cpu-checkpoint-matrix.md",),
+        needs_vcs=True,
+    ),
+    Milestone(
+        'M13-shuttle-saturn-level1-level2',
+        'Implement and validate both Level-1 and Level-2 checkpoint/restore for Shuttle'
+        ' + Saturn, using existing recipe '
+        'firesim_saturn_GENV256D128_shuttle_singlecore_no_nic_l2_llc4mb_ddr3 from '
+        'sims/firesim-staging/sample_config_build_recipes.yaml. Re-read the current '
+        'instructions at the top of plan_agent.md. Use exact recipe build settings in '
+        'VCS metasim without building an FPGA bitstream. Audit and implement all '
+        'CPU/configuration-specific simulator, bridge, host-driver and semantic DUT '
+        'state owners; do not assume fcfs-fased-v1 support applies. Test real '
+        'self-checking CPU workloads at early, warmed-cache, outstanding-memory and '
+        'late cuts. For Rocket exercise all four cores; for BOOM speculative/in-flight '
+        'execution; for Shuttle + Saturn actual vector compute and vector memory '
+        'operations with in-flight vector state. Restore Level 1 in fresh metasim and '
+        'independently restore Level 2 in fresh pre-FAME ordinary RTL VCS, read back '
+        'complete state before any edge, and compare captured target-cycle behavior. '
+        'Add invalid-image/build/state-owner rejection and first-divergence corruption '
+        'cases, preserve existing regressions, and record exact artifacts and '
+        'executable native VCS checks in docs/checkpointing/cpu-checkpoint-matrix.md. '
+        'Standalone Shuttle, physical FPGA validation and ASIC power are outside the '
+        'current task.',
+        'The exact Shuttle + Saturn recipe passes independently audited complete '
+        'Level-1 fresh-process metasim continuation against an uninterrupted workload '
+        'run, and complete Level-2 zero-edge state readback plus finite captured-trace '
+        'replay in ordinary RTL VCS. All sampled outputs and transaction timing match '
+        'at original target-cycle labels across the required active-workload cuts. '
+        'Required malformed/incompatible/incomplete images reject before partial '
+        'restore, and actual semantic corruption is detected at its first divergent '
+        'boundary. Per-recipe/per-level evidence records workload hashes, exact state '
+        'ownership and build settings, tested cuts, native VCS commands and results. '
+        'Fixture-only, FCFS-only, boot-only, idle-only and scalar-only Saturn tests '
+        'cannot satisfy this milestone.',
+        ("docs/checkpointing/cpu-checkpoint-matrix.md",),
+        needs_vcs=True,
+    ),
 )
