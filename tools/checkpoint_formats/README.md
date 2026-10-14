@@ -187,7 +187,8 @@ across source renames or different target lowering algorithms. Manifest hash is
 SHA-256 of its canonical JSON bytes. Signed values keep their raw bits.
 
 Opaque modules, unresolved/non-bit state, derived/gated clocks, asynchronous
-resets, multiple target clocks, and unsupported memory pipelines fail explicitly.
+resets and unsupported memory pipelines fail explicitly. The existing capture
+and restore backends also reject multiple target clocks.
 One-cycle passthrough readers own stored data for read-first and stored addresses
 for write-first/undefined policies. Read-first/undefined readwriters own stored
 read data. These additional registers use the exact FIRRTL port field type and
@@ -199,6 +200,23 @@ to data state; the unchanged-hierarchy capture oracle rejects that mismatch.
 No semantic conversion between those representations is claimed.
 No memory ports are added. General mapping through FAME and hardware capture are
 future work; the reference manifest is retained as a separate artifact.
+
+`--semantic-multiclock-inventory` (Make `SEMANTIC_MULTICLOCK_INVENTORY=1`)
+adds discovery-only schema 3 to an explicitly selected root. It records every
+state clock, every boundary clock input and each output clock's proven source;
+it never infers periods or collapses clocks from recipe names. Schema 3 also
+emits `.semantic-clean-access.json`, binding original StateIDs to actual clean
+RTL paths after the emitter's internal transforms. Constant-driven registers
+and memories are retained in that clean reference. Local instance annotations
+track keyword renames separately from terminal references; memory pipeline
+paths follow their memory's actual rename. The access file binds both manifest
+and clean RTL hashes. `multiclock_inventory.py` independently checks all emitted
+storage, port shapes and sequential clock connections. Native VCS inventory
+probes deposit diagnostic patterns and read every word with all clocks low.
+They do not produce workload images or traces. Schema-3 image encoding/decoding
+rejects explicitly until actual clock event phases and a coherent cut are bound.
+Multi-clock banked transport remains unsupported. Single-clock schemas 1/2,
+their StateIDs, and Level-1 ownership remain unchanged.
 
 `tests.verify_semantic_memory_vcs` exercises defined readers and both supported
 readwriters in native metasim, including disabled reads and same-address writes,

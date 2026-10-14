@@ -8,11 +8,12 @@ import re
 from tools.checkpoint_formats.codec import decode, require
 from tools.checkpoint_formats.replay import builds, inventory_rtl, modules, read_json, state_words
 from tools.checkpoint_formats.semantic import decode_semantic
+from tools.checkpoint_formats.retained_evidence import check_native_input
 
 
-def check_inputs(hashes):
+def check_inputs(hashes, archived=None):
     for name, digest in hashes.items():
-        require(hashlib.sha256(Path(name).read_bytes()).hexdigest() == digest, 'changed native input: ' + name)
+        check_native_input(Path(__file__).resolve().parents[3], name, digest, archived or {})
 
 
 def check_replay(case, manifest, boundary, configuration, rows, fields, cycle, words, outputs, fault=None):
@@ -65,12 +66,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--metasim-summary', type=Path, required=True)
     parser.add_argument('--policies-summary', type=Path, required=True)
+    parser.add_argument('--source-archive', type=Path, help='Original immutable source catalog for retained evidence.')
     args = parser.parse_args()
+    archived = {} if args.source_archive is None else {b['path']: b for b in read_json(args.source_archive)['files']}
     pids = []
     summary = read_json(args.metasim_summary)
     require(summary['status'] == 'passed' and summary['fixture_only']
             and not summary['CPU_level1_verified'] and not summary['CPU_level2_verified'], 'wrong evidence scope')
-    check_inputs(summary['inputs_sha256'])
+    check_inputs(summary['inputs_sha256'], archived)
     manifest_path = next(Path(p) for p in summary['inputs_sha256'] if p.endswith('.semantic-state.json'))
     base = str(manifest_path).removesuffix('.semantic-state.json')
     manifest, boundary = read_json(manifest_path), read_json(base + '.semantic-boundary.json')
@@ -103,7 +106,7 @@ def main():
     require(policies['status'] == 'passed' and len(policies['ordinary_policies']) == 5, 'reduced ordinary policy scope')
     ordinary_samples = 0
     for policy in policies['ordinary_policies']:
-        check_inputs(policy['inputs_sha256'])
+        check_inputs(policy['inputs_sha256'], archived)
         manifest_path = next(Path(p) for p in policy['inputs_sha256'] if p.endswith('.semantic-state.json'))
         base = str(manifest_path).removesuffix('.semantic-state.json')
         manifest, boundary = read_json(manifest_path), read_json(base + '.semantic-boundary.json')

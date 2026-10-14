@@ -7,6 +7,8 @@ import shlex
 import subprocess
 import sys
 
+from tools.checkpoint_formats.retained_evidence import check_native_input
+
 from tools.checkpoint_formats.codec import require
 from tools.checkpoint_formats.cpu_native import VCS_HOME, vcs_invocation
 from tools.checkpoint_formats.cpu_recipe import ROOT, RECIPES, recipe_settings
@@ -14,7 +16,7 @@ from tools.checkpoint_formats.evidence import file_sha
 from tools.checkpoint_formats.simulator import check_generated_rtl
 
 
-def audit(summary_path):
+def audit(summary_path, source_archive=None):
     summary_path = Path(summary_path).resolve()
     summary = json.loads(summary_path.read_text())
     out = summary_path.parent
@@ -29,8 +31,9 @@ def audit(summary_path):
             identity['level1_verified'] is False and identity['level2_verified'] is False and
             identity['vcs_home'] == VCS_HOME and len(identity['translation_units']) == 58,
             'incomplete or incompatible executed native CPU build')
+    archived = {} if source_archive is None else {b['path']: b for b in json.loads(Path(source_archive).read_text())['files']}
     for path, digest in identity['sources_sha256'].items():
-        require(file_sha(path) == digest, 'changed executed native CPU build input ' + path)
+        check_native_input(ROOT, path, digest, archived)
     binary = Path(identity['native_binary'])
     require(binary.parent.parent.parent == out / 'build' and binary.name == 'FireSim',
             'CPU executable is outside its immutable invocation')
@@ -125,8 +128,9 @@ def audit(summary_path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--summary', type=Path, required=True)
+    parser.add_argument('--source-archive', type=Path, help='Original immutable build-input catalog for a retained controller checkpoint.')
     args = parser.parse_args()
-    print(json.dumps(audit(args.summary), indent=2))
+    print(json.dumps(audit(args.summary, args.source_archive), indent=2))
 
 
 if __name__ == '__main__':

@@ -18,24 +18,47 @@ def state_id(hierarchy, kind):
 def validate_manifest(manifest):
     require(type(manifest) is dict, "semantic manifest must be an object")
     version = manifest.get("manifest_version")
+    multiclock = type(version) is int and version == 3
     keys(manifest, {"manifest_version", "manifest_type", "identity_scheme", "circuit", "dut_root",
-                    "clock_domain", "reference_sha256", "state"} |
-                   ({"external_models"} if type(version) is int and version == 2 else set()))
-    require(type(version) is int and version in (1, 2),
+                    "reference_sha256", "state"} |
+                   ({"clock_domains", "clock_inputs", "clock_aliases"} if multiclock else {"clock_domain"}) |
+                   ({"external_models"} if type(version) is int and version in (2, 3) else set()))
+    require(type(version) is int and version in (1, 2, 3),
             "unsupported semantic manifest version")
     require(manifest["manifest_type"] == "rtlckpt", "wrong semantic manifest type")
     require(manifest["identity_scheme"] == "pre-fame-state-v1", "unsupported StateID scheme")
-    for key in ("circuit", "dut_root", "clock_domain"):
+    for key in ("circuit", "dut_root") + (() if multiclock else ("clock_domain",)):
         require(type(manifest[key]) is str and PATH.fullmatch(manifest[key]), "invalid semantic path")
     root = manifest["dut_root"]
     require(root.split(".")[0] == manifest["circuit"], "DUT root outside circuit")
-    require(manifest["clock_domain"].startswith(root + "."), "clock outside selected DUT")
+    if multiclock:
+        for field in ("clock_inputs", "clock_domains"):
+            values = manifest[field]
+            require(type(values) is list and values and all(type(v) is str and PATH.fullmatch(v) and
+                    v.startswith(root + ".") and "." not in v[len(root) + 1:] for v in values),
+                    "invalid multi-clock roots")
+            require(values == sorted(set(values)), "duplicate or unsorted multi-clock roots")
+        require(set(manifest["clock_domains"]) <= set(manifest["clock_inputs"]),
+                "state clock is not a boundary input")
+        aliases = manifest["clock_aliases"]
+        require(type(aliases) is list, "invalid multi-clock aliases")
+        names = []
+        for alias in aliases:
+            keys(alias, {"name", "source", "direction"})
+            require(type(alias["name"]) is str and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_$]*", alias["name"]) and
+                    type(alias["source"]) is str and root + "." + alias["source"] in manifest["clock_inputs"] and
+                    root + "." + alias["name"] not in manifest["clock_inputs"] and alias["direction"] == "output",
+                    "invalid multi-clock alias provenance")
+            names.append(alias["name"])
+        require(names == sorted(set(names)), "duplicate or unsorted multi-clock aliases")
+    else:
+        require(manifest["clock_domain"].startswith(root + "."), "clock outside selected DUT")
     require(type(manifest["reference_sha256"]) is str and HASH.fullmatch(manifest["reference_sha256"]),
             "invalid reference circuit hash")
     require(type(manifest["state"]) is list and manifest["state"], "empty semantic inventory")
     external = {}
-    if version == 2:
-        require(type(manifest["external_models"]) is list and manifest["external_models"],
+    if version in (2, 3):
+        require(type(manifest["external_models"]) is list and (multiclock or manifest["external_models"]),
                 "empty external semantic ownership")
         owners = []
         for model in manifest["external_models"]:
@@ -56,7 +79,7 @@ def validate_manifest(manifest):
             owners.append(path)
             external[path + ".myplus"] = model
         require(owners == sorted(set(owners)), "duplicate or unsorted external owners")
-    identities, paths = [], []
+    identities, paths, domains = [], [], set()
     for entry in manifest["state"]:
         keys(entry, {"state_id", "hierarchy", "kind", "width", "depth", "signed", "clock_domain",
                      "reset", "bit_order", "address_order"})
@@ -70,7 +93,10 @@ def validate_manifest(manifest):
         require(type(entry["signed"]) is bool, "invalid signedness")
         model = external.get(entry["hierarchy"])
         if model is None:
-            require(entry["clock_domain"] == manifest["clock_domain"], "multiple target clocks unsupported")
+            require(type(entry["clock_domain"]) is str and
+                    entry["clock_domain"] in (manifest["clock_domains"] if multiclock else [manifest["clock_domain"]]),
+                    "unknown semantic state clock")
+            domains.add(entry["clock_domain"])
         else:
             require(entry["clock_domain"] == "initial" and entry["kind"] == "register" and
                     entry["width"] == model["width"] and entry["depth"] == 1 and not entry["signed"] and
@@ -85,6 +111,8 @@ def validate_manifest(manifest):
     require(identities == sorted(set(identities)), "duplicate or unsorted manifest IDs")
     require(len(paths) == len(set(paths)), "duplicate semantic state path")
     require(set(external) <= set(paths), "missing external semantic storage")
+    if multiclock:
+        require(domains == set(manifest["clock_domains"]), "unowned multi-clock state domain")
 
 
 def manifest_hash(manifest):
@@ -93,6 +121,9 @@ def manifest_hash(manifest):
 
 
 def validate_records(doc, manifest):
+    validate_manifest(manifest)
+    require(manifest["manifest_version"] != 3,
+            "multi-clock inventory cannot authorize restore without an event-phase cut binding")
     require(doc["build"]["state_manifest_hash"] == manifest_hash(manifest), "semantic manifest hash mismatch")
     expected = {entry["state_id"]: (entry["width"], entry["depth"]) for entry in manifest["state"]}
     actual = {record["state_id"]: (record["width"], record["depth"]) for record in doc["records"]}

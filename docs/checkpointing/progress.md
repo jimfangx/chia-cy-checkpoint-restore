@@ -14,13 +14,54 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 90, in progress. Recovery:
-[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). The pre-FAME inventory owns
-supported memory pipelines and exact initialized `plusarg_reader` values. Rocket
-discovery now rejects seven distinct state clocks, after resolving the serial
-domain's child input-clock fanout. Native component restore/replay passes;
-complete CPU runtime ownership, fresh Level-1 continuation and independent
-multi-clock Level-2 CPU capture/readback/replay remain pending.
+Current milestone: M11-rocket-level1-level2, iteration 91, in progress. Recovery:
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Exact Rocket discovery now
+emits a complete pre-FAME storage/clock inventory and compiler-bound clean access
+map: 8,644 entries / 318,637 words / seven state clocks plus six initialized values.
+Independent emitted-RTL audit and full ordinary RTL VCS diagnostic zero-edge
+readback pass. These are storage probes, not workload checkpoints. Complete CPU
+runtime ownership, coherent workload cuts, fresh Level-1 continuation and
+independent Level-2 CPU image/captured-trace replay remain pending.
+
+Iteration 91 (October 14):
+
+- Added opt-in discovery-only multi-clock schema 3. Every input/state clock and
+  forwarded output clock source is explicit. Single-clock schemas/StateIDs and
+  Level-1 ownership stay independent. Multi-clock image encoding/decoding and
+  banked restore reject until a coherent event-phase cut protocol exists.
+- Fixed actual Rocket clean emission losing constant-driven storage and renaming
+  keyword paths. Preserve all registers/RAMs; obtain access paths from actual
+  emitter-internal annotations, including local instance and implicit pipeline
+  renames. Independent RTL parsing audits every storage owner and clock block.
+  Exact Rocket VCS reads all 318,637 diagnostic words before edges; four invalid
+  loader cases preserve complete baseline state, and actual storage corruption
+  is detected. Two seven-clock components also pass, with 12/13 words. All
+  22 Scala inventory and 235 final Python tests pass; eight preserved regression
+  checks pass. Full current forwarded-clock and complete memory regressions also
+  pass: 22 words / 108 samples, 37 words / 149 samples, all five memory policies /
+  245 samples and 37 fresh native memory processes. No CPU workload checkpoint
+  cut or continuation is claimed.
+- Corrected durable retained-evidence auditing: the loop owns later index/HEAD
+  changes. Verify authorized controller ancestry, unchanged protected inputs,
+  all 1,321 original archive bindings and original native runtime evidence.
+  Only evolving source inputs may use their exact recorded snapshots. Original
+  initialized-owner waveform, complete memory and both full four-hart controls
+  re-audit successfully. Index, local HEADs, plans and environments remain
+  unchanged during this implementation turn; no staging/commits were performed.
+- Published existing iteration 90 checkpoints FireSim
+  `cc5681b967ead61edb31a13757586a117188c195`, then Chipyard
+  `ab558a7d34eefd4262e0d4d0e11d94effe563c40`; remote tips confirmed independently.
+  Local remote-tracking refs are read-only. The current controller will create
+  this iteration's checkpoint; publication instructions above still apply.
+- Recovery: `runs/m11-iteration91/rocket-semantic-retained-inventory/`,
+  `rocket-native-complete-inventory/invocation-yfr_nr9p/summary.json`,
+  `rocket-native-independent-audit.json`, `selected-multiclock-fixtures.json`,
+  retained evidence audits, `regression-results.json` and final summary/catalog.
+  Intermediate compiler/rename/rejection diagnostics remain retained. Next:
+  preserve and bind semantic owners through the actual metasim, coherent event
+  scheduling and complete run-loop/TSI/FESVR/TracerV ownership, then both levels
+  at all required four-hart workload cuts. No external dependency is missing.
+  Physical FPGA/ASIC work remains deferred; BOOM and Shuttle + Saturn pending.
 
 Iteration 90 (October 14):
 

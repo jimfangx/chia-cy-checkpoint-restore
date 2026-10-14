@@ -1,13 +1,13 @@
 # CPU checkpoint matrix
 
-Current milestone: M11 Rocket, iteration 90. Level-1 and Level-2 acceptance
+Current milestone: M11 Rocket, iteration 91. Level-1 and Level-2 acceptance
 remain **in_progress**. No CPU checkpoint continuation or clean CPU RTL replay
 has passed. Physical FPGA validation, standalone Shuttle and ASIC power are
 outside this matrix. The verified FCFS evidence remains in its existing docs.
 
 | Family / existing recipe | Level 1 | Level 2 | Workload evidence |
 | --- | --- | --- | --- |
-| Rocket / `firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3` | in_progress: generated RTL inventory audited; private-memory blockdev, explicit buffered-file UART and buffered heartbeat host adapters pass native component continuation; complete runtime ownership and fresh CPU continuation pending | in_progress: memory pipelines and exact initialized plusarg values inventoried; complete ChipTop inventory rejects seven distinct state clocks pending event scheduling | Both full four-hart controls pass at C=3,329,794; CPU checkpoint cuts remain pending; see iteration 90 below |
+| Rocket / `firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3` | in_progress: generated RTL inventory audited; private-memory blockdev, explicit buffered-file UART and buffered heartbeat host adapters pass native component continuation; complete runtime ownership and fresh CPU continuation pending | in_progress: complete ChipTop storage/clock inventory and native diagnostic zero-edge readback; coherent workload capture and event-phase replay pending | Retained full four-hart controls pass at C=3,329,794; CPU checkpoint cuts remain pending; see iteration 91 below |
 | BOOM / `firesim_boom_singlecore_no_nic_l2_llc4mb_ddr3` | pending | pending | No execution claimed |
 | Shuttle + Saturn / `firesim_saturn_GENV256D128_shuttle_singlecore_no_nic_l2_llc4mb_ddr3` | pending | pending | No vector execution claimed |
 
@@ -32,6 +32,105 @@ The recipe also specifies frequency 140 MHz and TIMING build strategy; these
 are retained in the recipe record, with no FPGA implementation invoked.
 VCS uses Y-2026.03-SP1, `-full64`, `VCS_FLAGS=-Mupdate`, system GCC/G++ 13,
 and the sourced Conda library/include directories. No Conda files are edited.
+
+## Iteration 91: complete Rocket clean storage and explicit clock ownership
+
+Diagnostic root:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration91/`.
+
+The exact recipe now elaborates with discovery-only
+`--semantic-multiclock-inventory`, independently of Level-1. Schema 3 lists all
+seven boundary clock inputs, every state clock and six output clocks' proven
+sources. It does not infer clock periods or authorize a multi-clock checkpoint.
+High-level image encoding/decoding rejects until event phases and a coherent cut
+are bound; multi-clock banked access also rejects. Legacy schemas 1/2 and
+semantic StateIDs remain unchanged. Native VCS commands source both environments
+and `vcs-env.sh` last; no FPGA bitstream build runs.
+
+The clean emitter now preserves all original storage, including constant-driven
+registers. A separate `.semantic-clean-access.json` binds original StateIDs to
+the actual emitter's storage paths, its clean-source SHA256 and manifest SHA256.
+It records register, memory and memory-pipeline keyword renames and each required
+instance path segment. Stateless unused instances can disappear without deleting
+storage owners. Compiler-internal emission state supplies these names; paths are
+not guessed from keyword spellings. Independent RTL parsing audits all register
+and array declarations, parameterized initialized owners, boundary widths,
+sequential blocks and clock connections. Complete ChipTop ownership is:
+
+| Owner clock / initialization | Entries | Words |
+| --- | ---: | ---: |
+| `clock_mbus_0` | 255 | 65,787 |
+| `clock_sbus_rockettile_0` | 1,435 | 43,895 |
+| `clock_sbus_rockettile_1` | 1,435 | 43,895 |
+| `clock_sbus_rockettile_2` | 1,435 | 43,895 |
+| `clock_sbus_rockettile_3` | 1,435 | 43,895 |
+| `clock_uncore` | 2,321 | 76,942 |
+| `serial_tl_0_clock_in` | 322 | 322 |
+| Exact initialized external values | 6 | 6 |
+| Total | 8,644 | 318,637 |
+
+`rocket-semantic-retained-inventory/` retains the exact-recipe command, original
+FIRRTL/reference, emitted manifest, clean access map, clean RTL and boundary.
+The full ordinary RTL VCS build and six fresh native probes are retained at
+`rocket-native-complete-inventory/invocation-yfr_nr9p/summary.json`.
+Every probe reads all 318,637 original words before any edge. The valid probe
+deposits deterministic diagnostic patterns and reads back every word, with all
+seven clocks low. Four invalid loader requests (missing word, duplicate word,
+unknown word, wrong width) reject without any deposit and preserve complete
+baseline readback. Actual post-deposit corruption is detected by native readback.
+`rocket-native-independent-audit.json` independently rechecks source/archive
+hashes, complete storage/clock ownership, every pattern row, exact build/run argv,
+native logs and all six fresh processes. **These are storage probes, with no CPU
+workload cut, captured checkpoint, boundary trace, or continuation claim.**
+
+The two final seven-clock component probes also pass, including a constant-driven
+register, renamed nested instance and renamed memory pipeline: 12 and 13 words,
+six fresh processes each. `selected-multiclock-fixtures.json` selects their exact
+summaries and independent audits. All 22 Scala inventory tests and 235 final
+Python tests pass. All eight preserved regression checks pass. Original memory,
+initialized-owner waveform and full four-hart workload/control evidence is
+retained and independently re-audited, using immutable source snapshots when
+implementation sources have since changed.
+The full current forwarded-clock native regression also passes (22 words / 108
+samples). Both complete current memory suites and their independent audit pass:
+37 metasim-captured words / 149 continuation samples, all five ordinary memory
+policies / 245 samples, and 37 fresh native processes. Their current summaries
+are `forwarded-native/summary.json`, `memory-native/summary.json` and
+`memory-policy-native/summary.json`; `independent-memory-audit.json` binds the
+original current images, logs and comparisons.
+
+The previous verification incorrectly required `.git/index` and local HEADs to
+remain identical after the loop controller created its checkpoint. The durable
+audit now checks permitted controller ancestry, unchanged plan/environment bytes,
+all 1,321 original archive bindings and original runtime evidence. Evolving
+source bytes must match their recorded snapshot and controller commit; binaries,
+generated artifacts, traces and logs cannot use that fallback. Index/HEAD
+preservation is checked during this implementation turn and recorded separately.
+The original failed verifier and all intermediate emission diagnostics remain
+retained. Existing iteration 90 commits were published FireSim first
+(`cc5681b967ead61edb31a13757586a117188c195`), then Chipyard
+(`ab558a7d34eefd4262e0d4d0e11d94effe563c40`); remote tips were independently
+confirmed. Local tracking-reference updates are read-only. No local staging or
+commits were performed.
+
+Executable native discovery probes (each writes a new invocation directory):
+
+```sh
+source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh && python -m tools.checkpoint_formats.tests.verify_multiclock_inventory_vcs --base automations/checkpoint_loop/runs/m11-iteration91/rocket-semantic-retained-inventory/FireSim-generated --out automations/checkpoint_loop/runs/m11-iteration91/rocket-native-recheck
+python -m tools.checkpoint_formats.tests.audit_multiclock_inventory --summary automations/checkpoint_loop/runs/m11-iteration91/rocket-native-complete-inventory/invocation-yfr_nr9p/summary.json
+python -m tools.checkpoint_formats.retained_evidence --archive automations/checkpoint_loop/runs/m11-iteration90/native-input-archives.json --protected automations/checkpoint_loop/runs/m11-iteration90/protected-inputs.json
+python -m tools.checkpoint_formats.tests.audit_rocket_controls --summary automations/checkpoint_loop/runs/m11-iteration90/rocket-controls/invocation-6f3ulwfs/summary.json --source-archive automations/checkpoint_loop/runs/m11-iteration90/native-input-archives.json
+PYTHONPATH="$PWD" python automations/checkpoint_loop/runs/m11-iteration91/run-regressions.py
+```
+
+CPU acceptance is still in progress. Next: preserve/bind original semantic
+owners through the actual generated simulator, capture coherent clock events
+and CPU state during real four-hart execution, and complete runtime run-loop,
+TSI/FESVR/TracerV ownership. Required early, warmed-cache, outstanding-memory and
+late CPU checkpoint cuts, fresh Level-1 continuation, and independent Level-2
+image readback/captured-trace replay remain untested. No external dependency is
+missing. BOOM and Shuttle + Saturn remain pending; physical FPGA/ASIC work is
+deferred.
 
 ## Iteration 90: initialized external state and parent clock pins
 
