@@ -222,10 +222,10 @@ def main():
 
 def verify_case(vcs, clean, manifest, boundary, case, expected=0,
                 configuration="InventoryFixture-NoConfig-DefaultF2Config", post_replay_checks="",
-                post_restore_checks="", monitor_edges=False):
+                post_restore_checks="", monitor_edges=False, runtime_args=(), flush_waveform=False):
     prepare_replay(manifest, boundary, configuration,
                    (case / "capture.rtlckpt").read_bytes(), (case / "capture.trace").read_bytes(), case)
-    if post_restore_checks or monitor_edges:
+    if post_restore_checks or monitor_edges or flush_waveform:
         bench = case / 'replay.sv'
         source = bench.read_text()
         if post_restore_checks:
@@ -238,6 +238,11 @@ def verify_case(vcs, clean, manifest, boundary, case, expected=0,
             require(source.count('initial begin') == 1, 'ambiguous semantic replay process')
             source = source.replace('initial begin',
                 'always @(posedge clock) $display("ACKNOWLEDGED_TARGET_EDGE");\ninitial begin')
+        if flush_waveform:
+            # A nonzero DPI exit can bypass VCS's buffered waveform finalizer.
+            # Preserve the settled pre-edge sample before comparing outputs.
+            require('  #1;\n' in source, 'missing settled replay sample')
+            source = source.replace('  #1;\n', '  #1; $dumpflush;\n')
         bench.write_text(source)
     if post_replay_checks:
         bench = case / "replay.sv"
@@ -249,7 +254,7 @@ def verify_case(vcs, clean, manifest, boundary, case, expected=0,
          "-cpp", os.environ["CXX"], "-CFLAGS", f"-std=c++17 -I{os.environ['VCS_HOME']}/include",
          "-timescale=1ns/1ps", "-top", "semantic_replay_tb", f"-Mdir={case / 'csrc'}", "-o", case / "simv",
          clean, case / "replay.sv", ROOT / "tools/checkpoint_formats/semantic_restore.cc"], case / "build.log")
-    result = run([case / "simv", f"+restore={case / 'restore.txt'}", f"+waveform={case / 'replay.vcd'}"],
+    result = run([case / "simv", f"+restore={case / 'restore.txt'}", f"+waveform={case / 'replay.vcd'}", *runtime_args],
                  case / "run.log", expected=expected)
     if expected == 0:
         require("PASS: fresh clean RTL replay" in result, "clean replay did not report PASS")

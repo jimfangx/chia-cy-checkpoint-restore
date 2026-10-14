@@ -7,6 +7,7 @@ from .codec import HASH, canonical, decode, encode, keys, natural, require
 
 
 PATH = re.compile(r"[A-Za-z_][A-Za-z0-9_$]*(?:\.[A-Za-z_][A-Za-z0-9_$]*)*\Z")
+PLUSARG_MODEL_SHA256 = "482a63c1f24a7ac920909620bd0df108e6954eabf9520de6e72334a2b5450efb"
 
 
 def state_id(hierarchy, kind):
@@ -15,9 +16,12 @@ def state_id(hierarchy, kind):
 
 
 def validate_manifest(manifest):
+    require(type(manifest) is dict, "semantic manifest must be an object")
+    version = manifest.get("manifest_version")
     keys(manifest, {"manifest_version", "manifest_type", "identity_scheme", "circuit", "dut_root",
-                    "clock_domain", "reference_sha256", "state"})
-    require(type(manifest["manifest_version"]) is int and manifest["manifest_version"] == 1,
+                    "clock_domain", "reference_sha256", "state"} |
+                   ({"external_models"} if type(version) is int and version == 2 else set()))
+    require(type(version) is int and version in (1, 2),
             "unsupported semantic manifest version")
     require(manifest["manifest_type"] == "rtlckpt", "wrong semantic manifest type")
     require(manifest["identity_scheme"] == "pre-fame-state-v1", "unsupported StateID scheme")
@@ -29,6 +33,29 @@ def validate_manifest(manifest):
     require(type(manifest["reference_sha256"]) is str and HASH.fullmatch(manifest["reference_sha256"]),
             "invalid reference circuit hash")
     require(type(manifest["state"]) is list and manifest["state"], "empty semantic inventory")
+    external = {}
+    if version == 2:
+        require(type(manifest["external_models"]) is list and manifest["external_models"],
+                "empty external semantic ownership")
+        owners = []
+        for model in manifest["external_models"]:
+            keys(model, {"hierarchy", "module", "adapter", "defname", "source_sha256", "width", "default", "format"})
+            path = model["hierarchy"]
+            require(type(path) is str and PATH.fullmatch(path) and path.startswith(root + "."),
+                    "external state outside selected DUT")
+            require(type(model["module"]) is str and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_$]*", model["module"]),
+                    "invalid external module")
+            require(model["adapter"] == "semantic-plusarg-v1" and model["defname"] == "plusarg_reader"
+                    and model["source_sha256"] == PLUSARG_MODEL_SHA256, "unknown semantic external model")
+            natural(model["width"])
+            natural(model["default"])
+            require(0 < model["width"] <= 2**31 - 1 and model["default"].bit_length() <= model["width"],
+                    "invalid semantic plusarg shape/default")
+            require(type(model["format"]) is str and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=%[dbh]", model["format"]),
+                    "unsupported semantic plusarg format")
+            owners.append(path)
+            external[path + ".myplus"] = model
+        require(owners == sorted(set(owners)), "duplicate or unsorted external owners")
     identities, paths = [], []
     for entry in manifest["state"]:
         keys(entry, {"state_id", "hierarchy", "kind", "width", "depth", "signed", "clock_domain",
@@ -41,7 +68,13 @@ def validate_manifest(manifest):
             require(0 < entry[key] <= 2**31 - 1, "unsupported state shape")
         require(entry["kind"] != "register" or entry["depth"] == 1, "register depth must be one")
         require(type(entry["signed"]) is bool, "invalid signedness")
-        require(entry["clock_domain"] == manifest["clock_domain"], "multiple target clocks unsupported")
+        model = external.get(entry["hierarchy"])
+        if model is None:
+            require(entry["clock_domain"] == manifest["clock_domain"], "multiple target clocks unsupported")
+        else:
+            require(entry["clock_domain"] == "initial" and entry["kind"] == "register" and
+                    entry["width"] == model["width"] and entry["depth"] == 1 and not entry["signed"] and
+                    entry["reset"] == "none", "semantic plusarg storage mismatch")
         require(entry["reset"] in ("none", "synchronous"), "unsupported reset semantics")
         require(entry["kind"] != "memory" or entry["reset"] == "none", "memory reset unsupported")
         require(entry["bit_order"] == "lsb0" and entry["address_order"] == "ascending_zero_based",
@@ -51,6 +84,7 @@ def validate_manifest(manifest):
         paths.append(entry["hierarchy"])
     require(identities == sorted(set(identities)), "duplicate or unsorted manifest IDs")
     require(len(paths) == len(set(paths)), "duplicate semantic state path")
+    require(set(external) <= set(paths), "missing external semantic storage")
 
 
 def manifest_hash(manifest):

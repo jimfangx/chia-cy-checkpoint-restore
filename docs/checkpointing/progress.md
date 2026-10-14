@@ -14,12 +14,79 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 89, in progress. Recovery:
+Current milestone: M11-rocket-level1-level2, iteration 90, in progress. Recovery:
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). The pre-FAME inventory owns
-supported synchronous/readwrite memory pipelines and Rocket discovery now reaches
-unowned `plusarg_reader` cells. Native memory component restore/replay passes;
-complete CPU runtime ownership, fresh Level-1 continuation and multi-clock
-Level-2 restore/replay remain pending. No CPU checkpoint acceptance yet.
+supported memory pipelines and exact initialized `plusarg_reader` values. Rocket
+discovery now rejects seven distinct state clocks, after resolving the serial
+domain's child input-clock fanout. Native component restore/replay passes;
+complete CPU runtime ownership, fresh Level-1 continuation and independent
+multi-clock Level-2 CPU capture/readback/replay remain pending.
+
+Iteration 90 (October 14):
+
+- Added exact semantic ownership for each non-SYNTHESIS plusarg model's
+  initialized `myplus` value, binding original inline source and specialized
+  width/default/format in a version-2 semantic manifest. Defaults never replace
+  captured runtime values. Existing manifests/StateIDs and Level-1 ownership
+  remain independent. Unknown/missing/altered/duplicated external implementations
+  and unsupported specializations reject before publication. Clean RTL retains
+  the exact original model once. Parent clock provenance now follows driven
+  child input pins without accepting data, gates, undriven nets or cycles.
+- All 19 final Scala inventory tests and 225 final Python tests pass. Native
+  ordinary component restores pass with default/nondefault values, nested
+  instances, 1/32/65-bit storage and conflicting fresh-process plusargs at
+  component C=0/3/9/16. Both direct-clock and child-input-clock fanout fixtures
+  read back all five words before edges and compare 160 combined samples /
+  800 outputs. Sixteen actual post-readback corruptions fail at their first
+  C=9 output with no acknowledged edge; twenty invalid images and sixteen
+  native loader requests reject before partial restore. Independent audits
+  bind original source, actual zero-edge waveform state and all captured
+  input/output waveform rows, native commands and 52 distinct
+  native processes. These are component checks, not CPU checkpoint cuts.
+- Exact Rocket discovery passes six initialized external owners and now rejects
+  seven distinct state clocks: memory, uncore, four tiles and serial-TL input.
+  No partial semantic artifacts are emitted. Independent original-hierarchy
+  diagnostics retain 1,488 instances, 7,734 explicit registers, 500 memories /
+  310,493 words, 404 memory-pipeline owners and six initialized values. Their
+  suggested 318,637 words remain a diagnostic, not a complete manifest.
+- Eight preserved native regression checks and the full forwarded-clock native
+  regression pass. The full memory rerun and independent audit pass with 37
+  words / 149 metasim-captured continuation samples, all five ordinary memory
+  policies / 245 samples, and 37 distinct fresh native processes. Current native
+  CPU preflight/save/restore still reject incomplete runtime ownership before
+  execution. Both full exact-recipe default/buffered four-hart controls pass at
+  C=3,329,794; complete hart traces and decoded workload/store labels match
+  the uninterrupted reference. Workload SHA256 remains
+  `f3d86f54caf42b9589385e8021dba46777f647134f19595e38a3d452b745f3d4`.
+  The independent native build/control audit passes with 297 inputs / 58
+  translation units. Controls and unsupported-request rejections do not
+  establish CPU checkpoint continuation.
+- Initial oversized wide test argument, declaration-order diagnostic, concurrent
+  VCS temporary-directory collision and cross-tool PID-namespace audit diagnostic
+  are retained alongside complete corrected retries. Native initialized-owner
+  checks now use an invocation-specific temporary root and flush settled
+  waveforms before comparisons, preserving failure evidence through DPI exits.
+  All VCS shells source
+  both environments then `vcs-env.sh` last, retaining Y-2026.03-SP1, `-full64`
+  and GCC/G++ 13; reused Make builds use `VCS_FLAGS=-Mupdate`.
+- Published existing controller checkpoints FireSim
+  `6522d5f5343f153b38366debf81a6b4c598ec1b0`, then Chipyard
+  `643ce6776acc49726d08a8473ac6dc977f082e12`, independently confirming remote
+  tips. Local tracking refs are read-only; remote publication succeeded. Plans,
+  environments, index and local heads are preserved; no local staging/commits.
+- Recovery under `runs/m11-iteration90/`: initialized-owner native summaries and
+  waveform audits (`selected-initialized-owner-evidence.json` selects the
+  original invocations), `rocket-controls/invocation-6f3ulwfs/summary.json`,
+  `rocket-semantic-verified-inventory/summary.json`,
+  `rocket-initialized-owner-audit.json`, `independent-memory-final-audit.json`,
+  `forwarded-native/summary.json`, `regression-results.json` and final
+  `summary.json` / `artifact-manifest.json` / `native-input-archives.json`.
+  Exact paths and
+  executable native checks are in the CPU matrix. Next: seven-clock event
+  scheduling, coherent CPU cuts and complete runtime run-loop/TSI/FESVR/TracerV
+  ownership, then independent full CPU Level-1 continuation and Level-2 replay
+  at the required active-workload cuts. No external dependency is missing.
+  Physical FPGA/ASIC work remains deferred; CPU acceptance remains in progress.
 
 Iteration 89 (October 14):
 

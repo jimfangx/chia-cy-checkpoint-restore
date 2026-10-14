@@ -13,7 +13,7 @@ from pathlib import Path
 import re
 
 from .codec import canonical, decode, encode, keys, require, bit_value
-from .semantic import decode_semantic, encode_semantic, manifest_hash, validate_manifest
+from .semantic import decode_semantic, encode_semantic, manifest_hash, validate_manifest, PLUSARG_MODEL_SHA256
 
 
 IDENT = r"[A-Za-z_][A-Za-z0-9_$]*"
@@ -59,7 +59,7 @@ def modules(text):
         rf"module\s+({IDENT})\s*\((.*?)\);(.*?)endmodule", text, re.S)}
 
 
-def inventory_rtl(mods, module, prefix=""):
+def inventory_rtl(mods, module, prefix="", *, external=None, visited=None):
     require(module in mods, f"missing concrete RTL module {module}")
     header, body = mods[module]
     result = {}
@@ -71,8 +71,50 @@ def inventory_rtl(mods, module, prefix=""):
                                int(depth_high) + 1 if depth_high else 1,
                                "memory" if depth_high else "register")
     for child_module, instance in re.findall(rf"^[ \t]*({IDENT})[ \t]+({IDENT})[ \t]*\(", body, re.M):
-        result.update(inventory_rtl(mods, child_module, prefix + instance + "."))
+        result.update(inventory_rtl(mods, child_module, prefix + instance + ".", external=external, visited=visited))
+    parameterized = list(re.finditer(rf"\b({IDENT})\s*#\((.*?)\)\s+({IDENT})\s*\(", body, re.S))
+    require(len(parameterized) == len(re.findall(rf"\b{IDENT}\s*#\s*\(", body)),
+            "unsupported parameterized semantic instance syntax")
+    for match in parameterized:
+        child, parameters, instance = match.groups()
+        owner = prefix + instance
+        require(child == "plusarg_reader" and external is not None and owner in external,
+                "unadapted parameterized semantic instance")
+        pattern = r'\.(DEFAULT|FORMAT|WIDTH)\(\s*("[A-Za-z_][A-Za-z0-9_]*=%[dbh]"|[0-9]+)\s*\)'
+        values = re.findall(pattern, parameters)
+        require(len(values) == 3 and len(dict(values)) == 3 and
+                not re.sub(pattern, '', parameters).replace(',', '').strip(), "unsupported semantic plusarg parameters")
+        values = dict(values)
+        model = external[owner]
+        require((int(values["WIDTH"]), int(values["DEFAULT"]), json.loads(values["FORMAT"])) ==
+                (model["width"], model["default"], model["format"]), "emitted semantic plusarg specialization mismatch")
+        require(owner not in visited and owner + ".myplus" not in result, "duplicate semantic plusarg instance")
+        visited.add(owner)
+        result[owner + ".myplus"] = (model["width"], 1, "register")
     return result
+
+
+def audit_semantic_rtl(manifest, module, text):
+    """Audit emitter declarations and exact non-SYNTHESIS external models.
+
+    The source model is bound separately from the FIRRTL reference; matching an
+    instance name or DEFAULT cannot establish complete external state ownership.
+    """
+    external = {m["hierarchy"][len(manifest["dut_root"]) + 1:]: m
+                for m in manifest.get("external_models", [])}
+    if external:
+        model = (Path(__file__).resolve().parents[2] /
+                 "generators/rocket-chip/src/main/resources/vsrc/plusarg_reader.v").read_text()
+        require(hashlib.sha256(model.encode()).hexdigest() == PLUSARG_MODEL_SHA256 and text.count(model) == 1,
+                "missing/duplicate/altered semantic plusarg model")
+        require(not re.search(r"^\s*`define\s+SYNTHESIS\b", text, re.M),
+                "semantic plusarg adapter requires non-SYNTHESIS RTL")
+        text = text.replace(model, "")
+    mods = modules(text)
+    visited = set()
+    actual = inventory_rtl(mods, module, external=external, visited=visited)
+    require(visited == set(external), "incomplete emitted semantic plusarg ownership")
+    return mods, actual
 
 
 def prepare_capture(manifest, boundary, clean_text, transformed_text, out, freeze_port=None):
@@ -86,8 +128,8 @@ def prepare_capture(manifest, boundary, clean_text, transformed_text, out, freez
                 (e["width"], e["depth"], e["kind"]) for e in manifest["state"]}
     module = boundary["dut_module"]
     for text in (clean_text, transformed_text):
-        mods = modules(text)
-        require(inventory_rtl(mods, module) == expected,
+        mods, actual = audit_semantic_rtl(manifest, module, text)
+        require(actual == expected,
                 "unsupported/lost/extra/reshaped semantic RTL state mapping")
         actual_ports = [dict(direction=d, width=int(h) + 1 if h else 1, name=n)
                         for d, h, n in re.findall(rf"\b(input|output)\s+{RANGE}({IDENT})", mods[module][0])]
