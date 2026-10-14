@@ -1,13 +1,13 @@
 # CPU checkpoint matrix
 
-Current milestone: M11 Rocket, iteration 86. Level-1 and Level-2 acceptance
+Current milestone: M11 Rocket, iteration 87. Level-1 and Level-2 acceptance
 remain **in_progress**. No CPU checkpoint continuation or clean CPU RTL replay
 has passed. Physical FPGA validation, standalone Shuttle and ASIC power are
 outside this matrix. The verified FCFS evidence remains in its existing docs.
 
 | Family / existing recipe | Level 1 | Level 2 | Workload evidence |
 | --- | --- | --- | --- |
-| Rocket / `firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3` | in_progress: generated RTL inventory audited; private-memory blockdev, explicit buffered-file UART and buffered heartbeat host adapters pass native component continuation; complete runtime ownership and fresh CPU continuation pending | in_progress: complete ChipTop inventory rejects its block-device clock alias | Full 16 GiB native VCS controls and all four instruction traces retained; four actual memory faults pass in Spike; see iterations 85/86 below |
+| Rocket / `firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3` | in_progress: generated RTL inventory audited; private-memory blockdev, explicit buffered-file UART and buffered heartbeat host adapters pass native component continuation; complete runtime ownership and fresh CPU continuation pending | in_progress: complete ChipTop inventory rejects its block-device clock alias | Five current full 16 GiB native VCS controls and all four instruction traces pass; four actual memory faults pass in retained Spike evidence; see iteration 87 below |
 | BOOM / `firesim_boom_singlecore_no_nic_l2_llc4mb_ddr3` | pending | pending | No execution claimed |
 | Shuttle + Saturn / `firesim_saturn_GENV256D128_shuttle_singlecore_no_nic_l2_llc4mb_ddr3` | pending | pending | No vector execution claimed |
 
@@ -32,6 +32,111 @@ The recipe also specifies frequency 140 MHz and TIMING build strategy; these
 are retained in the recipe record, with no FPGA implementation invoked.
 VCS uses Y-2026.03-SP1, `-full64`, `VCS_FLAGS=-Mupdate`, system GCC/G++ 13,
 and the sourced Conda library/include directories. No Conda files are edited.
+
+## Iteration 87: reproducible exact-recipe native controls
+
+Diagnostic root:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration87/`.
+
+The previous loop verification failed before running either control. Its Make
+call reused the existing executable and replaced `rocket-vcs-build.log` with
+an up-to-date-build log containing no VCS command. The subsequent native build
+recorder correctly rejected that log. The failed log is retained as
+`previous-verification.log`; `actual-noop-build-rejection.json` records its
+rejection by the maintained native invocation validator.
+
+`VCS_FORCE_REBUILD=1` now adds a phony prerequisite at both the outer FireSim
+Make target and the recursive native VCS target. `cpu_recipe.native_build_command`
+requests this explicitly for VCS checks. It retains `-full64`, `-Mupdate` and
+all exact recipe settings above. It changes no source timestamps and forces
+the native invocation without forcing target elaboration. Ordinary builds
+retain their existing caching behavior. A real two-layer Make regression with
+a mock compiler proves repeated forced rebuilds and unchanged-source caching;
+this mock test is explicitly separate from licensed native VCS evidence.
+
+The maintained launcher is
+`tools/checkpoint_formats/tests/verify_rocket_controls_vcs.py`. Each invocation
+gets its own build directory, executable, logs, actual process IDs, commands,
+full 16-GiB controls and complete four-hart traces. `cpu_native.py` binds 297
+native inputs and 58 host translation units, including actual compiler `.d`
+dependencies, generated RTL/inventory, the static FESVR archive, compiler
+executables, VCS executable and linked shared libraries. Successful Make logs
+must contain exactly one executed VCS command for the selected executable.
+No-op, failed, ambiguous, wrong-release, wrong-mode and wrong-output logs
+reject. No CPU checkpoint profile is enabled.
+
+Both exact-recipe native builds and all five full four-hart controls pass at
+target count 3,329,794: two independently rebuilt default/buffered pairs and
+the frequent-heartbeat control. Every full hart trace and independently decoded
+phase/completion/failure/HTIF store label matches the uninterrupted reference.
+The frequent control retains 202 actual clock samples from C=16,459 through
+3,322,351. Workload ELF SHA256 is
+`f3d86f54caf42b9589385e8021dba46777f647134f19595e38a3d452b745f3d4`.
+The independent maintained control audit passes. All 221 Python tests, full M2/M3 native VCS
+metasim and ordinary RTL checks, 52 existing widget continuations, UART's 18,
+blockdev's 30, heartbeat's 96 native/VCS continuations and eight FCFS Make/four
+generator guards have passed. Earlier iteration-84/85 evidence passes with
+its original `cpu_recipe.py` bound to an archived snapshot and pinned Git
+object. It remains historical evidence.
+
+Reproduce both complete controls from the Chipyard root. Repeated invocations
+retain earlier build and runtime artifacts:
+
+```sh
+source env.sh && source sims/firesim/env.sh
+source automations/checkpoint_loop/vcs-env.sh
+python -m tools.checkpoint_formats.tests.verify_rocket_controls_vcs \
+  --out automations/checkpoint_loop/runs/m11-iteration87/reusable-controls \
+  --seed-build automations/checkpoint_loop/runs/m11-iteration87/build \
+  --workload automations/checkpoint_loop/runs/m11-iteration82/workload \
+  --reference-runtime automations/checkpoint_loop/runs/m11-iteration85/rocket-runtime \
+  --reference-audit automations/checkpoint_loop/runs/m11-iteration85/rocket-workload-audit.json
+```
+
+The selected initial immutable invocation is
+`reusable-controls/invocation-yq4cdng6/`. Its passing independent audit command is:
+
+```sh
+source env.sh && source sims/firesim/env.sh
+source automations/checkpoint_loop/vcs-env.sh
+python -m tools.checkpoint_formats.tests.audit_rocket_controls \
+  --summary automations/checkpoint_loop/runs/m11-iteration87/reusable-controls/invocation-yq4cdng6/summary.json
+```
+
+This checks complete generated inventory, every native input, actual argv and
+process completion, full instruction traces and independently decoded workload
+phase/completion/failure/HTIF stores at their original CPU-print labels. These
+labels are workload controls, not checkpoint-cut target-cycle evidence.
+No early/warmed/outstanding/late CPU checkpoint cut has passed. Complete
+runtime ownership, fresh-process Level-1 continuation and independent
+multi-clock Level-2 capture, zero-edge readback and finite replay remain pending.
+
+Fresh current-source ChipTop discovery still rejects
+`FireSim.chiptop0.system.bdev_clock`, with no partial semantic outputs. Native
+CPU preflight/save/restore still reject incomplete runtime ownership before
+partial checkpoint publication. Required CPU malformed/incompatible/incomplete
+image validation and actual semantic first-divergence corruption cases remain
+pending. The new build-log rejection cases are infrastructure checks.
+
+`summary.json`, `selected-evidence.json`, `native-input-archives.json` and
+`artifact-manifest.json` retain the exact selected artifacts and all 594 native
+input bindings with archived original bytes. The combined saved evidence check
+uses the selected immutable invocation independently of later `latest.json`
+updates. Reproduce the remaining complete native checks from the Chipyard root:
+
+```sh
+source env.sh && source sims/firesim/env.sh
+source automations/checkpoint_loop/vcs-env.sh
+PYTHONPATH="$PWD" python automations/checkpoint_loop/runs/m11-iteration87/run-rocket-polling-control.py
+python automations/checkpoint_loop/runs/m11-iteration87/run-regressions.py
+python -m automations.checkpoint_loop.runs.m11-iteration87.verify-evidence
+```
+
+Each nested VCS shell independently sources `vcs-env.sh` last. Existing
+controller commits FireSim `06d8dd43b2162fdf943c255167404889d8afd95c` and then
+Chipyard `bc3878be2bf298af6217dc7db1c2383c871cc70a` were published with confirmed
+remote tips. Plans/environment inputs/indexes/heads are preserved; no local
+staging/commits or required external dependency failure.
 
 ## Iteration 86: heartbeat host ownership
 

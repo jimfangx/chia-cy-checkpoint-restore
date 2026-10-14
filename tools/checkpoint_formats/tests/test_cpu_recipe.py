@@ -28,6 +28,7 @@ class CPURecipeTest(unittest.TestCase):
                 value = settings['resolved_makefrag'] if field == 'TARGET_PROJECT_MAKEFRAG' else settings['settings'][field]
                 self.assertIn(field + '=' + value, argv)
             self.assertIn('VCS=/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs -full64', argv)
+            self.assertIn('VCS_FORCE_REBUILD=1', argv)
             self.assertNotIn('FS_CHECKPOINT_PROFILE=fcfs-fased-v1', argv)
 
     def test_changed_settings_are_read_from_current_recipe_bytes(self):

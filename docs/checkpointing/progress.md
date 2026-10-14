@@ -14,13 +14,52 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 86, in progress. Recovery:
+Current milestone: M11-rocket-level1-level2, iteration 87, in progress. Recovery:
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Exact Rocket generated RTL
 inventory passes independently; private-memory blockdev and explicit
 buffered-file UART and buffered heartbeat host components pass fresh native/VCS continuations.
 Complete runtime ownership/fresh Level-1 continuation and multi-clock Level-2
 restore/replay remain pending.
 No CPU checkpoint acceptance yet.
+
+Iteration 87 (October 13):
+
+- Fixed the preceding verifier failure: an up-to-date Make returned success
+  without invoking VCS, and the overwritten build log then failed native source
+  binding. `VCS_FORCE_REBUILD=1` now crosses both recursive Make layers for
+  exact CPU recipe checks, without changing source timestamps or forcing RTL
+  elaboration. Ordinary builds retain their existing caching behavior.
+- Added maintained complete Rocket control/build auditing with separate retained
+  invocation directories, executable-bound native argv, actual compiler
+  dependencies, static FESVR archive and shared-library hashes. No CPU runtime
+  profile or semantic schema is enabled by this infrastructure.
+- Two exact-recipe native builds and all five full four-hart controls pass at
+  C=3,329,794. Both default/buffered pairs and the frequent-heartbeat control
+  match every complete hart trace and independently decoded workload/store
+  label against the uninterrupted reference. Frequent polling retains 202 real
+  clock samples, C=16,459 through 3,322,351. Workload SHA256 remains
+  `f3d86f54caf42b9589385e8021dba46777f647134f19595e38a3d452b745f3d4`.
+- The independent maintained control audit passes. Each native build binds 297
+  inputs / 58 translation units; all 594 bindings have retained original bytes.
+  All 221 Python tests and eight preserved regression checks pass: full M2/M3
+  VCS metasim/ordinary RTL, 52 widget, 18 UART, 30 blockdev and 96 heartbeat
+  native/VCS continuations, plus eight FCFS Make/four generator guards. Historical
+  iteration-84/85 audits pass using archived original recipe-helper Git bytes;
+  the initial stale-source diagnostic is retained. Fresh CPU preflight/save/
+  restore and ChipTop semantic discovery still reject incomplete ownership/
+  `bdev_clock`, publishing no partial images or semantic outputs.
+- Published controller checkpoints FireSim
+  `06d8dd43b2162fdf943c255167404889d8afd95c`, then Chipyard
+  `bc3878be2bf298af6217dc7db1c2383c871cc70a`, confirming remote tips. No
+  staging or local commits. Plans, environments, indexes and heads are preserved.
+- Recovery: `runs/m11-iteration87/summary.json`, `selected-evidence.json`,
+  `native-input-archives.json`, `artifact-manifest.json` and
+  `verification-commands.json`; the selected maintained run is
+  `reusable-controls/invocation-yq4cdng6/summary.json`. Executable commands and
+  exact scope are in [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md).
+  Full CPU Level-1 restore, independent Level-2 semantic restore/replay, all
+  required active-workload cuts and CPU image/corruption cases remain pending.
+  No required external dependency is missing; no FPGA or ASIC claims.
 
 Iteration 86 (October 13):
 

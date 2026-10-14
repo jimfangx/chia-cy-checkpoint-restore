@@ -59,7 +59,8 @@ def native_build_command(settings, build, goal, *, semantic_root=None):
         require(type(semantic_root) is str and semantic_root, 'explicit pre-FAME root required')
         args += ['SEMANTIC_BRIDGE_CHECKPOINT_ROOT=' + semantic_root]
     if goal == 'vcs':
-        args += ['VCS=/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs -full64', 'VCS_FLAGS=-Mupdate']
+        args += ['VCS=/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs -full64',
+                 'VCS_FLAGS=-Mupdate', 'VCS_FORCE_REBUILD=1']
     args += [goal]
     cache = build.parent / 'coursier-cache'
     shell = ('source env.sh && source sims/firesim/env.sh && '
