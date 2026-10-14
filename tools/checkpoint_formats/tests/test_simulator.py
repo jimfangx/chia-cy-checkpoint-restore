@@ -9,7 +9,7 @@ from tools.checkpoint_formats.codec import FormatError, canonical
 from tools.checkpoint_formats.simulator import (check_generated_rtl, generated_capture,
                                                 generated_words, validate_generated_manifest,
                                                 prepare_generated_stream_probe, validate_generated_stream,
-                                                prepare_settled_generated_probe)
+                                                prepare_settled_generated_probe, PLUSARG_MODEL_SHA256)
 
 
 def fixture():
@@ -28,6 +28,53 @@ def fixture():
 
 
 class SimulatorInventoryTest(unittest.TestCase):
+    def test_plusarg_ownership_binds_complete_storage_source_and_actual_emitted_parameters(self):
+        model = (Path(__file__).resolve().parents[3] /
+                 "generators/rocket-chip/src/main/resources/vsrc/plusarg_reader.v").read_text()
+        self.assertEqual(hashlib.sha256(model.encode()).hexdigest(), PLUSARG_MODEL_SHA256)
+        m = fixture()
+        m["state"] = []
+        for name, module, width, default in (("a", "Reader32", 32, 7), ("b", "Reader1", 1, 0)):
+            adapter = dict(adapter="metasim-plusarg-v1", defname="plusarg_reader", width=width,
+                           default=default, format="max_core_cycles=%d", source_sha256=PLUSARG_MODEL_SHA256)
+            m["instances"].append(dict(hierarchy="Top." + name, module=module, external_adapter=adapter,
+                                       implementation_sha256=hashlib.sha256(canonical(adapter)).hexdigest()))
+            path = f"Top.{name}.myplus"
+            identity = hashlib.sha256(canonical(dict(hierarchy=path, kind="register",
+                                                    namespace="generated-simulator-state-v1"))).hexdigest()
+            m["state"].append(dict(state_id=identity, hierarchy=path, module=module, kind="register",
+                                   width=width, depth=1, signed=False, clock_expression="initial",
+                                   reset_expression="none", adapter="metasim-plusarg-v1", bit_order="lsb0",
+                                   address_order="ascending_zero_based"))
+        m["state"].sort(key=lambda e: e["state_id"])
+        rtl = '''module Top(output [31:0] first, output second);
+  plusarg_reader #(.WIDTH(32), .FORMAT("max_core_cycles=%d"), .DEFAULT(7)) a (.out(first));
+  plusarg_reader #(.DEFAULT(0), .WIDTH(1), .FORMAT("max_core_cycles=%d")) b (.out(second));
+endmodule
+''' + model
+        check_generated_rtl(m, "reference", rtl, "", plusarg_model=model)
+        for bad in (rtl.replace(".WIDTH(32)", ".WIDTH(31)"), rtl.replace(".DEFAULT(7)", ".DEFAULT(8)"),
+                    rtl.replace(".DEFAULT(7)", ".DEFAULT(7), .WIDTH(32)"),
+                    rtl.replace("max_core_cycles=%d", "max_core_cycles=%h"),
+                    rtl.replace("myplus = DEFAULT;", "myplus = DEFAULT + 1;"),
+                    rtl.replace("endmodule\n", "  Unknown #(.WIDTH(1)) c ();\nendmodule\n", 1),
+                    rtl.replace("endmodule\n", "  plusarg_reader #(.WIDTH(1), .FORMAT(\"x=%d\"), .DEFAULT(0)) c ();\nendmodule\n", 1),
+                    "`define SYNTHESIS\n" + rtl, rtl + model):
+            with self.subTest(bad=bad[:160]), self.assertRaises(FormatError):
+                check_generated_rtl(m, "reference", bad, "", plusarg_model=model)
+        with self.assertRaises(FormatError):
+            check_generated_rtl(m, "reference", rtl, "")
+        for mutate in (lambda d: d["state"].pop(),
+                       lambda d: d["state"][0].update(width=17),
+                       lambda d: d["state"][0].update(clock_expression="clock"),
+                       lambda d: d["state"][0].update(adapter="firrtl-register-v1"),
+                       lambda d: d["instances"][1]["external_adapter"].update(default=8),
+                       lambda d: d["instances"][1].pop("external_adapter")):
+            changed = copy.deepcopy(m)
+            mutate(changed)
+            with self.assertRaises(FormatError):
+                validate_generated_manifest(changed)
+
     def test_wide_and_memory_values_are_complete_and_independent(self):
         m = fixture()
         words = list(generated_words(m))

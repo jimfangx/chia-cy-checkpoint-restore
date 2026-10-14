@@ -14,10 +14,59 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 82, in progress. Recovery:
-[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Exact Rocket elaboration
-and regular VCS build pass; independent complete Level-1/Level-2 inventories
-reject unsupported state explicitly. No CPU checkpoint acceptance yet.
+Current milestone: M11-rocket-level1-level2, iteration 83, in progress. Recovery:
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Exact Rocket generated RTL
+inventory now passes independently; complete native runtime ownership/fresh
+Level-1 continuation and multi-clock Level-2 restore/replay remain pending.
+No CPU checkpoint acceptance yet.
+
+Iteration 83 (October 13):
+
+- Read current read-only plan priorities, relevant simulator/semantic sections,
+  progress, previous verification and publication instructions before editing.
+  Root papers' state capture/replay sections were read through pypdf; input
+  hashes and extracts are under `runs/m11-iteration83/`. Plans/PDFs, native
+  environment files, indexes and local heads remain protected.
+- Added an exact non-SYNTHESIS metasim plusarg-register adapter, binding source
+  bytes and every WIDTH/DEFAULT/FORMAT specialization. The independent emitted
+  Verilog checker audits parameterized instances and requires complete owners;
+  it rejects altered source/configuration, missing state and hidden registers.
+  No CPU runtime whitelist extension or Level-2 schema substitution.
+- Exact Rocket generated inventory and independent declaration audit pass:
+  2,292 instances, 11,464 entries, 445,838 words, 21,000,837 bits. All seven
+  plusarg registers are included. Eight actual Rocket artifact mutations reject,
+  preserving positive bytes. Full simulator/host ownership remains unfinished.
+- Fresh exact-recipe VCS metasim with full 16-GiB memory passes the real
+  four-hart workload at C=3,329,794. All four complete instruction streams and
+  independently decoded store values/cycle fields match iteration 82. Every
+  generated word is captured at target-count 50,000 / 850,000 / 1,013,847 /
+  3,200,000. Source-bound tag decoding confirms warm D-caches on all harts;
+  the outstanding sample has real cached grants pending on harts 1/2/3 and
+  an actual host read in flight. These are settled-host diagnostics, without
+  complete runtime owners, an atomic cut or checkpoint continuation acceptance.
+- Source audit distinguishes existing CPU-managed-stream/FASED/generic hooks
+  needing CPU-specific validation from missing run-loop, TSI/FESVR coroutine,
+  UART, blockdev, four trace-sink and heartbeat adapters. Native exact Rocket
+  preflight/save/restore requests reject explicitly, publishing no partial
+  image. Fresh current-source Level-2 discovery still rejects the ChipTop
+  block-device clock alias and emits no partial semantic manifest/clean RTL.
+  Multi-clock/reset/state lowering, fresh restores, full boundary replay and
+  CPU malformed/incompatible/incomplete-image/semantic-fault tests remain.
+- Native external-adapter microtest passes: real nondefault capture, fresh VCS
+  with conflicting startup plusargs, all 33 bits read back at zero edges, four
+  diagnostic boundaries, actual storage corruption first differing at boundary
+  0 with exit 1. The initial `$fatal`/zero-exit diagnostic is preserved; the
+  final check uses the existing native DPI failure function.
+- All 16 Scala inventory tests, 219 Python tests, fresh full M2/M3 VCS metasim
+  and ordinary RTL regressions, eight FCFS Make/four generator guards pass.
+  Diagnostics and executable commands remain under `runs/m11-iteration83/`.
+  `selected-evidence.json`, `verify-evidence.py`, `summary.json`,
+  `verification-commands.json` and `artifact-manifest.json` recover the exact
+  commands, complete native artifact paths and current-source audits.
+- Published existing controller checkpoints FireSim
+  `311ad96e583140632d3ab96f0758de79c075dff5`, then Chipyard
+  `a12ae334cf6dad1fbb29b4cb7a2d69952efc2dd3`; remote tips independently confirmed.
+  No staging or local commits; the controller owns its next checkpoint.
 
 Iteration 82 (October 13):
 

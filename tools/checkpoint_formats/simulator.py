@@ -13,6 +13,20 @@ import re
 from .codec import HASH, bit_value, canonical, keys, natural, require, unique_object
 from .replay import IDENT, RANGE, modules
 
+PLUSARG_MODEL_SHA256 = "482a63c1f24a7ac920909620bd0df108e6954eabf9520de6e72334a2b5450efb"
+
+
+def _validate_plusarg_adapter(adapter):
+    keys(adapter, {"adapter", "defname", "source_sha256", "width", "default", "format"})
+    require(adapter["adapter"] == "metasim-plusarg-v1" and adapter["defname"] == "plusarg_reader"
+            and adapter["source_sha256"] == PLUSARG_MODEL_SHA256, "unknown plusarg implementation")
+    natural(adapter["width"])
+    natural(adapter["default"])
+    require(0 < adapter["width"] <= 2**31 - 1 and adapter["default"].bit_length() <= adapter["width"],
+            "invalid plusarg specialization shape/default")
+    require(type(adapter["format"]) is str and
+            re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=%[dbh]", adapter["format"]), "unsupported plusarg format")
+
 
 def validate_generated_manifest(manifest):
     keys(manifest, {"manifest_version", "manifest_type", "identity_scheme", "circuit", "root_module",
@@ -30,7 +44,13 @@ def validate_generated_manifest(manifest):
     require(type(manifest["instances"]) is list and manifest["instances"], "empty instance inventory")
     instances = {}
     for item in manifest["instances"]:
-        keys(item, {"hierarchy", "module", "implementation_sha256"})
+        fields = {"hierarchy", "module", "implementation_sha256"}
+        if "external_adapter" in item:
+            fields.add("external_adapter")
+            _validate_plusarg_adapter(item["external_adapter"])
+            require(item["implementation_sha256"] == hashlib.sha256(canonical(item["external_adapter"])).hexdigest(),
+                    "plusarg implementation binding mismatch")
+        keys(item, fields)
         require(type(item["hierarchy"]) is str and all(re.fullmatch(IDENT, p) for p in item["hierarchy"].split(".")),
                 "invalid instance hierarchy")
         require(type(item["module"]) is str and re.fullmatch(IDENT, item["module"]), "invalid module")
@@ -65,11 +85,21 @@ def validate_generated_manifest(manifest):
             require(type(entry[name]) is str and entry[name], "missing clock/reset metadata")
         require(entry["adapter"] in ("firrtl-register-v1", "firrtl-memory-v1",
                                      "firrtl-emitter-memory-pipeline-v1",
-                                     "abstract-clock-gate-v1", "metasim-bufgce-v1"), "unknown state adapter")
+                                     "abstract-clock-gate-v1", "metasim-bufgce-v1", "metasim-plusarg-v1"),
+                "unknown state adapter")
         require((entry["kind"] == "memory") == (entry["adapter"] == "firrtl-memory-v1"), "adapter kind mismatch")
+        external = instances[owner].get("external_adapter")
+        require((entry["adapter"] == "metasim-plusarg-v1") == (external is not None),
+                "plusarg state owner mismatch")
+        if external is not None:
+            require(path == owner + ".myplus" and entry["width"] == external["width"]
+                    and entry["signed"] is False and entry["clock_expression"] == "initial"
+                    and entry["reset_expression"] == "none", "plusarg storage mismatch")
         ids.append(entry["state_id"])
         paths.append(path)
     require(ids == sorted(set(ids)) and len(set(paths)) == len(paths), "duplicate/unsorted generated state")
+    require({p.rsplit(".", 1)[0] for p in paths if instances[p.rsplit(".", 1)[0]].get("external_adapter")} ==
+            {p for p, i in instances.items() if "external_adapter" in i}, "missing plusarg storage")
 
 
 def generated_words(manifest):
@@ -80,7 +110,7 @@ def generated_words(manifest):
                        width=entry["width"])
 
 
-def check_generated_rtl(manifest, reference, rtl, bufgce_model):
+def check_generated_rtl(manifest, reference, rtl, bufgce_model, *, plusarg_model=None):
     """Independent emitted-declaration coverage check for the restricted FIRRTL syntax.
 
     Init-only _RAND_ temporaries are excluded by the established emitter parser.
@@ -89,11 +119,25 @@ def check_generated_rtl(manifest, reference, rtl, bufgce_model):
     """
     validate_generated_manifest(manifest)
     require(hashlib.sha256(reference.encode()).hexdigest() == manifest["reference_sha256"], "reference hash mismatch")
+    external = {i["hierarchy"]: i["external_adapter"] for i in manifest["instances"] if "external_adapter" in i}
+    if external:
+        require(type(plusarg_model) is str and hashlib.sha256(plusarg_model.encode()).hexdigest() == PLUSARG_MODEL_SHA256,
+                "plusarg metasim model mismatch")
+        require(rtl.count(plusarg_model) == 1, "missing/duplicate/altered emitted plusarg model")
+        require(not re.search(r"^\s*`define\s+SYNTHESIS\b", rtl, re.M), "plusarg adapter requires non-SYNTHESIS metasim")
+        rtl = rtl.replace(plusarg_model, "")
+    # Retain strings only for the explicit parameter adapter. The generic
+    # declaration scanner below still removes strings and comments together.
+    parameter_syntax = re.sub(r'"(?:\\.|[^"\\])*"|//[^\n]*|/\*.*?\*/',
+                              lambda m: m.group() if m.group().startswith('"') else
+                              re.sub(r"[^\n]", " ", m.group()), rtl, flags=re.S)
+    parameter_modules = modules(parameter_syntax)
     # Comments and diagnostic strings may contain words such as "reg.name";
     # lex them out together before scanning declarations and hierarchy.
     syntax = re.sub(r'"(?:\\.|[^"\\])*"|//[^\n]*|/\*.*?\*/',
                     lambda match: re.sub(r"[^\n]", " ", match.group()), rtl, flags=re.S)
     mods = modules(syntax)
+    visited_external = set()
     def inventory(module, prefix, ancestors):
         require(module in mods and module not in ancestors, "missing/recursive generated RTL module")
         header, body = mods[module]
@@ -114,8 +158,29 @@ def check_generated_rtl(manifest, reference, rtl, bufgce_model):
             child_state = inventory(child, prefix + instance + ".", ancestors | {module})
             require(not set(result).intersection(child_state), "duplicate RTL hierarchy")
             result.update(child_state)
+        param_body = parameter_modules[module][1]
+        parameterized = list(re.finditer(rf"\b({IDENT})\s*#\((.*?)\)\s+({IDENT})\s*\(", param_body, re.S))
+        require(len(parameterized) == len(re.findall(rf"\b{IDENT}\s*#\s*\(", param_body)),
+                "unsupported parameterized instance syntax")
+        for match in parameterized:
+            child, parameters, instance = match.groups()
+            owner = prefix + instance
+            require(child == "plusarg_reader" and owner in external, "unadapted parameterized instance")
+            values = re.findall(r'\.(DEFAULT|FORMAT|WIDTH)\(\s*("[A-Za-z_][A-Za-z0-9_]*=%[dbh]"|[0-9]+)\s*\)', parameters)
+            require(len(values) == 3 and len(dict(values)) == 3 and
+                    not re.sub(r'\.(DEFAULT|FORMAT|WIDTH)\(\s*("[A-Za-z_][A-Za-z0-9_]*=%[dbh]"|[0-9]+)\s*\)',
+                               '', parameters).replace(',', '').strip(), "unsupported plusarg parameters")
+            values = dict(values)
+            expected_adapter = dict(adapter="metasim-plusarg-v1", defname=child, source_sha256=PLUSARG_MODEL_SHA256,
+                                    width=int(values["WIDTH"]), default=int(values["DEFAULT"]),
+                                    format=json.loads(values["FORMAT"]))
+            require(expected_adapter == external[owner], "emitted plusarg specialization mismatch")
+            require(owner not in visited_external, "duplicate plusarg instance")
+            visited_external.add(owner)
+            result[owner + ".myplus"] = (expected_adapter["width"], 1, "register")
         return result
     actual = inventory(manifest["root_module"], manifest["root_module"] + ".", set())
+    require(visited_external == set(external), "incomplete emitted plusarg ownership")
     for entry in manifest["state"]:
         instance = entry["hierarchy"].rsplit(".", 1)[0]
         if entry["adapter"] == "metasim-bufgce-v1":

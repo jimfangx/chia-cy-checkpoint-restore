@@ -1,13 +1,13 @@
 # CPU checkpoint matrix
 
-Current milestone: M11 Rocket, iteration 82. Level-1 and Level-2 acceptance
+Current milestone: M11 Rocket, iteration 83. Level-1 and Level-2 acceptance
 remain **in_progress**. No CPU checkpoint continuation or clean CPU RTL replay
 has passed. Physical FPGA validation, standalone Shuttle and ASIC power are
 outside this matrix. The verified FCFS evidence remains in its existing docs.
 
 | Family / existing recipe | Level 1 | Level 2 | Workload evidence |
 | --- | --- | --- | --- |
-| Rocket / `firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3` | in_progress: complete generated inventory rejects an unadapted plusarg reader | in_progress: complete ChipTop inventory rejects its block-device clock alias | Full 16 GiB native VCS baseline passes at 3,329,794 target cycles; all four harts independently audited; four actual memory faults pass in Spike |
+| Rocket / `firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3` | in_progress: complete generated RTL inventory and four active diagnostic samples audited; complete runtime ownership and fresh continuation pending | in_progress: fresh complete ChipTop inventory rejects its block-device clock alias | Two full 16 GiB native VCS controls pass at 3,329,794 target cycles; all four complete instruction traces and audited store timing match; four actual memory faults pass in Spike |
 | BOOM / `firesim_boom_singlecore_no_nic_l2_llc4mb_ddr3` | pending | pending | No execution claimed |
 | Shuttle + Saturn / `firesim_saturn_GENV256D128_shuttle_singlecore_no_nic_l2_llc4mb_ddr3` | pending | pending | No vector execution claimed |
 
@@ -32,6 +32,143 @@ The recipe also specifies frequency 140 MHz and TIMING build strategy; these
 are retained in the recipe record, with no FPGA implementation invoked.
 VCS uses Y-2026.03-SP1, `-full64`, `VCS_FLAGS=-Mupdate`, system GCC/G++ 13,
 and the sourced Conda library/include directories. No Conda files are edited.
+
+## Iteration 83: exact generated RTL ownership
+
+Diagnostic root:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration83/`.
+
+The exact recipe now emits its complete generated RTL manifest and reference.
+The metasim-only `plusarg_reader` adapter owns `myplus`, including its runtime
+value rather than assuming `DEFAULT`. Each instance binds the exact inline
+Verilog SHA256, WIDTH, DEFAULT and FORMAT; unknown models, ports and parameter
+shapes still reject. This adapter describes the non-SYNTHESIS simulation model.
+It does not add FPGA storage or change the target RTL. Level-2 IDs and the
+FCFS runtime profile remain independent.
+
+| Generated storage adapter | Entries | Words | Bits |
+| --- | ---: | ---: | ---: |
+| FIRRTL registers | 10,278 | 10,278 | 94,592 |
+| FIRRTL memories | 742 | 435,116 | 20,899,468 |
+| Emitter memory pipelines | 434 | 434 | 6,581 |
+| Metasim plusarg registers | 7 | 7 | 193 |
+| Metasim BUFGCE outputs | 3 | 3 | 3 |
+| Total | 11,464 | 445,838 | 21,000,837 |
+
+There are 2,292 generated instances. The seven plusarg registers belong to the
+four cores' PlusArgTimeout instances, two UART transmit controls and the custom
+boot pin. `rocket-generated-state-owners.json` also groups all storage by its
+actual top-level owner, including the CPU-managed stream buffers, all four
+TracerV bridges, TSI, blockdev, UART, FRFCFS/LLC, FAME and interconnect state.
+This is generated RTL coverage; 16 GiB functional backing memory, native host
+queues, MMIO/transport, scheduler and driver state still need complete owners.
+
+`rocket-generated-independent-audit.json` independently checks emitted register
+and memory declarations, including parameterized external instances, and passes
+eight mutations of the actual Rocket artifacts: missing storage/owner, unbound
+default, altered source, changed bound format, changed emitted width, an actual
+extra register and missing model. Original files retain their hashes. These are
+inventory rejection checks, not CPU checkpoint-image loader acceptance.
+
+`plusarg-native/` contains separate capture and fresh ordinary VCS processes
+using the compiler-produced two-owner inventory. Nondefault native values are
+captured, conflicting startup plusargs are replaced, and both complete words
+(33 bits) read back before any edge and match four diagnostic boundaries.
+An actual storage-bit fault first diverges at boundary 0, edges=0, exit 1.
+The initial diagnostic found VCS returning zero for `$fatal`; the final check
+uses the existing DPI failure function and verifies nonzero native status.
+This microtest establishes the external adapter only, not clean CPU RTL replay.
+
+Executable native adapter verification, from the Chipyard root (each invocation
+keeps prior evidence and creates a fresh output directory):
+
+```sh
+source env.sh && source sims/firesim/env.sh
+source automations/checkpoint_loop/vcs-env.sh
+python -m tools.checkpoint_formats.tests.verify_plusarg_inventory_vcs \
+  --inventory automations/checkpoint_loop/runs/m11-iteration83/scala-artifacts/plusarg-inventory.json \
+  --reference automations/checkpoint_loop/runs/m11-iteration83/scala-artifacts/plusarg-reference.fir \
+  --out automations/checkpoint_loop/runs/m11-iteration83/plusarg-native
+```
+
+All 16 compiler inventory tests and 219 Python tests pass. Fresh complete M2
+and M3 native VCS metasim/ordinary RTL regressions pass, retaining their five
+cuts/22-word readback/C=29 divergence and 717 transport edges/23 advances/six
+captures/242 boundary samples/eight invalid reads respectively. Eight FCFS Make
+and four generator guards pass without changing its compiled inventory.
+
+### Native Rocket execution and generated-state samples
+
+The exact recipe's native VCS build with read-only probes passes. The full
+16-GiB, four-hart workload passes at 3,329,794 fastest-clock target cycles.
+`rocket-workload-audit.json` independently decodes all harts' phase 1/2/3/4,
+completion=1, failure=0 and the real HTIF PASS store from native execution.
+The workload ELF remains SHA256
+`f3d86f54caf42b9589385e8021dba46777f647134f19595e38a3d452b745f3d4`.
+
+Every sample in `rocket-generated-probe/generated-state.jsonl` contains all
+445,838 generated words at one settled host falling edge. The sample's actual
+`ClockBridgeModule_0.tCycleFastest` value supplies its target-count label:
+
+| Diagnostic sample | Target count | Host sample | Valid D-cache lines, harts 0/1/2/3 | Harts waiting for a cached grant | Host reads in flight |
+| --- | ---: | ---: | --- | --- | ---: |
+| Startup/early execution | 50,000 | 467,603 | 313 / 1 / 1 / 1 | 0 | 0 |
+| Warmed-cache execution | 850,000 | 3,421,115 | 498 / 507 / 501 / 501 | 0, 1, 2 | 0 |
+| Outstanding workload memory | 1,013,847 | 3,737,220 | 511 / 511 / 510 / 510 | 1, 2, 3 | 1 |
+| Late execution | 3,200,000 | 8,002,559 | 511 / 512 / 510 / 512 | none | 0 |
+
+`rocket-active-sample-audit.json` binds the actual DCache/ClientMetadata sources
+and lowered bit extraction: coherence state is bits 24:23 of each of eight
+64-word tag banks, and Nothing=0. `cached_grant_wait` is set when an actual
+cached TileLink request fires and cleared by the final grant beat. All four
+saved PC payloads at the outstanding sample are in the workload's memory loop.
+These observations establish active generated state. They do not certify an
+atomic simulator/host cut or original multi-clock semantic state at those
+labels; all four required checkpoint/restore cut tests remain pending.
+
+`rocket-trace-comparison.json` compares all four complete TracerV files against
+the iteration-82 uninterrupted control: 37,582,346 / 49,976,156 / 50,391,641 /
+50,189,006 bytes match respectively. Independently decoded phase, completion,
+failure and HTIF store cycle fields also match. This establishes that the
+read-only probes preserve the recorded instruction behavior and timing. It is
+not restored execution or complete original-DUT boundary replay.
+
+Current native artifacts are `rocket-generated-summary.json`,
+`rocket-generated-independent-audit.json`, `rocket-build-identity.json` (145
+bound inputs, 58 actual host translation units and GCC/G++ 13.3),
+`rocket-native-commands.json` (exact build, full workload and audit argv/results),
+`rocket-generated-runtime/{command.json,exit.json,native-vcs.log,TRACEFILE-C0..C3}`
+and the two sample/trace audits above. The emitted RTL and all three headers
+are byte-identical to iteration 82 (`rocket-baseline-build-byte-comparison.json`).
+
+The following reproduces the native build/control/probe check using this run's
+diagnostic build/output directory. Exact individual VCS commands and all recipe
+settings are also recorded in `rocket-native-commands.json`:
+
+```sh
+source env.sh && source sims/firesim/env.sh
+source automations/checkpoint_loop/vcs-env.sh
+PYTHONPATH="$PWD" python automations/checkpoint_loop/runs/m11-iteration83/run-rocket-generated.py
+```
+
+Fresh native unsupported-runtime checks create their own output directory:
+
+```sh
+source env.sh && source sims/firesim/env.sh
+source automations/checkpoint_loop/vcs-env.sh
+PYTHONPATH="$PWD" python automations/checkpoint_loop/runs/m11-iteration83/verify-rocket-runtime-rejection.py
+```
+
+Preflight/save/restore each exits 1 before driver initialization and publishes
+no partial checkpoint. Actual CPU image decoding remains unsupported. A fresh
+exact-source semantic compiler request also rejects
+`FireSim.chiptop0.system.bdev_clock` and emits no partial semantic manifest or
+clean CPU RTL (`rocket-semantic-inventory/{command.json,summary.json,native-compiler.log}`).
+Complete Level-1 fresh-process continuation, independent Level-2 zero-edge CPU
+readback/finite boundary replay, CPU image rejection and first semantic
+divergence remain required. No CPU recipe/level is verified.
+
+## Retained iteration 82 evidence
 
 Diagnostic root:
 `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration82/`.
@@ -95,6 +232,31 @@ loadmem and serial queues, HTIF state and suspended execution accounted for.
 UART, blockdev, four trace sinks, CPU stream, heartbeat and FRFCFS/LLC model
 state also require configuration-specific audit. The FCFS whitelist remains
 restricted; constructor membership alone never certifies a driver adapter.
+
+Iteration 83's source-bound `rocket-runtime-owner-audit.json` distinguishes
+existing hooks from missing ones. CPUManagedStreamWidget already implements
+`firesim.widget.cpu-managed-stream.v1`: its host drivers have no persistent
+queue offsets, but initialization, stream parameters, suspended stream calls
+and the actual CPU AXI transport still need native cut/restore validation.
+FASED already has a host adapter for configuration, lifecycle, statistics,
+histograms and range counters; its presence does not certify this FRFCFS/LLC
+recipe or its one 16-GiB memory channel. Generic master/loadmem/peek-poke/reset/
+clock hooks likewise require exact CPU configuration binding.
+
+| Missing concrete runtime adapter | State that cannot be omitted |
+| --- | --- |
+| FireSim run loop | `terminated`, local exit/run-loop phase, scheduler credits/deadlines/callbacks, base lifecycle and completed-operation dispatch |
+| TSI/FESVR | Wait/step/loading flags; loadmem and serial queues; inherited testchip/HTIF state; suspended `context_t` execution, which contains process-specific pointers and a ucontext or pthread |
+| Blockdev | Pending responses, request/data/ack queues, every write tracker and sector buffer, full backing-file contents and position, geometry/latency and lifecycle |
+| UART | Serial handshake data, handler/input positions, pending external bytes, global `specialchar` and endpoint/signal behavior |
+| Four TracerV sinks | Cycle/trigger/clock state, file history and positions, tracker/mode state, stream identities and any suspended token buffer; draining streams affects target timing |
+| Heartbeat | Poll/trip/last-cycle/timeout state, time origin, configuration and log history; it can terminate execution |
+
+The audit hashes the actual generated header, reviewed driver implementations,
+testchip inheritance and installed FESVR headers. It explicitly remains an
+in-progress source audit. Native preflight/save/restore requests on the exact
+Rocket binary still reject unsupported CPU runtime ownership and publish no
+partial checkpoint; this is not malformed-image loader acceptance.
 
 Proposed Level-2 boundary is the complete `FireSim.chiptop0`, containing all
 four CPUs, caches and uncore. Its external memory/device/serial inputs must be
