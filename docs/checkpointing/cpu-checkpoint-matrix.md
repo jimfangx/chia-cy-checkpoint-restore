@@ -1,13 +1,13 @@
 # CPU checkpoint matrix
 
-Current milestone: M11 Rocket, iteration 94. Level-1 and Level-2 acceptance
+Current milestone: M11 Rocket, iteration 95. Level-1 and Level-2 acceptance
 remain **in_progress**. No CPU checkpoint continuation or clean CPU RTL replay
 has passed. Physical FPGA validation, standalone Shuttle and ASIC power are
 outside this matrix. The verified FCFS evidence remains in its existing docs.
 
 | Family / existing recipe | Level 1 | Level 2 | Workload evidence |
 | --- | --- | --- | --- |
-| Rocket / `firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3` | in_progress: generated RTL inventory audited; host component continuations pass including TracerV; complete runtime ownership and fresh CPU continuation pending | in_progress: complete ChipTop inventory/readback retained; explicit event-phase image/replay contract passes ordinary RTL component checks; coherent metasim CPU capture/replay pending | New full four-hart default/buffered TracerV controls pass at C=3,329,794; CPU checkpoint cuts remain pending; see iteration 94 below |
+| Rocket / `firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3` | in_progress: generated RTL inventory audited; TracerV and concrete FireSim driver/termination-loop component continuations pass; complete TSI/FESVR/transport ownership and fresh CPU continuation pending | in_progress: complete ChipTop inventory/readback retained; explicit event-phase image/replay contract passes ordinary RTL component checks; coherent metasim CPU capture/replay pending | Full four-hart default/buffered controls with the refactored driver pass at C=3,329,794; CPU checkpoint cuts remain pending; see iteration 95 below |
 | BOOM / `firesim_boom_singlecore_no_nic_l2_llc4mb_ddr3` | pending | pending | No execution claimed |
 | Shuttle + Saturn / `firesim_saturn_GENV256D128_shuttle_singlecore_no_nic_l2_llc4mb_ddr3` | pending | pending | No vector execution claimed |
 
@@ -32,6 +32,114 @@ The recipe also specifies frequency 140 MHz and TIMING build strategy; these
 are retained in the recipe record, with no FPGA implementation invoked.
 VCS uses Y-2026.03-SP1, `-full64`, `VCS_FLAGS=-Mupdate`, system GCC/G++ 13,
 and the sourced Conda library/include directories. No Conda files are edited.
+
+## Iteration 95: production FireSim driver and per-bridge termination ownership
+
+Diagnostic root:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration95/`.
+
+The actual `firesim_top_t` now returns after completed synchronous host operations.
+Its independent `firesim.bridge-run-loop.v1` owner preserves ready/tasks/issue/
+poll/tick/terminate/status/finished phases, next bridge, termination and signed
+32-bit exit code. It checks termination immediately after each bridge tick and
+stops before touching later bridges. A successful termination query retains its
+bridge until the exit-status call commits. Credit, PeekPoke and bridge calls
+never replay after restore. Active/interrupted calls poison and reject.
+`firesim.simulation.bridge-driver.v1` binds effective profiling configuration,
+PeekPoke identity/schema and the complete post-heartbeat registry traversal.
+It owns running/finalized lifecycle and requires fresh loading without MMIO,
+callback execution, initialization or finalization. Anonymous profiling tasks
+remain explicitly unsupported. Base flow, scheduler, each bridge, transport,
+functional memory and generated RTL are separate owners. The FCFS driver,
+loop and schemas are unchanged. See `firesim-driver-owner-audit.json`.
+
+Selected original component evidence:
+`firesim-driver-native/invocation-_u5imb8v/summary.json`. Native ASan/UBSan and
+VCS DPI each exercise four distinct early terminating bridges with statuses
+0/7/-9/INT_MIN, horizon exhaustion, and immediate zero-horizon completion.
+Every completed host call is a cut: 18/20/22/24/27/1 per scenario. All 224 fresh
+continuations pass; the independent original nested-loop oracle checks 2,464
+complete owner payloads before edges and 4,846 continued boundary records.
+Each backend passes 871 atomic/configuration/lifecycle assertions. Sixteen
+separate invalid-owner processes reject missing/truncated/trailing/unknown/
+incompatible/impossible-state images before loads, readback publication or
+edges. Actual structurally valid next-bridge corruption first reports
+`fixture_cycle=106 operation=6 acknowledged=5 expected=R 200 0 actual=R 208 0`;
+the changed read is never acknowledged. These labels describe host fixtures,
+not active Rocket target-cycle checkpoints or DUT semantic corruption.
+All 258 executed component processes, input snapshots and complete artifact
+catalogs are retained. No ASan/UBSan/leak diagnostics occur. A fixture's initial
+global wall-clock stub incorrectly affected VCS licensing; the final fixture
+pins only heartbeat's diagnostic clock and leaves libc/VCS time intact. Initial
+compile/oracle/license diagnostics remain in separate failed invocations.
+
+Exact Rocket VCS builds retain all 58 original native translation units and add
+only `core/bridge_run_loop.cc`. Actual linked driver/loop hooks and all build
+inputs are bound in `rocket-native-source-inventory-delta.json` and
+`rocket-controls/invocation-4sp34o9f/rocket-build-identity.json`. Both full default
+and buffered four-hart controls pass at C=3,329,794. All four complete traces
+(37,582,346 / 49,976,156 / 50,391,641 / 50,189,006 bytes) and decoded workload/
+store labels match the original uninterrupted reference. These are real active
+CPU controls, not checkpoints. The independent current audit is
+`rocket-controls-independent-audit.json`; original executable native build and
+runtime argv are in the selected invocation's `summary.json`.
+The existing self-checking workload hash remains
+`f3d86f54caf42b9589385e8021dba46777f647134f19595e38a3d452b745f3d4`.
+Actual current CPU preflight still rejects TSI at `widget/12`; capture and
+restore reject before run because no durable CPU capability exists. The three
+native requests publish no image or bridge output. These are unsupported-owner
+guards, not malformed CPU-image acceptance (`cpu-request-rejections/summary.json`).
+`rocket-tsi-fesvr-pending-owner-audit.json` lists the full next-owner chain,
+including HTIF's suspended fromhost queue/callback and read destinations,
+program-load/reset/idle progress, contexts, serial/loadmem queues and device
+handles. Capturing deques alone cannot reconstruct a fresh FESVR process.
+Installed headers, checked source and actually linked FESVR library are hashed;
+no TSI support is inferred.
+
+All 245 Python tests and eight preserved native checks pass in
+`native-regressions/invocation-rovyvlmy/summary.json` (5,100 retained artifacts /
+682 source bindings). An earlier eight-check execution overlapped edits and
+correctly failed its source-retention guard; it remains preserved. Independent
+retained inventory, clock-event, memory, TracerV and original four-hart control
+audits pass. A fresh ordinary Rocket VCS process reads all 318,637 diagnostic
+semantic words with seven clocks held and zero edges. This remains a storage
+probe, not a CPU image/trace. Current native commands source both repository
+environments then `vcs-env.sh` last; VCS Y-2026.03-SP1, `-full64`, GCC/G++ 13.
+
+Executable checks from the Chipyard root:
+
+```sh
+source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh
+python -m tools.checkpoint_formats.tests.verify_firesim_driver_checkpoint_vcs --out automations/checkpoint_loop/runs/m11-iteration95/firesim-driver-recheck
+python -m tools.checkpoint_formats.tests.verify_firesim_driver_checkpoint_vcs --audit automations/checkpoint_loop/runs/m11-iteration95/firesim-driver-native/invocation-_u5imb8v/summary.json
+python -m tools.checkpoint_formats.native_regressions --audit automations/checkpoint_loop/runs/m11-iteration95/native-regressions/invocation-rovyvlmy/summary.json
+python -m tools.checkpoint_formats.tests.audit_rocket_controls --summary automations/checkpoint_loop/runs/m11-iteration95/rocket-controls/invocation-4sp34o9f/summary.json --source-archive automations/checkpoint_loop/runs/m11-iteration95/native-input-archives.json
+python -m tools.checkpoint_formats.tests.audit_rocket_controls --summary automations/checkpoint_loop/runs/m11-iteration94/rocket-controls/invocation-s3q7sujf/summary.json --source-archive automations/checkpoint_loop/runs/m11-iteration94/native-input-archives.json
+python -m tools.checkpoint_formats.tests.verify_rocket_controls_vcs --out automations/checkpoint_loop/runs/m11-iteration95/rocket-controls-recheck --seed-build automations/checkpoint_loop/runs/m11-iteration95/rocket-controls/invocation-4sp34o9f/build --workload automations/checkpoint_loop/runs/m11-iteration82/workload --reference-runtime automations/checkpoint_loop/runs/m11-iteration85/rocket-runtime --reference-audit automations/checkpoint_loop/runs/m11-iteration85/rocket-workload-audit.json
+```
+
+`verification-commands.json` also records an executable fresh ordinary Rocket
+zero-edge VCS probe with complete pattern/baseline paths, plus the retained-
+evidence audit. `native-input-archives.json` seals original native bytes and
+source snapshots; `artifact-manifest.json` lists full artifact paths. Rechecks
+allocate new directories and never overwrite a selected native invocation.
+The final archive binds 62,123 original native inputs/artifacts; both the
+internal and executable CLI retention audits pass. A first sealing catalog
+included its active stdout and correctly failed the later retention check.
+`first-seal-diagnostic/` preserves that rejection. The final catalog excludes
+only sealer stdout while all native build/runtime logs remain mandatory.
+
+Acceptance remains **in_progress**. Complete TSI/FESVR, stream/transport and
+remaining runtime owners; bind all semantic owners through actual FAME metasim
+with coherent clock events; then verify fresh complete Level-1 CPU continuation
+and independent Level-2 CPU image/readback/captured-trace replay at early,
+warmed-cache, outstanding-memory and late cuts. No required CPU checkpoint cut
+has passed. No external dependency is missing. BOOM/Saturn remain pending;
+physical FPGA/standalone Shuttle/ASIC work is deferred. Existing iteration-94
+controller commits FireSim `28f6aa38fb1033921c399509069eb1cbd6f0b04e`, then
+Chipyard `715088bb1364419f914264cc8c218723604d4c18`, are published and their remote
+tips independently confirmed (`publication.json`). No staging or local commits;
+both plans remain read-only.
 
 ## Iteration 94: complete TracerV host ownership and exact-recipe controls
 

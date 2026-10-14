@@ -30,7 +30,7 @@ def audit(summary_path, source_archive=None):
     identity = json.loads((out / 'rocket-build-identity.json').read_text())
     require(identity['recipe'] == summary['recipe'] and identity['checkpoint_profile'] is None and
             identity['level1_verified'] is False and identity['level2_verified'] is False and
-            identity['vcs_home'] == VCS_HOME and len(identity['translation_units']) == 58,
+            identity['vcs_home'] == VCS_HOME,
             'incomplete or incompatible executed native CPU build')
     for path, digest in identity['sources_sha256'].items():
         check_native_input(ROOT, path, digest, archived)
@@ -38,8 +38,29 @@ def audit(summary_path, source_archive=None):
     require(binary.parent.parent.parent == out / 'build' and binary.name == 'FireSim',
             'CPU executable is outside its immutable invocation')
     log = (out / 'rocket-vcs-build.log').read_text()
-    require(vcs_invocation(log, binary)[0] == identity['vcs_build_command'],
+    command, native_build_argv = vcs_invocation(log, binary)
+    require(command == identity['vcs_build_command'],
             'native build log no longer binds its executable')
+    actual_units = sorted({str(Path(token)) for token in native_build_argv
+                           if token.startswith('/') and Path(token).suffix in ('.cc', '.cpp', '.c')})
+    require(actual_units == identity['translation_units'], 'native source inventory differs from executed VCS argv')
+    bridge_loop = str(ROOT / 'sims/firesim/sim/midas/src/main/cc/core/bridge_run_loop.cc')
+    if identity.get('bridge_run_loop_adapter_linked', False):
+        require(identity.get('firesim_driver_adapter_linked') is True and
+                len(actual_units) == 59 and bridge_loop in actual_units,
+                'incomplete current FireSim driver/loop translation units')
+        symbols = subprocess.check_output(['nm', '-C', str(binary)], text=True)
+        require(all(name in symbols for name in (
+            'bridge_run_loop_t::save_checkpoint() const', 'bridge_run_loop_t::validate_checkpoint(',
+            'bridge_run_loop_t::load_checkpoint(', 'firesim_top_t::simulation_run_step()',
+            'firesim_top_t::concrete_checkpoint_t::save_checkpoint() const')),
+            'missing actual native FireSim driver/loop adapters')
+    else:
+        # Historical controls retain their exact original executable and input
+        # hashes. Do not invent current adapters for a 58-unit archived build.
+        require(len(actual_units) == 58 and bridge_loop not in actual_units and
+                not identity.get('firesim_driver_adapter_linked', False),
+                'incompatible historical FireSim driver inventory')
     require('VCS_FORCE_REBUILD=1' in json.loads(log.splitlines()[0])['argv'][-1],
             'CPU control did not explicitly request a native rebuild')
     commands = summary['commands']

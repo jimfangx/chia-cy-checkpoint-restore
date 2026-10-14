@@ -14,7 +14,7 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 94, in progress. Recovery:
+Current milestone: M11-rocket-level1-level2, iteration 95, in progress. Recovery:
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Exact Rocket discovery now
 emits a complete pre-FAME storage/clock inventory and compiler-bound clean access
 map: 8,644 entries / 318,637 words / seven state clocks plus six initialized values.
@@ -23,6 +23,49 @@ readback pass. These are storage probes, not workload checkpoints. Explicit
 clock-event images and fresh ordinary RTL replay now pass component checks.
 Complete CPU runtime ownership, coherent metasim workload cuts, fresh Level-1
 continuation and independent Level-2 CPU image/captured-trace replay remain pending.
+
+Iteration 95 (October 14):
+
+- Added complete concrete FireSim host driver and per-bridge termination-loop
+  ownership. Preserve every completed-call cursor, pending termination result,
+  signed exit status, registry traversal and driver lifecycle. Fresh loads do
+  no MMIO/task/init/finish work. Interrupted/reentrant calls and anonymous
+  profiling tasks reject. Scheduler/base flow/bridges/RTL remain separate;
+  FCFS behavior and schemas are preserved. No CPU profile is enabled.
+- All 224 fresh sanitizer/VCS component continuations pass, including each
+  early terminating bridge, signed errors and horizon cuts. Independent original
+  loop oracle checks 2,464 complete pre-edge owners and 4,846 continued records.
+  Each backend passes 871 atomic/configuration/lifecycle checks; sixteen fresh
+  invalid-owner processes reject before partial restore/edges/publication.
+  Actual valid cursor corruption first differs at fixture C=106, without
+  acknowledging that operation. These are host fixtures, not CPU checkpoints.
+- All 245 Python tests and eight preserved native regressions pass. Five
+  independent retained audits pass, plus a fresh ordinary Rocket VCS zero-edge
+  diagnostic readback of all 318,637 words / seven clocks. Earlier source-overlap,
+  compile/oracle and fixture-clock licensing failures remain preserved. The
+  final fixture leaves VCS/libc time intact. No dependency is missing.
+- Exact-recipe VCS rebuilt with GCC/G++ 13; retain all 58 old native units and
+  add only the audited loop. Both full four-hart default/buffered controls pass
+  at C=3,329,794; all four complete traces and workload/store labels match the
+  uninterrupted reference. These are controls, not CPU checkpoints. Requests reject TSI
+  at widget/12 or missing durable capability before run/output. Next-owner
+  source audit includes serial/loadmem queues, HTIF callbacks/local read state,
+  program-load/idle/reset progress, contexts and device handles.
+- Published existing iteration-94 controller commits FireSim
+  `28f6aa38fb1033921c399509069eb1cbd6f0b04e`, then Chipyard
+  `715088bb1364419f914264cc8c218723604d4c18`; remote tips independently confirmed.
+  No staging/local commits; plans, environments, indexes and local heads intact.
+- Recovery: `runs/m11-iteration95/`, especially
+  `firesim-driver-native/invocation-_u5imb8v/summary.json`,
+  `native-regressions/invocation-rovyvlmy/summary.json`,
+  `rocket-controls/invocation-4sp34o9f/`, `firesim-driver-owner-audit.json`,
+  `rocket-native-source-inventory-delta.json`,
+  `rocket-tsi-fesvr-pending-owner-audit.json`, CPU request guard evidence,
+  `verification-commands.json`, `native-input-archives.json` and final summary.
+  Next: complete TSI/FESVR and transport ownership, coherent generated/semantic
+  CPU capture, then both levels at all required active four-hart cuts. Complete
+  Rocket Level-1 continuation and Level-2 CPU replay remain pending. BOOM/Saturn
+  remain pending; physical FPGA/ASIC work remains deferred.
 
 Iteration 94 (October 14):
 

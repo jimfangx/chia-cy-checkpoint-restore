@@ -41,8 +41,11 @@ def record_build(recipe, build, log, destination):
     command, argv = vcs_invocation(Path(log).read_text(), binary)
     units = sorted({str(Path(token)) for token in argv
                     if token.startswith('/') and Path(token).suffix in ('.cc', '.cpp', '.c')})
-    require(len(units) == 58, 'changed CPU native translation unit inventory; audit it explicitly')
     cc = ROOT / 'sims/firesim/sim/midas/src/main/cc'
+    # Iteration 95 adds exactly the independently audited FireSim bridge loop
+    # to the previously recorded 58 units. It owns no FCFS cursor or TSI stack.
+    require(len(units) == 59 and str(cc / 'core/bridge_run_loop.cc') in units,
+            'changed CPU native translation unit inventory; audit it explicitly')
     paths = [binary, Path(log).resolve(), Path(recipe['recipe_file']),
              ROOT / 'env.sh', ROOT / 'sims/firesim/env.sh',
              ROOT / 'automations/checkpoint_loop/vcs-env.sh',
@@ -80,6 +83,12 @@ def record_build(recipe, build, log, destination):
     symbols = subprocess.check_output(['nm', '-C', str(binary)], text=True)
     require('uart_t::save_checkpoint() const' in symbols and
             'heartbeat_t::save_checkpoint() const' in symbols, 'missing audited host adapters')
+    require(all(name in symbols for name in (
+        'bridge_run_loop_t::save_checkpoint() const',
+        'bridge_run_loop_t::validate_checkpoint(', 'bridge_run_loop_t::load_checkpoint(',
+        'firesim_top_t::simulation_run_step()',
+        'firesim_top_t::concrete_checkpoint_t::save_checkpoint() const')),
+        'missing audited FireSim concrete driver/loop adapters')
     report = dict(scope='executed exact CPU native build; full CPU restores remain unsupported',
                   native_binary=str(binary), vcs_home=VCS_HOME,
                   compilers={name: os.environ[name] for name in ('CC', 'CXX', 'VCS_CC')},
@@ -87,6 +96,7 @@ def record_build(recipe, build, log, destination):
                   dynamic_libraries=libraries, dependency_root=str(deps), recipe=recipe,
                   sources_sha256={str(path): file_sha(path) for path in paths},
                   uart_adapter_linked=True, heartbeat_adapter_linked=True,
+                  firesim_driver_adapter_linked=True, bridge_run_loop_adapter_linked=True,
                   checkpoint_profile=None, level1_verified=False, level2_verified=False)
     Path(destination).write_text(json.dumps(report, indent=2) + '\n')
     return report

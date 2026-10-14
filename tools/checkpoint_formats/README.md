@@ -250,6 +250,21 @@ Both checks preserve original cycle labels and inject actual stored-pipeline
 corruption after complete zero-edge readback. These are component checks; CPU
 checkpoint acceptance requires complete CPU/runtime ownership and active cuts.
 
+`tests.verify_firesim_driver_checkpoint_vcs` checks the production FireSim
+driver's separate `firesim.bridge-run-loop.v1` and
+`firesim.simulation.bridge-driver.v1` owners. The loop records each completed
+host call, its next bridge, pending termination query and signed exit status.
+It preserves the original termination check after every bridge tick. The
+independent original-loop oracle checks complete readback and fresh sanitizer/
+VCS continuations, including early bridge exits, horizon exhaustion, invalid
+owners and an actual cursor corruption at its first changed MMIO boundary.
+Scheduler, base flow, bridge state, MMIO and generated RTL remain separate
+owners. Active/interrupted calls and anonymous profiling closures reject.
+The launcher allocates and seals each invocation; `--audit` reads retained
+evidence. These host fixtures do not authorize a CPU checkpoint profile:
+TSI/FESVR, stream transport and coherent generated/semantic CPU capture remain
+required. The FCFS loop and its existing schema remain independent.
+
 `replay.py` provides a VCS backdoor oracle for a single hierarchy-preserving DUT
 instance. It rejects missing, extra, renamed, reshaped, or threaded state and
 boundary ports before generating a module bind. The bind samples the actual
