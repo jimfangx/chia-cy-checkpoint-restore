@@ -84,8 +84,9 @@ public:
   polling_cut_t inspect_prepared_polling_components() const;
   // Explicit component service, not tick()/complete HTIF admission. Resume
   // until the next serial-read or idle yield, with no context/start/reset.
-  // Only sealed BCD read/write commands are owned; syscall, identity/memif,
-  // exit, signals and other devices fail closed before clearing tohost.
+  // Sealed BCD read/write and aligned identity commands only. Unaligned
+  // identity needs an unowned memif read/merge caller; it, syscall, exit,
+  // signals and other devices fail closed before clearing tohost.
   void advance_prepared_polling_components();
 
   // Startup metadata component only; does not restore devices or a caller.

@@ -18,9 +18,15 @@
 class firesim_tsi_bcd_t final : public device_t, public checkpoint_owner_t {
 public:
   using response_t = std::function<void(uint64_t)>;
+  using identity_t = std::array<char, 64>;
+  // Optional non-suspending destination-bound transport. A complete callback
+  // must enqueue all bytes before returning; it must never retain this buffer.
+  using identity_write_t = std::function<void(uint64_t, const identity_t &)>;
   explicit firesim_tsi_bcd_t(response_t response, uint64_t limit = 1048576,
-                            firesim_tsi_terminal_t *terminal = nullptr)
-      : config(26, {1, limit}), response(std::move(response)), limit(limit), terminal(terminal) {
+                            firesim_tsi_terminal_t *terminal = nullptr,
+                            identity_write_t identity_write = {})
+      : config(26, {1, limit}), response(std::move(response)), limit(limit), terminal(terminal),
+        identity_write(std::move(identity_write)) {
     if (!this->response || !limit || limit > 1048576)
       throw std::runtime_error("unsupported BCD response binding/queue limit");
     register_command(0, [this](command_t cmd) {
@@ -40,20 +46,23 @@ public:
       widget_checkpoint_state_t::call_t call(boundary);
       if (cmd.device() != 1) throw std::runtime_error("BCD device mismatch");
       // Same 64-byte command/identity table as installed device_t/bcd_t.
-      std::array<char, 64> name{};
+      identity_t name{};
       const auto what = cmd.payload() % 256;
       const char *text = what == 0 ? "read" : what == 1 ? "write" :
                          what == 255 ? "bcd" : "";
       std::copy(text, text + std::strlen(text), name.begin());
-      cmd.memif().write(cmd.payload() / 256, name.size(), name.data());
+      if (this->identity_write) this->identity_write(cmd.payload() / 256, name);
+      else cmd.memif().write(cmd.payload() / 256, name.size(), name.data());
       cmd.respond(1);
     }, "identity");
   }
   // This binding permits a transaction over the actual response destination.
   // An arbitrary callback cannot establish ownership of a polling queue.
   explicit firesim_tsi_bcd_t(firesim_tsi_htif_poll_t &poll, uint64_t limit = 1048576,
-                            firesim_tsi_terminal_t *terminal = nullptr)
-      : firesim_tsi_bcd_t([&poll](uint64_t value) { poll.respond(value); }, limit, terminal) {
+                            firesim_tsi_terminal_t *terminal = nullptr,
+                            identity_write_t identity_write = {})
+      : firesim_tsi_bcd_t([&poll](uint64_t value) { poll.respond(value); }, limit, terminal,
+                          std::move(identity_write)) {
     bound_poll = &poll;
   }
   const char *identity() override { return "bcd"; }
@@ -114,6 +123,7 @@ private:
   const response_t response;
   const uint64_t limit;
   firesim_tsi_terminal_t *const terminal;
+  const identity_write_t identity_write;
   firesim_tsi_htif_poll_t *bound_poll = nullptr;
   std::deque<uint64_t> pending;
   widget_checkpoint_state_t boundary;

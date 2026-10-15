@@ -68,8 +68,16 @@ static void continue_components(firesim_tsi_t &tsi,const std::string &mode,const
     return;
   }
   const auto cut=std::stoul(source.filename().string().substr(4));
-  const bool corrupt=mode=="corrupt";
-  if(corrupt) {
+  const bool identity_corrupt=mode=="identity-corrupt";
+  const bool corrupt=mode=="corrupt" || identity_corrupt;
+  if(identity_corrupt) {
+    auto image=tsi.serial_queue_owner().save_checkpoint();
+    // Queue config occupies 64 bytes; count then two remaining header words
+    // precede the first identity data word. Change actual restored transport
+    // state, with no checksum/expected trace alteration.
+    require(image.size()>88,"missing identity packet");image.at(88)^=1;
+    const_cast<checkpoint_owner_t &>(tsi.serial_queue_owner()).load_checkpoint(image);
+  } else if(corrupt) {
     auto image=tsi.terminal_owner().save_checkpoint();
     // The independently configured three-byte input is followed by its cursor.
     require(image.size()>=75,"missing terminal cursor");image.at(59)=1;
@@ -89,7 +97,8 @@ static void continue_components(firesim_tsi_t &tsi,const std::string &mode,const
       while(in>>n) {
         require(tsi.data_available(),"missing continuation request");
         if(tsi.in_bits()!=n) {
-          require(corrupt && operation==21 && index==5 && n==321 && tsi.in_bits()==256,
+          require((identity_corrupt && operation==cut+1 && index==2 && n==1684104562 && tsi.in_bits()==1684104563) ||
+                  (mode=="corrupt" && operation==21 && index==5 && n==321 && tsi.in_bits()==256),
                   "unexpected first request divergence");
           const auto divergent=tsi.in_bits();
           require(tsi.in_bits()==divergent,"divergent request acknowledged");
@@ -224,7 +233,7 @@ static int run(const char *mode,const char *elf,const char *input,const char *me
     const auto actual=tsi.inspect_prepared_polling_components();
     require(actual==good && !tsi.done(),"incomplete polling component readback");
     save(out/"preedge",actual);save(out/"preedge.metadata",tsi.save_startup_metadata());
-    if(std::string(mode)=="continue" || std::string(mode)=="corrupt" ||
+    if(std::string(mode)=="continue" || std::string(mode)=="corrupt" || std::string(mode)=="identity-corrupt" ||
        std::string(mode)=="unsupported" || std::string(mode)=="exit-guard") {
       continue_components(tsi,mode,source,plan,out);return 0;
     }

@@ -27,7 +27,7 @@ TOHOST, FROMHOST = 0x80002000, 0x80002008
 INPUT = b'A\0\xff'
 
 
-def scenario():
+def scenario(identity=False):
     """Independent byte oracle for the installed caller's explicit operations."""
     phase, host_phase, remaining, flags = 1, 0, 0, 6
     address, partial, requests, responses = TOHOST, [], [0, TOHOST, 0, 1, 0], []
@@ -117,6 +117,37 @@ def scenario():
         requests = [1, TOHOST, 0, 1, 0, 0, 0, 0, TOHOST, 0, 1, 0]
         step('TICK')
         packet()
+    if identity:
+        # Address spans both serial address words. Exercise every defined
+        # identity and the empty unknown-command name, including an address
+        # aligned to eight but not sixteen bytes.
+        for what, text in ((0, b'read'), (1, b'write'), (255, b'bcd'), (2, b'')):
+            destination = 0x1280003008 + 64 * what
+            command = (1 << 56) | (255 << 48) | (destination << 8) | what
+            send(command & 0xffffffff)
+            read_partial()
+            send(command >> 32)
+            responses.clear()
+            partial, phase, address = [], 6, FROMHOST
+            queue.append((1 << 56) | (255 << 48) | 1)
+            data = text.ljust(64, b'\0')
+            payload = [int.from_bytes(data[i:i+4], 'little') for i in range(0, 64, 4)]
+            requests = [1, TOHOST, 0, 1, 0, 0, 0,
+                        1, destination & 0xffffffff, destination >> 32, 15, 0, *payload,
+                        0, FROMHOST, 0, 1, 0]
+            step('TICK')
+            packet(10)  # The identity packet has a partially consumed header.
+            packet()
+            send(0)
+            read_partial()
+            send(0)
+            responses.clear()
+            response = queue.pop(0)
+            requests = [1, FROMHOST, 0, 1, 0, response & 0xffffffff, response >> 32,
+                        0, TOHOST, 0, 1, 0]
+            partial, phase, address = [], 1, TOHOST
+            step('TICK')
+            packet()
     return plan, images
 
 
@@ -132,7 +163,7 @@ def audit(path):
     for binding in bindings.values():
         require(file_sha(binding['snapshot']) == binding['sha256'], 'changed preparation source snapshot')
         check_native_input(ROOT, binding['path'], binding['sha256'], bindings)
-    plan, images = scenario()
+    plan, images = scenario(report.get('aligned_identity', False))
     require((out/'polling.elf').read_bytes() == polling_elf() and (out/'terminal.bin').read_bytes() == INPUT, 'changed source configuration')
     require((out/'plan.txt').read_text() == '\n'.join(plan)+'\n', 'changed polling service plan')
     for backend in ('native', 'vcs-dpi'):
@@ -177,6 +208,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', type=Path)
     parser.add_argument('--audit', type=Path)
+    parser.add_argument('--identity', action='store_true', help='also exercise aligned BCD identity writes')
     args = parser.parse_args()
     if args.audit:
         print(json.dumps(audit(args.audit), indent=2))
@@ -223,7 +255,7 @@ def main():
            '-top', 'tsi_polling_prepare_fesvr_tb', '-cc', os.environ['CC'], '-cpp', os.environ['CXX'],
            '-Mdir='+str(out/'csrc'), '-CFLAGS', include+' -DTSI_POLLING_PREPARE_DPI',
            '-LDFLAGS', '-Wl,--whole-archive '+str(library)+' -Wl,--no-whole-archive -lpthread', '-o', simv, sv, *sources], out/'vcs-build.log')
-    plan, events = scenario()
+    plan, events = scenario(args.identity)
     elf, terminal, plan_path = out/'polling.elf', out/'terminal.bin', out/'plan.txt'
     elf.write_bytes(polling_elf())
     terminal.write_bytes(INPUT)
@@ -255,7 +287,7 @@ def main():
         require(file_sha(binding['path']) == binding['sha256'], 'source changed during preparation checks')
     report = dict(status='passed', scope='ten known polling components; no context or CPU continuation',
                   commands=commands, preparations=preparations, invalids=invalids, source_inputs=bindings,
-                  level1_verified=False, level2_verified=False,
+                  aligned_identity=args.identity, level1_verified=False, level2_verified=False,
                   artifact_sha256={str(p): file_sha(p) for p in sorted(out.rglob('*')) if p.is_file()})
     path = out/'summary.json'
     path.write_text(json.dumps(report, indent=2)+'\n')

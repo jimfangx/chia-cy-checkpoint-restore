@@ -14,7 +14,58 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 121, in progress. Recovery:
+Current milestone: M11-rocket-level1-level2, iteration 122, in progress. Recovery:
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md) and
+[tsi-polling-preparation.md](tsi-polling-preparation.md). Prepared polling now
+supports aligned 64-byte BCD identity writes through a destination-bound,
+non-suspending serial writer. Unaligned identity still requires unowned memif
+read/merge state and rejects before clearing tohost. Complete HTIF/CPU admission
+remains disabled; both CPU levels remain unverified.
+
+Diagnostic root: `runs/m11-iteration122/`. Native ASan/UBSan and VCS DPI pass
+`aligned-identity/invocation-iwxxvjyk/summary.json`: 400 fresh continuations at
+100 host-operation cuts, 19,800 operations and 202,000 complete owner readbacks.
+All 132 unsupported-command rejections, four exit guards and eight semantic
+corruptions pass. Identity packet corruption first diverges at operation 61,
+request word 2, expected 1,684,104,562 versus actual 1,684,104,563; the word stays
+unconsumed. Native/VCS negative controls detect removal of pre-clear validation.
+Atomic ten-owner preparation retains 400 preparations, 4,040 readbacks, 3,200
+malformed rejections, 204 membership and 44 cross-owner/configuration rejections,
+2,588 allocation failures and 2,000 execution guards. These are component
+operation labels, not semantic CPU cycles.
+
+All eight native suites pass, including 267 Python tests and FCFS. Ordinary RTL
+VCS again reads all 318,637 pattern words/seven clocks before an edge; captured
+CPU replay remains pending. The exact-recipe Rocket build is
+`rocket-controls/invocation-r3xamu9p/`; its loader/context/TSI/bridge objects
+match independent recompilation. All three complete default/buffered/sealed
+four-hart controls pass at C=3,329,794. Full traces and every workload/store
+print-cycle label match the reference; all 104 known owner images at 12 active
+samples pass independent audit. Each run retains full 16 GiB backing memory.
+All 17 retained host suites and all 20 independent component/native audits
+pass (`host/host-regression-results.json`, `independent-component-audits.json`).
+Recovery artifacts are `summary.json`, `selected-results.json`,
+`raw-native-commands.json`, `verification-commands-native.json`,
+`native-input-archives.json` and `artifact-manifest.json` under the diagnostic
+root. All check invocations are fresh; previous logs/images remain in place.
+The sealed manifest audit passes 88,831 artifacts and 1,030 native input
+bindings with controller provenance verified. Native command records total 5,192.
+Prior preservation passes 85,949 iteration-121 artifacts, 22,465 external
+artifacts and 1,037 input bindings. Existing controller commits were published
+FireSim first then Chipyard; independent remote queries confirm both tips.
+Local remote-tracking ref updates report a read-only filesystem after the
+successful pushes. The controller must publish the upcoming iteration-122
+checkpoint after creating it. No staging or local commits. Protected plans and
+environments remain unchanged.
+
+Next: own general memif read/merge, syscall/file-descriptor, process signals
+and stop/exit state, and complete the aggregate caller/driver/simulator contract
+before full CPU admission. Required
+CPU cuts, complete fresh Level-1 continuation and independent captured Level-2
+readback/replay remain pending. BOOM/Saturn remain pending. No external tool,
+netlist, license or library dependency is missing.
+
+Previous iteration 121, in progress. Recovery:
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md) and
 [tsi-polling-preparation.md](tsi-polling-preparation.md). Prepared polling
 components now have an executable sealed BCD caller that never replays startup,

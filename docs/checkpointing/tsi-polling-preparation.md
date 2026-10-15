@@ -1,6 +1,58 @@
 # Fresh preparation of known TSI polling components
 
 
+## Iteration 122: aligned BCD identity without a suspended memif caller
+
+The prepared caller additionally admits BCD command 255 when its 64-byte
+destination is aligned to eight bytes. The BCD identity table still constructs
+exactly the installed device's `read`, `write`, `bcd` or empty unknown-command
+name, zero-padded to 64 bytes. Ordinary execution retains installed memif writes.
+The prepared destination instead binds a non-suspending identity writer to its
+own TSI object. It encodes sixteen little-endian words explicitly and enqueues
+the entire serial write packet before returning. The response binds the new
+poll owner. There is no retained memif buffer, stack pointer or callback from
+the producer, and no additional mutable checkpoint state or component schema change.
+
+The ownership argument is deliberately limited: at admitted polling boundaries,
+all identity bytes reside in the existing serial FIFO, even if the packet has
+been partially consumed. No memif call or target read occurs in this prepared
+path. The active caller/device guards prohibit publication during dispatch;
+service failure poisons continuation. Unaligned identity requires a suspended
+read/modify/write caller and still rejects before tohost's clear is queued.
+Syscall, exit/signals and other devices remain unsupported. Full `tick()` and
+complete HTIF/CPU restore remain disabled.
+
+Native sanitizer/VCS evidence and exact commands are retained under
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration122/`.
+The extended byte oracle retains the prior binary terminal/EOF/idle operations
+and adds all four identity cases at addresses spanning both serial address
+words, including eight-byte alignment without sixteen-byte alignment. It cuts
+partial command reads, partial identity packet headers/data and queued response
+traffic. Producers finish before fresh destinations prepare. Every component is
+read back before service and after every host operation. All seven unaligned
+address residues are tested for each identity selector, alongside syscall and
+unknown-device rejection. A separate corruption changes the restored identity
+packet's first data word and must stop before consuming that divergent word.
+These are host-operation labels; no CPU semantic cut or replay is inferred.
+
+`aligned-identity/invocation-iwxxvjyk/summary.json` passes 400 continuations,
+19,800 host operations and 202,000 complete owner readbacks. All 132 unowned
+command rejections, four external-exit guards and eight first-divergence cases
+pass. The identity packet first differs at operation 61, request word 2,
+expected 1,684,104,562 versus actual 1,684,104,563; that word stays unconsumed.
+Atomic preparation passes 400 preparations, 4,040 complete readbacks, 3,200
+malformed, 204 membership and 44 cross-owner/configuration rejections, 2,588
+allocation failures and 2,000 execution guards. Native/VCS mutation controls
+detect removal of the pre-clear command validation hook.
+
+Repeat from the Chipyard root:
+
+```sh
+source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh
+python -m tools.checkpoint_formats.tests.verify_tsi_polling_continue_vcs --identity \
+  --out automations/checkpoint_loop/runs/m11-iteration122-controller-rechecks/aligned-identity
+```
+
 ## Iteration 121: executable prepared polling components
 
 `advance_prepared_polling_components()` reconstructs the executable polling

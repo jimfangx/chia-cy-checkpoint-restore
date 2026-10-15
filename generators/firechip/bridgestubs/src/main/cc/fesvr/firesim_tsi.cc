@@ -114,8 +114,15 @@ class firesim_tsi_t::polling_services_t final : public firesim_tsi_htif_poll_t::
       return devices ? tsi.should_exit() : false;
     }
     void validate_command(uint64_t value) override {
-      if (!devices && ((value >> 56) != 1 || ((value >> 48) & 255) > 1))
-        throw std::runtime_error("prepared polling component supports only sealed BCD read/write");
+      if (devices) return;
+      const auto command = (value >> 48) & 255;
+      const auto address = (value & 0xffffffffffffULL) / 256;
+      // Aligned 64-byte identity writes have no read/merge or suspended memif
+      // caller: their entire effect is an owned outbound serial packet. Reject
+      // unsupported commands before the polling caller queues tohost's clear.
+      if ((value >> 56) != 1 ||
+          (command > 1 && (command != 255 || (address & 7))))
+        throw std::runtime_error("prepared polling component requires sealed BCD read/write or aligned identity");
     }
     bool read(uint64_t address, uint64_t &value) override {
       if (tsi.serial_read.idle()) {
@@ -374,7 +381,17 @@ void firesim_tsi_t::prepare_polling_components(const polling_cut_t &images) {
   auto reader = serial_read; auto transport = serial; auto loadread = loadmem_read;
   firesim_loadmem_queues_t queues;
   auto poll = std::make_unique<firesim_tsi_htif_poll_t>(get_tohost_addr(), get_fromhost_addr());
-  auto device = std::make_unique<firesim_tsi_bcd_t>(*poll, 1048576, terminal.get());
+  auto device = std::make_unique<firesim_tsi_bcd_t>(*poll, 1048576, terminal.get(),
+      [this](uint64_t address, const firesim_tsi_bcd_t::identity_t &bytes) {
+        if (address & 7) throw std::runtime_error("prepared BCD identity requires aligned destination");
+        // Encode explicitly; no host byte order, char-buffer aliasing or
+        // borrowed coroutine pointer survives. issue_write atomically enqueues
+        // the entire packet, including the all-zero unknown-command identity.
+        std::array<uint32_t, 16> words{};
+        for (size_t i = 0; i < bytes.size(); ++i)
+          words[i / 4] |= uint32_t(uint8_t(bytes[i])) << (8 * (i % 4));
+        write_chunk(address, bytes.size(), words.data());
+      });
   std::array<checkpoint_owner_t *, 8> candidates{{poll.get(), &program, &init, &host,
       &reader, &transport, &loadread, &queues}};
   for (size_t i = 0; i < candidates.size(); ++i)

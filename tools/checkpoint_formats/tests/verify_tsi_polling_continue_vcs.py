@@ -21,6 +21,9 @@ from tools.checkpoint_formats.tests import verify_tsi_polling_prepare_vcs as pre
 
 UNSUPPORTED = (1, 0x80001000, (1 << 56) | (255 << 48) | 0x80003000,
                (1 << 56) | (2 << 48), 2 << 56, 255 << 56)
+REJECTED = (1, 0x80001000, (1 << 56) | (2 << 48), 2 << 56, 255 << 56) + tuple(
+    (1 << 56) | (255 << 48) | ((0x1280003008 + offset) << 8) | what
+    for offset in range(1, 8) for what in (0, 1, 255, 2))
 
 
 def audit(path):
@@ -39,7 +42,7 @@ def audit(path):
         check_native_input(ROOT, binding['path'], binding['sha256'], bindings)
     base = Path(report['preparation_summary'])
     prepared = preparation.audit(base)
-    plan, images = preparation.scenario()
+    plan, images = preparation.scenario(report.get('aligned_identity', False))
     expected_cases = {(p, b, c) for p in ('native', 'vcs-dpi') for b in ('native', 'vcs-dpi') for c in range(len(images))}
     require(len(report['continuations']) == len(expected_cases) and
             {(c['producer'], c['backend'], c['cut']) for c in report['continuations']} == expected_cases,
@@ -57,9 +60,10 @@ def audit(path):
                 in Path(case['log']).read_text(), 'missing completed component continuation')
         operations += count
         readbacks += 10*(count+1)
-    require(len(report['unsupported']) == 4*len(UNSUPPORTED), 'incomplete unowned service checks')
+    unsupported = tuple(report.get('unsupported_commands', UNSUPPORTED))
+    require(len(report['unsupported']) == 4*len(unsupported), 'incomplete unowned service checks')
     for case in report['unsupported']:
-        require(Path(case['plan']).read_text() == str(UNSUPPORTED[case['command_index']])+'\n', 'changed unowned command')
+        require(Path(case['plan']).read_text() == str(unsupported[case['command_index']])+'\n', 'changed unowned command')
     require(len(report['exit_guards']) == 4, 'missing external exit guards')
     for case in report['unsupported']+report['exit_guards']:
         require('UNOWNED_REJECTED clear_packets=0 terminal_unchanged=1 reentry_guards=3 context_entries=0'
@@ -68,6 +72,14 @@ def audit(path):
     for case in report['corruptions']:
         require('FIRST_DIVERGENCE operation=21 request_word=5 expected=321 actual=256 acknowledged=0 context_entries=0'
                 in Path(case['log']).read_text(), 'wrong first divergent operation')
+    identity_corruptions = report.get('identity_corruptions', [])
+    require(len(identity_corruptions) == (4 if report.get('aligned_identity', False) else 0),
+            'missing identity corruption backend pairing')
+    for case in identity_corruptions:
+        cut = case['cut']
+        require(plan[cut].startswith('PACKET 15 0 1684104562 '), 'wrong identity corruption boundary')
+        require(f'FIRST_DIVERGENCE operation={cut+1} request_word=2 expected=1684104562 actual=1684104563 acknowledged=0 context_entries=0'
+                in Path(case['log']).read_text(), 'identity corruption was not stopped at first word')
     pids = []
     for command in report['commands']:
         log = Path(command['log']).read_text()
@@ -80,13 +92,15 @@ def audit(path):
     return dict(status='passed', fresh_component_continuations=len(expected_cases),
                 host_operations=operations, complete_owner_readbacks=readbacks,
                 unowned_command_rejections=len(report['unsupported']), external_exit_guards=4,
-                first_divergence_cases=4, preparation=prepared, level1_verified=False, level2_verified=False)
+                first_divergence_cases=4+len(identity_corruptions), preparation=prepared,
+                aligned_identity=report.get('aligned_identity', False), level1_verified=False, level2_verified=False)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', type=Path)
     parser.add_argument('--audit', type=Path)
+    parser.add_argument('--identity', action='store_true', help='also exercise aligned BCD identity writes')
     args = parser.parse_args()
     if args.audit:
         print(json.dumps(audit(args.audit), indent=2))
@@ -103,7 +117,8 @@ def main():
         run(command, log, cwd=ROOT)
         return dict(cwd='.', argv=command, log=str(log), expected_exit=0)
 
-    commands.append(execute(['python', '-m', preparation.__name__, '--out', out/'preparation'], out/'preparation.log'))
+    commands.append(execute(['python', '-m', preparation.__name__, '--out', out/'preparation',
+                             *(['--identity'] if args.identity else [])], out/'preparation.log'))
     bases = list((out/'preparation').glob('invocation-*/summary.json'))
     require(len(bases) == 1, 'ambiguous preparation invocation')
     base = bases[0].parent
@@ -112,7 +127,7 @@ def main():
     snapshot = out/'continuation-source.py'
     shutil.copyfile(__file__, snapshot)
     bindings = bindings+[dict(path=str(Path(__file__).resolve()), sha256=file_sha(snapshot), snapshot=str(snapshot))]
-    plan, images = preparation.scenario()
+    plan, images = preparation.scenario(args.identity)
 
     def invoke(backend, mode, name, producer, cut=0, plan_path=None, **extra):
         dest = out/name
@@ -129,10 +144,10 @@ def main():
     with ThreadPoolExecutor(max_workers=4) as pool:
         continuations = list(pool.map(lambda j: invoke(*j), jobs))
     commands.extend(continuations)
-    unsupported, exit_guards, corruptions = [], [], []
+    unsupported, exit_guards, corruptions, identity_corruptions = [], [], [], []
     for p in ('native', 'vcs-dpi'):
         for b in ('native', 'vcs-dpi'):
-            for index, command in enumerate(UNSUPPORTED):
+            for index, command in enumerate(REJECTED):
                 plan_path = out/f'unowned-{index}.txt'
                 if not plan_path.exists():
                     plan_path.write_text(str(command)+'\n')
@@ -140,12 +155,16 @@ def main():
                                           plan_path=plan_path, command_index=index))
             exit_guards.append(invoke(b, 'exit-guard', f'{p}-{b}-exit-guard', p))
             corruptions.append(invoke(b, 'corrupt', f'{p}-{b}-corrupt', p))
-    commands.extend(unsupported+exit_guards+corruptions)
+            if args.identity:
+                cut = next(i for i, line in enumerate(plan) if line.startswith('PACKET 15 0 1684104562 '))
+                identity_corruptions.append(invoke(b, 'identity-corrupt', f'{p}-{b}-identity-corrupt', p, cut=cut))
+    commands.extend(unsupported+exit_guards+corruptions+identity_corruptions)
     for binding in bindings:
         require(file_sha(binding['path']) == binding['sha256'], 'source changed during continuation checks')
     report = dict(status='passed', scope='sealed BCD polling components without coroutine; no CPU continuation',
                   preparation_summary=str(bases[0]), continuations=continuations, unsupported=unsupported,
-                  exit_guards=exit_guards, corruptions=corruptions, commands=commands, source_inputs=bindings,
+                  exit_guards=exit_guards, corruptions=corruptions, identity_corruptions=identity_corruptions,
+                  aligned_identity=args.identity, unsupported_commands=REJECTED, commands=commands, source_inputs=bindings,
                   level1_verified=False, level2_verified=False,
                   artifact_sha256={str(p): file_sha(p) for p in sorted(out.rglob('*')) if p.is_file()})
     path = out/'summary.json'
