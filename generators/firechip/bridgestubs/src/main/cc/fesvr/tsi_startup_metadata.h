@@ -50,9 +50,9 @@ struct firesim_tsi_startup_metadata_t {
 
   std::vector<uint8_t> image(const std::vector<std::string> &arguments,
                              const std::vector<uint8_t> &configuration) const {
-    // Version 2 binds the destination's transport and pristine owner contract.
+    // Version 3 also binds the installed HTIF's exact required-XLEN policy.
     // Legacy metadata images cannot certify that contract and must reject.
-    widget_checkpoint_config_t out(25, {2});
+    widget_checkpoint_config_t out(25, {3});
     auto blob = [&](const auto &value) {
       out.word(value.size()); out.bytes.insert(out.bytes.end(), value.begin(), value.end());
     };

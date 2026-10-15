@@ -18,6 +18,7 @@
 #include <vector>
 #include <map>
 #include <cerrno>
+#include "elfloader_policy.h"
 
 // Derived from riscv-isa-sim fesvr/elfloader.cc at
 // 29e021317fb8ffe90c68e56a107bfd80bf1b24a059bb48c34b98b075319efa7b (SHA-256).
@@ -45,6 +46,7 @@ struct elf_mapping_t {
 std::map<std::string, uint64_t> load_elf(const char* fn, memif_t* memif, reg_t* entry,
                                          reg_t load_offset, unsigned required_xlen)
 {
+  firesim_elfloader_policy_t::observe(fn, memif, entry, load_offset, required_xlen);
   elf_fd_t fd{open(fn, O_RDONLY | O_CLOEXEC)};
   struct stat s;
   if (fd.value == -1)

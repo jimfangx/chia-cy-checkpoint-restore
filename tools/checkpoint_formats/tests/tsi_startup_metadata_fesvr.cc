@@ -2,6 +2,7 @@
 #include "tsi_polling_cut_checks.h"
 #include "elfloader_resource_checks.h"
 #include <array>
+#include "fesvr/elfloader_policy.h"
 static void require(bool b, const char *m) { if (!b) throw std::runtime_error(m); }
 static std::vector<uint8_t> read_file(const std::filesystem::path &p) {
   std::ifstream f(p,std::ios::binary);require(bool(f),"missing test image");
@@ -121,7 +122,11 @@ static int run(const char *mode,const char *source,const char *image,const char 
         require(elf_snapshot_resources()==resources,"capture XLEN rejection leaked ELF resources");
       }
       installed.set_expected_xlen(64);
-      require(tsi.save_startup_metadata()==captured,"compatible installed XLEN changed metadata");
+      const auto policy64=tsi.save_startup_metadata();
+      require(policy64!=captured,"distinct installed XLEN policies collapsed");
+      write_file(out/"startup64.metadata",policy64);
+      installed.set_expected_xlen(0);
+      require(tsi.save_startup_metadata()==captured,"installed XLEN policy did not recover");
       std::cout<<"INSTALLED_XLEN_CAPTURE_REJECTION expected=32 actual=64 recovered=64 unchanged_components=8\n";
       std::cout<<"ELF_RESOURCE_ATOMIC_REJECTIONS count=32 leaked_descriptors=0 leaked_mappings=0\n";
       require(tsi.inspect_polling_cut()==before,"metadata capture changed caller");
@@ -138,7 +143,17 @@ static int run(const char *mode,const char *source,const char *image,const char 
       require(peers(tsi)==before && tsi.get_tohost_addr()==0 && tsi.get_fromhost_addr()==0 && !tsi.done() && tsi.exit_code()==0,
               "invalid metadata partially restored");
     };
-    if(operation=="xlen-recovery") {
+    if(operation=="prepare64") {
+      installed.set_expected_xlen(64);
+    } else if(operation=="policy0to64" || operation=="policy64to0") {
+      const unsigned source_policy=operation=="policy0to64" ? 0 : 64;
+      const unsigned destination_policy=source_policy==0 ? 64 : 0;
+      installed.set_expected_xlen(destination_policy);
+      reject(original);
+      installed.set_expected_xlen(source_policy);
+      std::cout<<"ATOMIC_EXACT_XLEN_POLICY_REJECTION source="<<source_policy
+               <<" destination="<<destination_policy<<" unchanged_components=7 mailboxes=0 context_entries=0\n";
+    } else if(operation=="xlen-recovery") {
       installed.set_expected_xlen(32);
       const auto resources=elf_snapshot_resources();
       for (size_t i=0;i<32;++i) {
@@ -148,7 +163,7 @@ static int run(const char *mode,const char *source,const char *image,const char 
                 "installed XLEN rejection partially restored");
         require(elf_snapshot_resources()==resources,"prepare XLEN rejection leaked ELF resources");
       }
-      installed.set_expected_xlen(64);
+      installed.set_expected_xlen(0);
       std::cout<<"ATOMIC_INSTALLED_XLEN_REJECTION expected=32 actual=64 recovered=64 unchanged_components=7 mailboxes=0\n";
       std::cout<<"ELF_RESOURCE_ATOMIC_REJECTIONS count=32 leaked_descriptors=0 leaked_mappings=0\n";
     } else if(operation=="invalid") {

@@ -24,15 +24,15 @@ def pristine_peers():
                 **{'loadmem-read':config(14,4096,4)+words(0,0,0,0),'loadmem-queues':config(16,4096,4)+words(0,0,0,0,0,0,0)})
 
 
-def canonical(elf, legacy=False):
+def canonical(elf, legacy=False, revision=3, required_xlen=0):
     def blob(b):
         return words(len(b))+b
     args=[b'+permissive', b'+no_hart0_msip', b'+permissive-off', str(elf).encode()]
     symbols=[(b'',0),(b'fromhost',0x80002008),(b'tohost',0x80002000)]
     peers=pristine_peers()
-    configuration=(config(25,2,1,0,8,1024)+words(len(peers))+
+    configuration=(config(25,revision,1,0,8,1024,*([required_xlen] if revision>=3 else []))+words(len(peers))+
                    b''.join(blob(n.encode())+blob(b) for n,b in peers.items()))
-    header=config(25) if legacy else config(25,2)+blob(configuration)
+    header=config(25) if legacy else config(25,revision)+blob(configuration)
     return (header+words(len(args))+b''.join(blob(a) for a in args)+blob(polling_elf())+
             words(0x80000000,len(symbols))+b''.join(blob(n)+words(a) for n,a in symbols))
 
@@ -46,7 +46,8 @@ def audit(path):
     for b in bindings.values():
         require(file_sha(b['snapshot'])==b['sha256'],'changed metadata source snapshot')
         check_native_input(ROOT,b['path'],b['sha256'],bindings)
-    elf=out/'polling.elf';expected=canonical(elf)
+    revision=r.get('metadata_revision',2)
+    elf=out/'polling.elf';expected=canonical(elf,revision=revision)
     require(elf.read_bytes()==polling_elf(),'changed actual metadata ELF')
     peers=pristine_peers()
     require(len(r['restores'])==12 and len({c['pid'] for c in r['commands']})==len(r['commands']),'missing fresh metadata processes')
@@ -71,11 +72,27 @@ def audit(path):
         if c['mode']=='xlen-recovery':
             require('ATOMIC_INSTALLED_XLEN_REJECTION expected=32 actual=64 recovered=64 unchanged_components=7 mailboxes=0' in log,'missing installed XLEN rejection/recovery')
             if resources_checked:require(resource_marker in log,'prepare leaked loader resources')
-    require(len(r['incompatible'])==18,'missing incompatible metadata cases')
-    require((out/'legacy.metadata').read_bytes()==canonical(elf,legacy=True),'legacy-image oracle changed')
+    require(len(r['incompatible'])==(20 if revision>=3 else 18),'missing incompatible metadata cases')
+    require((out/'legacy.metadata').read_bytes()==canonical(elf,legacy=True,revision=revision),'legacy-image oracle changed')
     for c in r['incompatible']:
         require('INCOMPATIBLE_METADATA_REJECTION mode='+c['mode']+' unchanged_components=7 mailboxes=0' in Path(c['log']).read_text(),'incompatible preparation admitted')
         require(not list(Path(c['destination']).iterdir()),'incompatible preparation published state')
+    if revision>=3:
+        expected64=canonical(elf,required_xlen=64)
+        require(expected!=expected64,'policy oracle collapsed')
+        require((out/'revision2.metadata').read_bytes()==canonical(elf,revision=2),'revision-2 oracle changed')
+        for producer in ('native','vcs-dpi'):
+            require((out/producer/'startup64.metadata').read_bytes()==expected64,'actual base-setter policy not captured')
+        require(len(r['policy_cases'])==12,'missing exact-policy fresh processes')
+        for c in r['policy_cases']:
+            dest=Path(c['destination']);log=Path(c['log']).read_text()
+            source=0 if c['mode']=='policy0to64' else 64
+            require((dest/'preedge.metadata').read_bytes()==(expected if source==0 else expected64),'policy readback differs')
+            require({p.name for p in dest.iterdir()}=={'preedge.metadata',*{'preedge.'+k for k in peers}},'incomplete policy peer inventory')
+            for k,v in peers.items():require((dest/('preedge.'+k)).read_bytes()==v,'policy preparation mutated '+k)
+            require('COMPLETE_STARTUP_METADATA_READBACK target_edges=0 target_services=0 context_entries=0 unchanged_components=7 guards=3' in log,'policy preparation entered services')
+            if c['mode']!='prepare64':
+                require(f'ATOMIC_EXACT_XLEN_POLICY_REJECTION source={source} destination={64 if source==0 else 0} unchanged_components=7 mailboxes=0 context_entries=0' in log,'missing atomic exact-policy rejection')
     for c in r['commands']:
         text=Path(c['log']).read_text()
         require(c['argv'][:2]==['bash','-lc'] and c['argv'][2].startswith(ENVIRONMENT) and
@@ -108,8 +125,9 @@ def audit(path):
         for name in names:
             equal=subprocess.check_output(['ar','p',installed,name])==subprocess.check_output(['ar','p',library,name])
             require(equal==(name not in replacements),'overlay changed unrelated installed state owner')
-    return dict(status='passed',fresh_metadata_readbacks=12,complete_unchanged_peer_images=84,
-                atomic_invalid_images=invalid_count,incompatible_rejections=18,
+    return dict(status='passed',fresh_metadata_readbacks=24 if revision>=3 else 12,complete_unchanged_peer_images=168 if revision>=3 else 84,
+                atomic_invalid_images=invalid_count,incompatible_rejections=len(r['incompatible']),
+                exact_policy_rejections=8 if revision>=3 else 0,
                 installed_xlen_rejections=192 if resource_marker in (out/'native-capture.log').read_text() else 6,
                 loader_resource_cases=704 if resources_checked else 0,installed_negative_controls=2 if resources_checked else 0,
                 loader_resources_unchanged=resources_checked,level1_verified=False,level2_verified=False)
@@ -123,6 +141,7 @@ def main():
     a.out.resolve().mkdir(parents=True,exist_ok=True);out=Path(tempfile.mkdtemp(prefix='invocation-',dir=a.out.resolve()))
     elf=out/'polling.elf';elf.write_bytes(polling_elf())
     (out/'legacy.metadata').write_bytes(canonical(elf,legacy=True))
+    (out/'revision2.metadata').write_bytes(canonical(elf,revision=2))
     source=TESTS/'tsi_startup_metadata_fesvr.cc';sv=TESTS/'tsi_startup_metadata_fesvr_tb.sv';library=FESVR/'lib/libfesvr.a'
     sources=[source,STUBS/'fesvr/firesim_tsi.cc',STUBS/'fesvr/owned_fesvr_tsi.cc',TESTCHIP/'testchip_tsi.cc',TESTCHIP/'testchip_htif.cc']
     inputs=[*sources,sv,library,Path(__file__),TESTS/'elfloader_resource_checks.h',TESTS/'tsi_polling_cut_checks.h',TESTS/'verify_tsi_host_control_fesvr_vcs.py',
@@ -170,23 +189,29 @@ def main():
               '+mode='+mode,'+source='+str(elf),'+image='+str(image),'+destination='+str(dest)]
         return execute(argv,name,mode=mode,destination=str(dest),elf_sha256_at_run=file_sha(elf))
     for backend in ('native','vcs-dpi'):invoke(backend,'capture','unused',out/backend,backend+'-capture')
-    restores=[];incompatible=[]
+    restores=[];incompatible=[];policy_cases=[]
     for producer in ('native','vcs-dpi'):
         for backend in ('native','vcs-dpi'):
             for mode in ('prepare','invalid','xlen-recovery'):
                 name=f'{producer}-{backend}-{mode}'
                 restores.append(invoke(backend,mode,out/producer/'startup.metadata',out/name,name))
+            for mode in ('prepare64','policy0to64','policy64to0'):
+                name=f'{producer}-{backend}-{mode}'
+                image=out/producer/('startup.metadata' if mode=='policy0to64' else 'startup64.metadata')
+                policy_cases.append(invoke(backend,mode,image,out/name,name))
     for backend in ('native','vcs-dpi'):
-        for mode in ('wrong-args','unsupported-long','unsupported-payload','unsupported-symbol-elf','unsupported-signature','unsupported-signature-granularity','changed-elf','wrong-loadmem','legacy-image'):
+        for mode in ('wrong-args','unsupported-long','unsupported-payload','unsupported-symbol-elf','unsupported-signature','unsupported-signature-granularity','changed-elf','wrong-loadmem','legacy-image','revision2-image'):
             if mode=='changed-elf':
                 mutant=bytearray(polling_elf());mutant[176]^=1;elf.write_bytes(mutant);(out/'mutant.elf').write_bytes(mutant)
             name=f'{backend}-{mode}'
             image=out/'legacy.metadata' if mode=='legacy-image' else out/'native/startup.metadata'
+            if mode=='revision2-image':image=out/'revision2.metadata'
             incompatible.append(invoke(backend,mode,image,out/name,name))
             elf.write_bytes(polling_elf())
     for b in bindings:require(file_sha(b['path'])==b['sha256'],'metadata source changed while native checks ran')
     report=dict(status='passed',scope='installed HTIF startup metadata component only; complete CPU restore pending',
                 commands=commands,restores=restores,incompatible=incompatible,source_inputs=bindings,
+                metadata_revision=3,policy_cases=policy_cases,
                 loader_resources=resources,installed_negative_controls=negative_controls,
                 level1_verified=False,level2_verified=False,artifact_sha256={str(p):file_sha(p) for p in sorted(out.rglob('*')) if p.is_file()})
     path=out/'summary.json';path.write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(audit(path),indent=2))

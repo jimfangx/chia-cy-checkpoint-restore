@@ -12,7 +12,7 @@ INSTALLED = ROOT / '.conda-env/riscv-tools'
 
 
 def overlay_inputs():
-    return [Path(__file__), BUILDER, LOADER, CONTEXT]
+    return [Path(__file__), BUILDER, LOADER, CONTEXT, DIRECTORY / 'elfloader_policy.h']
 
 
 def build_overlay(out, execute, *, named_log=False):

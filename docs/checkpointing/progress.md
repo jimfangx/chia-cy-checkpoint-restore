@@ -14,7 +14,51 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 114, in progress. Recovery:
+Current milestone: M11-rocket-level1-level2, iteration 115, in progress. Recovery:
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md) and
+[tsi-xlen-policy.md](tsi-xlen-policy.md). Startup metadata revision 3 now binds
+actual installed HTIF expected-XLEN policy, including base-reference setter
+calls. Policies 0 and 64 produce distinct images and reject each other before
+publication. Legacy revisions reject. Complete CPU admission stays disabled;
+no Level-1 CPU continuation or captured Level-2 replay has passed.
+
+Diagnostic root: `runs/m11-iteration115/`. Native sanitizer/VCS provider checks
+pass 352 cases and two missing-provider negative controls. Native/VCS metadata
+passes 24 fresh readbacks, 168 peer images, 13,964 malformed images, 20 incompatible
+cases, eight policy mismatches, 192 installed-XLEN rejection/recovery checks and
+704 loader-resource cases. Installed shared HTIF independently passes another
+24 fresh readbacks/168 peer images/eight policy rejections. Exact-recipe loader,
+context, TSI and bridge objects equal independent recompilation; dynamic symbols
+bind shared HTIF to the owned loader. Both plans and guarded environment/Conda
+inputs remain unchanged. All 58,484 cataloged iteration-114 artifacts and 999
+native bindings pass preservation checks. All eight preserved native suites
+pass, including 267 Python tests and FCFS. Default-device lifetime and context/
+transport checks pass. Both complete four-hart controls independently pass at
+C=3,329,794; every full trace and workload/store label matches the reference.
+All 64 active host component images pass independent inspection. Credits/tokens
+remain distinct from uncertified semantic CPU cuts. All 13 retained host suites,
+transport/context suites and all 19 independent audits pass. Dispatcher checks
+retain 240 fresh continuations, 7,012 peer readbacks, 5,112 atomic invalid images
+and four first semantic divergences. Complete CPU checkpoints remain pending.
+
+Recovery: `summary.json`, `selected-results.json`, `raw-native-commands.json`,
+`verification-commands-native.json`, `native-input-archives.json`,
+`independent-component-audits.json`, `native-policy-build-audit.json`,
+`shared-policy-independent-audit.json`, `preservation-audit.json`, `pilots.json`
+and `artifact-manifest.json` under the run root. Initial oracle, symbol-audit,
+existing-directory fixture and context-audit invocation failures are retained
+separately. Existing controller commits are published FireSim first, then Chipyard; queried tips
+match despite read-only local tracking-ref warnings. No staging or local commits.
+
+Next: finish complete HTIF configuration/build and terminal/syscall/stop/exit/
+signal ownership, coherent caller reconstruction and atomic aggregate restoration
+without startup writes/reset. Complete simulator/FAME/channel/memory/bridge
+ownership, required semantic CPU cuts, fresh Level-1 continuation and independent
+Level-2 captured readback/finite replay remain pending. BOOM/Saturn stay pending.
+No external dependency is missing. Physical FPGA validation and ASIC power stay
+deferred; the controller owns local commits and both plans remain read-only.
+
+Previous iteration 114, in progress. Recovery:
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md) and
 [tsi-default-device-lifetime.md](tsi-default-device-lifetime.md). The default
 HTIF syscall device and device table now belong to the production TSI object's
