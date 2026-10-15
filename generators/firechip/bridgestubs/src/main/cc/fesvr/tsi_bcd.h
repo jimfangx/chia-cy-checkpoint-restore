@@ -67,6 +67,24 @@ public:
   void load_checkpoint(const std::vector<uint8_t> &image) override {
     auto next = parse(image); pending.swap(next);
   }
+  // Component transaction only: the poll response queue and all other HTIF
+  // owners must be restored separately before a complete caller can resume.
+  // Ordered names are part of this interface: missing/extra/reordered peers
+  // cannot silently select a partial restore. Use the terminal bound to this
+  // device, never a caller-supplied replacement with different service wiring.
+  using sealed_checkpoint_t = std::vector<std::pair<std::string, std::vector<uint8_t>>>;
+  void load_sealed_checkpoint(const sealed_checkpoint_t &images) {
+    if (!terminal || images.size() != 2 || images[0].first != "terminal" || images[1].first != "bcd")
+      throw std::runtime_error("sealed BCD restore requires ordered terminal and BCD owners");
+    // Both parses check supported/idle boundaries and allocate all replacement
+    // storage before publication. validate+load would parse/allocate a second
+    // time and could fail after changing the first owner.
+    auto next_terminal = terminal->parse(images[0].second);
+    auto next_pending = parse(images[1].second);
+    static_assert(noexcept(pending.swap(next_pending)), "BCD commit must not allocate");
+    terminal->commit(next_terminal);
+    pending.swap(next_pending);
+  }
 private:
   widget_checkpoint_config_t config;
   const response_t response;

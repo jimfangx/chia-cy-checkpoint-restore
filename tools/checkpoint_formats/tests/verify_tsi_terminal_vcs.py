@@ -119,6 +119,22 @@ def audit(path):
         pids.append(int(re.search(r'fresh_process_pid=(\d+)', text)[1]))
     require(len(pids) == len(set(pids)), 'terminal check reused native process')
     metadata_result={}
+    transaction_result={}
+    if report.get('atomic_sealed_transaction'):
+        require(len(report['transactions'])==4, 'missing fresh transaction backend pairings')
+        allocations=0
+        for case in report['transactions']:
+            dest=Path(case['destination']);text=Path(case['log']).read_text()
+            count=len(terminal[4])+len(bcd[4])+4
+            match=re.search(r'SEALED_TRANSACTION malformed=(\d+) membership=7 allocation_failures=(\d+) '
+                            r'unchanged_on_failure=1 target_edges=0 services_before_readback=0 response=(\d+)',text)
+            require(match and int(match[1])==count and int(match[2])>=4 and int(match[3])==READ|0x100,
+                    'incomplete atomic transaction/fault coverage')
+            allocations+=int(match[2])
+            require((dest/'preedge.terminal').read_bytes()==terminal[4] and
+                    (dest/'preedge.bcd').read_bytes()==bcd[4], 'transaction omitted pre-service readback')
+        transaction_result=dict(atomic_transaction_fresh_readbacks=4, transaction_malformed_rejections=4*count,
+                                transaction_membership_rejections=28, transaction_allocation_failures=allocations)
     if report.get('sealed_metadata_bound'):
         expected=canonical(out/'polling.elf',revision=4,sealed_input=out/'sealed-input.bin',terminal=image(0))
         peers=dict(pristine_peers(),terminal=image(0))
@@ -143,7 +159,7 @@ def audit(path):
     return dict(status='passed', complete_fresh_pair_readbacks=52, continued_host_events=312,
                 atomic_malformed_images=4*invalid_count, incompatible_images=4, incomplete_pairs=8,
                 first_semantic_divergences=4, production_TSI_runs=2, service_guards=28,
-                **metadata_result, level1_verified=False, level2_verified=False)
+                **metadata_result, **transaction_result, level1_verified=False, level2_verified=False)
 
 
 def main():
@@ -157,7 +173,7 @@ def main():
     args.out.resolve().mkdir(parents=True, exist_ok=True)
     out = Path(tempfile.mkdtemp(prefix='invocation-', dir=args.out.resolve()))
     source = TESTS/'tsi_terminal_checkpoint.cc'; sv = TESTS/'tsi_terminal_checkpoint_tb.sv'
-    sources = [source, STUBS/'fesvr/firesim_tsi.cc', STUBS/'fesvr/owned_fesvr_tsi.cc', TESTCHIP/'testchip_tsi.cc', TESTCHIP/'testchip_htif.cc']
+    sources = [source, TESTS/'tsi_terminal_allocations.cc', STUBS/'fesvr/firesim_tsi.cc', STUBS/'fesvr/owned_fesvr_tsi.cc', TESTCHIP/'testchip_tsi.cc', TESTCHIP/'testchip_htif.cc']
     inputs = [*sources, sv, Path(__file__), *overlay_inputs(), FESVR/'lib/libfesvr.a',
               TESTS/'verify_tsi_host_control_fesvr_vcs.py', TESTS/'verify_firesim_tsi_loadmem_vcs.py',
               TESTS/'verify_semantic_vcs.py', TESTS/'verify_loadmem_read_checkpoint_vcs.py',
@@ -193,13 +209,14 @@ def main():
     for backend in ('native', 'vcs-dpi'):
         for mode in ('capture', 'guards', 'integration'):
             invoke(backend, mode, backend+'-'+mode)
-    restores, invalid, corruptions = [], [], []
+    restores, invalid, corruptions, transactions = [], [], [], []
     for producer in ('native', 'vcs-dpi'):
         for backend in ('native', 'vcs-dpi'):
             images = out/(producer+'-capture')
             for cut in range(13):
                 restores.append(invoke(backend, 'restore', f'{producer}-{backend}-cut-{cut}', images, cut))
             invalid.append(invoke(backend, 'invalid', f'{producer}-{backend}-invalid', images))
+            transactions.append(invoke(backend, 'transaction', f'{producer}-{backend}-transaction', images))
             corruption = out/f'{producer}-{backend}-corrupt-images'; corruption.mkdir()
             # Valid structure and exact config, wrong semantic cursor at cut 1.
             (corruption/'cut-1.terminal').write_bytes(image(1))
@@ -221,6 +238,7 @@ def main():
     report = dict(status='passed', scope='sealed terminal/BCD components only; complete CPU restore unsupported', commands=commands,
                   restores=restores, invalid=invalid, corruptions=corruptions, source_inputs=bindings,
                   sealed_metadata_bound=True,metadata_cases=metadata_cases,level1_verified=False, level2_verified=False,
+                  atomic_sealed_transaction=True,transactions=transactions,
                   artifact_sha256={str(p):file_sha(p) for p in sorted(out.rglob('*')) if p.is_file()})
     path = out/'summary.json'; path.write_text(json.dumps(report, indent=2)+'\n')
     print(json.dumps(dict(audit(path), summary=str(path)), indent=2))

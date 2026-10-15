@@ -5,6 +5,31 @@ binds that owner into startup metadata and the suspended polling audit.
 Complete Rocket Level-1 continuation and captured Level-2 readback/replay remain
 pending.
 
+Iteration 118 adds `firesim_tsi_bcd_t::load_sealed_checkpoint`, a transaction
+over the ordered `terminal` and `bcd` component images. It uses the terminal
+already bound to the destination device. Both parsers validate the entire
+image, check supported/idle service boundaries and allocate replacement storage
+before either owner changes. Publication consists only of statically checked
+nonthrowing swaps and cursor assignment. A second allocation failure after a
+terminal load can no longer leave the pair partially restored. Individual
+component image formats and normal device execution remain unchanged.
+
+This is a component transaction, not the complete HTIF aggregate. The polling
+response queue, startup metadata, syscall state, signals, stop/exit and caller
+reconstruction still require their own coherent restoration. Complete CPU
+admission remains disabled. Ordered peer membership rejects missing, extra,
+duplicate, unknown and reordered owners. It does not certify that independently
+supplied valid images came from a single CPU cut.
+
+Native ASan/UBSan and VCS DPI verification now exercise the production
+transaction for every fresh paired continuation. A test-only thread-local
+allocator fails each successive allocation in the transaction; each failure
+must preserve both complete destination images and issue no services. Both
+destinations intentionally differ from the source, so partial publication
+cannot pass through equal pristine values. The allocator is disabled during
+simulator startup, file I/O and independent readback. Diagnostic evidence and
+exact commands for this iteration are indexed in the CPU matrix.
+
 `+checkpoint-terminal-input=/absolute/path/to/input.bin`, inside the permissive
 host options, captures a regular file's bytes at TSI construction. The file
 descriptor closes before construction returns. Subsequent BCD reads use the

@@ -57,9 +57,7 @@ static void execute(const std::string &op, const fs::path &images, const fs::pat
   if (cut>=0) {
     const auto t=read_file(images/("cut-"+std::to_string(cut)+".terminal"));
     const auto b=read_file(images/("cut-"+std::to_string(cut)+".bcd"));
-    // Component coordinator prevalidates both before changing either owner.
-    terminal.validate_checkpoint(t); bcd.validate_checkpoint(b);
-    terminal.load_checkpoint(t); bcd.load_checkpoint(b);
+    bcd.load_sealed_checkpoint({{"terminal",t},{"bcd",b}});
     save(out/"preedge.terminal",terminal.save_checkpoint()); save(out/"preedge.bcd",bcd.save_checkpoint());
     require(terminal.save_checkpoint()==t && bcd.save_checkpoint()==b && emitted.empty(),"incomplete/active readback");
   }
@@ -106,12 +104,73 @@ static void invalid(const fs::path &images, const fs::path &out) {
   // Missing/invalid second owner is rejected before a valid first-owner load.
   for(bool missing:{false,true}) {
     auto t=good;auto b=missing?std::vector<uint8_t>{}:peer;if(!missing)b[0]^=1;
-    failed=false;try{terminal.validate_checkpoint(t);bcd.validate_checkpoint(b);terminal.load_checkpoint(t);bcd.load_checkpoint(b);}
+    failed=false;try{bcd.load_sealed_checkpoint({{"terminal",t},{"bcd",b}});}
     catch(const std::runtime_error &){failed=true;}
     require(failed && terminal.save_checkpoint()==before && bcd.save_checkpoint()==peer && !services,"incomplete pair partially restored");
   }
   terminal.load_checkpoint(good);save(out/"preedge.terminal",terminal.save_checkpoint());
   std::cout<<"TERMINAL_ATOMIC_REJECTIONS malformed="<<count<<" incompatible=1 missing_or_invalid_peer=2 services=0\n";
+}
+void tsi_terminal_fail_allocation_after(long);
+static void transaction(const fs::path &images, const fs::path &out) {
+  size_t services=0, malformed=0, membership=0;
+  firesim_tsi_terminal_t terminal(INPUT,[&](uint8_t){++services;});
+  firesim_tsi_bcd_t bcd([&](uint64_t){++services;},1048576,&terminal);
+  memory_t mem;
+  // Both destinations differ from the source; unchanged-state checks would
+  // miss partial publication if a destination happened to equal its source.
+  terminal.write(55); require(terminal.read()==65,"destination setup differs");
+  bcd.handle_command(command_t(mem,READ|42,[](uint64_t){throw std::runtime_error("stale callback");}));
+  services=0;
+  const auto before_terminal=terminal.save_checkpoint(), before_bcd=bcd.save_checkpoint();
+  using pair_t=firesim_tsi_bcd_t::sealed_checkpoint_t;
+  const pair_t good{{"terminal",read_file(images/"cut-4.terminal")},{"bcd",read_file(images/"cut-4.bcd")}};
+  require(good[0].second!=before_terminal && good[1].second!=before_bcd,"vacuous transaction destination");
+  auto unchanged=[&] {
+    require(terminal.save_checkpoint()==before_terminal && bcd.save_checkpoint()==before_bcd && !services,
+            "transaction partially published state or entered services");
+  };
+  auto reject=[&](const pair_t &candidate) {
+    bool failed=false;try{bcd.load_sealed_checkpoint(candidate);}catch(const std::runtime_error &){failed=true;}
+    require(failed,"invalid transaction accepted");unchanged();
+  };
+  for(const pair_t &candidate:std::vector<pair_t>{{},{good[0]},{good[1]},{good[1],good[0]},
+      {good[0],good[0]},{good[0],good[1],good[1]},{{"unknown",good[0].second},good[1]}}) {
+    reject(candidate);++membership;
+  }
+  for(size_t owner=0;owner<2;++owner) {
+    const auto &bytes=good[owner].second;
+    for(size_t n=0;n<bytes.size();++n) {
+      auto bad=good;bad[owner].second.resize(n);reject(bad);++malformed;
+    }
+    auto bad=good;bad[owner].second.push_back(0);reject(bad);++malformed;
+    // Incompatible configuration in either owner rejects with a valid peer.
+    bad=good;bad[owner].second[0]^=1;reject(bad);++malformed;
+  }
+  // Fail each actual allocation made by the production transaction, including
+  // the second owner's deque after the terminal replacement has been prepared.
+  long failures=0;
+  for(;;++failures) {
+    bool exhausted=false;
+    tsi_terminal_fail_allocation_after(failures);
+    try{bcd.load_sealed_checkpoint(good);}catch(const std::bad_alloc &){exhausted=true;}
+    catch(...){tsi_terminal_fail_allocation_after(-1);throw;}
+    tsi_terminal_fail_allocation_after(-1);
+    if(!exhausted)break;
+    unchanged();
+  }
+  require(failures>=4,"allocation fault injection did not cover both owners");
+  require(terminal.save_checkpoint()==good[0].second && bcd.save_checkpoint()==good[1].second && !services,
+          "transaction incomplete before first service");
+  save(out/"preedge.terminal",terminal.save_checkpoint());save(out/"preedge.bcd",bcd.save_checkpoint());
+  // Loading must retain the destination response binding and next input byte.
+  uint64_t response=0;
+  firesim_tsi_terminal_t next(INPUT,[](uint8_t){throw std::runtime_error("restore emitted output");});
+  firesim_tsi_bcd_t next_bcd([&](uint64_t value){response=value;},1048576,&next);
+  next_bcd.load_sealed_checkpoint(good);next_bcd.tick();
+  require(response==(READ|0x100),"transaction restored wrong input/response binding");
+  std::cout<<"SEALED_TRANSACTION malformed="<<malformed<<" membership="<<membership
+           <<" allocation_failures="<<failures<<" unchanged_on_failure=1 target_edges=0 services_before_readback=0 response="<<response<<'\n';
 }
 static void guards() {
   firesim_tsi_terminal_t live;
@@ -229,6 +288,7 @@ static int run(const char *mode,const char *source,const char *images,const char
     if(op=="guards")guards();else if(op=="integration")integration(source,out);
     else if(op.rfind("metadata-",0)==0)metadata(op,source,images,out);
     else if(op=="invalid")invalid(images,out);
+    else if(op=="transaction")transaction(images,out);
     else {require(op=="capture" || op=="restore" || op=="corrupt","unknown terminal mode");execute(op,images,out,cut);}
     return 0;
   }catch(const std::exception &e){std::cerr<<"FAIL "<<e.what()<<'\n';return 2;}

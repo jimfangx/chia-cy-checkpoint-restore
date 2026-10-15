@@ -14,7 +14,55 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 117, in progress. Recovery:
+Current milestone: M11-rocket-level1-level2, iteration 118, in progress. Recovery:
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md) and
+[tsi-sealed-terminal.md](tsi-sealed-terminal.md). The BCD component now restores
+its bound sealed terminal and command queue transactionally: both images are
+parsed and allocated before nonthrowing publication. Complete CPU admission
+remains disabled; neither CPU level meets acceptance yet.
+
+Diagnostic root: `runs/m11-iteration118/`. Native ASan/UBSan and VCS DPI pass
+`terminal/invocation-knyl8x5i/summary.json`: 52 fresh continuations/312 host
+events, four additional paired readbacks, 576 malformed pair rejections,
+28 owner-membership rejections and 44 injected allocation failures. All failures
+preserve both complete destination images before any service. A mutation
+control using the old validate/load sequence fails precisely for partial
+publication (`transaction-mutation/summary.json`). Existing metadata, terminal
+and first response-divergence checks also pass. These are component events,
+not CPU target-cycle cuts.
+
+All eight preserved native suites pass, including 267 Python tests and FCFS.
+All three exact-recipe default/buffered/sealed controls pass at C=3,329,794.
+Every full hart trace and workload/store print-cycle label matches the reference.
+Independent audits pass all 104 known host images at 12 active samples; credit
+and enqueue labels remain distinct from uncertified CPU semantic cuts. All
+13 retained host suites and all 17 independent component/native evidence
+audits pass. Dispatcher checks retain 240 fresh continuations, 7,012 complete
+peer readbacks, 5,112 atomic invalid-image rejections and four first component
+divergences. Fresh ordinary RTL VCS again reads all 318,637 pattern words/seven
+clocks before its first
+edge. Actual Rocket loader/context/TSI/bridge objects match independent
+recompilation. Existing controller checkpoints were published FireSim first,
+then Chipyard, with matching queried remote tips. No staging/local commits or
+plan/environment edits were performed. No external dependency is missing.
+The final preservation guard passes all 53,019 prior cataloged artifacts and
+1,005 prior native input bindings.
+
+Recovery: `summary.json`, `selected-results.json`, `raw-native-commands.json`,
+`verification-commands-native.json`, `native-input-archives.json`,
+`artifact-manifest.json`, `independent-component-audits.json`,
+`native-terminal-build-audit.json`, `sealed-workload-independent-audit.json`
+and `preservation-audit.json` under the run root. Complete CPU restore and
+captured replay remain pending; no FPGA or ASIC acceptance is claimed.
+
+Next: extend transactional preparation/publication to the complete HTIF
+aggregate and reconstruct a coherent caller without startup writes/reset.
+Syscall/file-descriptor, signal, stop/exit and complete simulator ownership,
+required CPU cuts, fresh Level-1 continuation and independent captured Level-2
+readback/replay remain pending. BOOM/Saturn remain pending; physical FPGA and
+ASIC power stay deferred.
+
+Previous iteration 117, in progress. Recovery:
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md) and
 [tsi-sealed-terminal.md](tsi-sealed-terminal.md). Sealed startup metadata now
 uses revision 4 and binds the terminal's complete pristine image/input as its

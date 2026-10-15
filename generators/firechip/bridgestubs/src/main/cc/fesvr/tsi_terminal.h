@@ -49,9 +49,16 @@ public:
   }
   void validate_checkpoint(const std::vector<uint8_t> &image) const override { parse(image); }
   void load_checkpoint(const std::vector<uint8_t> &image) override {
-    auto next = parse(image); transcript.swap(next.second); cursor = next.first;
+    auto next = parse(image); commit(next);
   }
 private:
+  // Only the bound BCD coordinator may publish a prepared terminal alongside
+  // its prepared command queue. No public prepared object can outlive a cut.
+  friend class firesim_tsi_bcd_t;
+  void commit(std::pair<uint64_t, std::vector<uint8_t>> &next) noexcept {
+    static_assert(noexcept(transcript.swap(next.second)), "terminal commit must not allocate");
+    transcript.swap(next.second); cursor = next.first;
+  }
   bool sealed = false;
   const std::vector<uint8_t> input;
   output_t output;
