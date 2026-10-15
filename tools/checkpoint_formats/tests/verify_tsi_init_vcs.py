@@ -12,6 +12,8 @@ import shlex
 import shutil
 import struct
 import tempfile
+import threading
+from tools.checkpoint_formats.tests.native_parallel import checked_map
 
 from tools.checkpoint_formats.codec import require
 from tools.checkpoint_formats.evidence import file_sha
@@ -234,7 +236,7 @@ def main():
     library = FESVR/'lib/libfesvr.a'
     actual_sources = [TESTS/'tsi_init_fesvr.cc', STUBS/'fesvr/firesim_tsi.cc', STUBS/'fesvr/owned_fesvr_tsi.cc',
                       TESTCHIP/'testchip_tsi.cc', TESTCHIP/'testchip_htif.cc']
-    inputs = [fixture, sv, Path(__file__), STUBS/'fesvr/tsi_init_accesses.h', STUBS/'fesvr/firesim_tsi.h',
+    inputs = [fixture, sv, Path(__file__), TESTS/'native_parallel.py', STUBS/'fesvr/tsi_init_accesses.h', STUBS/'fesvr/firesim_tsi.h',
               STUBS/'fesvr/firesim_tsi.cc', TESTS/'verify_tsi_serial_vcs.py', TESTS/'verify_firesim_tsi_loadmem_vcs.py',
               TESTS/'verify_loadmem_read_checkpoint_vcs.py', TESTS/'verify_semantic_vcs.py',
               CC/'core/checkpoint.h', CC/'core/widget_checkpoint.h', ROOT/'env.sh', ROOT/'sims/firesim/env.sh',
@@ -247,13 +249,15 @@ def main():
         digest = file_sha(f); snapshot = snapshots/digest
         if not snapshot.exists(): shutil.copyfile(f, snapshot)
         bindings.append(dict(path=str(f), sha256=digest, snapshot=str(snapshot)))
-    commands = []
+    commands = []; command_lock = threading.Lock()
     def execute(argv, log, expected=0):
         argv = ['bash', '-lc', ENVIRONMENT+shlex.join([str(x) for x in argv])]
         result = run(argv, log, cwd=out, expected=expected)
         c = dict(cwd=str(out.relative_to(ROOT)), argv=argv, log=str(log), expected_exit=expected,
                  pid=int(re.search(r'fresh_process_pid=(\d+)', result)[1]))
-        commands.append(c); (out/'commands.json').write_text(json.dumps(commands, indent=2)+'\n'); return c
+        with command_lock:
+            commands.append(c); (out/'commands.json').write_text(json.dumps(commands, indent=2)+'\n')
+        return c
     include = f'-std=c++17 -I{CC} -I{STUBS}'; native = out/'init-native'; simv = out/'init-simv'
     execute([os.environ['CXX'], *shlex.split(include), '-Wall', '-Wextra', '-Werror', '-no-pie', '-g',
              '-fsanitize=address,undefined', '-fno-omit-frame-pointer', fixture, '-o', native], out/'native-build.log')
@@ -274,9 +278,8 @@ def main():
             cmd = case/'commands.txt'; wanted = case/'expected.txt'
             cmd.write_text('\n'.join(ops)+'\n'); wanted.write_text('\n'.join(trace)+'\n')
             invoke(backend, 'reference', case/'reference', cmd, wanted, variant=variant)
-            for cut in range(len(states)):
-                invoke(backend, 'restore', case/f'restore-{cut}', cmd, wanted,
-                       case/f'reference/cut-{cut}.owner', cut, variant)
+            checked_map(lambda cut:invoke(backend, 'restore', case/f'restore-{cut}', cmd, wanted,
+                        case/f'reference/cut-{cut}.owner', cut, variant),range(len(states)))
         valid = payload(3, 2); start = len(valid)-24
         def change(offset, value):
             bad = bytearray(valid); struct.pack_into('<Q', bad, offset, value); return bytes(bad)
@@ -309,15 +312,14 @@ def main():
             c = invoke(backend, 'restore', dest, base/'3/commands.txt', base/'3/expected.txt', source, cut, expected=2)
             corruptions[backend].append(dict(case=name, cut=cut, output=str(dest), log=c['log'],
                                              expected_actual=f'OP {cut+1} C {101+cut} '+result))
-    for backend in ('native', 'vcs-dpi'):
-        for count in (1, 3, 10):
-            case = parent.parent/('actual-'+backend)/str(count)
-            for name in actual_init_images(count):
-                image = case/(name+'.init')
-                for restored in ('native-sanitized', 'vcs-dpi'):
-                    dest = out/f'restore-actual-{backend}-{count}-{name}-{restored}'
-                    c = invoke(restored, 'readback', dest, image=image, variant=2)
-                    actual_restores.append(dict(c, image=str(image), readback=str(dest/'preedge.owner')))
+    jobs=[(backend,count,name,restored) for backend in ('native','vcs-dpi') for count in (1,3,10)
+          for name in actual_init_images(count) for restored in ('native-sanitized','vcs-dpi')]
+    def restore_actual(job):
+        backend,count,name,restored=job;image=parent.parent/('actual-'+backend)/str(count)/(name+'.init')
+        dest=out/f'restore-actual-{backend}-{count}-{name}-{restored}'
+        c=invoke(restored,'readback',dest,image=image,variant=2)
+        return dict(c,image=str(image),readback=str(dest/'preedge.owner'))
+    actual_restores.extend(checked_map(restore_actual,jobs))
     actual_include = include+f' -I{TESTCHIP} -I{FESVR/"include"}'
     actual_native = out/'actual-init-native'; actual_simv = out/'actual-init-simv'
     execute([os.environ['CXX'], *shlex.split(actual_include), '-g', *actual_sources, library, '-lpthread', '-o', actual_native],
@@ -338,11 +340,13 @@ def main():
                 for name, owners in mixed_images(flush, msip)[0].items():
                     for kind, data in zip(('init', 'read', 'serial', 'host'), owners):
                         require((case/(name+'.'+kind)).read_bytes()==data, 'actual mixed production state differs '+name+'/'+kind)
-                    image = case/(name+'.init')
-                    for restored in ('native-sanitized', 'vcs-dpi'):
-                        dest = out/f'restore-mixed-{backend}-{flush}-{msip}-{name}-{restored}'
-                        c = invoke(restored, 'readback', dest, image=image, variant=6 if msip else 5)
-                        mixed_restores.append(dict(c, image=str(image), readback=str(dest/'preedge.owner')))
+                jobs=[(name,restored) for name in mixed_images(flush,msip)[0] for restored in ('native-sanitized','vcs-dpi')]
+                def restore_mixed(job):
+                    name,restored=job;image=case/(name+'.init')
+                    dest=out/f'restore-mixed-{backend}-{flush}-{msip}-{name}-{restored}'
+                    c=invoke(restored,'readback',dest,image=image,variant=6 if msip else 5)
+                    return dict(c,image=str(image),readback=str(dest/'preedge.owner'))
+                mixed_restores.extend(checked_map(restore_mixed,jobs))
     for b in bindings:
         require(file_sha(b['path']) == b['sha256'], 'init source changed during native execution')
     report = dict(status='passed', scope='initialization caller components; HTIF/context/child/CPU restore pending',

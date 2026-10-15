@@ -26,6 +26,20 @@ static uint64_t cache_flush_address(int argc, char **argv) {
   return result;
 }
 
+static bool default_htif_devices(int argc, char **argv) {
+  // Preserve installed HTIF for custom devices/chroot. Those callers remain
+  // explicitly unowned; the complete CPU checkpoint profile stays disabled.
+  for (int i = 1; i < argc; ++i) {
+    const std::string arg(argv[i]);
+    // getopt_long accepts abbreviations. Keep all long-option invocations on
+    // the installed path so configured devices/chroot cannot be bypassed.
+    if (arg.find("--") == 0) return false;
+    for (const auto *option : {"+rfb", "--rfb", "+disk", "--disk", "+chroot", "--chroot"})
+      if (arg.find(option) == 0) return false;
+  }
+  return true;
+}
+
 static std::vector<firesim_tsi_init_accesses_t::access_t>
 owned_accesses(const std::vector<init_access_t> &accesses) {
   std::vector<firesim_tsi_init_accesses_t::access_t> result;
@@ -36,6 +50,7 @@ owned_accesses(const std::vector<init_access_t> &accesses) {
 
 firesim_tsi_t::firesim_tsi_t(int argc, char **argv, bool can_have_loadmem)
     : testchip_tsi_t(argc, argv, can_have_loadmem),
+      owned_default_devices(default_htif_devices(argc, argv)),
       program_loader(can_have_loadmem, cache_flush_address(argc, argv)),
       host_control(idle_count(argc, argv)),
       init_control(owned_accesses(init_accesses), write_hart0_msip),
@@ -43,6 +58,64 @@ firesim_tsi_t::firesim_tsi_t(int argc, char **argv, bool can_have_loadmem)
 
   // always use loadmem if the target supports it
   has_loadmem = can_have_loadmem;
+}
+
+int firesim_tsi_t::run_host() {
+  if (!owned_default_devices) return htif_t::run();
+  // Startup/ELF/symbol and stop/signature state remain upstream, separate from
+  // this resumable poll caller. Do not publish a complete TSI checkpoint.
+  start();
+  htif_poll = std::make_unique<firesim_tsi_htif_poll_t>(get_tohost_addr(), get_fromhost_addr());
+  syscall_t syscall(this);
+  bcd_t bcd;
+  device_list_t devices;
+  devices.register_device(&syscall); devices.register_device(&bcd);
+  class services_t final : public firesim_tsi_htif_poll_t::services_t {
+  public:
+    services_t(firesim_tsi_t &tsi, device_list_t &devices) : tsi(tsi), devices(devices) {}
+    bool exiting() override { return tsi.should_exit(); }
+    bool read(uint64_t address, uint64_t &value) override {
+      if (tsi.serial_read.idle()) {
+        tsi.flush_program_cache_lines(address, 8);
+        tsi.serial_read.begin(address, 8);
+      }
+      firesim_tsi_serial_read_services_t service(tsi.serial);
+      for (;;) {
+        auto result = tsi.serial_read.advance(service);
+        if (result == firesim_tsi_serial_read_t::result_t::blocked) return false;
+        if (result == firesim_tsi_serial_read_t::result_t::complete) break;
+      }
+      const auto &words = tsi.serial_read.result();
+      // FireSim TSI's audited transport is little endian, like the installed
+      // HTIF's from_target/to_target operations for these recipes.
+      value = uint64_t(words.at(0)) | (uint64_t(words.at(1)) << 32);
+      tsi.serial_read.finish(); return true;
+    }
+    void write(uint64_t address, uint64_t value) override {
+      const uint32_t words[2] = {uint32_t(value), uint32_t(value >> 32)};
+      tsi.write_chunk(address, 8, words);
+    }
+    void dispatch(uint64_t value) override {
+      command_t command(tsi.memif(), value, [owner = tsi.htif_poll.get()](uint64_t response) { owner->respond(response); });
+      devices.handle_command(command);
+    }
+    void tick_devices() override { devices.tick(); }
+    bool idle() override {
+      if (tsi.host_control.current_phase() == firesim_tsi_host_control_t::phase_t::ready)
+        tsi.host_control.begin_idle();
+      return !tsi.host_control.advance_idle();
+    }
+  private:
+    firesim_tsi_t &tsi;
+    device_list_t &devices;
+  } services(*this, devices);
+  for (;;) {
+    const auto result = htif_poll->advance(services);
+    if (result == firesim_tsi_htif_poll_t::result_t::complete) break;
+    if (result == firesim_tsi_htif_poll_t::result_t::blocked) switch_to_target();
+  }
+  stop();
+  return exit_code();
 }
 
 void firesim_tsi_t::idle() {

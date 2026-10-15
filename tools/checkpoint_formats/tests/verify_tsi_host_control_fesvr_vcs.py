@@ -11,6 +11,8 @@ import shlex
 import shutil
 import struct
 import tempfile
+import threading
+from tools.checkpoint_formats.tests.native_parallel import checked_map
 from tools.checkpoint_formats.codec import require
 from tools.checkpoint_formats.evidence import file_sha
 from tools.checkpoint_formats.retained_evidence import check_native_input
@@ -74,6 +76,12 @@ def audit(path):
             for name,payload in expected.items():
                 require((case/(name+'.host')).read_bytes()==payload,'suspended actual phase/cursor/flags differ '+name)
                 images+=1
+            if str(STUBS/'fesvr/tsi_htif_poll.h') in bindings:
+                polls={name:config(24,0x80002000,0x80002008,1048576)+words(4 if name.startswith('idle-') else 1,0,0)
+                       for name in expected if name=='first-poll' or name.startswith(('poll-half-','idle-','busy-poll-'))}
+                require({p.stem for p in case.glob('*.poll')}==set(polls),'missing real polling caller cuts')
+                for name,payload in polls.items():
+                    require((case/(name+'.poll')).read_bytes()==payload,'real polling caller phase differs '+name)
             require(f'REAL_HTIF_HOST_CONTROL idle_count={count} child_waits=3 poll_loops=3 serial_words=25' in
                     (case.parent/(str(count)+'.log')).read_text(),'actual child reset/HTIF poll did not finish')
     require(len(r['restores'])==2*images and len({a['pid'] for a in r['restores']})==2*images,'incomplete fresh restores')
@@ -81,6 +89,12 @@ def audit(path):
         require(file_sha(a['image'])==a['image_sha256'] and
                 Path(a['readback']).read_bytes()==Path(a['image']).read_bytes(),'actual zero-edge restore differs')
         require('COMPLETE_READBACK zero_edges=1 restore_services=0' in Path(a['log']).read_text(),'missing no-service readback')
+        if 'poll_image' in a:
+            require(Path(a['poll_readback']).read_bytes()==Path(a['poll_image']).read_bytes(), 'incomplete fresh actual poll caller readback')
+            require('COMPLETE_ACTUAL_POLL_READBACK target_edges=0 context_entries=0 services=0' in Path(a['log']).read_text(),
+                    'actual polling restore entered context/services')
+    if str(STUBS/'fesvr/tsi_htif_poll.h') in bindings:
+        require(sum('poll_image' in a for a in r['restores'])==252,'missing fresh actual polling restores')
     for c in r['commands']:
         log=Path(c['log']).read_text()
         require(c['argv'][:2]==['bash','-lc'] and c['argv'][2].startswith(ENVIRONMENT) and
@@ -88,7 +102,8 @@ def audit(path):
         require(not any(e in log for e in ('ERROR: AddressSanitizer','runtime error:','LeakSanitizer: detected')),
                 'actual restore sanitizer error')
     return dict(status='passed',summary=str(path),actual_suspended_child_poll_idle_images=images,
-                actual_fresh_component_restores=len(r['restores']),level1_verified=False,level2_verified=False)
+                actual_fresh_component_restores=len(r['restores']),actual_fresh_poll_readbacks=sum('poll_image' in a for a in r['restores']),
+                level1_verified=False,level2_verified=False)
 
 
 def main():
@@ -104,7 +119,7 @@ def main():
     elf=out/'polling.elf'; elf.write_bytes(polling_elf())
     source=TESTS/'tsi_host_control_fesvr.cc'; sv=TESTS/'tsi_host_control_fesvr_tb.sv'; library=FESVR/'lib/libfesvr.a'
     sources=[source,STUBS/'fesvr/firesim_tsi.cc',STUBS/'fesvr/owned_fesvr_tsi.cc',TESTCHIP/'testchip_tsi.cc',TESTCHIP/'testchip_htif.cc']
-    inputs=[*sources,sv,library,Path(__file__),TESTS/'verify_tsi_host_control_vcs.py',TESTS/'verify_firesim_tsi_loadmem_vcs.py',
+    inputs=[*sources,sv,library,Path(__file__),TESTS/'native_parallel.py',TESTS/'verify_tsi_host_control_vcs.py',TESTS/'verify_firesim_tsi_loadmem_vcs.py',
             TESTS/'verify_semantic_vcs.py',TESTS/'verify_loadmem_read_checkpoint_vcs.py',
             *sorted((STUBS/'fesvr').glob('*.h')),*sorted(TESTCHIP.glob('*.h')),*sorted((FESVR/'include/fesvr').glob('*.h')),
             CC/'core/checkpoint.h',CC/'core/widget_checkpoint.h',ROOT/'env.sh',ROOT/'sims/firesim/env.sh',
@@ -114,12 +129,14 @@ def main():
         digest=file_sha(f); snapshot=snapshots/digest
         if not snapshot.exists(): shutil.copyfile(f,snapshot)
         bindings.append(dict(path=str(f),sha256=digest,snapshot=str(snapshot)))
-    commands=[]
+    commands=[];command_lock=threading.Lock()
     def execute(argv,log):
         argv=['bash','-lc',ENVIRONMENT+shlex.join([str(x) for x in argv])]
         result=run(argv,log,cwd=out)
         c=dict(cwd=str(out.relative_to(ROOT)),argv=argv,log=str(log),pid=int(re.search(r'fresh_process_pid=(\d+)',result)[1]))
-        commands.append(c); (out/'commands.json').write_text(json.dumps(commands,indent=2)+'\n'); return c
+        with command_lock:
+            commands.append(c); (out/'commands.json').write_text(json.dumps(commands,indent=2)+'\n')
+        return c
     include=f'-std=c++17 -I{CC} -I{STUBS} -I{TESTCHIP} -I{FESVR/"include"}'
     native=out/'actual-native'; simv=out/'actual-simv'
     execute([os.environ['CXX'],*shlex.split(include),'-g',*sources,library,'-lpthread','-o',native],out/'native-build.log')
@@ -136,14 +153,20 @@ def main():
             argv=[native,elf,case,count] if backend=='native' else [simv,'-no_save',
                   '+elf='+str(elf),'+out='+str(case),'+count='+str(count)]
             execute(argv,base/(str(count)+'.log'))
-            for image in sorted(case.glob('*.host')):
-                for restored_backend,binary in [('native-sanitized',parent.parent/'host-native'),('vcs-dpi',parent.parent/'host-simv')]:
-                    dest=out/('restore-'+backend+'-'+str(count)+'-'+image.stem+'-'+restored_backend)
-                    values=list(map(str,['readback',dest,'unused','unused',image,0,count]))
-                    argv=[binary,*values] if restored_backend=='native-sanitized' else [binary,'-no_save',
-                          *['+'+k+'='+v for k,v in zip(('mode','out','commands','expected','image','cut','variant'),values)]]
-                    c=execute(argv,out/(dest.name+'.log'))
-                    restores.append(dict(c,image=str(image),image_sha256=file_sha(image),readback=str(dest/'preedge.owner')))
+            jobs=[(image,restored_backend,binary) for image in sorted(case.glob('*.host'))
+                  for restored_backend,binary in [('native-sanitized',parent.parent/'host-native'),('vcs-dpi',parent.parent/'host-simv')]]
+            def restore(job):
+                image,restored_backend,binary=job
+                dest=out/('restore-'+backend+'-'+str(count)+'-'+image.stem+'-'+restored_backend)
+                values=list(map(str,['readback',dest,'unused','unused',image,0,count]))
+                argv=[binary,*values] if restored_backend=='native-sanitized' else [binary,'-no_save',
+                      *['+'+k+'='+v for k,v in zip(('mode','out','commands','expected','image','cut','variant'),values)]]
+                c=execute(argv,out/(dest.name+'.log'))
+                entry=dict(c,image=str(image),image_sha256=file_sha(image),readback=str(dest/'preedge.owner'))
+                if image.with_suffix('.poll').exists():
+                    entry.update(poll_image=str(image.with_suffix('.poll')),poll_readback=str(dest/'preedge.poll'))
+                return entry
+            restores.extend(checked_map(restore,jobs))
     for b in bindings: require(file_sha(b['path'])==b['sha256'],'source changed during actual child/poll check')
     report=dict(status='passed',scope='actual FESVR child reset/poll/idle control only; CPU acceptance pending',
                 component_summary=str(parent),component_summary_sha256=file_sha(parent),commands=commands,

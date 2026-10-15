@@ -12,6 +12,8 @@
 #include "tsi_host_control.h"
 #include "tsi_init_accesses.h"
 #include "tsi_program_loader.h"
+#include "tsi_htif_poll.h"
+#include <memory>
 
 struct firesim_loadmem_t {
   firesim_loadmem_t() : addr(0), size(0) {}
@@ -50,6 +52,10 @@ public:
   const checkpoint_owner_t &host_control_owner() const { return host_control; }
   const checkpoint_owner_t &init_accesses_owner() const { return init_control; }
   const checkpoint_owner_t &program_loader_owner() const { return program_loader; }
+  const checkpoint_owner_t &htif_poll_owner() const {
+    if (!htif_poll) throw std::runtime_error("HTIF polling has not started or uses unsupported devices");
+    return *htif_poll;
+  }
 
   // Reset/initialization component dispatcher only. These calls never resume
   // HTIF or its context. A complete CPU profile still requires their owners.
@@ -58,6 +64,7 @@ public:
   void load_initialization_checkpoint(const std::vector<uint8_t> &image);
 
 protected:
+  int run_host() override;
   void idle() override;
 
   void reset() override;
@@ -71,6 +78,8 @@ protected:
   size_t chunk_align() override { return 8; }
 
 private:
+  bool owned_default_devices;
+  std::unique_ptr<firesim_tsi_htif_poll_t> htif_poll;
   firesim_tsi_program_loader_t program_loader;
   firesim_loadmem_read_t loadmem_read;
   firesim_loadmem_queues_t loadmem_queues;

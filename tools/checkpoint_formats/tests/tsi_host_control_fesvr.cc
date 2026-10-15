@@ -24,6 +24,11 @@ static void snapshot(firesim_tsi_t &tsi,const fs::path &out,const std::string &n
   std::ofstream f(out/(name+".host"),std::ios::binary);
   f.write(reinterpret_cast<const char *>(bytes.data()),bytes.size());require(bool(f),"cannot save owner");
   serial_snapshot(tsi,out,name);
+  if (name=="first-poll" || name.find("poll-half-")==0 || name.find("idle-")==0 || name.find("busy-poll-")==0) {
+    auto poll=tsi.htif_poll_owner().save_checkpoint();
+    std::ofstream p(out/(name+".poll"),std::ios::binary);
+    p.write(reinterpret_cast<const char *>(poll.data()),poll.size());require(bool(p),"cannot save HTIF poll caller");
+  }
 }
 static void serial(firesim_tsi_t &tsi,const std::vector<uint32_t> &expected,const fs::path &out,const std::string &name) {
   serial_snapshot(tsi,out,name+"-queued");

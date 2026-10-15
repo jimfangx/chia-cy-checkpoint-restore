@@ -1,13 +1,13 @@
 # CPU checkpoint matrix
 
-Current milestone: M11 Rocket, iteration 106. Level-1 and Level-2 acceptance
+Current milestone: M11 Rocket, iteration 107. Level-1 and Level-2 acceptance
 remain **in_progress**. No CPU checkpoint continuation or clean CPU RTL replay
 has passed. Physical FPGA validation, standalone Shuttle and ASIC power are
 outside this matrix. The verified FCFS evidence remains in its existing docs.
 
 | Family / existing recipe | Level 1 | Level 2 | Workload evidence |
 | --- | --- | --- | --- |
-| Rocket / `firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3` | in_progress: generated RTL inventory audited; TracerV and FireSim driver/termination-loop continuations pass; production TSI read, all four load-memory queues, bridge host control and FireSim idle/reset control pass fresh component restores; source-integrated FESVR serial FIFOs pass fresh component restores; serial-read progress passes complete fresh component restores; production TestChip initialization caller/serial-child dispatch and atomic four-owner component restores pass; program-load transport/entry/return ownership passes fresh component readbacks; complete HTIF/memif/device/context/TestChip-loader/cross-owner ownership and fresh CPU continuation pending | in_progress: complete ChipTop diagnostic inventory/readback retained; explicit event-phase image/replay contract passes ordinary RTL component checks; coherent metasim CPU capture/replay pending | Both complete current four-hart default/buffered controls pass at C=3,329,794; every full trace and workload/store label matches; CPU checkpoint cuts remain pending |
+| Rocket / `firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3` | in_progress: generated RTL inventory audited; TracerV and FireSim driver/termination-loop continuations pass; production TSI read, all four load-memory queues, bridge host control and FireSim idle/reset control pass fresh component restores; source-integrated FESVR serial FIFOs pass fresh component restores; serial-read progress passes complete fresh component restores; production TestChip initialization caller/serial-child dispatch and atomic four-owner component restores pass; program-load transport/entry/return ownership passes fresh component readbacks; production HTIF poll caller passes nine-phase fresh component continuations; complete HTIF/memif/device/context/TestChip-loader/cross-owner ownership and fresh CPU continuation pending | in_progress: complete ChipTop diagnostic inventory/readback retained; explicit event-phase image/replay contract passes ordinary RTL component checks; coherent metasim CPU capture/replay pending | Both complete corrected four-hart controls pass at C=3,329,794; every full trace and workload/store label matches; CPU checkpoint cuts remain pending |
 | BOOM / `firesim_boom_singlecore_no_nic_l2_llc4mb_ddr3` | pending | pending | No execution claimed |
 | Shuttle + Saturn / `firesim_saturn_GENV256D128_shuttle_singlecore_no_nic_l2_llc4mb_ddr3` | pending | pending | No vector execution claimed |
 
@@ -32,6 +32,134 @@ The recipe also specifies frequency 140 MHz and TIMING build strategy; these
 are retained in the recipe record, with no FPGA implementation invoked.
 VCS uses Y-2026.03-SP1, `-full64`, `VCS_FLAGS=-Mupdate`, system GCC/G++ 13,
 and the sourced Conda library/include directories. No Conda files are edited.
+
+## Iteration 107: production HTIF polling caller
+
+Diagnostic root:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration107/`.
+See [tsi-htif-poll.md](tsi-htif-poll.md) for the exact state boundary, production
+dispatch and unsupported owners. The default-device production caller now owns
+all nine polling phases, the pending command and ordered fromhost responses.
+Review reproduced FESVR's abbreviated long-option routing in `options-pilot/`.
+All long options now retain the installed HTIF loop, including abbreviations;
+the new native/VCS option suite passes all 18 real installed-FESVR cases. Final source-bound checks are under `current/`; all corrected native checks and
+both complete four-hart controls pass. Earlier source-bound runs remain separate
+retained diagnostics.
+Serial reads and idle yields return through their existing owners. Installed
+startup/ELF/memif, private HTIF metadata, device internals, stop/signature and
+context reconstruction remain pending. Complete CPU checkpoint requests remain
+unsupported; these component checks cannot establish either CPU level.
+Whole-CPU image admission and first-divergence cases at the required active cuts
+remain pending alongside continuation and independent captured RTL replay.
+
+`htif-poll/invocation-qkszzkjk/summary.json` passes 72 fresh native ASan/UBSan and
+VCS caller continuations: 1,332 complete state readbacks, 38,744 atomic invalid-
+image checks, eight fresh malformed/incompatible/incomplete image rejections and
+four first divergences. The two valid-image command/response corruptions first differ
+at component operation 0 (`tohost_command` and `write_data`) without acknowledging
+that operation. These fixture labels are not Rocket target-cycle labels.
+`current/real-loader/invocation-8f3k4bk4/summary.json` retains actual installed-FESVR ELF
+read/merge/reset/idle checks. Fresh program-loader readbacks pass all 28 cases and
+7,072 atomic invalid images per process.
+
+`current/actual-response/invocation-ylajuuoz/summary.json` passes the installed-FESVR BCD
+callback/fromhost route in native C++ and VCS. Each source consumes exactly one
+deterministic input byte, retains `0x0100000000000141` across pending/partial
+fromhost reads, writes it once and then handles the installed pass command.
+All 40 complete caller/serial-read/FIFO/host-control peer images match independent
+bytes. All 20 fresh native ASan/UBSan/VCS caller readbacks pass before services,
+context entry or target edges. This does not restore the device or terminal.
+
+`current/host-control/invocation-1bylj7_y/summary.json` passes all 362 fixture continuations,
+7,866 complete readbacks and 136 real FESVR component readbacks. The unchanged
+initialization dispatcher passes 240 fresh restores, 7,012 complete peer readbacks,
+5,112 atomic invalid images and four first divergences in
+`current/init-resume/invocation-yj592grc/summary.json`. All eight preserved native suites,
+including 267 Python tests and FCFS, pass in
+`current/native-regressions/invocation-h2edvc3m/summary.json`.
+`current/actual-poll/invocation-sbahu7eu/summary.json` passes all 324 fresh component
+restores, including 252 complete polling-caller readbacks of first-poll,
+partial-read and idle states at all three idle-count policies. These valid peer
+readbacks do not implement a complete atomic TSI restore bundle. The full initialization
+retention suite also passes in `current/init-regression/invocation-m9aandn0/summary.json`: all 294 fixture continuations,
+7,264 complete readbacks, 60 fresh invalid cases and four first divergences,
+plus all 768 actual caller and 320 mixed cache-flush/MSIP fresh readbacks.
+
+`current/rocket-controls/invocation-uknm8doa/summary.json` passes both complete
+default and buffered four-hart controls at C=3,329,794. Every complete trace and
+workload/store cycle label matches the independent uninterrupted reference.
+The exact six recipe settings above and the unchanged 6,712-byte workload are
+bound by `rocket-build-identity.json`: ELF
+`runs/m11-iteration82/workload/rocket-quad.riscv`, SHA-256
+`f3d86f54caf42b9589385e8021dba46777f647134f19595e38a3d452b745f3d4`.
+These are uninterrupted CPU controls, not checkpoint continuations.
+
+`current/htif-options/invocation-w9al62gy/summary.json` passes all 18 native/VCS
+option cases, including all long chroot prefixes, the plusarg form and a long
+metadata option. `options-pilot/` preserves the pre-correction failure. All
+corrected native command logs, original input snapshots and independently audited
+results remain source-bound. Independent restore batches run four workers, with
+locked command records and complete sibling failure retention; all four runner
+tests pass. No state image, process, negative case or comparison was removed.
+
+The fresh ordinary Rocket diagnostic reads back all 318,637 words / seven clocks
+before any edge. It deposits diagnostic patterns, not independently captured CPU
+state. `current/rocket-poll-linkage.json` binds all 60 native translation units, the
+production host dispatcher, the poll owner vtable/virtual checkpoint methods and
+both TSI/bridge header consumers. Generated RTL, inventory, reference and constants
+match iteration 106. The linkage pilot's out-of-line `advance()` symbol check
+failed because the optimizer inlined it; its separate diagnostic is retained.
+The generated inventory remains 2,292 instances, 11,464 state entries and 445,838
+words. This is a storage inventory, not proof of complete runtime ownership.
+
+Existing iteration-106 controller commits are published FireSim first, then
+Chipyard. Both remote tips match. The local tracking-ref refreshes failed on
+read-only `.git` after the successful remote pushes. No staging, local commits,
+protected plan/environment/Conda edits or history cleanup occurred.
+
+Native commands run from the Chipyard root. Fresh rechecks allocate new
+invocations outside the sealed iteration; the exact raw VCS compiler/runtime
+argv, source hashes, images, readbacks and results remain in each summary and
+the run's `raw-native-commands.json`.
+
+```sh
+source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh
+python -m tools.checkpoint_formats.tests.verify_tsi_htif_poll_vcs \
+  --out automations/checkpoint_loop/runs/m11-iteration107-controller-rechecks/htif-poll
+python -m tools.checkpoint_formats.tests.verify_tsi_htif_response_vcs \
+  --out automations/checkpoint_loop/runs/m11-iteration107-controller-rechecks/actual-response
+python -m tools.checkpoint_formats.tests.verify_tsi_host_control_fesvr_vcs \
+  --out automations/checkpoint_loop/runs/m11-iteration107-controller-rechecks/actual-poll \
+  --component-summary /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration107/current/host-control/invocation-1bylj7_y/summary.json
+python -m tools.checkpoint_formats.tests.verify_rocket_controls_vcs \
+  --out automations/checkpoint_loop/runs/m11-iteration107-controller-rechecks/rocket-controls \
+  --seed-build automations/checkpoint_loop/runs/m11-iteration107/current/rocket-controls/invocation-uknm8doa/build \
+  --workload automations/checkpoint_loop/runs/m11-iteration82/workload \
+  --reference-runtime automations/checkpoint_loop/runs/m11-iteration85/rocket-runtime \
+  --reference-audit automations/checkpoint_loop/runs/m11-iteration85/rocket-workload-audit.json
+```
+
+The ordinary RTL storage diagnostic can be repeated with a fresh working
+directory, preserving its independent pre-FAME boundary and all prior logs:
+
+```sh
+source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh
+mkdir -p automations/checkpoint_loop/runs/m11-iteration107-controller-rechecks
+checkpoint_probe_dir=$(mktemp -d "$PWD/automations/checkpoint_loop/runs/m11-iteration107-controller-rechecks/ordinary-rocket-probe.XXXXXX")
+(cd "$checkpoint_probe_dir" && \
+ /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration91/rocket-native-complete-inventory/invocation-yfr_nr9p/simv \
+ -no_save +vcs+initreg+0 +vcs+initmem+0 \
+ +pattern=/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration91/rocket-native-complete-inventory/invocation-yfr_nr9p/complete-pattern.txt \
+ +baseline=/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration91/rocket-native-complete-inventory/invocation-yfr_nr9p/initial-baseline.txt \
+ > run.log 2>&1)
+```
+
+`summary.json`, `selected-results.json`, `verification-commands-native.json`,
+`native-input-archives.json`, `independent-audit-results.json` and
+`artifact-manifest.json` provide recovery and complete diagnostic membership.
+`remaining-host-owners.json` and [tsi-htif-poll.md](tsi-htif-poll.md) record the
+pending owner audit and proposed next boundary. BOOM/Saturn remain pending;
+no external dependency is missing.
 
 ## Iteration 106: production program-load phase and routing
 

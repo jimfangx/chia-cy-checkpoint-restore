@@ -130,6 +130,7 @@ def main():
             STUBS/'fesvr/loadmem_queues.h',
             STUBS/'fesvr/tsi_host_control.h',STUBS/'fesvr/tsi.h',STUBS/'fesvr/tsi_serial_state.h',
             STUBS/'fesvr/tsi_program_loader.h',
+            STUBS/'fesvr/tsi_htif_poll.h',
             TESTCHIP/'testchip_tsi.h',TESTCHIP/'testchip_htif.h',CC/'core/checkpoint.h',CC/'core/widget_checkpoint.h',
             *sorted((FESVR/'include/fesvr').glob('*.h')),
             ROOT/'env.sh',ROOT/'sims/firesim/env.sh',ROOT/'automations/checkpoint_loop/vcs-env.sh']

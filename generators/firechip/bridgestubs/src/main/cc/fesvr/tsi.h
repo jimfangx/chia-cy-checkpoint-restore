@@ -31,6 +31,7 @@ public:
   const checkpoint_owner_t &serial_queue_owner() const { return serial; }
   const checkpoint_owner_t &serial_read_owner() const { return serial_read; }
 protected:
+  virtual int run_host() { return htif_t::run(); }
   void reset() override;
   void read_chunk(addr_t address, size_t bytes, void *destination) override;
   void write_chunk(addr_t address, size_t bytes, const void *source) override;

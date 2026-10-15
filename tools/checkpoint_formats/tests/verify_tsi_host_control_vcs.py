@@ -12,6 +12,8 @@ import shlex
 import shutil
 import struct
 import tempfile
+import threading
+from tools.checkpoint_formats.tests.native_parallel import checked_map
 
 from tools.checkpoint_formats.codec import require
 from tools.checkpoint_formats.evidence import file_sha
@@ -142,7 +144,7 @@ def main():
     a.out.resolve().mkdir(parents=True,exist_ok=True)
     out=Path(tempfile.mkdtemp(prefix='invocation-',dir=a.out.resolve()))
     source=TESTS/'tsi_host_control_checkpoint.cc'; sv=TESTS/'tsi_host_control_checkpoint_tb.sv'
-    inputs=[source,sv,Path(__file__),STUBS/'fesvr/tsi_host_control.h',STUBS/'fesvr/firesim_tsi.h',
+    inputs=[source,sv,Path(__file__),TESTS/'native_parallel.py',STUBS/'fesvr/tsi_host_control.h',STUBS/'fesvr/tsi_htif_poll.h',STUBS/'fesvr/firesim_tsi.h',
             STUBS/'fesvr/firesim_tsi.cc',CC/'core/checkpoint.h',CC/'core/widget_checkpoint.h',
             TESTS/'verify_semantic_vcs.py',TESTS/'verify_loadmem_read_checkpoint_vcs.py',
             TESTS/'verify_firesim_tsi_loadmem_vcs.py',ROOT/'env.sh',ROOT/'sims/firesim/env.sh',
@@ -152,13 +154,15 @@ def main():
         digest=file_sha(f); snapshot=snapshots/digest
         if not snapshot.exists(): shutil.copyfile(f,snapshot)
         bindings.append(dict(path=str(f),sha256=digest,snapshot=str(snapshot)))
-    commands=[]
+    commands=[];command_lock=threading.Lock()
     def execute(argv,log,expected=0):
         argv=['bash','-lc',ENVIRONMENT+shlex.join([str(x) for x in argv])]
         result=run(argv,log,cwd=out,expected=expected)
         c=dict(cwd=str(out.relative_to(ROOT)),argv=argv,log=str(log),expected_exit=expected,
                pid=int(re.search(r'fresh_process_pid=(\d+)',result)[1]))
-        commands.append(c); (out/'commands.json').write_text(json.dumps(commands,indent=2)+'\n'); return c
+        with command_lock:
+            commands.append(c); (out/'commands.json').write_text(json.dumps(commands,indent=2)+'\n')
+        return c
     include=f'-std=c++17 -I{CC} -I{STUBS}'; native=out/'host-native'; simv=out/'host-simv'
     execute([os.environ['CXX'],*shlex.split(include),'-Wall','-Wextra','-Werror','-no-pie','-g',
              '-fsanitize=address,undefined','-fno-omit-frame-pointer',source,'-o',native],out/'native-build.log')
@@ -179,8 +183,7 @@ def main():
             cmd=case/'commands.txt'; wanted=case/'expected.txt'
             cmd.write_text('\n'.join(ops)+'\n'); wanted.write_text('\n'.join(trace)+'\n')
             invoke('check',case/'checks',count); invoke('reference',case/'reference',count,cmd,wanted)
-            for cut in range(len(states)):
-                invoke('restore',case/f'restore-{cut}',count,cmd,wanted,case/f'reference/cut-{cut}.owner',cut)
+            checked_map(lambda cut:invoke('restore',case/f'restore-{cut}',count,cmd,wanted,case/f'reference/cut-{cut}.owner',cut),range(len(states)))
         ops,trace,states=oracle(10); valid=config(18,10)+words(1,0,6)
         def change(pos,value):
             result=bytearray(valid); struct.pack_into('<Q',result,pos,value); return bytes(result)
@@ -206,12 +209,13 @@ def main():
             c=invoke('restore',target,10,base/'10/commands.txt',base/'10/expected.txt',image,cut,True)
             corruptions[backend].append(dict(case=name,cut=cut,output=str(target),log=c['log']))
         if parent:
-            for source_backend in ('native','vcs-dpi'):
-                for image in sorted((parent.parent/source_backend).glob('*.host')):
-                    target=base/('actual-'+source_backend+'-'+image.stem)
-                    c=invoke('readback',target,10,image=image)
-                    actual.append(dict(c,image=str(image),image_sha256=file_sha(image),
-                                       readback=str(target/'preedge.owner')))
+            jobs=[(source_backend,image) for source_backend in ('native','vcs-dpi')
+                  for image in sorted((parent.parent/source_backend).glob('*.host'))]
+            def restore(job):
+                source_backend,image=job;target=base/('actual-'+source_backend+'-'+image.stem)
+                c=invoke('readback',target,10,image=image)
+                return dict(c,image=str(image),image_sha256=file_sha(image),readback=str(target/'preedge.owner'))
+            actual.extend(checked_map(restore,jobs))
     for b in bindings: require(file_sha(b['path'])==b['sha256'],'source changed during host check')
     report=dict(status='passed',scope='FireSim idle/reset component; FESVR caller and CPU acceptance pending',
                 commands=commands,source_inputs=bindings,invalid_cases=invalid_cases,corruptions=corruptions,

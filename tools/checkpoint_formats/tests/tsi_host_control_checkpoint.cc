@@ -1,6 +1,7 @@
 // Fresh-process continuation of production FireSim host control. This has no
 // FESVR context and does not authorize aggregate CPU checkpoint support.
 #include "fesvr/tsi_host_control.h"
+#include "fesvr/tsi_htif_poll.h"
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -83,6 +84,12 @@ static int run(const char *mode, const char *destination, const char *commands,
     }
     if (std::string(mode) == "readback") {
       owner.load_checkpoint(read(image)); save(out / "preedge.owner", owner.save_checkpoint());
+      fs::path poll_image(image); poll_image.replace_extension(".poll");
+      if (fs::is_regular_file(poll_image)) {
+        firesim_tsi_htif_poll_t poll(0x80002000,0x80002008);
+        poll.load_checkpoint(read(poll_image)); save(out / "preedge.poll",poll.save_checkpoint());
+        std::cout << "COMPLETE_ACTUAL_POLL_READBACK target_edges=0 context_entries=0 services=0\n";
+      }
       std::cout << "COMPLETE_READBACK zero_edges=1 restore_services=0\n"; return 0;
     }
     auto ops = lines(commands), wanted = lines(expected); require(ops.size() == wanted.size(), "bad oracle");

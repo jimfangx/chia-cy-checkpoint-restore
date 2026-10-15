@@ -5,7 +5,7 @@
 
 void firesim_fesvr_tsi_t::host_thread(void *arg) {
   auto tsi = static_cast<firesim_fesvr_tsi_t *>(arg);
-  tsi->run();
+  tsi->run_host();
   while (true) tsi->target->switch_to();
 }
 

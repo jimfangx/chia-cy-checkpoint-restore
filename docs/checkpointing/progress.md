@@ -14,7 +14,48 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 106, in progress. Recovery:
+Current milestone: M11-rocket-level1-level2, iteration 107, in progress. Recovery:
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md) and
+[tsi-htif-poll.md](tsi-htif-poll.md). Production default-device HTIF polling now
+owns all nine phases, the pending command and ordered fromhost responses, with
+nonblocking serial-read/idle children. Long options (including abbreviations)
+and custom-device/chroot plusargs retain the installed HTIF path. The alias bug's
+failed pilot and initial source-bound runs remain separate retained diagnostics.
+Final corrected native evidence is under `runs/m11-iteration107/current/`.
+
+- All 72 fresh sanitizer/VCS caller continuations pass: 1,332 complete readbacks,
+  38,744 atomic invalid-image checks, eight fresh invalid images and four first
+  divergences. All 252 real polling-caller readbacks and 20 actual BCD/fromhost
+  response readbacks pass before services/contexts/edges. All 18 installed-FESVR
+  option cases pass. These are host components, not CPU checkpoints.
+- All eight corrected native suites (267 Python tests and FCFS), all 240 fresh
+  initialization dispatches, 294 retained fixture continuations, 768 actual
+  initialization caller and 320 mixed cache-flush/MSIP readbacks pass. Four-worker
+  execution retains every case and failed sibling; four runner tests pass.
+- Both complete corrected exact-recipe four-hart controls pass at C=3,329,794.
+  Every complete instruction trace and workload/store cycle label matches the
+  uninterrupted reference. All 60 native units, TSI/bridge header consumers and
+  unchanged generated RTL/inventory/reference/constants are bound. The ordinary
+  Rocket pattern diagnostic reads back all 318,637 words / seven clocks before
+  edges; it is not a captured CPU image. Complete CPU requests still reject.
+- Recovery: root `summary.json`, `selected-results.json`, `raw-native-commands.json`,
+  `verification-commands-native.json`, `native-input-archives.json` and full
+  `artifact-manifest.json`. See `remaining-host-owners.json` for the pending audit.
+  Existing iteration-106 controller commits are published FireSim first, then
+  Chipyard; remote tips match. Local tracking-ref refreshes failed on read-only
+  `.git` after successful pushes. No staging, local commits, protected plan/
+  environment/Conda edits, reset or history cleanup occurred.
+
+Complete HTIF startup/metadata/memif/device/stop/signature/context and cross-owner
+ownership, coherent required active CPU cuts, fresh Level-1 CPU continuation,
+independently captured Level-2 zero-edge CPU readback/replay and whole-CPU image/
+corruption cases remain pending. Next: prove startup/child inactivity at those
+cuts and reconstruct hash-bound metadata without repeating target writes/reset;
+see the proposed boundary in the owner doc. Neither CPU level is accepted.
+BOOM/Saturn remain pending; no external dependency is missing. Both plans remain
+read-only; the controller owns staging/local commits.
+
+Previous recovery (iteration 106):
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md) and
 [tsi-program-loader.md](tsi-program-loader.md). Production program-load phase,
 transport selection and cache-flush configuration now have a pointer-free owner.
