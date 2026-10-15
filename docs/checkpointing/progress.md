@@ -14,7 +14,69 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 122, in progress. Recovery:
+Current milestone: M11-rocket-level1-level2, iteration 123, in progress. Recovery:
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md) and
+[tsi-memif-write.md](tsi-memif-write.md). Ordinary BCD identity now uses an
+explicit copied-payload memif write child, including unaligned head/tail merge
+reads and the aligned-body cursor. Prepared polling still rejects unaligned
+identity; its resumable dispatch caller and atomic preparation of the new child
+remain pending. Complete HTIF/CPU admission stays disabled; neither CPU level
+meets acceptance.
+
+Diagnostic root: `runs/m11-iteration123/`. The new write/FIFO suite passes
+1,616 fresh continuations at 404 component cuts, 325,624 operations and 654,480
+complete readbacks. All 28 invalid-image processes and twelve semantic
+corruptions pass; divergent request words remain unconsumed. Both native/VCS
+negative controls detect skipped tail merge and missing child-address ownership.
+Actual ordinary HTIF/BCD execution passes 128 identity commands, 2,892 sampled
+cuts and 2,688 fresh child/FIFO readbacks; all 1,344 active samples reject
+ordinary polling admission. These are host-operation labels, not CPU cycles.
+Recovery summaries are `memif-write/invocation-nvr50hp8/summary.json` and
+`actual-identity/invocation-wvw9dhbn/summary.json` under the diagnostic root.
+
+All eight preserved native suites pass, including 267 Python tests and FCFS.
+Existing aligned identity continuation and atomic ten-owner preparation pass
+unchanged. All three exact-recipe default/buffered/sealed four-hart controls pass
+at C=3,329,794; full traces and workload/store labels match the uninterrupted
+reference. Independent audits pass all 104 known component images at 12 active
+samples. Each control retains full 16 GiB backing memory. The actual rebuilt
+TSI/bridge/loader/context objects match independent recompilation, and the
+executable binds the new write owner. These controls do not restore a CPU.
+All 17 retained host suites and 22 independent component/native audits pass
+(`host/host-regression-results.json`, `independent-component-audits.json`).
+Ordinary RTL VCS repeats all 318,637 pattern-word/seven-clock readbacks before
+an edge; captured CPU replay remains pending. No external dependency is missing.
+The prior audit preserves all 88,831 iteration-122 artifacts and 1,030 native
+input bindings.
+
+Recovery artifacts are `summary.json`, `selected-results.json`,
+`raw-native-commands.json`, `verification-commands-native.json`,
+`native-input-archives.json` and `artifact-manifest.json` under the diagnostic
+root. All checks use fresh invocations. Earlier diagnostic build, link and
+bookkeeping pilots remain separate in `diagnostic-pilots.json`. No previous invocation was
+overwritten. The installed, host-test and exact Rocket overlay `memif.o` members
+are byte-identical (`memif-path-ownership.json`); other general memif callers
+remain unowned.
+
+The sealed audit passes 113,211 iteration artifacts and 1,041 native input
+bindings, with controller provenance verified; 9,560 native command records
+retain relative working directories. Its final result is the sibling
+`runs/m11-iteration123-manifest-audit.json`. The post-test prior preservation
+audit again passes all 88,831 iteration-122 artifacts and 1,030 input bindings
+(`runs/m11-iteration123-prior-preservation-final.json`).
+
+Both plans remain read-only; the controller owns local commits. Existing
+iteration-122 controller commits were published FireSim first, then Chipyard,
+with independent remote-tip confirmation.
+
+Next: reconstruct resumable unaligned device dispatch and include its write
+child in the atomic preparation contract, then complete other syscall/memif,
+descriptor, signal, stop/exit and simulator ownership before CPU admission.
+Required semantic CPU cuts, fresh complete Level-1 continuation and independently
+captured Level-2 zero-edge readback/replay remain pending. BOOM/Saturn remain
+pending; physical FPGA validation and ASIC power remain deferred.
+
+Previous iteration 122, in progress. Recovery:
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md) and
 [tsi-polling-preparation.md](tsi-polling-preparation.md). Prepared polling now
 supports aligned 64-byte BCD identity writes through a destination-bound,

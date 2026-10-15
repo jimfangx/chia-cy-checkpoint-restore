@@ -1,6 +1,6 @@
 # CPU checkpoint matrix
 
-Current milestone: M11 Rocket, iteration 122. Level-1 and Level-2 acceptance
+Current milestone: M11 Rocket, iteration 123. Level-1 and Level-2 acceptance
 remain **in_progress**. No CPU checkpoint continuation or clean CPU RTL replay
 has passed. Physical FPGA validation, standalone Shuttle and ASIC power are
 outside this matrix. The verified FCFS evidence remains in its existing docs.
@@ -32,6 +32,116 @@ The recipe also specifies frequency 140 MHz and TIMING build strategy; these
 are retained in the recipe record, with no FPGA implementation invoked.
 VCS uses Y-2026.03-SP1, `-full64`, `VCS_FLAGS=-Mupdate`, system GCC/G++ 13,
 and the sourced Conda library/include directories. No Conda files are edited.
+
+## Iteration 123: explicit ordinary BCD memif write child
+
+Diagnostic root:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration123/`.
+Both CPU levels remain **in_progress**. The new write owner retains copied
+payload bytes, head/tail read/merge progress, every partial serial-read word and
+the aligned-body cursor. Ordinary BCD identity uses this explicit child. The
+destination-owned prepared caller retains aligned-only admission: its unaligned
+device-dispatch caller and atomic preparation contract remain pending. See
+[tsi-memif-write.md](tsi-memif-write.md) for the exact state boundary, unsupported
+paths and next integration step. Other syscall/memif callers, file descriptors,
+signals, stop/exit and complete simulator ownership remain unverified.
+
+The two new native ASan/UBSan and Y-2026.03-SP1 VCS DPI suites check installed
+memif transaction order and complete fresh write/FIFO component continuation,
+and separately capture actual ordinary HTIF/BCD identity execution with cache
+flushing disabled and enabled. All four identity selectors and all eight
+address residues are covered. Operations and suspended host yields are not
+semantic CPU target-cycle cuts. A child-only restore never resumes HTIF or a CPU.
+
+`memif-write/invocation-nvr50hp8/summary.json` passes 19 scenarios, 404 cuts and
+1,616 fresh continuations across all four backend pairings. The byte oracle
+matches all 325,624 operations and 654,480 complete owner readbacks. Installed
+FESVR independently matches every read/write event and payload/sentinel byte.
+All 28 malformed/incompatible/incomplete-image processes reject before either
+peer changes; each backend also passes 554 atomic/hostile/maximum-size checks.
+All twelve semantic corruption cases stop at the first divergent request word,
+which remains unconsumed. The head-response and payload corruptions first differ
+at operation 19/word 2; queued-command corruption first differs at operation
+18/word 0. These are component operations. Diagnostic native/VCS mutants that
+skip the tail merge or drop the child-address ownership check are detected
+(`memif-mutations-v2/summary.json`).
+
+`actual-identity/invocation-wvw9dhbn/summary.json` passes 128 ordinary HTIF/BCD
+identity commands across native/VCS and both cache-flush settings. All 2,892
+sampled child/FIFO cuts match independently constructed complete images. All
+1,344 active samples reject ordinary polling admission; after the source
+processes finish, 2,688 fresh child/FIFO restores read back 5,376 complete owner
+images before any service. This uses the host-loader test ELF and performs no
+CPU execution. Prepared unaligned dispatch remains unsupported.
+
+The exact recipe settings above and four-hart workload SHA-256
+`f3d86f54caf42b9589385e8021dba46777f647134f19595e38a3d452b745f3d4`
+are unchanged. The current exact-recipe build is
+`rocket-controls/invocation-8b48hflo/rocket-build-identity.json`.
+`memif-provider-audit.json` binds the new owner and actual executable symbols;
+`native-terminal-build-audit-final.json` independently recompiles and compares
+its actual TSI/bridge/loader/context objects. No FPGA bitstream is built.
+`memif-path-ownership.json` independently confirms byte-identical installed
+`memif.o` members in the original archive, host-test overlay and exact Rocket
+overlay; general memif callers have not acquired checkpoint ownership.
+
+All three complete default/buffered/sealed four-hart controls pass at target
+count 3,329,794. Full traces and every workload/store print-cycle label match
+the uninterrupted reference; independent audits check all 104 known host-owner
+images at 12 active samples. Each control retains full 16 GiB backing memory.
+Results are `rocket-controls/invocation-8b48hflo/summary.json`,
+`rocket-sealed-terminal-final/summary.json`, `workload-control-audits.json`,
+`rocket-host-audit-accepted.json` and `sealed-workload-independent-audit.json`.
+Host credits and one-ahead token-enqueue labels remain distinct from semantic
+CPU checkpoint cuts. Ordinary RTL VCS also repeats all 318,637 pattern-word and
+seven-clock readbacks before an edge (`ordinary-result.json`); captured CPU
+state and trace replay remain pending.
+
+All eight preserved native suites pass, including 267 Python tests and FCFS
+(`native-regressions/invocation-31esocsb/summary.json`). All 17 retained host
+suites and 22 independent component/native audits pass
+(`host/host-regression-results.json`, `independent-component-audits.json`).
+The aligned prepared-caller regression retains 400 fresh continuations, 202,000
+complete owner readbacks, 132 unowned-command rejections and eight semantic
+corruptions. Atomic ten-owner preparation retains 3,200 malformed-image,
+204 membership and 44 cross-owner/configuration rejections, 2,588 allocation
+failures and 2,000 execution guards. Accepted results and complete native argv
+are indexed in `selected-results.json`, `raw-native-commands.json` and
+`verification-commands-native.json`; source snapshots are indexed in
+`native-input-archives.json`, and every iteration artifact is cataloged in
+`artifact-manifest.json`. Earlier build/link/marker pilots remain separate in
+`diagnostic-pilots.json`. All invocations are fresh. The preservation audit
+passes all 88,831 prior iteration artifacts and 1,030 native input bindings.
+Both plans and environments retain their original bytes; no staging or local
+commit occurred. No external dependency is missing.
+The final sealed audit passes 113,211 iteration artifacts and 1,041 native input
+bindings, with controller provenance verified; 9,560 native command records
+retain relative working directories. The result is the sibling
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration123-manifest-audit.json`.
+The post-test prior preservation audit again passes all 88,831 iteration-122
+artifacts and 1,030 input bindings
+(`runs/m11-iteration123-prior-preservation-final.json`).
+
+Audit the sealed iteration from the Chipyard root:
+
+```sh
+PYTHONPATH="$PWD" python automations/checkpoint_loop/runs/m11-iteration123/audit-final-manifest.py
+```
+
+Repeat from the Chipyard root:
+
+```sh
+source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh
+python -m tools.checkpoint_formats.tests.verify_tsi_memif_write_vcs \
+  --out automations/checkpoint_loop/runs/m11-iteration123-controller-rechecks/memif-write
+python -m tools.checkpoint_formats.tests.verify_tsi_memif_identity_fesvr_vcs \
+  --out automations/checkpoint_loop/runs/m11-iteration123-controller-rechecks/actual-identity
+```
+
+Existing controller iteration-122 commits were published FireSim first and
+then Chipyard; independent remote queries match both HEADs
+(`github-publication.json`). The controller owns the upcoming iteration-123
+checkpoint. Both plans remain read-only.
 
 ## Iteration 122: aligned BCD identity transport
 

@@ -1,5 +1,15 @@
 # Fresh preparation of known TSI polling components
 
+## Iteration 123: ordinary identity write child
+
+Ordinary BCD identity dispatch now uses an explicit copied-payload memif write
+owner, including unaligned head/tail reads and merges. See
+[tsi-memif-write.md](tsi-memif-write.md) for its independent component boundary
+and native/VCS checks. Prepared polling retains its aligned-only admission;
+resumable unaligned device dispatch and atomic preparation of its new child
+remain pending. The existing ten-owner images still require an idle write
+child. Complete HTIF/CPU continuation remains disabled.
+
 
 ## Iteration 122: aligned BCD identity without a suspended memif caller
 
