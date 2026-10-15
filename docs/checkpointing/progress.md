@@ -14,7 +14,55 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 105, in progress. Recovery:
+Current milestone: M11-rocket-level1-level2, iteration 106, in progress. Recovery:
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md) and
+[tsi-program-loader.md](tsi-program-loader.md). Production program-load phase,
+transport selection and cache-flush configuration now have a pointer-free owner.
+Fresh component readbacks and all retained native/initialization regressions pass;
+both complete exact-recipe four-hart controls match the uninterrupted reference.
+HTIF ELF/memif/device/poll/stop/signature/context and cross-owner CPU ownership,
+coherent active cuts, complete Level-1 continuation and independently captured
+Level-2 CPU replay remain pending. Diagnostics: `runs/m11-iteration106/`.
+Both plans remain read-only; the controller owns staging/local commits.
+
+Iteration 106 (October 14):
+
+- Production read/write/cache-flush routing consumes the new program-load phase
+  owner, preserving TestChip's original initial yield and ELF loading interval.
+  This owns transport selection and loader entry/return; it cannot resume an
+  ELF/memif/HTIF caller. Complete CPU checkpoints remain disabled.
+- Actual installed-FESVR ELF loads pass native/VCS request/partial-read/merge/
+  reset/idle checks and capture 14 suspended loader images. All 28 fresh native
+  sanitizer/VCS component readbacks pass before services, context entry or edges.
+  All four policies/four phases pass 7,072 atomic invalid-image cases per process,
+  illegal-transition/poison guards and two first-divergence phase corruptions.
+- Preserved initialization checks pass 294 fresh fixture continuations, all
+  768 actual caller and 320 mixed cache-flush/MSIP readbacks, atomic invalid
+  cases and first divergences. Fresh initialization dispatch passes 240 restores,
+  7,012 complete readbacks and 5,112 atomic invalid images. These remain host
+  component cuts, not Rocket target-cycle checkpoints.
+- All eight native regression suites, including 263 Python tests and full FCFS
+  checks, pass. Both complete exact-recipe default/buffered four-hart controls
+  pass at C=3,329,794; every full trace and workload/store label matches the
+  uninterrupted reference. All 60 translation units and both TSI/bridge header
+  consumers bind the new owner; generated RTL/inventory/reference are unchanged.
+- Eight final and 28 retained independent audits pass. A fresh ordinary Rocket
+  diagnostic reads back all 318,637 words / seven clocks before edges. Complete
+  CPU requests still reject before target execution/publication. No CPU Level-1
+  continuation or captured Level-2 replay is claimed; no dependency is missing.
+- Recovery: `summary.json`, `selected-results.json`, `native-input-archives.json`,
+  `verification-commands-native.json` and `artifact-manifest.json` under the run
+  root. The running-prefix pilot incorrectly expected buffered files before
+  their final flush; its failure is retained separately from the successful
+  default-prefix check and complete final default/buffered comparisons.
+- Existing iteration-105 controller commits are published FireSim first, then
+  Chipyard. Remote tips match; local tracking-ref refreshes failed on read-only
+  `.git` after the successful remote pushes. No staging, local commits, plan/
+  environment/Conda edits, reset or history cleanup. Next: complete HTIF/memif/
+  ELF/device/context and cross-owner ownership, then actual active CPU cuts and
+  both independently restored levels. BOOM/Saturn remain pending.
+
+Previous recovery (iteration 105):
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md) and
 [tsi-init-resume.md](tsi-init-resume.md). Production initialization now resumes
 from owned caller/serial-read phases without a saved coroutine return path.

@@ -36,6 +36,7 @@ owned_accesses(const std::vector<init_access_t> &accesses) {
 
 firesim_tsi_t::firesim_tsi_t(int argc, char **argv, bool can_have_loadmem)
     : testchip_tsi_t(argc, argv, can_have_loadmem),
+      program_loader(can_have_loadmem, cache_flush_address(argc, argv)),
       host_control(idle_count(argc, argv)),
       init_control(owned_accesses(init_accesses), write_hart0_msip),
       initialization_config(22, {cache_flush_address(argc, argv)}) {
@@ -57,6 +58,32 @@ void firesim_tsi_t::idle() {
 
 void firesim_tsi_t::send_loadmem_word(uint32_t word) {
   loadmem_queues.push_response(word);
+}
+
+void firesim_tsi_t::read_chunk(addr_t address, size_t bytes, void *destination) {
+  if (program_loader.loadmem_mode()) load_mem_read(address, bytes, destination);
+  else {
+    flush_program_cache_lines(address, bytes);
+    tsi_t::read_chunk(address, bytes, destination);
+  }
+}
+
+void firesim_tsi_t::write_chunk(addr_t address, size_t bytes, const void *source) {
+  if (program_loader.loadmem_mode()) load_mem_write(address, bytes, source);
+  else {
+    flush_program_cache_lines(address, bytes);
+    tsi_t::write_chunk(address, bytes, source);
+  }
+}
+
+void firesim_tsi_t::flush_program_cache_lines(addr_t address, size_t bytes) {
+  const auto flush = program_loader.cache_flush_address();
+  if (!flush) return;
+  // Same packets, cache-line walk and non-yielding order as TestChip TSI.
+  for (addr_t base = address & ~addr_t(63); base < address + bytes; base += 64) {
+    const uint32_t data[2] = {uint32_t(base), uint32_t(base >> 32)};
+    tsi_t::write_chunk(flush, sizeof(data), data);
+  }
 }
 
 void firesim_tsi_t::load_mem_write(addr_t addr,
@@ -155,7 +182,7 @@ bool firesim_tsi_t::advance_initialization() {
         (fprintf)(stderr, "Reading %" PRIx64 " ...", init_control.address());
         // Initialization runs after TestChip leaves ELF load-memory mode.
         // The original virtual read routes here through flush then serial.
-        flush_cache_lines(init_control.address(), sizeof(uint32_t));
+        flush_program_cache_lines(init_control.address(), sizeof(uint32_t));
         serial_read.begin(init_control.address(), sizeof(uint32_t));
       }
     }
@@ -273,14 +300,22 @@ void firesim_tsi_t::recv_loadmem_data(void *buf, size_t len) {
 // un-overrideable
 void firesim_tsi_t::load_program() {
   try {
-    testchip_tsi_t::load_program();
+    // Preserve TestChip's initial yield and its exact loading interval. The
+    // routing decision is now owned instead of the base's private is_loadmem.
+    program_loader.begin();
+    switch_to_target();
+    program_loader.enter();
+    htif_t::load_program();
+    program_loader.finish();
   } catch (std::exception &e) {
+    program_loader.interrupt();
     fprintf(stderr,
             "Caught Exception headed for the simulator (in TSI thread): %s.\n",
             e.what());
     throw std::runtime_error(
         e.what()); // runtime_error used here to throw exception in main thread
   } catch (...) {
+    program_loader.interrupt();
     // seriously, VCS will give you an unhelpful message if you let an exception
     // propagate catch it here and if we hit this, I can go remember how to
     // unwind the stack to print a trace

@@ -50,6 +50,7 @@ def audit(path):
     bindings = {b['path']:b for b in report['source_inputs']}
     queue_checked = str(STUBS/'fesvr/loadmem_queues.h') in bindings
     host_checked = str(STUBS/'fesvr/tsi_host_control.h') in bindings
+    program_checked = str(STUBS/'fesvr/tsi_program_loader.h') in bindings
     for binding in bindings.values():
         require(file_sha(binding['snapshot']) == binding['sha256'], 'changed FESVR source snapshot')
         check_native_input(ROOT, binding['path'], binding['sha256'], bindings)
@@ -77,6 +78,9 @@ def audit(path):
         for cut,payload in enumerate(expected):
             require((path.parent / backend / f'suspended-{cut}.owner').read_bytes() == payload,
                     'actual FESVR suspended read owner mismatch ' + str((backend,cut)))
+            if program_checked:
+                require((path.parent/backend/f'suspended-{cut}.program').read_bytes() ==
+                        config(23,1,0)+words([0,1,2,2,2,3,3][cut]), 'actual loader phase/configuration differs')
             if queue_checked:
                 require((path.parent / backend / f'suspended-{cut}.queues').read_bytes() == expected_queues[cut],
                         'actual FESVR suspended queue owner mismatch ' + str((backend,cut)))
@@ -125,6 +129,7 @@ def main():
             TESTS/'firesim_tsi_loadmem_integration_tb.sv',STUBS/'fesvr/firesim_tsi.h',STUBS/'fesvr/loadmem_read.h',
             STUBS/'fesvr/loadmem_queues.h',
             STUBS/'fesvr/tsi_host_control.h',STUBS/'fesvr/tsi.h',STUBS/'fesvr/tsi_serial_state.h',
+            STUBS/'fesvr/tsi_program_loader.h',
             TESTCHIP/'testchip_tsi.h',TESTCHIP/'testchip_htif.h',CC/'core/checkpoint.h',CC/'core/widget_checkpoint.h',
             *sorted((FESVR/'include/fesvr').glob('*.h')),
             ROOT/'env.sh',ROOT/'sims/firesim/env.sh',ROOT/'automations/checkpoint_loop/vcs-env.sh']

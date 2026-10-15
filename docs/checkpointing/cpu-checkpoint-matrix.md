@@ -1,13 +1,13 @@
 # CPU checkpoint matrix
 
-Current milestone: M11 Rocket, iteration 105. Level-1 and Level-2 acceptance
+Current milestone: M11 Rocket, iteration 106. Level-1 and Level-2 acceptance
 remain **in_progress**. No CPU checkpoint continuation or clean CPU RTL replay
 has passed. Physical FPGA validation, standalone Shuttle and ASIC power are
 outside this matrix. The verified FCFS evidence remains in its existing docs.
 
 | Family / existing recipe | Level 1 | Level 2 | Workload evidence |
 | --- | --- | --- | --- |
-| Rocket / `firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3` | in_progress: generated RTL inventory audited; TracerV and FireSim driver/termination-loop continuations pass; production TSI read, all four load-memory queues, bridge host control and FireSim idle/reset control pass fresh component restores; source-integrated FESVR serial FIFOs pass fresh component restores; serial-read progress passes complete fresh component restores; production TestChip initialization caller/serial-child dispatch and atomic four-owner component restores pass; complete HTIF/memif/device/context/TestChip-loader/cross-owner ownership and fresh CPU continuation pending | in_progress: complete ChipTop diagnostic inventory/readback retained; explicit event-phase image/replay contract passes ordinary RTL component checks; coherent metasim CPU capture/replay pending | Both complete current four-hart default/buffered controls pass at C=3,329,794; every full trace and workload/store label matches; CPU checkpoint cuts remain pending |
+| Rocket / `firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3` | in_progress: generated RTL inventory audited; TracerV and FireSim driver/termination-loop continuations pass; production TSI read, all four load-memory queues, bridge host control and FireSim idle/reset control pass fresh component restores; source-integrated FESVR serial FIFOs pass fresh component restores; serial-read progress passes complete fresh component restores; production TestChip initialization caller/serial-child dispatch and atomic four-owner component restores pass; program-load transport/entry/return ownership passes fresh component readbacks; complete HTIF/memif/device/context/TestChip-loader/cross-owner ownership and fresh CPU continuation pending | in_progress: complete ChipTop diagnostic inventory/readback retained; explicit event-phase image/replay contract passes ordinary RTL component checks; coherent metasim CPU capture/replay pending | Both complete current four-hart default/buffered controls pass at C=3,329,794; every full trace and workload/store label matches; CPU checkpoint cuts remain pending |
 | BOOM / `firesim_boom_singlecore_no_nic_l2_llc4mb_ddr3` | pending | pending | No execution claimed |
 | Shuttle + Saturn / `firesim_saturn_GENV256D128_shuttle_singlecore_no_nic_l2_llc4mb_ddr3` | pending | pending | No vector execution claimed |
 
@@ -32,6 +32,97 @@ The recipe also specifies frequency 140 MHz and TIMING build strategy; these
 are retained in the recipe record, with no FPGA implementation invoked.
 VCS uses Y-2026.03-SP1, `-full64`, `VCS_FLAGS=-Mupdate`, system GCC/G++ 13,
 and the sourced Conda library/include directories. No Conda files are edited.
+
+## Iteration 106: production program-load phase and routing
+
+Diagnostic root:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration106/`.
+See [tsi-program-loader.md](tsi-program-loader.md) for exact ownership, schema
+and production callers. Both CPU levels remain **in_progress**. The complete
+HTIF/ELF/memif/device/context owners and cross-owner cut coherence, required
+active CPU cuts, fresh Level-1 continuation and independently captured Level-2
+readback/replay remain pending. No complete CPU checkpoint profile is enabled.
+
+`real-loader/invocation-bx_ympkl/summary.json` passes actual installed-FESVR ELF loading in native
+C++ and VCS, retaining exact request/partial-read/merge/reset/idle checks and
+capturing seven suspended loader phases per backend. Independently expected phase
+words are `0,1,2,2,2,3,3`. `program-loader/invocation-ryw_falz/summary.json` passes all 28 fresh
+complete component readbacks, all four capability/cache-flush policies and four
+phases, 7,072 atomic invalid-image cases per process, illegal-transition/poison
+guards and two first-divergence phase-corruption cases at component operation 0.
+These component labels are not Rocket target cycles. The 56-byte kind-23 image
+owns program-load transport selection and entry/return, not ELF/memif caller
+buffers or HTIF continuation. The existing four-owner initialization bundle is
+unchanged; this increment does not reconstruct its complete host context.
+
+`init-regression/invocation-bim6nr36/summary.json` passes 294 fixture continuations, 7,264 complete
+readbacks, 60 fresh invalid cases and four first divergences; all 384 actual
+caller images restore in 768 fresh processes, and all 160 mixed cache-flush/MSIP
+captures restore in 320 fresh processes. `init-resume/invocation-pyjvrue0/summary.json` passes
+240 fresh actual dispatches, 7,012 complete four-owner readbacks, 6,772 continued
+operations, 5,112 atomic invalid-image cases and four first divergences.
+`native-regressions/invocation-mp9b4hk7/summary.json` passes all eight preserved suites, including
+263 Python tests and the full FCFS checks. These retain their component/fixture
+scope and cannot establish complete CPU checkpoint support.
+
+`rocket-controls/invocation-zsejlhrh/summary.json` passes both full default/buffered uninterrupted
+four-hart controls at target C=3,329,794. Every full instruction trace and workload/
+store label matches the independent uninterrupted reference. The unchanged
+6,712-byte ELF is `runs/m11-iteration82/workload/rocket-quad.riscv`, SHA-256
+`f3d86f54caf42b9589385e8021dba46777f647134f19595e38a3d452b745f3d4`.
+The exact six recipe settings above are retained. `rocket-loader-linkage.json`
+binds all 60 native translation units, the new production routing/owner symbols
+and the header in both TSI/bridge consumers. Generated RTL, inventory, reference
+and constant-header hashes match iteration 105. Native builds/runs use VCS
+Y-2026.03-SP1, `-full64`, GCC/G++ 13 and the required environment sourcing order.
+
+Eight final and 28 retained independent audits pass. The fresh ordinary Rocket
+VCS diagnostic in `ordinary-rocket-probe/summary.json` reads back all 318,637
+words / seven clocks before any edge; its deposited pattern is not captured CPU
+state. `cpu-request-rejections/summary.json` retains all three complete-CPU
+preflight/capture/restore rejections before execution/publication. The prefix
+checker pilot failed because buffered sinks publish their retained bytes at
+completion; its diagnostic remains separate from the passing default-prefix
+check and both full final comparisons. No check was omitted to pass verification.
+
+`summary.json`, `selected-results.json`, `executed-native-commands.json`,
+`verification-commands-native.json` and `native-input-archives.json` retain exact
+native commands, selected results and original source bytes. The full
+`artifact-manifest.json` enumerates every diagnostic file and dangling-link target;
+`changed-source-artifacts.json` binds implementation/documentation files.
+Protected plan/environment/Conda/index/HEAD checks are separate turn-local guards.
+No external dependency is missing. Existing iteration-105 controller commits are
+published FireSim first, then Chipyard. `github-publication.json` records matching
+remote tips and local tracking-ref refresh failures on read-only `.git` after
+successful remote pushes. The controller owns staging/new checkpoint commits.
+
+Fresh native rechecks write outside the sealed iteration. Run from Chipyard root:
+
+```sh
+source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh
+python -m tools.checkpoint_formats.tests.verify_firesim_tsi_loadmem_vcs \
+  --out automations/checkpoint_loop/runs/m11-iteration106-controller-rechecks/real-loader
+python -m tools.checkpoint_formats.tests.verify_tsi_program_loader_vcs \
+  --out automations/checkpoint_loop/runs/m11-iteration106-controller-rechecks/program-loader \
+  --integration-summary /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration106/real-loader/invocation-bx_ympkl/summary.json
+python -m tools.checkpoint_formats.tests.verify_tsi_init_resume_vcs \
+  --out automations/checkpoint_loop/runs/m11-iteration106-controller-rechecks/init-resume \
+  --init-summary automations/checkpoint_loop/runs/m11-iteration104/init/invocation-tvmgxkbu/summary.json
+python -m tools.checkpoint_formats.tests.verify_rocket_controls_vcs \
+  --out automations/checkpoint_loop/runs/m11-iteration106-controller-rechecks/rocket-controls \
+  --seed-build automations/checkpoint_loop/runs/m11-iteration105/rocket-controls/invocation-2pjhmxlf/build \
+  --workload automations/checkpoint_loop/runs/m11-iteration82/workload \
+  --reference-runtime automations/checkpoint_loop/runs/m11-iteration85/rocket-runtime \
+  --reference-audit automations/checkpoint_loop/runs/m11-iteration85/rocket-workload-audit.json
+```
+
+The complete initialization/native-regression and fresh ordinary RTL commands,
+with cwd and argv arrays, are in `verification-commands-native.json`. The latter
+runs the audited ordinary RTL `simv` with `-no_save`, `+vcs+initreg+0`,
+`+vcs+initmem+0`, `+pattern=.../complete-pattern.txt` and
+`+baseline=.../initial-baseline.txt` from a fresh diagnostic directory after
+sourcing both environments and `vcs-env.sh` last. This is a storage diagnostic;
+CPU zero-edge readback/replay still requires an actual independent capture.
 
 ## Iteration 105: fresh production initialization dispatch
 

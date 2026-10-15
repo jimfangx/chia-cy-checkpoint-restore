@@ -25,6 +25,10 @@ static void snapshot(const firesim_tsi_t &tsi,const std::filesystem::path &out,i
   std::ofstream host(out/("suspended-"+std::to_string(index)+".host"),std::ios::binary);
   host.write(reinterpret_cast<const char *>(control.data()),control.size());
   require(bool(host),"cannot save real host control");
+  auto loader=tsi.program_loader_owner().save_checkpoint();
+  std::ofstream program(out/("suspended-"+std::to_string(index)+".program"),std::ios::binary);
+  program.write(reinterpret_cast<const char *>(loader.data()),loader.size());
+  require(bool(program),"cannot save real program loader");
 }
 static int run(const char *elf,const char *destination) {
   try {
