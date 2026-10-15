@@ -91,6 +91,7 @@ firesim_tsi_t::firesim_tsi_t(int argc, char **argv, bool can_have_loadmem)
       owned_default_devices(default_htif_devices(argc, argv)),
       terminal(make_terminal_owner(argc, argv)),
       program_loader(can_have_loadmem, cache_flush_address(argc, argv)),
+      bcd_identity(memif_write, serial),
       host_control(idle_count(argc, argv)),
       init_control(owned_accesses(init_accesses), write_hart0_msip),
       initialization_config(22, {cache_flush_address(argc, argv)}) {
@@ -146,6 +147,9 @@ class firesim_tsi_t::polling_services_t final : public firesim_tsi_htif_poll_t::
       tsi.write_chunk(address, 8, words);
     }
     void dispatch(uint64_t value) override {
+      if (devices && (value >> 48) == 0x1ff) {
+        tsi.dispatch_identity(value); return;
+      }
       command_t command(tsi.memif(), value, [owner = tsi.htif_poll.get()](uint64_t response) { owner->respond(response); });
       validate_command(value);
       if (devices) devices->handle_command(command);
@@ -206,6 +210,7 @@ std::map<std::string, uint64_t> firesim_tsi_t::load_payload(
 }
 
 firesim_tsi_t::polling_cut_t firesim_tsi_t::metadata_components() const {
+  if (!bcd_identity.idle()) throw std::runtime_error("TSI metadata has an active BCD identity caller");
   if (!memif_write.idle()) throw std::runtime_error("TSI metadata has an active memif write child");
   polling_cut_t result;
   for (const auto &[name, owner] : std::array<std::pair<const char *, const checkpoint_owner_t *>, 7>{{
@@ -308,6 +313,8 @@ void firesim_tsi_t::prepare_startup_metadata(const std::vector<uint8_t> &image) 
 }
 
 firesim_tsi_t::polling_cut_t firesim_tsi_t::inspect_polling_cut() const {
+  if (!bcd_identity.idle())
+    throw std::runtime_error("TSI polling audit: BCD identity caller is not part of this cut");
   if (!memif_write.idle())
     throw std::runtime_error("TSI polling audit: memif write/device caller is not part of this cut");
   if (!owned_default_devices)
@@ -348,6 +355,33 @@ void firesim_tsi_t::write_identity(uint64_t address, const firesim_tsi_bcd_t::id
     }
     memif_write.finish();
   } catch (...) { memif_write.interrupt(); throw; }
+}
+
+void firesim_tsi_t::dispatch_identity(uint64_t command) {
+  class services_t final : public firesim_tsi_bcd_identity_t::services_t {
+  public:
+    explicit services_t(firesim_tsi_t &tsi) : tsi(tsi) {}
+    void issue(uint64_t address, uint64_t bytes) override {
+      tsi.flush_program_cache_lines(address, bytes); tsi.serial.issue_read(address, bytes);
+    }
+    bool receive(uint32_t &word) override {
+      if (!tsi.serial.response_available()) return false;
+      word = tsi.serial.pop_response(); return true;
+    }
+    void write(uint64_t address, size_t bytes, const uint32_t *words) override {
+      tsi.write_chunk(address, bytes, words);
+    }
+    void respond(uint64_t value) override { tsi.htif_poll->respond(value); }
+  private:
+    firesim_tsi_t &tsi;
+  } services(*this);
+  bcd_identity.begin(command);
+  for (;;) {
+    const auto result = bcd_identity.advance(services);
+    if (result == firesim_tsi_bcd_identity_t::result_t::complete) break;
+    if (result == firesim_tsi_bcd_identity_t::result_t::blocked) switch_to_target();
+  }
+  bcd_identity.finish();
 }
 
 void firesim_tsi_t::validate_polling_components(const firesim_tsi_htif_poll_t &poll,

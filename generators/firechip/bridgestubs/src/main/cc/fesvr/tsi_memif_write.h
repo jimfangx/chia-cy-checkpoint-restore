@@ -21,6 +21,10 @@ public:
   };
 
   bool idle() const { require_idle(); return current.phase == phase_t::idle; }
+  bool pending_write(uint64_t address, const std::vector<uint8_t> &bytes) const {
+    require_idle();
+    return current.phase != phase_t::idle && current.address == address && current.data == bytes;
+  }
   void begin(uint64_t address, const std::vector<uint8_t> &bytes) {
     require_idle();
     if (!idle()) throw std::runtime_error("memif write already pending");

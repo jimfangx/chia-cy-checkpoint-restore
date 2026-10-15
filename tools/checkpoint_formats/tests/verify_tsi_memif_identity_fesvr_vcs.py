@@ -21,8 +21,21 @@ from tools.checkpoint_formats.tests.verify_firesim_tsi_loadmem_vcs import CC, ST
 from tools.checkpoint_formats.tests.verify_tsi_host_control_fesvr_vcs import polling_elf
 from tools.checkpoint_formats.tests.fesvr_overlay import build_overlay, overlay_inputs
 from tools.checkpoint_formats.tests.verify_tsi_memif_write_vcs import writer, reader, serial, initial
+from tools.checkpoint_formats.tests.verify_loadmem_read_checkpoint_vcs import config, words
 
 TOHOST, FROMHOST = 0x80002000, 0x80002008
+
+
+def identity_image(w):
+    phase = 0 if w == writer() else 1
+    command = 0
+    if phase:
+        address = int.from_bytes(w[72:80], 'little')
+        payload = w[96:160].rstrip(b'\0')
+        require(payload in (b'read', b'write', b'bcd', b''), 'unexpected BCD identity payload')
+        what = {b'read': 0, b'write': 1, b'bcd': 255, b'': 2}[payload]
+        command = (1 << 56) | (255 << 48) | (address << 8) | what
+    return config(29, 1, 255, 64, 8, 1024)+words(phase, command)
 
 
 def scenario(flush):
@@ -150,7 +163,9 @@ def audit(path):
                     in (out/(name+'.log')).read_text(), 'ordinary source did not finish or active caller admitted')
             for cut, (w, q) in enumerate(states):
                 require((out/name/f'cut-{cut}.write').read_bytes() == w and
-                        (out/name/f'cut-{cut}.serial').read_bytes() == q, 'actual complete child/queue bytes differ')
+                        (out/name/f'cut-{cut}.serial').read_bytes() == q and
+                        (out/name/f'cut-{cut}.identity').read_bytes() == identity_image(w),
+                        'actual complete caller/child/queue bytes differ')
             count += len(states)
             active += expected_active
     expected_cases = {(p, b, f, c) for f in (0, 0x10000000) for p in ('native', 'vcs-dpi')
@@ -161,7 +176,9 @@ def audit(path):
     for case in report['readbacks']:
         source, dest = Path(case['source']), Path(case['destination'])
         require((dest/'preedge.write').read_bytes() == Path(str(source)+'.write').read_bytes() and
-                (dest/'preedge.serial').read_bytes() == Path(str(source)+'.serial').read_bytes(), 'actual fresh complete readback differs')
+                (dest/'preedge.serial').read_bytes() == Path(str(source)+'.serial').read_bytes() and
+                (dest/'preedge.identity').read_bytes() == Path(str(source)+'.identity').read_bytes(),
+                'actual fresh complete readback differs')
         require('COMPLETE_CHILD_READBACK context_entries=0 target_services=0 target_edges=0' in Path(case['log']).read_text(),
                 'fresh child restore entered services')
     pids = []
@@ -174,7 +191,7 @@ def audit(path):
     require(len(pids) == len(set(pids)), 'reused actual readback process')
     return dict(status='passed', ordinary_identity_commands=128, captured_component_cuts=count,
                 active_child_cuts=active, polling_admission_rejections=active,
-                fresh_child_readbacks=len(report['readbacks']), complete_owner_readbacks=2*len(report['readbacks']),
+                fresh_child_readbacks=len(report['readbacks']), complete_owner_readbacks=3*len(report['readbacks']),
                 level1_verified=False, level2_verified=False)
 
 

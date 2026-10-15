@@ -16,6 +16,7 @@
 #include "tsi_startup_metadata.h"
 #include "tsi_bcd.h"
 #include "tsi_memif_write.h"
+#include "tsi_bcd_identity.h"
 #include <memory>
 
 struct firesim_loadmem_t {
@@ -66,6 +67,7 @@ public:
   const checkpoint_owner_t &terminal_owner() const { return *terminal; }
   // Independent write child only; its device/HTIF caller is not restored.
   const checkpoint_owner_t &memif_write_owner() const { return memif_write; }
+  const checkpoint_owner_t &bcd_identity_owner() const { return bcd_identity; }
 
   // Reset/initialization component dispatcher only. These calls never resume
   // HTIF or its context. A complete CPU profile still requires their owners.
@@ -135,6 +137,7 @@ private:
   std::unique_ptr<default_devices_t> default_devices;
   firesim_tsi_program_loader_t program_loader;
   firesim_tsi_memif_write_t memif_write;
+  firesim_tsi_bcd_identity_t bcd_identity;
   firesim_loadmem_read_t loadmem_read;
   firesim_loadmem_queues_t loadmem_queues;
   firesim_tsi_host_control_t host_control;
@@ -167,5 +170,6 @@ private:
                                       const firesim_tsi_serial_read_t &read);
   void flush_program_cache_lines(addr_t address, size_t bytes);
   void write_identity(uint64_t address, const firesim_tsi_bcd_t::identity_t &bytes);
+  void dispatch_identity(uint64_t command);
 };
 #endif // __FIRESIM_TSI_H

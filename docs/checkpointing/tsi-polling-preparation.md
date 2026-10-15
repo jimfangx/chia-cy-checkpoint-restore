@@ -1,5 +1,15 @@
 # Fresh preparation of known TSI polling components
 
+## Iteration 124: explicit identity dispatch caller
+
+Ordinary BCD identity dispatch additionally owns its raw command and the
+write/response/return cursors. Its independent caller/write/FIFO group prepares
+atomically and reconstructs no coroutine or response callback. See
+[tsi-bcd-identity.md](tsi-bcd-identity.md). The parent poll caller and response
+queue are outside that group; integrating active dispatch into the existing
+ten-owner preparation contract remains pending. Existing prepared admission
+therefore remains aligned-only. Complete HTIF/CPU continuation stays disabled.
+
 ## Iteration 123: ordinary identity write child
 
 Ordinary BCD identity dispatch now uses an explicit copied-payload memif write

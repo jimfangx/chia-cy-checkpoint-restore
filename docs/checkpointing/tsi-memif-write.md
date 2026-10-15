@@ -1,5 +1,12 @@
 # Explicit TSI memif write child
 
+Iteration 124 adds an explicit identity dispatch caller and atomic preparation
+of its caller/write/FIFO group. See
+[tsi-bcd-identity.md](tsi-bcd-identity.md). The parent HTIF polling caller and
+prepared ten-owner contract still exclude active unaligned identity dispatch;
+complete CPU continuation remains pending. The iteration-123 record below
+describes the earlier child-only boundary.
+
 Iteration 123 adds `firesim_tsi_memif_write_t` and routes ordinary BCD identity
 writes through it. Complete Rocket Level-1 and Level-2 acceptance remains
 pending. Prepared polling still rejects unaligned identity before clearing

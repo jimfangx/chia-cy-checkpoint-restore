@@ -16,8 +16,10 @@ static int run(const char *mode,const char *elf,const char *input,const char *pl
     const fs::path out(destination);fs::create_directories(out);
     if(std::string(mode)=="readback") {
       firesim_tsi_memif_write_t w;firesim_tsi_serial_state_t q;
+      firesim_tsi_bcd_identity_t caller(w,q);
       const auto a=bytes(std::string(source)+".write"),b=bytes(std::string(source)+".serial");
-      w.validate_checkpoint(a);q.validate_checkpoint(b);w.load_checkpoint(a);q.load_checkpoint(b);
+      caller.load_components({{"identity",bytes(std::string(source)+".identity")},{"write",a},{"serial",b}});
+      save(out/"preedge.identity",caller.save_checkpoint());
       save(out/"preedge.write",w.save_checkpoint());save(out/"preedge.serial",q.save_checkpoint());
       std::cout<<"COMPLETE_CHILD_READBACK context_entries=0 target_services=0 target_edges=0\n";return 0;
     }
@@ -41,6 +43,7 @@ static int run(const char *mode,const char *elf,const char *input,const char *pl
       require(rejected==busy,"active memif caller passed as an ordinary polling cut");
       if(busy){++active;require(!tsi.done(),"active identity exited");++guards;}
       save(out/("cut-"+std::to_string(cut)+".write"),image);
+      save(out/("cut-"+std::to_string(cut)+".identity"),tsi.bcd_identity_owner().save_checkpoint());
       save(out/("cut-"+std::to_string(cut)+".serial"),tsi.serial_queue_owner().save_checkpoint());
     };
     snapshot();std::ifstream steps(plan);require(bool(steps),"missing plan");std::string line;
