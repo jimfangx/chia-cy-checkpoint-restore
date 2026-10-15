@@ -14,7 +14,54 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 115, in progress. Recovery:
+Current milestone: M11-rocket-level1-level2, iteration 116, in progress. Recovery:
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md) and
+[tsi-sealed-terminal.md](tsi-sealed-terminal.md). An opt-in production BCD
+terminal owner captures a bounded input file, cursor and binary output
+transcript. Live terminals reject checkpoint operations; fresh restore emits
+only subsequent output. Startup metadata explicitly rejects this additional
+unbound peer. Complete CPU admission stays disabled. Neither Rocket Level-1
+continuation nor captured Level-2 replay has passed.
+
+Diagnostic root: `runs/m11-iteration116/`. The terminal invocation
+`terminal/invocation-imxpr74q/summary.json` passes native sanitizer/VCS: 52 fresh
+paired component restores, 312 host events, 568 atomic malformed rejections,
+four incompatible images, eight incomplete pairs, 28 service guards and four
+first response divergences after cursor corruption. Two production TSI checks
+pass exact BCD input/output/serial routing after replacing the source input file.
+These component events are not CPU target-cycle cuts. Actual recipe objects
+match independent recompilation; ordinary RTL pattern readback again passes
+318,637 words/seven clocks before any edge. All three complete four-hart controls
+(default, buffered, sealed terminal) pass at C=3,329,794; every full hart trace
+and workload/store print-cycle label matches the reference. The default/buffered
+controls retain 64 independently audited active host images. Credits/tokens are
+not certified semantic CPU cuts. All eight preserved native suites (267 Python
+tests and FCFS included), 13 retained host suites and 17 independent audits pass.
+Dispatcher results retain 240 fresh continuations, 7,012 peer readbacks, 5,112
+atomic invalid images and four first component divergences. Six production input
+option cases, three complete CPU requests and 16 invalid audit options reject.
+
+All 54,064 sealed iteration-115 artifacts and 1,005 native bindings pass
+preservation checks. Existing controller commits are published FireSim first,
+then Chipyard, with matching remote tips despite local tracking-ref warnings.
+No staging, local commits or plan/environment/Conda edits were performed.
+
+Recovery: `summary.json`, `selected-results.json`, `raw-native-commands.json`,
+`verification-commands-native.json`, `native-input-archives.json`,
+`artifact-manifest.json`, `independent-component-audits.json`,
+`native-terminal-build-audit.json`, `sealed-workload-independent-audit.json`
+and `preservation-audit.json` under the run root. Both independently allocated
+BCD regression invocations pass and are preserved. No failed pilot is claimed
+as passing. Complete CPU admission stays disabled; no dependency is missing.
+
+Next: bind the terminal peer into coherent aggregate restoration; complete
+syscall/file-descriptor, signal and stop/exit ownership and reconstruct callers
+without startup writes/reset. Complete simulator/FAME/channel/memory/bridge
+ownership, required workload cuts, fresh Level-1 continuation and independent
+Level-2 captured readback/replay remain pending. No dependency is missing.
+BOOM/Saturn stay pending; physical FPGA and ASIC power remain deferred.
+
+Previous iteration 115, in progress. Recovery:
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md) and
 [tsi-xlen-policy.md](tsi-xlen-policy.md). Startup metadata revision 3 now binds
 actual installed HTIF expected-XLEN policy, including base-reference setter

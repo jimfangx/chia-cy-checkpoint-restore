@@ -3,6 +3,8 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <array>
+#include <fcntl.h>
+#include <sys/stat.h>
 #include "elfloader_policy.h"
 
 #define fprintf(stdout, fmt, ...) (0)
@@ -41,6 +43,41 @@ static bool default_htif_devices(int argc, char **argv) {
   return true;
 }
 
+static std::unique_ptr<firesim_tsi_terminal_t> make_terminal_owner(int argc, char **argv) {
+  const std::string prefix = "+checkpoint-terminal-input=";
+  std::string path;
+  bool requested = false;
+  for (int i = 1; i < argc; ++i) {
+    const std::string arg(argv[i]);
+    if (arg.find(prefix) != 0) continue;
+    if (requested) throw std::runtime_error("duplicate sealed terminal input option");
+    requested = true; path = arg.substr(prefix.size());
+  }
+  if (!requested) return std::make_unique<firesim_tsi_terminal_t>();
+  // Do not open a FIFO/device or wait for a terminal while constructing a cut.
+  const int fd = open(path.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+  if (fd < 0) throw std::runtime_error("cannot open sealed terminal input");
+  struct close_t { int fd; ~close_t() { close(fd); } } file{fd};
+  struct stat info;
+  if (fstat(fd, &info) || !S_ISREG(info.st_mode) ||
+      info.st_size < 0 || uint64_t(info.st_size) > firesim_tsi_terminal_t::maximum)
+    throw std::runtime_error("sealed terminal input must be a bounded regular file");
+  std::vector<uint8_t> input;
+  std::array<uint8_t, 4096> buffer;
+  for (;;) {
+    const auto count = read(fd, buffer.data(), buffer.size());
+    if (count < 0) {
+      if (errno == EINTR) continue;
+      throw std::runtime_error("cannot read sealed terminal input");
+    }
+    if (!count) break;
+    if (input.size() + count > firesim_tsi_terminal_t::maximum)
+      throw std::runtime_error("sealed terminal input grew beyond limit");
+    input.insert(input.end(), buffer.begin(), buffer.begin() + count);
+  }
+  return std::make_unique<firesim_tsi_terminal_t>(std::move(input));
+}
+
 static std::vector<firesim_tsi_init_accesses_t::access_t>
 owned_accesses(const std::vector<init_access_t> &accesses) {
   std::vector<firesim_tsi_init_accesses_t::access_t> result;
@@ -52,6 +89,7 @@ owned_accesses(const std::vector<init_access_t> &accesses) {
 firesim_tsi_t::firesim_tsi_t(int argc, char **argv, bool can_have_loadmem)
     : testchip_tsi_t(argc, argv, can_have_loadmem),
       owned_default_devices(default_htif_devices(argc, argv)),
+      terminal(make_terminal_owner(argc, argv)),
       program_loader(can_have_loadmem, cache_flush_address(argc, argv)),
       host_control(idle_count(argc, argv)),
       init_control(owned_accesses(init_accesses), write_hart0_msip),
@@ -61,6 +99,8 @@ firesim_tsi_t::firesim_tsi_t(int argc, char **argv, bool can_have_loadmem)
   has_loadmem = can_have_loadmem;
   metadata_arguments.assign(argv + 1, argv + argc);
   metadata_supported = owned_default_devices && !target_args().empty() && target_args()[0] != "none";
+  // Aggregate metadata does not yet bind this additional peer owner.
+  if (!terminal->checkpoint_schema().empty()) metadata_supported = false;
   for (const auto &arg : metadata_arguments)
     for (const auto *unsupported : {"+payload=", "+symbol-elf=", "+signature=", "+signature-granularity="})
       if (arg.find(unsupported) == 0) metadata_supported = false;
@@ -76,7 +116,8 @@ int firesim_tsi_t::run_host() {
   start();
   polling_active = true;
   htif_poll = std::make_unique<firesim_tsi_htif_poll_t>(get_tohost_addr(), get_fromhost_addr());
-  bcd = std::make_unique<firesim_tsi_bcd_t>([this](uint64_t value) { htif_poll->respond(value); });
+  bcd = std::make_unique<firesim_tsi_bcd_t>([this](uint64_t value) { htif_poll->respond(value); },
+                                        1048576, terminal.get());
   default_devices = std::make_unique<default_devices_t>(*this, *bcd);
   class services_t final : public firesim_tsi_htif_poll_t::services_t {
   public:

@@ -3,6 +3,7 @@
 #define __FIRESIM_TSI_BCD_H
 
 #include "core/widget_checkpoint.h"
+#include "tsi_terminal.h"
 #include <fesvr/device.h>
 #include <fesvr/memif.h>
 #include <fesvr/term.h>
@@ -16,8 +17,9 @@
 class firesim_tsi_bcd_t final : public device_t, public checkpoint_owner_t {
 public:
   using response_t = std::function<void(uint64_t)>;
-  explicit firesim_tsi_bcd_t(response_t response, uint64_t limit = 1048576)
-      : config(26, {1, limit}), response(std::move(response)), limit(limit) {
+  explicit firesim_tsi_bcd_t(response_t response, uint64_t limit = 1048576,
+                            firesim_tsi_terminal_t *terminal = nullptr)
+      : config(26, {1, limit}), response(std::move(response)), limit(limit), terminal(terminal) {
     if (!this->response || !limit || limit > 1048576)
       throw std::runtime_error("unsupported BCD response binding/queue limit");
     register_command(0, [this](command_t cmd) {
@@ -30,7 +32,8 @@ public:
     register_command(1, [this](command_t cmd) {
       widget_checkpoint_state_t::call_t call(boundary);
       if (cmd.device() != 1) throw std::runtime_error("BCD device mismatch");
-      canonical_terminal_t::write(cmd.payload());
+      if (this->terminal) this->terminal->write(cmd.payload());
+      else canonical_terminal_t::write(cmd.payload());
     }, "write");
     register_command(255, [this](command_t cmd) {
       widget_checkpoint_state_t::call_t call(boundary);
@@ -49,7 +52,7 @@ public:
   void tick() override {
     widget_checkpoint_state_t::call_t call(boundary);
     if (pending.empty()) return;
-    const int ch = canonical_terminal_t::read();
+    const int ch = terminal ? terminal->read() : canonical_terminal_t::read();
     if (ch == -1) return;
     response((pending.front() & 0xffff000000000000ULL) | (0x100 | ch));
     pending.pop_front();
@@ -68,6 +71,7 @@ private:
   widget_checkpoint_config_t config;
   const response_t response;
   const uint64_t limit;
+  firesim_tsi_terminal_t *const terminal;
   std::deque<uint64_t> pending;
   widget_checkpoint_state_t boundary;
   std::deque<uint64_t> parse(const std::vector<uint8_t> &image) const {

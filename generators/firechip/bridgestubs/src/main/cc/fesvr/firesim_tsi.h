@@ -62,6 +62,7 @@ public:
     if (!bcd) throw std::runtime_error("default HTIF BCD has not started");
     return *bcd;
   }
+  const checkpoint_owner_t &terminal_owner() const { return *terminal; }
 
   // Reset/initialization component dispatcher only. These calls never resume
   // HTIF or its context. A complete CPU profile still requires their owners.
@@ -110,6 +111,7 @@ private:
     }
   };
   bool owned_default_devices;
+  std::unique_ptr<firesim_tsi_terminal_t> terminal;
   bool polling_active = false;
   std::unique_ptr<firesim_tsi_htif_poll_t> htif_poll;
   std::unique_ptr<firesim_tsi_bcd_t> bcd;
