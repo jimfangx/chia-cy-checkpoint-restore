@@ -251,6 +251,7 @@ void firesim_tsi_t::check_startup_metadata() const {
 
 std::vector<uint8_t> firesim_tsi_t::save_startup_metadata() const {
   if (!metadata_prepared) inspect_polling_cut();
+  else if (polling_components_prepared) inspect_prepared_polling_components();
   else if (host_context_initialized() || metadata_components() != metadata_pristine_components)
     throw std::runtime_error("metadata-only preparation changed a caller component");
   check_startup_metadata();
@@ -291,22 +292,33 @@ firesim_tsi_t::polling_cut_t firesim_tsi_t::inspect_polling_cut() const {
     throw std::runtime_error("TSI polling audit: startup has not returned or polling has ended");
   if (!host_context_suspended())
     throw std::runtime_error("TSI polling audit: host context is not suspended at target");
-  // phase() rejects a call suspended inside a device/memif service, even
-  // though its coroutine has yielded back to the target.
-  const auto phase = htif_poll->phase();
+  validate_polling_components(*htif_poll, program_loader, init_control, host_control,
+                              serial_read, loadmem_read, loadmem_queues);
+  return polling_components();
+}
+
+void firesim_tsi_t::validate_polling_components(const firesim_tsi_htif_poll_t &poll,
+    const firesim_tsi_program_loader_t &program, const firesim_tsi_init_accesses_t &init,
+    const firesim_tsi_host_control_t &host, const firesim_tsi_serial_read_t &reader,
+    const firesim_loadmem_read_t &loadread, const firesim_loadmem_queues_t &queues) {
+  // phase() also rejects an active or interrupted device/memif service.
+  const auto phase = poll.phase();
   using pp = firesim_tsi_htif_poll_t::phase_t;
   using hp = firesim_tsi_host_control_t::phase_t;
   const bool read = (phase == pp::tohost_read || phase == pp::fromhost_read) &&
-                    host_control.current_phase() == hp::ready &&
-                    serial_read.pending_for(htif_poll->pending_read_address(), 8);
-  const bool idle = phase == pp::idle && host_control.current_phase() == hp::idle &&
-                    !host_control.busy() && serial_read.idle();
+                    host.current_phase() == hp::ready &&
+                    reader.pending_for(poll.pending_read_address(), 8);
+  const bool idle = phase == pp::idle && host.current_phase() == hp::idle &&
+                    !host.busy() && reader.idle();
   if ((!read && !idle) ||
-      program_loader.phase() != firesim_tsi_program_loader_t::phase_t::complete ||
-      init_control.phase() != firesim_tsi_init_accesses_t::phase_t::complete ||
-      !host_control.loaded_in_host() || !host_control.loaded_in_target() ||
-      !loadmem_read.idle() || !loadmem_queues.empty())
+      program.phase() != firesim_tsi_program_loader_t::phase_t::complete ||
+      init.phase() != firesim_tsi_init_accesses_t::phase_t::complete ||
+      !host.loaded_in_host() || !host.loaded_in_target() ||
+      !loadread.idle() || !queues.empty())
     throw std::runtime_error("TSI polling audit: incoherent or active startup/child owners");
+}
+
+firesim_tsi_t::polling_cut_t firesim_tsi_t::polling_components() const {
   std::vector<std::pair<const char *, const checkpoint_owner_t *>> owners{
       {"poll", htif_poll.get()}, {"program", &program_loader}, {"init", &init_control},
       {"host", &host_control}, {"read", &serial_read}, {"serial", &serial},
@@ -326,6 +338,54 @@ firesim_tsi_t::polling_cut_t firesim_tsi_t::inspect_polling_cut() const {
     if (owners[i].second->save_checkpoint() != result[i].second)
       throw std::runtime_error("TSI polling audit: component changed during inspection");
   return result;
+}
+
+void firesim_tsi_t::prepare_polling_components(const polling_cut_t &images) {
+  if (!metadata_prepared || metadata_poisoned || polling_components_prepared ||
+      host_context_initialized() || polling_active || htif_poll || bcd || default_devices ||
+      !owned_default_devices || terminal->checkpoint_schema().empty() ||
+      should_exit() || done() || metadata_components() != metadata_pristine_components)
+    throw std::runtime_error("TSI polling preparation requires pristine sealed metadata-only caller");
+  check_startup_metadata();
+  static const std::array<const char *, 10> names{{"poll", "program", "init", "host", "read",
+      "serial", "loadmem-read", "loadmem-queues", "bcd", "terminal"}};
+  if (images.size() != names.size())
+    throw std::runtime_error("TSI polling preparation requires all ten ordered components");
+  for (size_t i = 0; i < names.size(); ++i)
+    if (images[i].first != names[i])
+      throw std::runtime_error("TSI polling preparation component membership/order mismatch");
+
+  // All parsers and cross-owner validation operate on destination-configured
+  // candidates. Never copy callbacks, pointers, service guards or contexts.
+  auto program = program_loader; auto init = init_control; auto host = host_control;
+  auto reader = serial_read; auto transport = serial; auto loadread = loadmem_read;
+  firesim_loadmem_queues_t queues;
+  auto poll = std::make_unique<firesim_tsi_htif_poll_t>(get_tohost_addr(), get_fromhost_addr());
+  auto device = std::make_unique<firesim_tsi_bcd_t>(*poll, 1048576, terminal.get());
+  std::array<checkpoint_owner_t *, 8> candidates{{poll.get(), &program, &init, &host,
+      &reader, &transport, &loadread, &queues}};
+  for (size_t i = 0; i < candidates.size(); ++i)
+    candidates[i]->load_checkpoint(images[i].second);
+  validate_polling_components(*poll, program, init, host, reader, loadread, queues);
+
+  // This final preparation allocates the three remaining replacements before
+  // changing the real terminal. Everything after its commit is nonthrowing.
+  // Constructing the ordered image list must also precede publication.
+  device->load_sealed_polling_checkpoint({images[0], images[9], images[8]});
+  program_loader.swap_state(program); init_control.swap_state(init);
+  host_control.swap_state(host); serial_read.swap_state(reader); serial.swap_state(transport);
+  loadmem_read.swap_state(loadread); loadmem_queues.swap_state(queues);
+  htif_poll.swap(poll); bcd.swap(device);
+  polling_components_prepared = true;
+}
+
+firesim_tsi_t::polling_cut_t firesim_tsi_t::inspect_prepared_polling_components() const {
+  if (!polling_components_prepared || !metadata_prepared || metadata_poisoned ||
+      host_context_initialized() || polling_active || !htif_poll || !bcd || default_devices)
+    throw std::runtime_error("TSI polling components have not been prepared in a fresh caller");
+  validate_polling_components(*htif_poll, program_loader, init_control, host_control,
+                              serial_read, loadmem_read, loadmem_queues);
+  return polling_components();
 }
 
 void firesim_tsi_t::idle() {
@@ -527,7 +587,7 @@ void firesim_tsi_t::load_initialization_checkpoint(const std::vector<uint8_t> &i
   // Check current usability before constructing candidates; poisoned owners
   // cannot be rehabilitated by a restore. All candidate allocations and
   // cross-owner checks finish before four noexcept state swaps commit.
-  if (host_context_initialized())
+  if (host_context_initialized() || polling_components_prepared)
     throw std::runtime_error("TSI initialization restore requires an unstarted host context");
   host_control.save_checkpoint(); init_control.save_checkpoint();
   serial_read.save_checkpoint(); serial.save_checkpoint();

@@ -14,7 +14,57 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 119, in progress. Recovery:
+Current milestone: M11-rocket-level1-level2, iteration 120, in progress. Recovery:
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md) and
+[tsi-polling-preparation.md](tsi-polling-preparation.md). All ten known polling
+owners now prepare atomically in a fresh metadata-bound TSI, with complete
+pre-service readback. No HTIF context/CPU execution is enabled; both CPU levels
+remain unverified.
+
+Diagnostic root: `runs/m11-iteration120/`. Native ASan/UBSan and VCS DPI pass
+`polling-prepare/invocation-p95inli2/summary.json`: 224 fresh ten-owner preparations
+at 56 component cuts, 2,280 complete readbacks, 3,200 malformed rejections,
+204 membership rejections, 44 cross-owner/configuration rejections and 2,588
+injected allocation failures. All failures preserve eight pristine peers and
+metadata and leave poll/BCD absent. All 1,120 execution/preparation guards pass.
+The premature-terminal-publication mutation is detected. A separate valid
+initialization-image guard passes native/VCS and detects guard removal.
+
+Eight fresh native/VCS preparations of actual iteration-119 Rocket host samples
+read back all 80 owner images; reconstructed trusted-workload metadata is not
+captured CPU state. Credits remain distinct from semantic CPU cuts. Evidence:
+`actual-rocket-preparations-v2/summary.json`. Actual Rocket loader/context/TSI/
+bridge objects equal independent recompilation; its executable includes the
+new preparation API and all audited headers. Ordinary RTL VCS again reads all
+318,637 pattern words/seven clocks before an edge; captured replay is pending.
+
+All eight preserved native suites pass, including 267 Python tests and FCFS.
+All 13 retained host suites and all 19 independent component/native audits pass.
+Complete default/buffered/sealed four-hart controls pass at C=3,329,794; every
+full hart trace and workload/store print-cycle label matches the uninterrupted
+reference. All 104 known host images pass at 12 active samples. Full 16 GiB
+backing memory is retained. The final preservation audit passes 100,378 prior
+artifacts and 1,011 native input bindings.
+Existing controller commits were published FireSim first, then Chipyard, with
+queried remote tips matching. No staging or local commits; protected plan and
+environment hashes match. No external dependency is missing.
+
+Recovery: `summary.json`, `selected-results.json`, `raw-native-commands.json`,
+`verification-commands-native.json`, `native-input-archives.json`,
+`artifact-manifest.json`, `independent-component-audits.json` and
+`polling-prepare-independent-audit.json` under the diagnostic root. One passing
+polling-device regression used the prior controller-recheck root; its original
+bytes stay in place and `external-evidence.json` indexes all files. Diagnostic
+argument-count and ABI-symbol pilots remain separate from passing evidence.
+
+Next: reconstruct the executable polling caller without startup writes/reset
+and complete syscall/file-descriptor, signal, stop/exit and simulator ownership.
+Required CPU cuts, fresh complete Level-1 continuation and independent captured
+Level-2 readback/replay remain pending. BOOM/Saturn remain pending; physical FPGA
+and ASIC power remain deferred. Both plans stay read-only and the controller
+owns local commits.
+
+Previous iteration 119, in progress. Recovery:
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md) and
 [tsi-sealed-terminal.md](tsi-sealed-terminal.md). Production BCD binds directly
 to its polling destination. The ordered poll/terminal/BCD transaction parses

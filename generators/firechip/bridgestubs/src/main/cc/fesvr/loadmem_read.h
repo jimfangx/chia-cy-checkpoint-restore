@@ -5,6 +5,7 @@
 #include "core/checkpoint.h"
 #include "core/widget_checkpoint.h"
 #include <limits>
+#include <type_traits>
 
 // One pointer-free loadmem read. Request/response queues, HTIF's destination
 // and suspended caller, program loader and context remain separate owners.
@@ -20,6 +21,10 @@ public:
   };
   enum class result_t { progress, blocked, complete };
   bool idle() const { boundary.require_idle(); return state.phase == phase_t::idle; }
+  void swap_state(firesim_loadmem_read_t &other) noexcept {
+    static_assert(std::is_nothrow_swappable<state_t>::value, "loadmem read commit must not allocate");
+    std::swap(state, other.state);
+  }
 
   void begin(uint64_t address, uint64_t bytes) {
     boundary.require_idle();

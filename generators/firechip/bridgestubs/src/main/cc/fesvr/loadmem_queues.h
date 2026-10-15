@@ -13,6 +13,7 @@
 class firesim_loadmem_queues_t final : public checkpoint_owner_t {
 public:
   struct request_t { uint64_t address, bytes; };
+  void swap_state(firesim_loadmem_queues_t &other) noexcept { state.swap(other.state); }
   void enqueue_write(uint64_t address, uint64_t bytes, const void *source) {
     boundary.require_idle();
     check_request({address, bytes});

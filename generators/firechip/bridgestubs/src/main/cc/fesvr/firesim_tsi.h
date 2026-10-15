@@ -77,6 +77,12 @@ public:
   using polling_cut_t = std::vector<std::pair<std::string, std::vector<uint8_t>>>;
   polling_cut_t inspect_polling_cut() const;
 
+  // Ten known polling components only. Requires metadata-only preparation in
+  // a fresh caller and a sealed terminal. This does not restore syscall,
+  // signal, exit or context state and must not enable HTIF/CPU continuation.
+  void prepare_polling_components(const polling_cut_t &images);
+  polling_cut_t inspect_prepared_polling_components() const;
+
   // Startup metadata component only; does not restore devices or a caller.
   std::vector<uint8_t> save_startup_metadata() const;
   void prepare_startup_metadata(const std::vector<uint8_t> &image);
@@ -130,6 +136,7 @@ private:
   bool preparing_metadata = false;
   bool metadata_prepared = false;
   bool metadata_poisoned = false;
+  bool polling_components_prepared = false;
   firesim_tsi_startup_metadata_t startup_metadata;
   polling_cut_t metadata_pristine_components;
   polling_cut_t metadata_components() const;
@@ -137,6 +144,11 @@ private:
   std::vector<uint8_t> metadata_configuration(unsigned required_xlen) const;
   unsigned preflight_startup_metadata(const firesim_tsi_startup_metadata_t &candidate);
   void check_startup_metadata() const;
+  polling_cut_t polling_components() const;
+  static void validate_polling_components(const firesim_tsi_htif_poll_t &poll,
+      const firesim_tsi_program_loader_t &program, const firesim_tsi_init_accesses_t &init,
+      const firesim_tsi_host_control_t &host, const firesim_tsi_serial_read_t &read,
+      const firesim_loadmem_read_t &loadread, const firesim_loadmem_queues_t &queues);
   static void validate_initialization(const firesim_tsi_host_control_t &host,
                                       const firesim_tsi_init_accesses_t &init,
                                       const firesim_tsi_serial_read_t &read);

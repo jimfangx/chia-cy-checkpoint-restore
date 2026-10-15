@@ -14,6 +14,9 @@ public:
         has_loadmem(has_loadmem), flush_address(cache_flush_address) {}
 
   phase_t phase() const { require_usable(); return current; }
+  void swap_state(firesim_tsi_program_loader_t &other) noexcept {
+    std::swap(current, other.current);
+  }
   bool loadmem_mode() const { require_usable(); return current == phase_t::loading && has_loadmem; }
   uint64_t cache_flush_address() const { require_usable(); return flush_address; }
   void begin() {

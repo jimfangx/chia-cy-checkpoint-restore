@@ -5,6 +5,12 @@ binds that owner into startup metadata and the suspended polling audit.
 Complete Rocket Level-1 continuation and captured Level-2 readback/replay remain
 pending.
 
+Iteration 120 uses the bound three-owner transaction as the final preparation
+step in [fresh ten-owner polling preparation](tsi-polling-preparation.md).
+All protocol candidates and their caller/child relationships validate before
+the terminal changes, and only nonthrowing publication follows. The prepared
+TSI still rejects context execution; complete HTIF and CPU admission is pending.
+
 Iteration 118 adds `firesim_tsi_bcd_t::load_sealed_checkpoint`, a transaction
 over the ordered `terminal` and `bcd` component images. It uses the terminal
 already bound to the destination device. Both parsers validate the entire
