@@ -98,9 +98,16 @@ def audit(path):
         import subprocess
         names=subprocess.check_output(['ar','t',installed],text=True).splitlines()
         require(names==subprocess.check_output(['ar','t',library],text=True).splitlines(),'changed FESVR member inventory')
+        replacements={'elfloader.o'}
+        # Retained revision-112 evidence replaced only the loader. New builds
+        # explicitly bind the separately owned context source too.
+        if 'sources' in overlay:
+            replacements.add('context.o')
+            require(set(overlay['sources']) == {str(p) for p in overlay_inputs() if p.suffix=='.cc'},
+                    'unexpected FESVR replacement source inventory')
         for name in names:
             equal=subprocess.check_output(['ar','p',installed,name])==subprocess.check_output(['ar','p',library,name])
-            require(equal==(name!='elfloader.o'),'overlay changed unrelated installed state owner')
+            require(equal==(name not in replacements),'overlay changed unrelated installed state owner')
     return dict(status='passed',fresh_metadata_readbacks=12,complete_unchanged_peer_images=84,
                 atomic_invalid_images=invalid_count,incompatible_rejections=18,
                 installed_xlen_rejections=192 if resource_marker in (out/'native-capture.log').read_text() else 6,

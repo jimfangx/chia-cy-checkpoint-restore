@@ -57,7 +57,7 @@ def record_build(recipe, build, log, destination):
              ROOT / 'tools/checkpoint_formats/cpu_recipe.py', Path(__file__)]
     paths += list((ROOT / 'sims/firesim/sim/make').glob('*.mk'))
     paths += list(Path(recipe['resolved_makefrag']).glob('*.mk'))
-    # The build-local archive replaces exactly one installed member. Bind both
+    # The build-local archive replaces exactly two installed members. Bind both
     # archives, the replacement source/build rule and its independent report.
     loader_dir = ROOT / 'generators/firechip/bridgestubs/src/main/cc/fesvr'
     loader_make = ROOT / 'generators/firechip/bridgestubs/src/main/makefrag/checkpoint-fesvr.mk'
@@ -69,10 +69,22 @@ def record_build(recipe, build, log, destination):
             overlay_report['installed_sha256'] == file_sha(overlay_report['installed_archive']),
             'unbound CPU ELF-loader overlay')
     require({name for name, hashes in overlay_report['members'].items()
-             if hashes['installed'] != hashes['overlay']} == {'elfloader.o'},
+             if hashes['installed'] != hashes['overlay']} == {'elfloader.o', 'context.o'},
             'CPU overlay changed unrelated installed owners')
+    require(overlay_report['sources'] == {
+                str(loader_dir / name): file_sha(loader_dir / name)
+                for name in ('owned_elfloader.cc', 'owned_context.cc')},
+            'unbound CPU resource overlay sources')
+    # Explicit objects prevent a shared libriscv.so definition from satisfying
+    # either replacement before static archive extraction.
+    for member, name in [('elfloader.o', 'owned-elfloader.o'), ('context.o', 'owned-context.o')]:
+        obj = overlay.parent / name
+        require(str(obj) in argv and obj.read_bytes() ==
+                subprocess.check_output(['ar', 'p', overlay, member]),
+                'CPU resource overlay member is not the actual link input: ' + name)
+        paths.append(obj)
     require(str(overlay) in Path(log).read_text(), 'CPU native link omitted owned loader')
-    paths += [loader_dir / 'owned_elfloader.cc', loader_dir / 'build_checkpoint_fesvr.py',
+    paths += [loader_dir / 'owned_elfloader.cc', loader_dir / 'owned_context.cc', loader_dir / 'build_checkpoint_fesvr.py',
               loader_make, overlay, overlay.with_suffix('.json'), Path(overlay_report['installed_archive'])]
     paths += [build / ('FireSim-generated' + suffix) for suffix in
               ('.sv', '.const.h', '.const.vh', '.defines.vh',
