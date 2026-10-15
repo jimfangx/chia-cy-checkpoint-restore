@@ -10,6 +10,13 @@
 class firesim_tsi_host_control_t final : public checkpoint_owner_t {
 public:
   enum class phase_t : uint64_t { ready, idle, reset_wait, reset_child };
+  phase_t current_phase() const { require_usable(); return phase; }
+  bool loaded_in_target() const { require_usable(); return target_loaded; }
+  void swap_state(firesim_tsi_host_control_t &other) noexcept {
+    std::swap(phase, other.phase); std::swap(remaining, other.remaining);
+    std::swap(is_busy, other.is_busy); std::swap(host_loaded, other.host_loaded);
+    std::swap(target_loaded, other.target_loaded);
+  }
   explicit firesim_tsi_host_control_t(uint64_t idle_count)
       : config(18, {idle_count}), idle_count(idle_count) {}
 

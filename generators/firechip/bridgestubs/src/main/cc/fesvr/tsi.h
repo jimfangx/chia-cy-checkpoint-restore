@@ -37,11 +37,15 @@ protected:
   void switch_to_target();
   size_t chunk_align() override { return 4; }
   size_t chunk_max_size() override { return 1024; }
+  firesim_tsi_serial_state_t serial;
+  firesim_tsi_serial_read_t serial_read;
 private:
   context_t host;
   context_t *target;
-  firesim_tsi_serial_state_t serial;
-  firesim_tsi_serial_read_t serial_read;
+  bool host_initialized = false;
+protected:
+  bool host_context_initialized() const { return host_initialized; }
+private:
   static void host_thread(void *tsi);
 };
 

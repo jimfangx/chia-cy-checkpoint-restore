@@ -17,6 +17,16 @@ public:
   };
   enum class result_t { progress, blocked, complete };
 
+  bool idle() const { require_idle(); return current.phase == phase_t::idle; }
+  bool waiting_for(uint64_t address, uint64_t bytes) const {
+    require_idle();
+    return current.phase == phase_t::response && current.address == address &&
+           current.bytes == bytes && current.words.empty();
+  }
+  void swap_state(firesim_tsi_serial_read_t &other) noexcept {
+    std::swap(current, other.current);
+  }
+
   void begin(uint64_t address, uint64_t bytes) {
     require_idle();
     if (current.phase != phase_t::idle)

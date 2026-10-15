@@ -15,6 +15,13 @@ public:
     idle, ready, read_child, read_return, write_child, write_return,
     msip_child, msip_return, complete
   };
+  phase_t phase() const { usable(); return state.phase; }
+  uint32_t pending_read_data() const {
+    require_phase(phase_t::read_child); return state.data;
+  }
+  void swap_state(firesim_tsi_init_accesses_t &other) noexcept {
+    std::swap(state, other.state);
+  }
   firesim_tsi_init_accesses_t(std::vector<access_t> accesses, bool msip)
       : accesses(std::move(accesses)), msip(msip),
         config(21, {uint64_t(msip), this->accesses.size()}) {

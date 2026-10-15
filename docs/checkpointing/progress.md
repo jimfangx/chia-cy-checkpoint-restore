@@ -14,17 +14,57 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 104, in progress. Recovery:
-[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). This increment repairs the
-durable artifact check that incorrectly required raw indexes/HEADs to remain
-equal across Git cache refreshes and authorized controller commits. The new hash-pinned audit
-checks complete diagnostic membership/bytes, protected files, source provenance,
-permitted controller history and plan exclusion. Native validation results and
-exact commands are retained under `runs/m11-iteration104/`. Complete HTIF/context/
-child-caller and cross-owner reconstruction, coherent active CPU cuts, complete
-Level-1 continuation and independent Level-2 captured CPU replay remain pending.
-No CPU acceptance or missing external dependency is claimed. Both plans remain
-read-only inputs; the controller owns staging and local checkpoint commits.
+Current milestone: M11-rocket-level1-level2, iteration 105, in progress. Recovery:
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md) and
+[tsi-init-resume.md](tsi-init-resume.md). Production initialization now resumes
+from owned caller/serial-read phases without a saved coroutine return path.
+A four-owner component bundle validates configurations and supported phase
+relationships before allocation-free atomic commit. Fresh component objects
+initialize no host coroutine; HTIF continuation remains explicitly unsupported.
+Diagnostics are under `runs/m11-iteration105/`. Complete CPU continuation,
+coherent active cuts and independent captured Level-2 CPU replay remain pending.
+Both plans remain read-only; the controller owns staging/local commits.
+
+Iteration 105 (October 14):
+
+- Production reset and fresh objects share a pointer-free initialization
+  dispatcher. It resumes an outstanding serial read without repeating its
+  flush/request and retains ordered writes, read diagnostics and MSIP policy.
+  The four-owner bundle validates all candidate configurations and supported
+  caller/reader phases before allocation-free atomic commit. See
+  [tsi-init-resume.md](tsi-init-resume.md).
+- All 240 fresh actual initialization dispatches pass in native
+  sanitizer/VCS processes: 7,012 complete peer readbacks,
+  6,772 operations, 5,112 atomic invalid-image checks and
+  four repeated first-divergence packet-corruption checks at fixture C=101.
+  These are host component cuts, not Rocket target-cycle checkpoints. Native
+  sanitizer and VCS unstarted/HTIF-entry/atomic replacement guards pass too.
+- The preserved initialization suite passes 294 fresh fixture continuations,
+  7,264 complete readbacks, all 768 actual caller and
+  320 mixed cache-flush/MSIP fresh component readbacks, all
+  60 fresh invalid cases and four first divergences. All eight native
+  regressions, including 263 Python tests and full FCFS checks, pass.
+- Both exact-recipe default/buffered four-hart controls pass at C=3,329,794.
+  Every full instruction trace and workload/store label matches the uninterrupted
+  reference. All 60 native translation units, driver/bridge header consumers and
+  unchanged generated RTL/inventory are bound in the native build/linkage audits.
+- All 32 final/retained audit checks pass, including a fresh ordinary Rocket
+  318,637-word/seven-clock diagnostic zero-edge readback and the full old catalog
+  recheck after the native runs. Complete CPU preflight/capture/restore still
+  reject before target execution/publication. The milestone stays in_progress.
+- The failed sanitizer pilot retains the installed FESVR context destructor's
+  1 MiB stack allocation diagnostic. Host initialization is now lazy; fresh
+  component dispatch allocates no coroutine stack. Leak detection and installed
+  library bytes are unchanged. HTIF continuation remains explicitly unsupported.
+- Recovery: `runs/m11-iteration105/summary.json`, `selected-results.json`,
+  `native-input-archives.json`, `verification-commands-native.json` and the full
+  `artifact-manifest.json`. Existing iteration-104 controller commits are
+  published FireSim first, then Chipyard; remote tips match. No local staging,
+  commits, protected plan/environment/Conda edits or history cleanup.
+- Next: complete HTIF/memif/device/TestChip loader/context reconstruction and
+  cross-owner coherence, required early/warm/outstanding/late actual CPU cuts,
+  full fresh Level-1 continuation and independently captured Level-2 replay.
+  BOOM/Saturn remain pending; no external dependency is missing.
 
 Iteration 104 (October 14):
 

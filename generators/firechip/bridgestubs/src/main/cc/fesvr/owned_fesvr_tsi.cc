@@ -11,7 +11,6 @@ void firesim_fesvr_tsi_t::host_thread(void *arg) {
 
 firesim_fesvr_tsi_t::firesim_fesvr_tsi_t(int argc, char **argv) : htif_t(argc, argv) {
   target = context_t::current();
-  host.init(host_thread, this);
 }
 
 void firesim_fesvr_tsi_t::reset() {
@@ -42,5 +41,14 @@ void firesim_fesvr_tsi_t::write_chunk(addr_t address, size_t bytes, const void *
   serial.issue_write(address, bytes, source);
 }
 
-void firesim_fesvr_tsi_t::switch_to_host() { host.switch_to(); }
+void firesim_fesvr_tsi_t::switch_to_host() {
+  // Constructing a fresh component must not enter an unowned HTIF context.
+  // Upstream init only enters its trampoline and yields; doing it immediately
+  // before the first host service preserves that service's original behavior.
+  if (!host_initialized) {
+    host.init(host_thread, this);
+    host_initialized = true;
+  }
+  host.switch_to();
+}
 void firesim_fesvr_tsi_t::switch_to_target() { target->switch_to(); }

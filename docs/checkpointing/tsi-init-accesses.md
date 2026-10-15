@@ -47,11 +47,11 @@ Fresh readbacks of these caller images do not resume HTIF or a CPU. Exact
 results and executable checks belong in [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md);
 diagnostics belong under `automations/checkpoint_loop/runs/m11-iteration103/`.
 
-This component does not reconstruct the suspended read/cache-flush child,
-HTIF reset caller, terminal/host context or TestChip loader. The production
-coroutine still has a local return path: loading a child-phase image is not
-permission to issue that access again. Cross-owner validation and a fresh
-pointer-free caller dispatcher remain required before complete CPU support
-can be enabled. HTIF poll/fromhost/device/stop/signature and memif progress,
-coherent active CPU cuts, complete Level-1 continuation and independently
-captured Level-2 replay remain pending. No external dependency is missing.
+Iteration 105 adds fresh reset/initialization dispatch and an atomically restored
+four-owner bundle; see [tsi-init-resume.md](tsi-init-resume.md). It resumes the
+selected initialization serial read without repeating its flush or request.
+The production HTIF reset caller, terminal/host context, TestChip loader and
+polling path remain unsupported. Cross-owner CPU-cut validation, HTIF
+poll/fromhost/device/stop/signature and memif progress, coherent active CPU cuts,
+complete Level-1 continuation and independently captured Level-2 replay remain
+pending. No external dependency is missing.

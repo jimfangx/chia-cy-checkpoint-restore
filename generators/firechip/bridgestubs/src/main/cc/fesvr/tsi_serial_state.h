@@ -10,6 +10,9 @@
 // separate owners; restoring these queues cannot restore the FESVR coroutine.
 class firesim_tsi_serial_state_t final : public checkpoint_owner_t {
 public:
+  void swap_state(firesim_tsi_serial_state_t &other) noexcept {
+    requests.swap(other.requests); responses.swap(other.responses);
+  }
   std::string checkpoint_schema() const override { return "firesim.tsi.serial-queues.v1"; }
   bool request_available() const { state.require_idle(); return !requests.empty(); }
   uint32_t request_front() const {

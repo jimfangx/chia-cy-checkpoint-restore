@@ -2,6 +2,7 @@
 #include "firesim_tsi.h"
 #include <inttypes.h>
 #include <stdio.h>
+#include <array>
 
 #define fprintf(stdout, fmt, ...) (0)
 
@@ -11,6 +12,16 @@ static size_t idle_count(int argc, char **argv) {
   for (auto &arg : args) {
     if (arg.find("+idle-counts=") == 0)
       result = atoi(arg.c_str() + 13);
+  }
+  return result;
+}
+
+static uint64_t cache_flush_address(int argc, char **argv) {
+  uint64_t result = 0;
+  for (int i = 1; i < argc; ++i) {
+    const std::string arg(argv[i]);
+    if (arg.find("+cflush_addr=0x") == 0)
+      result = strtoull(arg.substr(15).c_str(), nullptr, 16);
   }
   return result;
 }
@@ -26,7 +37,8 @@ owned_accesses(const std::vector<init_access_t> &accesses) {
 firesim_tsi_t::firesim_tsi_t(int argc, char **argv, bool can_have_loadmem)
     : testchip_tsi_t(argc, argv, can_have_loadmem),
       host_control(idle_count(argc, argv)),
-      init_control(owned_accesses(init_accesses), write_hart0_msip) {
+      init_control(owned_accesses(init_accesses), write_hart0_msip),
+      initialization_config(22, {cache_flush_address(argc, argv)}) {
 
   // always use loadmem if the target supports it
   has_loadmem = can_have_loadmem;
@@ -97,21 +109,19 @@ void firesim_tsi_t::load_mem_read(addr_t addr, size_t nbytes, void *dst) {
   loadmem_read.finish();
 }
 
-void firesim_tsi_t::tick() { switch_to_host(); }
+void firesim_tsi_t::tick() {
+  if (initialization_component_restored)
+    throw std::runtime_error("HTIF/context continuation after component restore is unsupported");
+  switch_to_host();
+}
 
 void firesim_tsi_t::reset() {
   // after program loading, this function is called and spins until the target
   // thread/bridge has synced/drained all in-flight fesvr xacts
   host_control.begin_reset();
   try {
-    while (host_control.advance_reset())
+    while (!advance_initialization())
       switch_to_target();
-    fprintf(
-        stdout,
-        "firesim_tsi_t::reset done loading program. sending reset signal(s)\n");
-    fflush(stdout);
-    perform_owned_init_accesses();
-    host_control.finish_reset();
   } catch (...) {
     init_control.interrupt();
     host_control.interrupt();
@@ -119,17 +129,44 @@ void firesim_tsi_t::reset() {
   }
 }
 
-void firesim_tsi_t::perform_owned_init_accesses() {
-  // Same TestChip order/routing and MSIP policy, with the current access and
-  // read destination owned independently of the suspended reset stack.
+bool firesim_tsi_t::advance_initialization() {
+  // Re-entry is selected entirely by owned state, including a suspended read.
+  // No local return address, destination pointer or repeated flush/issue is
+  // needed in a fresh object. The caller alone performs context switches.
   using phase_t = firesim_tsi_init_accesses_t::phase_t;
-  init_control.begin();
+  using host_phase_t = firesim_tsi_host_control_t::phase_t;
+  validate_initialization(host_control, init_control, serial_read);
+  if (host_control.current_phase() == host_phase_t::ready) return true;
+  if (host_control.current_phase() == host_phase_t::reset_wait) {
+    if (host_control.advance_reset()) return false;
+    init_control.begin();
+  }
+  firesim_tsi_serial_read_services_t services(serial);
   for (;;) {
-    const auto phase = init_control.select();
-    if (phase == phase_t::complete) return;
+    auto phase = init_control.phase();
+    if (phase == phase_t::complete) {
+      host_control.finish_reset();
+      return true;
+    }
+    if (phase == phase_t::ready) {
+      phase = init_control.select();
+      if (phase == phase_t::complete) continue;
+      if (phase == phase_t::read_child) {
+        (fprintf)(stderr, "Reading %" PRIx64 " ...", init_control.address());
+        // Initialization runs after TestChip leaves ELF load-memory mode.
+        // The original virtual read routes here through flush then serial.
+        flush_cache_lines(init_control.address(), sizeof(uint32_t));
+        serial_read.begin(init_control.address(), sizeof(uint32_t));
+      }
+    }
     if (phase == phase_t::read_child) {
-      (fprintf)(stderr, "Reading %" PRIx64 " ...", init_control.address());
-      read_chunk(init_control.address(), sizeof(uint32_t), init_control.read_destination());
+      for (;;) {
+        const auto progress = serial_read.advance(services);
+        if (progress == firesim_tsi_serial_read_t::result_t::blocked) return false;
+        if (progress == firesim_tsi_serial_read_t::result_t::complete) break;
+      }
+      *init_control.read_destination() = serial_read.result().at(0);
+      serial_read.finish();
     } else {
       if (phase == phase_t::write_child)
         (fprintf)(stderr, "Writing %" PRIx64 " with %x\n", init_control.address(), *init_control.write_source());
@@ -141,8 +178,64 @@ void firesim_tsi_t::perform_owned_init_accesses() {
     else if (phase == phase_t::write_child)
       (fprintf)(stderr, "Done writing %" PRIx64 " with %x\n", init_control.address(), init_control.write_result());
     init_control.retire();
-    if (phase == phase_t::msip_child) return;
   }
+}
+
+void firesim_tsi_t::validate_initialization(const firesim_tsi_host_control_t &host,
+                                         const firesim_tsi_init_accesses_t &init,
+                                         const firesim_tsi_serial_read_t &read) {
+  using hp = firesim_tsi_host_control_t::phase_t;
+  using ip = firesim_tsi_init_accesses_t::phase_t;
+  const auto h = host.current_phase(); const auto i = init.phase();
+  const bool waiting = h == hp::reset_wait && read.idle() &&
+                       (i == ip::idle || i == ip::complete);
+  const bool child = h == hp::reset_child && host.loaded_in_target() &&
+                     i == ip::read_child && init.pending_read_data() == 0 &&
+                     read.waiting_for(init.address(), sizeof(uint32_t));
+  const bool complete = h == hp::ready && i == ip::complete && read.idle();
+  if (!waiting && !child && !complete)
+    throw std::runtime_error("incoherent or unsupported TSI initialization owners");
+}
+
+std::vector<uint8_t> firesim_tsi_t::save_initialization_checkpoint() const {
+  validate_initialization(host_control, init_control, serial_read);
+  auto result = initialization_config;
+  for (const checkpoint_owner_t *owner : std::array<const checkpoint_owner_t *, 4>{
+         &host_control, &init_control, &serial_read, &serial}) {
+    const auto bytes = owner->save_checkpoint();
+    result.word(bytes.size()); result.bytes.insert(result.bytes.end(), bytes.begin(), bytes.end());
+  }
+  return std::move(result.bytes);
+}
+
+void firesim_tsi_t::load_initialization_checkpoint(const std::vector<uint8_t> &image) {
+  // Check current usability before constructing candidates; poisoned owners
+  // cannot be rehabilitated by a restore. All candidate allocations and
+  // cross-owner checks finish before four noexcept state swaps commit.
+  if (host_context_initialized())
+    throw std::runtime_error("TSI initialization restore requires an unstarted host context");
+  host_control.save_checkpoint(); init_control.save_checkpoint();
+  serial_read.save_checkpoint(); serial.save_checkpoint();
+  auto host = host_control; auto init = init_control;
+  auto read = serial_read; auto queues = serial;
+  size_t offset = initialization_config.bytes.size();
+  if (image.size() < offset ||
+      !std::equal(initialization_config.bytes.begin(), initialization_config.bytes.end(), image.begin()))
+    throw std::runtime_error("TSI initialization bundle configuration mismatch");
+  for (checkpoint_owner_t *owner : std::array<checkpoint_owner_t *, 4>{&host, &init, &read, &queues}) {
+    if (image.size() - offset < 8) throw std::runtime_error("missing TSI initialization owner");
+    uint64_t size = 0;
+    for (unsigned i = 0; i < 8; ++i) size |= uint64_t(image[offset+i]) << (8*i);
+    offset += 8;
+    if (size > image.size() - offset) throw std::runtime_error("truncated TSI initialization owner");
+    owner->load_checkpoint(std::vector<uint8_t>(image.begin()+offset, image.begin()+offset+size));
+    offset += size;
+  }
+  if (offset != image.size()) throw std::runtime_error("extra TSI initialization owner bytes");
+  validate_initialization(host, init, read);
+  host_control.swap_state(host); init_control.swap_state(init);
+  serial_read.swap_state(read); serial.swap_state(queues);
+  initialization_component_restored = true;
 }
 
 bool firesim_tsi_t::has_loadmem_reqs() {

@@ -47,6 +47,12 @@ public:
   const checkpoint_owner_t &host_control_owner() const { return host_control; }
   const checkpoint_owner_t &init_accesses_owner() const { return init_control; }
 
+  // Reset/initialization component dispatcher only. These calls never resume
+  // HTIF or its context. A complete CPU profile still requires their owners.
+  bool advance_initialization();
+  std::vector<uint8_t> save_initialization_checkpoint() const;
+  void load_initialization_checkpoint(const std::vector<uint8_t> &image);
+
 protected:
   void idle() override;
 
@@ -65,6 +71,10 @@ private:
   firesim_loadmem_queues_t loadmem_queues;
   firesim_tsi_host_control_t host_control;
   firesim_tsi_init_accesses_t init_control;
-  void perform_owned_init_accesses();
+  widget_checkpoint_config_t initialization_config;
+  bool initialization_component_restored = false;
+  static void validate_initialization(const firesim_tsi_host_control_t &host,
+                                      const firesim_tsi_init_accesses_t &init,
+                                      const firesim_tsi_serial_read_t &read);
 };
 #endif // __FIRESIM_TSI_H
