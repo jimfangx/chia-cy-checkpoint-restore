@@ -14,8 +14,28 @@ nonthrowing swaps and cursor assignment. A second allocation failure after a
 terminal load can no longer leave the pair partially restored. Individual
 component image formats and normal device execution remain unchanged.
 
-This is a component transaction, not the complete HTIF aggregate. The polling
-response queue, startup metadata, syscall state, signals, stop/exit and caller
+Iteration 119 adds `load_sealed_polling_checkpoint` over the ordered `poll`,
+`terminal`, `bcd` images. A typed BCD constructor binds its response callback
+and the transaction to the same destination polling owner. Production TSI uses
+that constructor. Arbitrary response closures reject the three-owner restore.
+The terminal and BCD replacements and the polling phase, mailbox command and
+complete response queue are all parsed and allocated before publication.
+Publication uses only nonthrowing swaps and scalar assignments; it enters no
+service. Individual image formats and the two-owner interface are unchanged.
+
+| Component | Serialized ownership | Destination reconstruction/guards |
+| --- | --- | --- |
+| Poll | Phase, pending tohost command, ordered mailbox-response FIFO; exact mailbox addresses and queue limit | BCD responses bind this destination object. `accepting_responses` is false at supported idle cuts. Active/interrupted services reject. |
+| Sealed terminal | Complete immutable input, input cursor, binary output transcript, mode/version/limits | Preserve the destination output callback; never re-emit the prefix. Live, active and interrupted services reject. |
+| BCD | Ordered raw pending read commands, device/version and queue limit | Reconstruct the immutable command table and bind its callback to the same poll. Active/interrupted services reject. |
+
+Boundary guard flags are not restorable work in progress: active or poisoned
+owners reject rather than serializing an interrupted service. Callback addresses,
+coroutine stacks and host allocation layouts are not copied. The three-owner
+transaction neither restores nor certifies the serial transport or caller.
+
+This is a component transaction, not the complete HTIF aggregate. Serial
+transport, startup metadata, syscall state, signals, stop/exit and caller
 reconstruction still require their own coherent restoration. Complete CPU
 admission remains disabled. Ordered peer membership rejects missing, extra,
 duplicate, unknown and reordered owners. It does not certify that independently

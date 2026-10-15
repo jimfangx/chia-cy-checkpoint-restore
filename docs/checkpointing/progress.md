@@ -14,7 +14,60 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 118, in progress. Recovery:
+Current milestone: M11-rocket-level1-level2, iteration 119, in progress. Recovery:
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md) and
+[tsi-sealed-terminal.md](tsi-sealed-terminal.md). Production BCD binds directly
+to its polling destination. The ordered poll/terminal/BCD transaction parses
+and allocates all three replacements before nonthrowing publication. Complete
+CPU admission remains disabled; neither CPU level meets acceptance yet.
+
+Diagnostic root: `runs/m11-iteration119/`. Native ASan/UBSan and VCS DPI pass
+`polling-devices/invocation-20wykfub/summary.json` and
+`polling-devices-rocket-parameters/invocation-8_b2bzms/summary.json`: together
+448 fresh three-owner restores, 12,320 host operations and 39,648 complete owner
+readbacks across all nine poll phases. Both bounded and actual Rocket mailbox/
+queue configurations pass. Together they reject 1,864 malformed images, 64
+owner-membership cases, eight unbound callbacks and 88 allocation failures
+atomically. Sixteen cursor/response corruptions stop at the first divergent
+mailbox write, host operation 20, without acknowledging it. The sequential
+validate/load mutation is detected. An additional 24 native/VCS active/poisoned/
+unsupported owner guards pass with 34 independently checked readable peer images.
+These are component boundaries, not CPU target-cycle cuts.
+
+All eight preserved native suites pass, including 267 Python tests and FCFS
+(`native-regressions-accepted/invocation-4yitb3d4/summary.json`). All 13 retained
+host suites and all 18 independent component/native audits pass. Failed link,
+diagnostic-build, import-path and changing-source-binding pilots remain separate
+in `pilots.json`. Actual Rocket loader/context/TSI/bridge objects match independent
+recompilation. Fresh ordinary RTL VCS again reads all 318,637 pattern words and
+seven clocks before any edge; this is not captured CPU replay.
+
+All three exact-recipe complete default/buffered/sealed four-hart controls pass
+at C=3,329,794. Every full hart trace and workload/store print-cycle label matches
+the reference. All 104 known host images pass at 12 active samples. The production-
+parameter transaction audit independently binds its configuration to the workload
+ELF and actual sealed host samples. Credits/enqueue labels remain distinct from
+uncertified semantic CPU cuts. All 53,043 prior cataloged artifacts and 1,006
+prior native input bindings pass the final preservation guard. No external
+dependency is missing. Existing controller commits were published FireSim first,
+then Chipyard, with queried remote tips matching. No staging/local commits or
+plan/environment/Conda edits were performed.
+
+Recovery under the run root: `summary.json`, `selected-results.json`,
+`raw-native-commands.json`, `verification-commands-native.json`,
+`native-input-archives.json`, `artifact-manifest.json`,
+`independent-component-audits.json`, `polling-devices-independent-audit.json`,
+`polling-devices-rocket-parameters-independent-audit.json`,
+`polling-group-guards-independent-audit.json` and `preservation-audit.json`.
+
+Next: extend atomic restoration to the complete HTIF/transport aggregate and
+reconstruct its caller without startup writes/reset. Syscall/file-descriptor,
+signal, stop/exit and complete simulator ownership, required active CPU cuts,
+fresh Level-1 continuation and independent captured Level-2 readback/replay
+remain pending. BOOM/Saturn stay pending; physical FPGA and ASIC power stay
+deferred. The controller owns local commits and both plans remain read-only.
+
+Previous iteration 118, in progress. Recovery:
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md) and
 [tsi-sealed-terminal.md](tsi-sealed-terminal.md). The BCD component now restores
 its bound sealed terminal and command queue transactionally: both images are

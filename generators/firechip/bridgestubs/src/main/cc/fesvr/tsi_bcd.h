@@ -4,6 +4,7 @@
 
 #include "core/widget_checkpoint.h"
 #include "tsi_terminal.h"
+#include "tsi_htif_poll.h"
 #include <fesvr/device.h>
 #include <fesvr/memif.h>
 #include <fesvr/term.h>
@@ -48,6 +49,13 @@ public:
       cmd.respond(1);
     }, "identity");
   }
+  // This binding permits a transaction over the actual response destination.
+  // An arbitrary callback cannot establish ownership of a polling queue.
+  explicit firesim_tsi_bcd_t(firesim_tsi_htif_poll_t &poll, uint64_t limit = 1048576,
+                            firesim_tsi_terminal_t *terminal = nullptr)
+      : firesim_tsi_bcd_t([&poll](uint64_t value) { poll.respond(value); }, limit, terminal) {
+    bound_poll = &poll;
+  }
   const char *identity() override { return "bcd"; }
   void tick() override {
     widget_checkpoint_state_t::call_t call(boundary);
@@ -85,11 +93,28 @@ public:
     terminal->commit(next_terminal);
     pending.swap(next_pending);
   }
+  // Three-owner component transaction. Serial transport, syscall, startup,
+  // signal/exit and context owners remain outside this group. Ordered images
+  // must come from a caller-validated coherent cut; membership alone cannot
+  // prove their provenance. Never resume a complete TSI from just this group.
+  void load_sealed_polling_checkpoint(const sealed_checkpoint_t &images) {
+    if (!bound_poll || !terminal || images.size() != 3 || images[0].first != "poll" ||
+        images[1].first != "terminal" || images[2].first != "bcd")
+      throw std::runtime_error("sealed polling restore requires bound poll, terminal and BCD owners");
+    auto next_terminal = terminal->parse(images[1].second);
+    auto next_pending = parse(images[2].second);
+    auto next_poll = bound_poll->parse(images[0].second);
+    static_assert(noexcept(pending.swap(next_pending)), "BCD commit must not allocate");
+    terminal->commit(next_terminal);
+    pending.swap(next_pending);
+    bound_poll->commit(next_poll);
+  }
 private:
   widget_checkpoint_config_t config;
   const response_t response;
   const uint64_t limit;
   firesim_tsi_terminal_t *const terminal;
+  firesim_tsi_htif_poll_t *bound_poll = nullptr;
   std::deque<uint64_t> pending;
   widget_checkpoint_state_t boundary;
   std::deque<uint64_t> parse(const std::vector<uint8_t> &image) const {

@@ -87,7 +87,7 @@ public:
   }
   void validate_checkpoint(const std::vector<uint8_t> &image) const override { parse(image); }
   void load_checkpoint(const std::vector<uint8_t> &image) override {
-    auto next = parse(image); std::swap(current, next);
+    auto next = parse(image); commit(next);
   }
 private:
   struct state_t {
@@ -95,6 +95,12 @@ private:
     uint64_t tohost = 0;
     std::deque<uint64_t> responses;
   } current;
+  friend class firesim_tsi_bcd_t;
+  void commit(state_t &next) noexcept {
+    static_assert(noexcept(current.responses.swap(next.responses)), "HTIF poll commit must not allocate");
+    current.responses.swap(next.responses);
+    current.phase = next.phase; current.tohost = next.tohost;
+  }
   widget_checkpoint_config_t config;
   const uint64_t tohost_address, fromhost_address, limit;
   widget_checkpoint_state_t boundary;

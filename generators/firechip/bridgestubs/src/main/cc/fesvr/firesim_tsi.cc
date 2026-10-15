@@ -114,8 +114,7 @@ int firesim_tsi_t::run_host() {
   start();
   polling_active = true;
   htif_poll = std::make_unique<firesim_tsi_htif_poll_t>(get_tohost_addr(), get_fromhost_addr());
-  bcd = std::make_unique<firesim_tsi_bcd_t>([this](uint64_t value) { htif_poll->respond(value); },
-                                        1048576, terminal.get());
+  bcd = std::make_unique<firesim_tsi_bcd_t>(*htif_poll, 1048576, terminal.get());
   default_devices = std::make_unique<default_devices_t>(*this, *bcd);
   class services_t final : public firesim_tsi_htif_poll_t::services_t {
   public:
