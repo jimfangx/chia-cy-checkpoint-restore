@@ -116,6 +116,8 @@ private:
   firesim_tsi_startup_metadata_t startup_metadata;
   polling_cut_t metadata_pristine_components;
   polling_cut_t metadata_components() const;
+  std::vector<uint8_t> metadata_configuration() const;
+  void preflight_startup_metadata(const firesim_tsi_startup_metadata_t &candidate);
   void check_startup_metadata() const;
   static void validate_initialization(const firesim_tsi_host_control_t &host,
                                       const firesim_tsi_init_accesses_t &init,

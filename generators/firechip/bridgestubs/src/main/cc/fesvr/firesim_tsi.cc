@@ -155,6 +155,37 @@ firesim_tsi_t::polling_cut_t firesim_tsi_t::metadata_components() const {
   return result;
 }
 
+std::vector<uint8_t> firesim_tsi_t::metadata_configuration() const {
+  auto &self = const_cast<firesim_tsi_t &>(*this);
+  widget_checkpoint_config_t config(25, {2, uint64_t(has_loadmem),
+      uint64_t(self.get_target_endianness()), self.chunk_align(), self.chunk_max_size()});
+  config.word(metadata_pristine_components.size());
+  for (const auto &[name, bytes] : metadata_pristine_components) {
+    config.word(name.size()); config.bytes.insert(config.bytes.end(), name.begin(), name.end());
+    config.word(bytes.size()); config.bytes.insert(config.bytes.end(), bytes.begin(), bytes.end());
+  }
+  return std::move(config.bytes);
+}
+
+void firesim_tsi_t::preflight_startup_metadata(const firesim_tsi_startup_metadata_t &candidate) {
+  // Use the actual installed HTIF's expected_xlen, including changes through
+  // an htif_t reference. A shadow of its nonvirtual setter would miss those.
+  // Qualified load_payload changes only its local entry/symbol results; the
+  // preloaded guard suppresses every target write, including partial writes.
+  firesim_tsi_elf_snapshot_t snapshot(candidate.elf);
+  reg_t entry = 0;
+  preparing_metadata = true;
+  try {
+    auto symbols = htif_t::load_payload(snapshot.path(), &entry, 0x80000000);
+    preparing_metadata = false;
+    if (entry != candidate.entry || symbols != candidate.symbols)
+      throw std::runtime_error("TSI installed loader metadata differs from probe");
+  } catch (...) {
+    preparing_metadata = false;
+    throw;
+  }
+}
+
 void firesim_tsi_t::check_startup_metadata() const {
   // Installed HTIF's read-only getters lack const qualifiers.
   auto &self = const_cast<firesim_tsi_t &>(*this);
@@ -180,7 +211,8 @@ std::vector<uint8_t> firesim_tsi_t::save_startup_metadata() const {
   else if (host_context_initialized() || metadata_components() != metadata_pristine_components)
     throw std::runtime_error("metadata-only preparation changed a caller component");
   check_startup_metadata();
-  return startup_metadata.image(metadata_arguments);
+  const_cast<firesim_tsi_t &>(*this).preflight_startup_metadata(startup_metadata);
+  return startup_metadata.image(metadata_arguments, metadata_configuration());
 }
 
 void firesim_tsi_t::prepare_startup_metadata(const std::vector<uint8_t> &image) {
@@ -189,8 +221,9 @@ void firesim_tsi_t::prepare_startup_metadata(const std::vector<uint8_t> &image) 
       should_exit() || done())
     throw std::runtime_error("TSI metadata preparation requires a pristine supported caller");
   auto candidate = firesim_tsi_startup_metadata_t::probe(firesim_tsi_elf_bytes(target_args().at(0)));
-  if (candidate.image(metadata_arguments) != image)
+  if (candidate.image(metadata_arguments, metadata_configuration()) != image)
     throw std::runtime_error("TSI startup metadata ELF/arguments/complete image mismatch");
+  preflight_startup_metadata(candidate);
   startup_metadata = std::move(candidate);
   preparing_metadata = true;
   try {

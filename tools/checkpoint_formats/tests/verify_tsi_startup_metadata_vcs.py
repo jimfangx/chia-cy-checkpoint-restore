@@ -16,12 +16,23 @@ from tools.checkpoint_formats.tests.verify_firesim_tsi_loadmem_vcs import CC, ST
 from tools.checkpoint_formats.tests.verify_tsi_host_control_fesvr_vcs import polling_elf
 
 
-def canonical(elf):
+def pristine_peers():
+    return dict(program=config(23,1,0)+words(0),init=config(21,0,0)+words(0,0,0),
+                host=config(18,10)+words(0,0,0),read=config(20,1024,4,2,2)+words(0,0,0,0),
+                serial=config(19,4,2,2,1024)+words(0,0),
+                **{'loadmem-read':config(14,4096,4)+words(0,0,0,0),'loadmem-queues':config(16,4096,4)+words(0,0,0,0,0,0,0)})
+
+
+def canonical(elf, legacy=False):
     def blob(b):
         return words(len(b))+b
     args=[b'+permissive', b'+no_hart0_msip', b'+permissive-off', str(elf).encode()]
     symbols=[(b'',0),(b'fromhost',0x80002008),(b'tohost',0x80002000)]
-    return (config(25)+words(len(args))+b''.join(blob(a) for a in args)+blob(polling_elf())+
+    peers=pristine_peers()
+    configuration=(config(25,2,1,0,8,1024)+words(len(peers))+
+                   b''.join(blob(n.encode())+blob(b) for n,b in peers.items()))
+    header=config(25) if legacy else config(25,2)+blob(configuration)
+    return (header+words(len(args))+b''.join(blob(a) for a in args)+blob(polling_elf())+
             words(0x80000000,len(symbols))+b''.join(blob(n)+words(a) for n,a in symbols))
 
 
@@ -36,15 +47,13 @@ def audit(path):
         check_native_input(ROOT,b['path'],b['sha256'],bindings)
     elf=out/'polling.elf';expected=canonical(elf)
     require(elf.read_bytes()==polling_elf(),'changed actual metadata ELF')
-    peers=dict(program=config(23,1,0)+words(0),init=config(21,0,0)+words(0,0,0),
-               host=config(18,10)+words(0,0,0),read=config(20,1024,4,2,2)+words(0,0,0,0),
-               serial=config(19,4,2,2,1024)+words(0,0),
-               **{'loadmem-read':config(14,4096,4)+words(0,0,0,0),'loadmem-queues':config(16,4096,4)+words(0,0,0,0,0,0,0)})
-    require(len(r['restores'])==8 and len({c['pid'] for c in r['commands']})==len(r['commands']),'missing fresh metadata processes')
+    peers=pristine_peers()
+    require(len(r['restores'])==12 and len({c['pid'] for c in r['commands']})==len(r['commands']),'missing fresh metadata processes')
     invalid_count=0
     for producer in ('native','vcs-dpi'):
         require((out/producer/'startup.metadata').read_bytes()==expected,'captured installed metadata differs from independent ELF oracle')
         require('ACTUAL_METADATA_CAPTURE polling_components=8 source_exit=0' in (out/(producer+'-capture.log')).read_text(),'source HTIF did not finish')
+        require('INSTALLED_XLEN_CAPTURE_REJECTION expected=32 actual=64 recovered=64 unchanged_components=8' in (out/(producer+'-capture.log')).read_text(),'capture missed actual installed XLEN')
     for c in r['restores']:
         dest=Path(c['destination'])
         require((dest/'preedge.metadata').read_bytes()==expected,'incomplete fresh metadata readback')
@@ -55,7 +64,10 @@ def audit(path):
         if c['mode']=='invalid':
             count=2*len(expected)+1;invalid_count+=count
             require(f'ATOMIC_METADATA_REJECTIONS count={count} unchanged_components=7 mailboxes=0 context_entries=0' in log,'missing atomic image cases')
-    require(len(r['incompatible'])==14,'missing incompatible metadata cases')
+        if c['mode']=='xlen-recovery':
+            require('ATOMIC_INSTALLED_XLEN_REJECTION expected=32 actual=64 recovered=64 unchanged_components=7 mailboxes=0' in log,'missing installed XLEN rejection/recovery')
+    require(len(r['incompatible'])==18,'missing incompatible metadata cases')
+    require((out/'legacy.metadata').read_bytes()==canonical(elf,legacy=True),'legacy-image oracle changed')
     for c in r['incompatible']:
         require('INCOMPATIBLE_METADATA_REJECTION mode='+c['mode']+' unchanged_components=7 mailboxes=0' in Path(c['log']).read_text(),'incompatible preparation admitted')
         require(not list(Path(c['destination']).iterdir()),'incompatible preparation published state')
@@ -63,8 +75,9 @@ def audit(path):
         text=Path(c['log']).read_text()
         require(c['argv'][:2]==['bash','-lc'] and c['argv'][2].startswith(ENVIRONMENT) and text.rstrip().endswith('exit=0'),'unbound metadata native command')
         require(not any(s in text for s in ('ERROR: AddressSanitizer','runtime error:','LeakSanitizer: detected')),'metadata sanitizer error')
-    return dict(status='passed',fresh_metadata_readbacks=8,complete_unchanged_peer_images=56,
-                atomic_invalid_images=invalid_count,incompatible_rejections=14,level1_verified=False,level2_verified=False)
+    return dict(status='passed',fresh_metadata_readbacks=12,complete_unchanged_peer_images=84,
+                atomic_invalid_images=invalid_count,incompatible_rejections=18,
+                installed_xlen_rejections=6,level1_verified=False,level2_verified=False)
 
 
 def main():
@@ -74,6 +87,7 @@ def main():
     require(os.environ.get('VCS_HOME')=='/ecad/tools/synopsys/vcs/Y-2026.03-SP1' and os.environ.get('CXX')=='/usr/bin/g++-13','source vcs-env LAST')
     a.out.resolve().mkdir(parents=True,exist_ok=True);out=Path(tempfile.mkdtemp(prefix='invocation-',dir=a.out.resolve()))
     elf=out/'polling.elf';elf.write_bytes(polling_elf())
+    (out/'legacy.metadata').write_bytes(canonical(elf,legacy=True))
     source=TESTS/'tsi_startup_metadata_fesvr.cc';sv=TESTS/'tsi_startup_metadata_fesvr_tb.sv';library=FESVR/'lib/libfesvr.a'
     sources=[source,STUBS/'fesvr/firesim_tsi.cc',STUBS/'fesvr/owned_fesvr_tsi.cc',TESTCHIP/'testchip_tsi.cc',TESTCHIP/'testchip_htif.cc']
     inputs=[*sources,sv,library,Path(__file__),TESTS/'tsi_polling_cut_checks.h',TESTS/'verify_tsi_host_control_fesvr_vcs.py',
@@ -107,15 +121,16 @@ def main():
     restores=[];incompatible=[]
     for producer in ('native','vcs-dpi'):
         for backend in ('native','vcs-dpi'):
-            for mode in ('prepare','invalid'):
+            for mode in ('prepare','invalid','xlen-recovery'):
                 name=f'{producer}-{backend}-{mode}'
                 restores.append(invoke(backend,mode,out/producer/'startup.metadata',out/name,name))
     for backend in ('native','vcs-dpi'):
-        for mode in ('wrong-args','unsupported-long','unsupported-payload','unsupported-symbol-elf','unsupported-signature','unsupported-signature-granularity','changed-elf'):
+        for mode in ('wrong-args','unsupported-long','unsupported-payload','unsupported-symbol-elf','unsupported-signature','unsupported-signature-granularity','changed-elf','wrong-loadmem','legacy-image'):
             if mode=='changed-elf':
                 mutant=bytearray(polling_elf());mutant[176]^=1;elf.write_bytes(mutant);(out/'mutant.elf').write_bytes(mutant)
             name=f'{backend}-{mode}'
-            incompatible.append(invoke(backend,mode,out/'native/startup.metadata',out/name,name))
+            image=out/'legacy.metadata' if mode=='legacy-image' else out/'native/startup.metadata'
+            incompatible.append(invoke(backend,mode,image,out/name,name))
             elf.write_bytes(polling_elf())
     for b in bindings:require(file_sha(b['path'])==b['sha256'],'metadata source changed while native checks ran')
     report=dict(status='passed',scope='installed HTIF startup metadata component only; complete CPU restore pending',

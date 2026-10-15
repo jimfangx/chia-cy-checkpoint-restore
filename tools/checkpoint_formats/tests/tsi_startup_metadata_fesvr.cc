@@ -33,7 +33,9 @@ static int run(const char *mode,const char *source,const char *image,const char 
       args.insert(args.begin()+3,suffix=="long" ? "--signature=unused" : "+"+suffix+"=unused");
     }
     std::vector<char *> argv;for(auto &arg:args)argv.push_back(arg.data());
-    firesim_tsi_t tsi(argv.size(),argv.data(),true);
+    firesim_tsi_t tsi(argv.size(),argv.data(),operation!="wrong-loadmem");
+    // Exercise the real, nonvirtual installed setter through the base type.
+    htif_t &installed = tsi;
     if(operation=="capture") {
       tsi.tick();tsi.tick();
       firesim_loadmem_t request;std::array<uint8_t,16> bytes{};
@@ -46,7 +48,15 @@ static int run(const char *mode,const char *source,const char *image,const char 
       packet(tsi,{0,0x80002000,0,1,0});
       polling_cut_check(tsi,out,"first-poll",true);
       const auto before=tsi.inspect_polling_cut();
-      write_file(out/"startup.metadata",tsi.save_startup_metadata());
+      const auto captured=tsi.save_startup_metadata();
+      write_file(out/"startup.metadata",captured);
+      installed.set_expected_xlen(32);
+      bool rejected=false;
+      try {tsi.save_startup_metadata();} catch(const incompat_xlen &e) {rejected=e.expected_xlen==32 && e.actual_xlen==64;}
+      require(rejected && tsi.inspect_polling_cut()==before,"capture missed installed XLEN or changed peers");
+      installed.set_expected_xlen(64);
+      require(tsi.save_startup_metadata()==captured,"compatible installed XLEN changed metadata");
+      std::cout<<"INSTALLED_XLEN_CAPTURE_REJECTION expected=32 actual=64 recovered=64 unchanged_components=8\n";
       require(tsi.inspect_polling_cut()==before,"metadata capture changed caller");
       // Real default syscall PASS, complete through installed HTIF stop().
       tsi.send_word(1);tsi.send_word(0);tsi.tick();packet(tsi,{1,0x80002000,0,1,0,0,0});
@@ -61,7 +71,15 @@ static int run(const char *mode,const char *source,const char *image,const char 
       require(peers(tsi)==before && tsi.get_tohost_addr()==0 && tsi.get_fromhost_addr()==0 && !tsi.done() && tsi.exit_code()==0,
               "invalid metadata partially restored");
     };
-    if(operation=="invalid") {
+    if(operation=="xlen-recovery") {
+      installed.set_expected_xlen(32);
+      bool rejected=false;
+      try {tsi.prepare_startup_metadata(original);}catch(const incompat_xlen &e) {rejected=e.expected_xlen==32 && e.actual_xlen==64;}
+      require(rejected && peers(tsi)==before && tsi.get_tohost_addr()==0 && tsi.get_fromhost_addr()==0 && !tsi.done() && tsi.exit_code()==0,
+              "installed XLEN rejection partially restored");
+      installed.set_expected_xlen(64);
+      std::cout<<"ATOMIC_INSTALLED_XLEN_REJECTION expected=32 actual=64 recovered=64 unchanged_components=7 mailboxes=0\n";
+    } else if(operation=="invalid") {
       size_t cases=0;
       for(size_t i=0;i<original.size();++i) {auto bad=original;bad[i]^=1;reject(bad);++cases;}
       for(size_t n=0;n<original.size();++n) {reject({original.begin(),original.begin()+n});++cases;}

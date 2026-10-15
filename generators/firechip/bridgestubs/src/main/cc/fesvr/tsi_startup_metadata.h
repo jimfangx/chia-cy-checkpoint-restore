@@ -48,11 +48,15 @@ struct firesim_tsi_startup_metadata_t {
   reg_t entry = 0;
   std::map<std::string, uint64_t> symbols;
 
-  std::vector<uint8_t> image(const std::vector<std::string> &arguments) const {
-    widget_checkpoint_config_t out(25, {});
+  std::vector<uint8_t> image(const std::vector<std::string> &arguments,
+                             const std::vector<uint8_t> &configuration) const {
+    // Version 2 binds the destination's transport and pristine owner contract.
+    // Legacy metadata images cannot certify that contract and must reject.
+    widget_checkpoint_config_t out(25, {2});
     auto blob = [&](const auto &value) {
       out.word(value.size()); out.bytes.insert(out.bytes.end(), value.begin(), value.end());
     };
+    blob(configuration);
     out.word(arguments.size());
     for (const auto &arg : arguments) blob(arg);
     blob(elf); out.word(entry); out.word(symbols.size());
