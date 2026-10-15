@@ -97,10 +97,24 @@ protected:
   size_t chunk_align() override { return 8; }
 
 private:
+  // These upstream objects allocate tables/handlers and duplicate host file
+  // descriptors. A coroutine stack may be discarded without unwinding, so
+  // their process-local lifetime must belong to the TSI object. This is not
+  // a semantic device checkpoint: terminal/filesystem state remains unowned.
+  struct default_devices_t {
+    syscall_t syscall;
+    device_list_t list;
+    default_devices_t(htif_t &htif, device_t &bcd) : syscall(&htif) {
+      list.register_device(&syscall);
+      list.register_device(&bcd);
+    }
+  };
   bool owned_default_devices;
   bool polling_active = false;
   std::unique_ptr<firesim_tsi_htif_poll_t> htif_poll;
   std::unique_ptr<firesim_tsi_bcd_t> bcd;
+  // Destroy the table/syscall before the devices and polling callback owner.
+  std::unique_ptr<default_devices_t> default_devices;
   firesim_tsi_program_loader_t program_loader;
   firesim_loadmem_read_t loadmem_read;
   firesim_loadmem_queues_t loadmem_queues;

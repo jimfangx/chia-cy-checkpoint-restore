@@ -14,7 +14,46 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 113, in progress. Recovery:
+Current milestone: M11-rocket-level1-level2, iteration 114, in progress. Recovery:
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md) and
+[tsi-default-device-lifetime.md](tsi-default-device-lifetime.md). The default
+HTIF syscall device and device table now belong to the production TSI object's
+lifetime. Native ASan/UBSan and VCS pass all 352 instances across 11 cuts,
+including 256 suspended callers and 64 completed callers, with no retained
+descriptors. The original source/header reproduce three leaked descriptors at
+the first polling cut. Semantic device ownership and complete CPU admission
+remain pending. No CPU continuation or captured clean-RTL replay has passed.
+
+Diagnostic root: `runs/m11-iteration114/`. Both complete exact-recipe four-hart
+controls pass at C=3,329,794; every full hart trace and workload/store print-cycle
+label matches the uninterrupted reference. All 64 active host component images
+pass independent inspection. Credits/tokens remain distinct from uncertified
+semantic CPU edge/outstanding-memory cuts. All eight final native suites pass,
+including 267 Python tests and FCFS. All 11 retained host suites, serial and
+transport-fault suites pass. Dispatcher continuation retains 240 fresh restores,
+7,012 peer readbacks, 5,112 atomic invalid images and four first divergences.
+All 17 independent component/native audits pass. The fresh ordinary
+Rocket pattern diagnostic passes all 318,637 words before any edge; this is
+not captured replay. All 137,659 sealed iteration-113 artifacts and 1,018
+original native bindings pass preservation checks. Existing controller commits
+are published FireSim first, then Chipyard; remote tips match.
+
+Recovery artifacts: `summary.json`, `selected-results.json`,
+`raw-native-commands.json`, `verification-commands-native.json`,
+`native-input-archives.json`, `independent-audit-results.json`, `pilots.json`,
+`native-device-build-audit.json` and `artifact-manifest.json` under the run root.
+Initial runner/packet-expectation and regression source-stability failures are
+retained separately. Protected plans, environment/Conda inputs and both indices
+match their guards. No staging or local commits were performed.
+
+Next: bind complete HTIF configuration/XLEN and terminal/syscall/stop/exit/signal
+semantics; reconstruct coherent callers and atomically restore all owners without
+startup writes/reset. Complete simulator/FAME/channel/memory/bridge ownership,
+required workload cuts, fresh Level-1 continuation and independent Level-2 capture/
+readback/replay remain pending. No external dependency is missing. Both plans
+remain read-only and the controller owns local commits.
+
+Previous iteration 113, in progress. Recovery:
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md) and
 [tsi-context-lifetime.md](tsi-context-lifetime.md). A build-local, installed-ABI
 context replacement owns inactive and thread-exit coroutine stack storage.

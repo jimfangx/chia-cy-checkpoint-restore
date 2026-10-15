@@ -75,10 +75,8 @@ int firesim_tsi_t::run_host() {
   start();
   polling_active = true;
   htif_poll = std::make_unique<firesim_tsi_htif_poll_t>(get_tohost_addr(), get_fromhost_addr());
-  syscall_t syscall(this);
   bcd = std::make_unique<firesim_tsi_bcd_t>([this](uint64_t value) { htif_poll->respond(value); });
-  device_list_t devices;
-  devices.register_device(&syscall); devices.register_device(bcd.get());
+  default_devices = std::make_unique<default_devices_t>(*this, *bcd);
   class services_t final : public firesim_tsi_htif_poll_t::services_t {
   public:
     services_t(firesim_tsi_t &tsi, device_list_t &devices) : tsi(tsi), devices(devices) {}
@@ -117,7 +115,7 @@ int firesim_tsi_t::run_host() {
   private:
     firesim_tsi_t &tsi;
     device_list_t &devices;
-  } services(*this, devices);
+  } services(*this, default_devices->list);
   for (;;) {
     const auto result = htif_poll->advance(services);
     if (result == firesim_tsi_htif_poll_t::result_t::complete) break;
@@ -125,6 +123,8 @@ int firesim_tsi_t::run_host() {
   }
   polling_active = false;
   stop();
+  // Preserve the upstream return-time release as well as suspended teardown.
+  default_devices.reset();
   return exit_code();
 }
 

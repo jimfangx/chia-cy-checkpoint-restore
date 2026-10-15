@@ -1,6 +1,6 @@
 # CPU checkpoint matrix
 
-Current milestone: M11 Rocket, iteration 113. Level-1 and Level-2 acceptance
+Current milestone: M11 Rocket, iteration 114. Level-1 and Level-2 acceptance
 remain **in_progress**. No CPU checkpoint continuation or clean CPU RTL replay
 has passed. Physical FPGA validation, standalone Shuttle and ASIC power are
 outside this matrix. The verified FCFS evidence remains in its existing docs.
@@ -32,6 +32,119 @@ The recipe also specifies frequency 140 MHz and TIMING build strategy; these
 are retained in the recipe record, with no FPGA implementation invoked.
 VCS uses Y-2026.03-SP1, `-full64`, `VCS_FLAGS=-Mupdate`, system GCC/G++ 13,
 and the sourced Conda library/include directories. No Conda files are edited.
+
+## Iteration 114: default HTIF device lifetime
+
+Diagnostic root:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration114/`.
+Both CPU levels remain **in_progress**. The production default HTIF syscall
+device and device table now belong to the TSI object, with explicit release
+after normal `stop()`. This releases their command tables and three duplicated
+standard-stream descriptors when a suspended TSI is destroyed. See
+[tsi-default-device-lifetime.md](tsi-default-device-lifetime.md) for ownership
+and limits. Semantic device state and aggregate CPU restoration remain pending.
+
+`device-lifetime/invocation-as3onvw3/summary.json` passes native ASan/UBSan and
+VCS DPI checks: 176 actual TSI instances per backend, 11 cuts with 16 repetitions,
+128 suspended callers and 32 completed callers per backend. Every teardown
+preserves the exact descriptor map; initialized/active/completed counts, ELF
+load/merge packets, BCD pending command, installed syscall packets and stop/exit
+results also match. The original source/header reproduce three leaked
+descriptors at the first polling cut. Earlier runner/packet-expectation pilots
+remain separately retained. These are host resource tests, not CPU checkpoints.
+
+Fresh native resource check (a new invocation is allocated on each run):
+
+```sh
+source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh
+python -m tools.checkpoint_formats.tests.verify_tsi_device_lifetime_vcs \
+  --out automations/checkpoint_loop/runs/m11-iteration114-controller-rechecks/devices \
+  --negative-control-source automations/checkpoint_loop/runs/m11-iteration114/original-default-devices/firesim_tsi.cc
+```
+
+All eight final preserved native suites pass, including 267 Python tests, FCFS
+and both small fixtures. The first regression invocation was invalidated by a
+test-source change; its failed source-stability guard is preserved separately.
+The final invocation binds the unchanged final source. Startup metadata retains
+12 fresh readbacks, 84 peer images, 13,852 atomic invalid images, 18 incompatible
+cases, 192 installed-XLEN rejection/recovery checks and 704 loader resource cases.
+Three complete CPU requests and all 16 invalid host-audit options reject before
+execution/publication. All 11 retained host suites, serial and transport-fault
+suites pass. All 17 independent component/native audits pass. The fresh ordinary RTL
+pattern diagnostic passes all 318,637 words before any edge; it is not captured
+semantic state/replay. All 137,659 sealed iteration-113 artifacts and 1,018
+native input bindings pass preservation checks. Existing controller-created
+iteration-113 commits are published FireSim first, then Chipyard; queried tips
+match. Local tracking-ref refreshes failed on read-only `.git` after successful
+remote updates. No staging, local commits or protected-input edits were made.
+
+Fresh exact-recipe four-hart controls (complete runs and trace comparisons):
+
+```sh
+mkdir -p automations/checkpoint_loop/runs/m11-iteration114-controller-rechecks
+export TMPDIR="$(mktemp -d "$PWD/automations/checkpoint_loop/runs/m11-iteration114-controller-rechecks/rocket-tmp.XXXXXX")"
+source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh
+python -m tools.checkpoint_formats.tests.verify_rocket_controls_vcs \
+  --out automations/checkpoint_loop/runs/m11-iteration114-controller-rechecks/rocket-controls \
+  --seed-build automations/checkpoint_loop/runs/m11-iteration114/rocket-controls/invocation-ed0qjmsv/build \
+  --workload automations/checkpoint_loop/runs/m11-iteration82/workload \
+  --reference-runtime automations/checkpoint_loop/runs/m11-iteration85/rocket-runtime \
+  --reference-audit automations/checkpoint_loop/runs/m11-iteration85/rocket-workload-audit.json \
+  --host-audit-cycles 0,520064,700032,900096,3250048
+```
+
+The resource test's actual native VCS executable is
+`device-lifetime/invocation-as3onvw3/simv`; its `commands.json` records the exact
+Y-2026.03-SP1 `-full64` build and `-no_save +source=... +destination=...` run.
+The ordinary Rocket executable is
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration91/rocket-native-complete-inventory/invocation-yfr_nr9p/simv`;
+`ordinary-command.json` records this iteration's fresh process, exact
+`+pattern`/`+baseline` paths and required environment sourcing. Its
+`ordinary-rocket-probe/run.log` reports seven clocks and zero edges. These
+native checks retain distinct simulator/semantic scopes.
+
+Both complete exact-recipe default/buffered four-hart controls pass at
+C=3,329,794: `rocket-controls/invocation-ed0qjmsv/summary.json`. Every full hart
+trace and workload/store print-cycle label matches the uninterrupted reference.
+Workload ELF SHA-256:
+`f3d86f54caf42b9589385e8021dba46777f647134f19595e38a3d452b745f3d4`.
+Both runs use the complete 16 GiB backing-memory configuration.
+`rocket-host-audit-accepted.json` independently validates all 64 component
+images across eight active samples at master credits 520,064, 700,032, 900,096
+and 3,250,048. Startup rejects at zero. Clock tokens retain their one-token lead;
+these samples do not certify the required semantic CPU or outstanding-memory cuts.
+`native-device-build-audit.json` checks that both actual constructor/driver
+translation units, `firesim_tsi.cc` and `tsibridge.cc`, were recompiled with
+the current header. The native identity binds all 60 units and their dependencies.
+
+Full initialization passes 1,471 native commands, including 768 actual and 320
+mixed-policy fresh restores. Serial passes 905 commands, including 768 actual
+fresh restores. Retained host tests include BCD's 68 fresh component restores
+and four first semantic divergences, polling's 72 fresh continuations and
+38,744 atomic invalid checks, and the independent transport oracle's 1,012
+requests/four bridge runs. These are component checks; whole-CPU image rejection
+and first-divergence cases remain pending.
+
+`init-resume/invocation-7mx9t0i9/summary.json` passes all 240 fresh dispatcher
+continuations, 7,012 complete peer readbacks, 5,112 atomic invalid images and
+four first divergences. Both independently rerun preservation audits retain all
+137,659 sealed iteration-113 artifacts; the original 1,018 native input bindings
+also remain valid. Plans, environment/Conda inputs and both indices match their
+guards. No staging or local commits were performed.
+
+Recovery under this diagnostic root: `summary.json`, `selected-results.json`,
+`raw-native-commands.json`, `verification-commands-native.json`,
+`native-input-archives.json`, `independent-audit-results.json`, `pilots.json`,
+`native-device-build-audit.json` and `artifact-manifest.json`. They preserve
+exact native VCS commands/results, source bindings, host readbacks, full workload
+traces and separately retained failed pilots. Complete CPU Level-1 and Level-2
+acceptance remains pending.
+
+Required early/warm/outstanding-memory/late CPU checkpoints, first CPU semantic
+divergence cases, complete fresh Level-1 continuation and independently captured
+Level-2 zero-edge readback/finite replay remain pending. The resource checks do
+not certify these cuts. BOOM/Saturn remain pending. No FPGA or ASIC validation
+is claimed.
 
 ## Iteration 113: FESVR context lifetime
 
