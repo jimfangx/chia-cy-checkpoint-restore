@@ -24,17 +24,40 @@ HTIF configuration/state preservation still need aggregate ownership. Terminal,
 syscall resources, stop/signature/signal state and contexts also remain pending.
 Complete CPU checkpoint admission stays disabled.
 
-There is an additional installed-library resource limitation: `elfloader.cc`
-throws `incompat_xlen` after `mmap` and before its final `munmap`. A rejected
-XLEN preflight therefore retains that library-owned mapping until process exit.
-The current checks establish unchanged metadata and seven peer components;
-they do not certify resource-atomic rejection. Fix and audit the loader's error
-cleanup before enabling complete host checkpoint admission. The installed
-Conda library and headers have not been modified. The fresh sanitizer diagnostic
-`runs/m11-iteration111/elf-loader-resource-diagnostic/summary.json` confirms two
-retained mappings after two rejected preflights, followed by successful valid
-retry. Its initial relative-ELF-argument pilot rejects the different argument
-contract; the corrected invocation uses the captured absolute ELF argument.
+Iteration 112 fixes the installed-library cleanup gap through a build-local
+archive overlay. The original installed `libfesvr.a` stays unchanged. Only
+`elfloader.o` is replaced; the other 13 members, including HTIF's private XLEN
+policy implementation, are checked byte-for-byte. The repository-owned loader
+retains the original ELF decoding and target-write code and gives its descriptor
+and mapping scope-based cleanup on normal returns and C++ exceptions. Both
+FireSim driver Makefrags and the native host regression runners use this overlay.
+The production Makefrag additionally links the extracted loader member as an
+object: an ordinary archive reference can otherwise be satisfied first by
+`libriscv.so`. Final verification checks actual executable/shared-HTIF binding,
+not only the archive path or object bytes.
+Requested native rebuilds regenerate it even when the seed directory contains
+an older report with an absolute output path.
+
+The historical iteration-111 sanitizer diagnostic still records two leaked
+mappings from two original installed-loader XLEN rejections. Native and VCS
+negative controls compiled against that unchanged archive independently fail
+the new kernel-resource check. The corrected overlay passes repeated XLEN and
+endianness rejection, failed open/mapping, injected first/second memory-write
+exceptions, and successful RV64/automatic-XLEN/BSS loads. Tests count descriptors
+and `/proc/self/maps` entries directly; LeakSanitizer alone cannot detect these
+mapping leaks. Startup metadata capture and fresh preparation also retain zero
+leaked ELF resources through repeated incompatible-XLEN rejection and valid
+retry. Metadata image revision 2 and its canonical bytes are unchanged.
+
+This closes the loader-resource gap for the tested exception paths. It does
+not make arbitrary malformed local ELFs safe to parse: original parser asserts
+remain, and untrusted checkpoint bytes still reject against a complete canonical
+image before entering FESVR. It also does not roll back ordinary target writes
+after a memory exception. Checkpoint preparation suppresses target writes and
+has separate complete component/mailbox readback checks. Startup loader stacks,
+terminal/syscall resources, signal/lifecycle state and complete CPU ownership
+remain outside this metadata component. Historical metadata audits continue to
+run and explicitly report that they did not check resource cleanup.
 
 The native sanitizer and VCS checks use the installed FESVR library. Both real
 source loaders perform the partial-write read/merge and finish through HTIF
@@ -59,3 +82,16 @@ raw optional exit code, stopped/signature state and process-global signal state.
 The source-bound field inventory is retained as
 `runs/m11-iteration111/remaining-host-owner-audit.json`. None of these resources
 can be inferred from the BCD queue or certified by this metadata component.
+
+The extra iteration-112 production transport sanitizer check exposes a separate
+installed context lifecycle leak: `context_t::init` allocates a 1 MiB ucontext
+stack, while its destructor only asserts that the context is inactive. Destroying
+the fixture's two bridges with suspended contexts leaves two stacks allocated.
+`runs/m11-iteration112/transport-context-diagnostic/summary.json` reproduces the
+same 2,097,152-byte LeakSanitizer failure with the original installed archive and
+the loader overlay. Both versions' native and VCS functional outputs match the
+independent transport oracle and complete bridge images byte-for-byte. No
+sanitizer check is disabled, and the native transport check remains **failed**.
+The diagnostic's passing status confirms the pre-existing failure; it does not
+certify resource cleanup or a passing transport sanitizer run. Context lifetime,
+unwinding and any resources on suspended stacks still need explicit ownership.

@@ -13,6 +13,7 @@ import shlex
 import shutil
 import tempfile
 
+from tools.checkpoint_formats.tests.fesvr_overlay import overlay_inputs, build_overlay
 from tools.checkpoint_formats.codec import require
 from tools.checkpoint_formats.evidence import file_sha
 from tools.checkpoint_formats.retained_evidence import check_native_input
@@ -122,6 +123,7 @@ def main():
                        ROOT/'env.sh',ROOT/'sims/firesim/env.sh',ROOT/'automations/checkpoint_loop/vcs-env.sh'])
     for directory in (CC/'core',CC/'bridges',STUBS/'fesvr',STUBS/'bridges',TESTCHIP,FESVR/'include/fesvr'):
         inputs.update(directory.glob('*.h'))
+    inputs = [*inputs, *overlay_inputs()]
     snapshots=out/'source-snapshots';snapshots.mkdir();bindings=[]
     for p in sorted(inputs):
         digest=file_sha(p);snapshot=snapshots/digest
@@ -135,6 +137,7 @@ def main():
                              pid=int(re.search(r'fresh_process_pid=(\d+)',result)[1]),
                              returncode=int(result.rstrip().rsplit('exit=',1)[1])))
         (out/'commands.json').write_text(json.dumps(commands,indent=2)+'\n')
+    library = build_overlay(out, execute)
     for kind,(before,after) in MUTATIONS.items():
         base=out/kind;include_dir=base/'include';(include_dir/'fesvr').mkdir(parents=True)
         text=header.read_text();require(text.count(before)==1,'mutation not unique')

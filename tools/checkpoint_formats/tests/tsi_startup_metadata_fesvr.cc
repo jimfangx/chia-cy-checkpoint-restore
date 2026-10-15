@@ -1,5 +1,6 @@
 // Actual installed HTIF metadata reconstruction without target services.
 #include "tsi_polling_cut_checks.h"
+#include "elfloader_resource_checks.h"
 #include <array>
 static void require(bool b, const char *m) { if (!b) throw std::runtime_error(m); }
 static std::vector<uint8_t> read_file(const std::filesystem::path &p) {
@@ -22,10 +23,71 @@ static void packet(firesim_tsi_t &tsi,std::vector<uint32_t> expected) {
   for (auto word:expected) require(tsi.data_available() && tsi.recv_word()==word,"wrong actual load/poll packet");
   require(!tsi.data_available(),"extra actual packet");
 }
+static void loader_resources(const char *source) {
+  const auto bytes=read_file(source);
+  const auto resources=elf_snapshot_resources();
+  const auto descriptors=elf_process_descriptors();
+  struct memory_t : memif_t {
+    memory_t() : memif_t(nullptr) {}
+    size_t fail_write=0;
+    std::vector<std::pair<addr_t,std::vector<uint8_t>>> writes;
+    endianness_t endian=endianness_little;
+    void write(addr_t address,size_t size,const void *src) override {
+      const auto *p=static_cast<const uint8_t *>(src);
+      writes.emplace_back(address,std::vector<uint8_t>(p,p+size));
+      if (fail_write==writes.size()) throw std::runtime_error("injected memif write exception");
+    }
+    endianness_t get_target_endianness() const override { return endian; }
+  };
+  size_t cases=0;
+  for (size_t repetition=0;repetition<32;++repetition) {
+    for (const std::string mode : {"xlen32","xlen128","endian","write1","write2","empty","missing","directory","success0","success64","bss"}) {
+      {
+        auto candidate=mode=="empty" ? std::vector<uint8_t>{} : bytes;
+        if (mode=="bss") candidate.at(104)=24; // first PT_LOAD: 16 data bytes, eight zero bytes
+        firesim_tsi_elf_snapshot_t snapshot(candidate);
+        memory_t mem;
+        if (mode=="endian") mem.endian=endianness_big;
+        if (mode=="write1") mem.fail_write=1;
+        if (mode=="write2") mem.fail_write=2;
+        unsigned xlen=mode=="xlen32" ? 32 : mode=="xlen128" ? 128 : mode=="success0" ? 0 : 64;
+        reg_t entry=0;
+        bool rejected=false;
+        const auto path=mode=="missing" ? "/proc/self/fd/not-an-elf-descriptor" : mode=="directory" ? "/proc/self/fd" : snapshot.path();
+        try {
+          const auto symbols=load_elf(path.c_str(),&mem,&entry,0x80000000,xlen);
+          require(entry==0x80000000 && symbols.at("tohost")==0x80002000 && symbols.at("fromhost")==0x80002008,
+                  "loader success changed metadata");
+          auto expected=std::vector<std::pair<addr_t,std::vector<uint8_t>>>{
+            {0x80000000,{0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15}}};
+          if (mode=="bss") expected.push_back({0x80000010,std::vector<uint8_t>(8,0)});
+          expected.push_back({0x80001004,{0x44,0x55,0x66,0x77}});
+          require(mem.writes==expected,"loader changed target writes");
+        } catch (const incompat_xlen &e) {
+          require((mode=="xlen32" || mode=="xlen128") && e.expected_xlen==xlen && e.actual_xlen==64,
+                  "loader changed XLEN exception");rejected=true;
+        } catch (const std::invalid_argument &) {
+          require(mode=="empty" || mode=="missing" || mode=="directory" || mode=="endian","unexpected loader resource error");
+          rejected=true;
+        } catch (const std::runtime_error &e) {
+          require((mode=="write1" || mode=="write2") && std::string(e.what())=="injected memif write exception",
+                  "loader swallowed/changed memory exception");rejected=true;
+        }
+        require(rejected==(mode!="success0" && mode!="success64" && mode!="bss"),"loader wrong error/success outcome");
+        if (mode.rfind("xlen",0)==0 || mode=="endian") require(mem.writes.empty(),"loader wrote before compatibility rejection");
+      }
+      require(elf_snapshot_resources()==resources && elf_process_descriptors()==descriptors,
+              "ELF loader leaked descriptor or mapping");
+      ++cases;
+    }
+  }
+  std::cout<<"ELF_LOADER_RESOURCES cases="<<cases<<" modes=11 repetitions=32 leaked_descriptors=0 leaked_mappings=0 exact_metadata=1 exact_writes=1\n";
+}
 static int run(const char *mode,const char *source,const char *image,const char *destination) {
   try {
     std::filesystem::path out(destination);std::filesystem::create_directories(out);
     std::string operation(mode);
+    if (operation=="loader-resources") { loader_resources(source); return 0; }
     std::vector<std::string> args{"metadata","+permissive","+no_hart0_msip","+permissive-off",source};
     if(operation=="wrong-args")args.push_back("changed-target-argument");
     if(operation.rfind("unsupported-",0)==0) {
@@ -51,12 +113,17 @@ static int run(const char *mode,const char *source,const char *image,const char 
       const auto captured=tsi.save_startup_metadata();
       write_file(out/"startup.metadata",captured);
       installed.set_expected_xlen(32);
-      bool rejected=false;
-      try {tsi.save_startup_metadata();} catch(const incompat_xlen &e) {rejected=e.expected_xlen==32 && e.actual_xlen==64;}
-      require(rejected && tsi.inspect_polling_cut()==before,"capture missed installed XLEN or changed peers");
+      const auto resources=elf_snapshot_resources();
+      for (size_t i=0;i<32;++i) {
+        bool rejected=false;
+        try {tsi.save_startup_metadata();} catch(const incompat_xlen &e) {rejected=e.expected_xlen==32 && e.actual_xlen==64;}
+        require(rejected && tsi.inspect_polling_cut()==before,"capture missed installed XLEN or changed peers");
+        require(elf_snapshot_resources()==resources,"capture XLEN rejection leaked ELF resources");
+      }
       installed.set_expected_xlen(64);
       require(tsi.save_startup_metadata()==captured,"compatible installed XLEN changed metadata");
       std::cout<<"INSTALLED_XLEN_CAPTURE_REJECTION expected=32 actual=64 recovered=64 unchanged_components=8\n";
+      std::cout<<"ELF_RESOURCE_ATOMIC_REJECTIONS count=32 leaked_descriptors=0 leaked_mappings=0\n";
       require(tsi.inspect_polling_cut()==before,"metadata capture changed caller");
       // Real default syscall PASS, complete through installed HTIF stop().
       tsi.send_word(1);tsi.send_word(0);tsi.tick();packet(tsi,{1,0x80002000,0,1,0,0,0});
@@ -73,12 +140,17 @@ static int run(const char *mode,const char *source,const char *image,const char 
     };
     if(operation=="xlen-recovery") {
       installed.set_expected_xlen(32);
-      bool rejected=false;
-      try {tsi.prepare_startup_metadata(original);}catch(const incompat_xlen &e) {rejected=e.expected_xlen==32 && e.actual_xlen==64;}
-      require(rejected && peers(tsi)==before && tsi.get_tohost_addr()==0 && tsi.get_fromhost_addr()==0 && !tsi.done() && tsi.exit_code()==0,
-              "installed XLEN rejection partially restored");
+      const auto resources=elf_snapshot_resources();
+      for (size_t i=0;i<32;++i) {
+        bool rejected=false;
+        try {tsi.prepare_startup_metadata(original);}catch(const incompat_xlen &e) {rejected=e.expected_xlen==32 && e.actual_xlen==64;}
+        require(rejected && peers(tsi)==before && tsi.get_tohost_addr()==0 && tsi.get_fromhost_addr()==0 && !tsi.done() && tsi.exit_code()==0,
+                "installed XLEN rejection partially restored");
+        require(elf_snapshot_resources()==resources,"prepare XLEN rejection leaked ELF resources");
+      }
       installed.set_expected_xlen(64);
       std::cout<<"ATOMIC_INSTALLED_XLEN_REJECTION expected=32 actual=64 recovered=64 unchanged_components=7 mailboxes=0\n";
+      std::cout<<"ELF_RESOURCE_ATOMIC_REJECTIONS count=32 leaked_descriptors=0 leaked_mappings=0\n";
     } else if(operation=="invalid") {
       size_t cases=0;
       for(size_t i=0;i<original.size();++i) {auto bad=original;bad[i]^=1;reject(bad);++cases;}

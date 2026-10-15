@@ -1,13 +1,13 @@
 # CPU checkpoint matrix
 
-Current milestone: M11 Rocket, iteration 111. Level-1 and Level-2 acceptance
+Current milestone: M11 Rocket, iteration 112. Level-1 and Level-2 acceptance
 remain **in_progress**. No CPU checkpoint continuation or clean CPU RTL replay
 has passed. Physical FPGA validation, standalone Shuttle and ASIC power are
 outside this matrix. The verified FCFS evidence remains in its existing docs.
 
 | Family / existing recipe | Level 1 | Level 2 | Workload evidence |
 | --- | --- | --- | --- |
-| Rocket / `firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3` | in_progress: generated RTL inventory audited; TracerV and FireSim driver/termination-loop continuations pass; production TSI read, all four load-memory queues, bridge host control and FireSim idle/reset control pass fresh component restores; source-integrated FESVR serial FIFOs pass fresh component restores; serial-read progress passes complete fresh component restores; production TestChip initialization caller/serial-child dispatch and atomic four-owner component restores pass; program-load transport/entry/return ownership passes fresh component readbacks; production HTIF poll caller passes nine-phase fresh component continuations; suspended eight-owner inspection passes actual Rocket workload samples; exact-ELF startup metadata passes fresh host-component preparation/readback; default BCD pending commands pass fresh component continuation; metadata revision-2 transport contracts and installed-XLEN preflight reject atomically; complete HTIF/memif/device/context/TestChip-loader/cross-owner ownership and fresh CPU continuation pending | in_progress: complete ChipTop diagnostic inventory/readback retained; explicit event-phase image/replay contract passes ordinary RTL component checks; coherent metasim CPU capture/replay pending | Both complete default/buffered four-hart audit controls pass at C=3,329,794; every full trace and workload/store label matches; eight active host samples pass; CPU checkpoint cuts remain pending |
+| Rocket / `firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3` | in_progress: generated RTL inventory audited; TracerV and FireSim driver/termination-loop continuations pass; production TSI read, all four load-memory queues, bridge host control and FireSim idle/reset control pass fresh component restores; source-integrated FESVR serial FIFOs pass fresh component restores; serial-read progress passes complete fresh component restores; production TestChip initialization caller/serial-child dispatch and atomic four-owner component restores pass; program-load transport/entry/return ownership passes fresh component readbacks; production HTIF poll caller passes nine-phase fresh component continuations; suspended eight-owner inspection passes actual Rocket workload samples; exact-ELF startup metadata passes fresh host-component preparation/readback; default BCD pending commands pass fresh component continuation; metadata revision-2 transport contracts and installed-XLEN preflight reject atomically; build-local ELF-loader overlay closes tested descriptor/mapping exception leaks; complete HTIF/memif/device/context/TestChip-loader/cross-owner ownership and fresh CPU continuation pending | in_progress: complete ChipTop diagnostic inventory/readback retained; explicit event-phase image/replay contract passes ordinary RTL component checks; coherent metasim CPU capture/replay pending | Both complete default/buffered four-hart audit controls pass at C=3,329,794; every full trace and workload/store label matches; eight active host samples pass; CPU checkpoint cuts remain pending |
 | BOOM / `firesim_boom_singlecore_no_nic_l2_llc4mb_ddr3` | pending | pending | No execution claimed |
 | Shuttle + Saturn / `firesim_saturn_GENV256D128_shuttle_singlecore_no_nic_l2_llc4mb_ddr3` | pending | pending | No vector execution claimed |
 
@@ -32,6 +32,152 @@ The recipe also specifies frequency 140 MHz and TIMING build strategy; these
 are retained in the recipe record, with no FPGA implementation invoked.
 VCS uses Y-2026.03-SP1, `-full64`, `VCS_FLAGS=-Mupdate`, system GCC/G++ 13,
 and the sourced Conda library/include directories. No Conda files are edited.
+
+## Iteration 112: ELF-loader resource cleanup
+
+Diagnostic root:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration112/`.
+Both CPU levels remain **in_progress**. This increment closes a host startup
+resource leak; it does not establish complete CPU continuation or semantic replay.
+
+`final/startup-metadata/invocation-na1k5u8y/summary.json` passes native sanitizer
+host checks and VCS DPI checks with the actual installed HTIF and a repository-owned
+ELF-loader overlay. Only `elfloader.o` changes in a build-local FESVR archive;
+the other 13 members and the installed Conda archive remain byte-identical.
+The original ELF decoding/target-write source is retained exactly. See
+[tsi-metadata-compatibility.md](tsi-metadata-compatibility.md) for scope and limits.
+
+The suite passes 704 resource cases across 11 modes: XLEN 32/128 mismatch,
+wrong endianness, first/second memory-write exceptions, empty/missing/directory
+inputs, and successful XLEN 0/64 and BSS loading. Successful metadata and all
+target writes match independent expectations. Kernel descriptor and mapping
+counts return to baseline after every case. Original installed-loader native
+and VCS negative controls each fail on the first leaked mapping as expected.
+The metadata paths pass another 192 repeated installed-XLEN rejection/retry
+checks, 12 fresh complete metadata readbacks, 84 unchanged peer images,
+13,900 malformed images and 18 incompatible/legacy cases. All happen before
+any target service, context entry or target edge in the destination.
+
+`transport-context-diagnostic/summary.json` confirms a separate pre-existing
+installed context-stack leak. Native sanitizer transport runs against both the
+original archive and overlay exit 1 with two leaked 1 MiB stacks. Both native
+runs and both VCS runs retain identical complete functional outputs; all compare
+with the independent transport/bridge oracle. The native transport sanitizer
+check remains **failed**, without suppression. Its source fixture and failed
+module invocation remain under `transport/`; this diagnostic does not grant CPU
+support. Context destruction and suspended-stack resource ownership remain pending.
+
+The first final audit found a production linkage gap: the launcher resolved
+`load_elf` from `libriscv.so`, so naming a patched archive did not force its member
+to load. The Makefrag now extracts and passes the audited member as a driver
+object, avoiding VCS's repeated inherited/explicit linker flags.
+`rocket-loader-binding/summary.json` verifies its strong dynamic definition and
+actual shared-HTIF resolution before any target edge. `rocket-loader-linkage-final/`
+independently rebuilds that object with dependency output and audits actual
+providers: shared HTIF/memif/syscall functions, static FESVR contexts and the
+explicit loader. Both complete corrected controls pass under
+`accepted/rocket-controls/invocation-f_4w073_/`. Earlier controls remain
+uninterrupted workload reference evidence and cannot certify production loader binding.
+
+`shared-metadata/invocation-4k5iq0tw/summary.json` additionally validates the
+actual shared-HTIF route with the Rocket loader object, in native C++ and VCS:
+704 resource cases, 192 XLEN rejections, 12 complete fresh readbacks / 84 peer
+images, 13,844 invalid images and 18 incompatible cases pass. Both installed
+negative controls still fail as expected. No target edge, context entry or
+target service occurs during destination metadata preparation.
+
+`accepted/rocket-controls/invocation-f_4w073_/summary.json` passes both complete
+exact-recipe default/buffered four-hart controls at C=3,329,794. Every full trace
+and workload/store cycle label matches the uninterrupted reference. The workload
+ELF SHA-256 is
+`f3d86f54caf42b9589385e8021dba46777f647134f19595e38a3d452b745f3d4`.
+The eight active host samples independently pass all 64 component images; master
+credits and clock tokens remain distinct from uncertified semantic target edges.
+`rocket-loader-linkage-final/summary.json` recompiles the loader with native dependency
+output, binds its installed configuration/header inputs, and compares its object
+byte-for-byte with the Rocket and metadata-test archive members. The 13 other
+installed members are unchanged. The build retains 60 VCS driver translation
+units plus the separately compiled loader replacement.
+
+`final/native-regressions/invocation-5c4ntkpm/summary.json` passes all eight
+preserved native suites, including 267 Python tests and FCFS. All 11 retained
+host suites pass individually (`host-regression-results-final.json`); the serial
+suite and production transport fault-injection suite also pass. Full initialization
+passes 1,471 commands, including 768 actual and 320 mixed-policy fresh readbacks.
+Initialization dispatch retains 240 fresh restores, 7,012 peer readbacks,
+5,112 atomic invalid-image checks and four first divergences. BCD retains 68
+fresh restores and four first divergences. These are host component checks.
+
+The fresh ordinary RTL diagnostic passes 318,637 pattern-word readbacks across
+seven clocks before any edge. It is not a captured CPU checkpoint or replay.
+Three complete-CPU admission requests and all 16 invalid audit options reject
+before execution. All 45,803 sealed iteration-111 artifacts and 1,050 retained
+native input bindings pass preservation checks. Failed source-binding/runner
+pilots and the unsuppressed transport sanitizer failure remain under the run
+root and are indexed by `pilots.json`.
+
+Recovery artifacts are `summary.json`, `selected-results.json`,
+`raw-native-commands.json`, `verification-commands-native.json`,
+`native-input-archives.json`, `independent-audit-results.json`, and the complete
+`artifact-manifest.json`. Native commands include actual builds, simulator
+invocations, source-bound audits and both original-library negative controls.
+
+Executable fresh metadata recheck (allocates new artifacts):
+
+```sh
+mkdir -p automations/checkpoint_loop/runs/m11-iteration112-controller-rechecks
+export TMPDIR="$(mktemp -d "$PWD/automations/checkpoint_loop/runs/m11-iteration112-controller-rechecks/metadata-tmp.XXXXXX")"
+source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh
+python -m tools.checkpoint_formats.tests.verify_tsi_startup_metadata_vcs \
+  --out automations/checkpoint_loop/runs/m11-iteration112-controller-rechecks/startup-metadata
+```
+
+Executable fresh exact-recipe controls (copies the tested build, regenerates
+the overlay and invokes pinned native VCS; no bitstream build):
+
+```sh
+mkdir -p automations/checkpoint_loop/runs/m11-iteration112-controller-rechecks
+export TMPDIR="$(mktemp -d "$PWD/automations/checkpoint_loop/runs/m11-iteration112-controller-rechecks/rocket-tmp.XXXXXX")"
+source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh
+python -m tools.checkpoint_formats.tests.verify_rocket_controls_vcs \
+  --out automations/checkpoint_loop/runs/m11-iteration112-controller-rechecks/rocket-controls \
+  --seed-build automations/checkpoint_loop/runs/m11-iteration112/accepted/rocket-controls/invocation-f_4w073_/build \
+  --workload automations/checkpoint_loop/runs/m11-iteration82/workload \
+  --reference-runtime automations/checkpoint_loop/runs/m11-iteration85/rocket-runtime \
+  --reference-audit automations/checkpoint_loop/runs/m11-iteration85/rocket-workload-audit.json \
+  --host-audit-cycles 0,520064,700032,900096,3250048
+```
+
+Executable production shared-HTIF metadata recheck:
+
+```sh
+mkdir -p automations/checkpoint_loop/runs/m11-iteration112-controller-rechecks
+export TMPDIR="$(mktemp -d "$PWD/automations/checkpoint_loop/runs/m11-iteration112-controller-rechecks/shared-metadata-tmp.XXXXXX")"
+source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh
+python automations/checkpoint_loop/runs/m11-iteration112/verify_shared_metadata.py \
+  --out automations/checkpoint_loop/runs/m11-iteration112-controller-rechecks/shared-metadata
+```
+
+Retained full native regression audit:
+
+```sh
+python -m tools.checkpoint_formats.native_regressions --audit \
+  automations/checkpoint_loop/runs/m11-iteration112/final/native-regressions/invocation-5c4ntkpm/summary.json
+```
+
+`overlay-rejections/summary.json` passes three atomic archive rejections:
+unsupported missing/duplicate loader members and an attempt to overwrite the
+input archive. No output archive/report is published; input bytes remain
+unchanged. The source audit independently verifies identical decoding and
+target-write code after the resource setup. Existing controller commits are
+published FireSim first, then Chipyard; queried remote tips match.
+
+Remaining: installed context-stack cleanup/lifetime, exact HTIF configuration/build/XLEN policy, terminal/syscall and
+stop/signature/exit/signal/context state, atomic aggregate host reconstruction,
+complete simulator/FAME/channel/memory/bridge ownership, coherent required CPU
+cuts, fresh Level-1 CPU continuation, independent Level-2 captured state/readback
+and finite replay, and whole-CPU negative/corruption cases. BOOM and Saturn
+remain pending. No external dependency is missing.
 
 ## Iteration 111: metadata transport contract and atomic XLEN preflight
 

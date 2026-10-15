@@ -12,6 +12,7 @@ import shlex
 import shutil
 import struct
 import tempfile
+from tools.checkpoint_formats.tests.fesvr_overlay import overlay_inputs, build_overlay
 from tools.checkpoint_formats.codec import require
 from tools.checkpoint_formats.evidence import file_sha
 from tools.checkpoint_formats.retained_evidence import check_native_input
@@ -145,6 +146,7 @@ def main():
             *sorted((STUBS/'fesvr').glob('*.h')),*sorted(TESTCHIP.glob('*.h')),*sorted((FESVR/'include/fesvr').glob('*.h')),
             ROOT/'toolchains/riscv-tools/riscv-isa-sim/fesvr/tsi.h',ROOT/'toolchains/riscv-tools/riscv-isa-sim/fesvr/tsi.cc',
             CC/'core/checkpoint.h',CC/'core/widget_checkpoint.h',ROOT/'env.sh',ROOT/'sims/firesim/env.sh',ROOT/'automations/checkpoint_loop/vcs-env.sh']
+    inputs = [*inputs, *overlay_inputs()]
     snapshots=out/'source-snapshots';snapshots.mkdir();bindings=[]
     for f in inputs:
         digest=file_sha(f);snapshot=snapshots/digest
@@ -155,6 +157,7 @@ def main():
         argv=['bash','-lc',ENVIRONMENT+shlex.join([str(x) for x in argv])];result=run(argv,log,cwd=out,expected=expected)
         c=dict(cwd=str(out.relative_to(ROOT)),argv=argv,log=str(log),expected_exit=expected,pid=int(re.search(r'fresh_process_pid=(\d+)',result)[1]))
         commands.append(c);(out/'commands.json').write_text(json.dumps(commands,indent=2)+'\n');return c
+    library = build_overlay(out, execute)
     include=f'-std=c++17 -I{CC} -I{STUBS}';native=out/'serial-native';simv=out/'serial-simv'
     execute([os.environ['CXX'],*shlex.split(include),'-Wall','-Wextra','-Werror','-no-pie','-g','-fsanitize=address,undefined','-fno-omit-frame-pointer',fixture,'-o',native],out/'native-build.log')
     execute([Path(os.environ['VCS_HOME'])/'bin/vcs','-full64','-sverilog','-timescale=1ns/1ps','-top','tsi_serial_checkpoint_tb',

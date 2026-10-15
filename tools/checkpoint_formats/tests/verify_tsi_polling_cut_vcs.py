@@ -11,6 +11,7 @@ import shutil
 import struct
 import tempfile
 
+from tools.checkpoint_formats.tests.fesvr_overlay import overlay_inputs, build_overlay
 from tools.checkpoint_formats.codec import require
 from tools.checkpoint_formats.evidence import file_sha
 from tools.checkpoint_formats.retained_evidence import check_native_input
@@ -95,6 +96,7 @@ def main():
             TESTS/'verify_semantic_vcs.py',TESTS/'verify_loadmem_read_checkpoint_vcs.py',*sorted((STUBS/'fesvr').glob('*.h')),
             *sorted(TESTCHIP.glob('*.h')),*sorted((FESVR/'include/fesvr').glob('*.h')),CC/'core/checkpoint.h',CC/'core/widget_checkpoint.h',
             ROOT/'env.sh',ROOT/'sims/firesim/env.sh',ROOT/'automations/checkpoint_loop/vcs-env.sh']
+    inputs = [*inputs, *overlay_inputs()]
     snapshots=out/'sources';snapshots.mkdir();bindings=[]
     for f in inputs:
         digest=file_sha(f);snapshot=snapshots/digest
@@ -105,6 +107,7 @@ def main():
         argv=['bash','-lc',ENVIRONMENT+shlex.join([str(x) for x in argv])];run(argv,log,cwd=out)
         c=dict(cwd=str(out.relative_to(ROOT)),argv=argv,log=str(log));commands.append(c)
         (out/'commands.json').write_text(json.dumps(commands,indent=2)+'\n');return c
+    library = build_overlay(out, execute)
     include=f'-std=c++17 -I{CC} -I{STUBS} -I{TESTCHIP} -I{FESVR/"include"}'
     native=out/'active-native';simv=out/'active-simv'
     execute([os.environ['CXX'],*shlex.split(include),'-g',*sources,library,'-lpthread','-o',native],out/'native-build.log')

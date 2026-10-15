@@ -57,6 +57,23 @@ def record_build(recipe, build, log, destination):
              ROOT / 'tools/checkpoint_formats/cpu_recipe.py', Path(__file__)]
     paths += list((ROOT / 'sims/firesim/sim/make').glob('*.mk'))
     paths += list(Path(recipe['resolved_makefrag']).glob('*.mk'))
+    # The build-local archive replaces exactly one installed member. Bind both
+    # archives, the replacement source/build rule and its independent report.
+    loader_dir = ROOT / 'generators/firechip/bridgestubs/src/main/cc/fesvr'
+    loader_make = ROOT / 'generators/firechip/bridgestubs/src/main/makefrag/checkpoint-fesvr.mk'
+    overlay = build / 'checkpoint-fesvr/libfesvr-checkpoint.a'
+    overlay_report = json.loads(overlay.with_suffix('.json').read_text())
+    require(overlay_report['status'] == 'passed' and overlay_report['output'] == str(overlay) and
+            overlay_report['output_sha256'] == file_sha(overlay) and
+            overlay_report['source_sha256'] == file_sha(loader_dir / 'owned_elfloader.cc') and
+            overlay_report['installed_sha256'] == file_sha(overlay_report['installed_archive']),
+            'unbound CPU ELF-loader overlay')
+    require({name for name, hashes in overlay_report['members'].items()
+             if hashes['installed'] != hashes['overlay']} == {'elfloader.o'},
+            'CPU overlay changed unrelated installed owners')
+    require(str(overlay) in Path(log).read_text(), 'CPU native link omitted owned loader')
+    paths += [loader_dir / 'owned_elfloader.cc', loader_dir / 'build_checkpoint_fesvr.py',
+              loader_make, overlay, overlay.with_suffix('.json'), Path(overlay_report['installed_archive'])]
     paths += [build / ('FireSim-generated' + suffix) for suffix in
               ('.sv', '.const.h', '.const.vh', '.defines.vh',
                '.simulator-state.json', '.simulator-reference.fir')]

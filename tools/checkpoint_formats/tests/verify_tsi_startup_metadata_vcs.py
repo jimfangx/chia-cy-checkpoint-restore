@@ -7,6 +7,7 @@ import shlex
 import shutil
 import tempfile
 
+from tools.checkpoint_formats.tests.fesvr_overlay import overlay_inputs, build_overlay
 from tools.checkpoint_formats.codec import require
 from tools.checkpoint_formats.evidence import file_sha
 from tools.checkpoint_formats.retained_evidence import check_native_input
@@ -50,10 +51,13 @@ def audit(path):
     peers=pristine_peers()
     require(len(r['restores'])==12 and len({c['pid'] for c in r['commands']})==len(r['commands']),'missing fresh metadata processes')
     invalid_count=0
+    resources_checked='loader_resources' in r
+    resource_marker='ELF_RESOURCE_ATOMIC_REJECTIONS count=32 leaked_descriptors=0 leaked_mappings=0'
     for producer in ('native','vcs-dpi'):
         require((out/producer/'startup.metadata').read_bytes()==expected,'captured installed metadata differs from independent ELF oracle')
         require('ACTUAL_METADATA_CAPTURE polling_components=8 source_exit=0' in (out/(producer+'-capture.log')).read_text(),'source HTIF did not finish')
         require('INSTALLED_XLEN_CAPTURE_REJECTION expected=32 actual=64 recovered=64 unchanged_components=8' in (out/(producer+'-capture.log')).read_text(),'capture missed actual installed XLEN')
+        if resources_checked:require(resource_marker in (out/(producer+'-capture.log')).read_text(),'capture leaked loader resources')
     for c in r['restores']:
         dest=Path(c['destination'])
         require((dest/'preedge.metadata').read_bytes()==expected,'incomplete fresh metadata readback')
@@ -66,6 +70,7 @@ def audit(path):
             require(f'ATOMIC_METADATA_REJECTIONS count={count} unchanged_components=7 mailboxes=0 context_entries=0' in log,'missing atomic image cases')
         if c['mode']=='xlen-recovery':
             require('ATOMIC_INSTALLED_XLEN_REJECTION expected=32 actual=64 recovered=64 unchanged_components=7 mailboxes=0' in log,'missing installed XLEN rejection/recovery')
+            if resources_checked:require(resource_marker in log,'prepare leaked loader resources')
     require(len(r['incompatible'])==18,'missing incompatible metadata cases')
     require((out/'legacy.metadata').read_bytes()==canonical(elf,legacy=True),'legacy-image oracle changed')
     for c in r['incompatible']:
@@ -73,11 +78,34 @@ def audit(path):
         require(not list(Path(c['destination']).iterdir()),'incompatible preparation published state')
     for c in r['commands']:
         text=Path(c['log']).read_text()
-        require(c['argv'][:2]==['bash','-lc'] and c['argv'][2].startswith(ENVIRONMENT) and text.rstrip().endswith('exit=0'),'unbound metadata native command')
+        require(c['argv'][:2]==['bash','-lc'] and c['argv'][2].startswith(ENVIRONMENT) and
+                text.rstrip().endswith('exit='+str(c.get('expected_exit',0))),'unbound metadata native command')
         require(not any(s in text for s in ('ERROR: AddressSanitizer','runtime error:','LeakSanitizer: detected')),'metadata sanitizer error')
+    # Historical metadata evidence retains its original source snapshots and
+    # makes no claim about resource cleanup. Keep those audits executable.
+    if resources_checked:
+        require(len(r['loader_resources'])==2 and len(r['installed_negative_controls'])==2,'missing resource checks/negative controls')
+        for c in r['loader_resources']:
+            require('ELF_LOADER_RESOURCES cases=352 modes=11 repetitions=32 leaked_descriptors=0 leaked_mappings=0 exact_metadata=1 exact_writes=1' in
+                    Path(c['log']).read_text(),'loader resource/error/target-write coverage incomplete')
+        for c in r['installed_negative_controls']:
+            require(c['expected_exit']==2 and 'FAIL ELF loader leaked descriptor or mapping' in Path(c['log']).read_text(),
+                    'resource checker failed to detect installed loader regression')
+        overlay=json.loads((out/'libfesvr-checkpoint.json').read_text())
+        installed=FESVR/'lib/libfesvr.a';library=out/'libfesvr-checkpoint.a'
+        require(overlay['installed_sha256']==file_sha(installed) and overlay['output_sha256']==file_sha(library),
+                'loader overlay/archive binding changed')
+        import subprocess
+        names=subprocess.check_output(['ar','t',installed],text=True).splitlines()
+        require(names==subprocess.check_output(['ar','t',library],text=True).splitlines(),'changed FESVR member inventory')
+        for name in names:
+            equal=subprocess.check_output(['ar','p',installed,name])==subprocess.check_output(['ar','p',library,name])
+            require(equal==(name!='elfloader.o'),'overlay changed unrelated installed state owner')
     return dict(status='passed',fresh_metadata_readbacks=12,complete_unchanged_peer_images=84,
                 atomic_invalid_images=invalid_count,incompatible_rejections=18,
-                installed_xlen_rejections=6,level1_verified=False,level2_verified=False)
+                installed_xlen_rejections=192 if resource_marker in (out/'native-capture.log').read_text() else 6,
+                loader_resource_cases=704 if resources_checked else 0,installed_negative_controls=2 if resources_checked else 0,
+                loader_resources_unchanged=resources_checked,level1_verified=False,level2_verified=False)
 
 
 def main():
@@ -90,22 +118,25 @@ def main():
     (out/'legacy.metadata').write_bytes(canonical(elf,legacy=True))
     source=TESTS/'tsi_startup_metadata_fesvr.cc';sv=TESTS/'tsi_startup_metadata_fesvr_tb.sv';library=FESVR/'lib/libfesvr.a'
     sources=[source,STUBS/'fesvr/firesim_tsi.cc',STUBS/'fesvr/owned_fesvr_tsi.cc',TESTCHIP/'testchip_tsi.cc',TESTCHIP/'testchip_htif.cc']
-    inputs=[*sources,sv,library,Path(__file__),TESTS/'tsi_polling_cut_checks.h',TESTS/'verify_tsi_host_control_fesvr_vcs.py',
+    inputs=[*sources,sv,library,Path(__file__),TESTS/'elfloader_resource_checks.h',TESTS/'tsi_polling_cut_checks.h',TESTS/'verify_tsi_host_control_fesvr_vcs.py',
             TESTS/'verify_firesim_tsi_loadmem_vcs.py',TESTS/'verify_semantic_vcs.py',TESTS/'verify_loadmem_read_checkpoint_vcs.py',
             *sorted((STUBS/'fesvr').glob('*.h')),*sorted(TESTCHIP.glob('*.h')),*sorted((FESVR/'include/fesvr').glob('*.h')),
             CC/'core/checkpoint.h',CC/'core/widget_checkpoint.h',ROOT/'env.sh',ROOT/'sims/firesim/env.sh',ROOT/'automations/checkpoint_loop/vcs-env.sh']
+    inputs = [*inputs, *overlay_inputs()]
     snapshots=out/'sources';snapshots.mkdir();bindings=[]
     for f in inputs:
         digest=file_sha(f);snapshot=snapshots/digest
         if not snapshot.exists():shutil.copyfile(f,snapshot)
         bindings.append(dict(path=str(f),sha256=digest,snapshot=str(snapshot)))
     commands=[]
-    def execute(argv,name,**extra):
+    def execute(argv,name,expected=0,**extra):
         log=out/(name+'.log');argv=['bash','-lc',ENVIRONMENT+shlex.join([str(x) for x in argv])]
-        text=run(argv,log,cwd=out)
+        text=run(argv,log,cwd=out,expected=expected)
         import re
-        c=dict(cwd=str(out.relative_to(ROOT)),argv=argv,log=str(log),pid=int(re.search(r'fresh_process_pid=(\d+)',text)[1]),**extra)
+        c=dict(cwd=str(out.relative_to(ROOT)),argv=argv,log=str(log),expected_exit=expected,
+               pid=int(re.search(r'fresh_process_pid=(\d+)',text)[1]),**extra)
         commands.append(c);(out/'commands.json').write_text(json.dumps(commands,indent=2)+'\n');return c
+    library = build_overlay(out, execute, named_log=True)
     include=f'-std=c++17 -I{CC} -I{STUBS} -I{TESTCHIP} -I{FESVR/"include"}'
     native=out/'metadata-native';sanitized=out/'metadata-sanitized';simv=out/'metadata-simv'
     for binary,flags in ((native,[]),(sanitized,['-no-pie','-fsanitize=address,undefined','-fno-omit-frame-pointer'])):
@@ -113,6 +144,20 @@ def main():
     execute([Path(os.environ['VCS_HOME'])/'bin/vcs','-full64','-sverilog','-timescale=1ns/1ps','-top','tsi_startup_metadata_fesvr_tb',
              '-cc',os.environ['CC'],'-cpp',os.environ['CXX'],f'-Mdir={out/"csrc"}','-CFLAGS',include+' -DTSI_METADATA_DPI',
              '-LDFLAGS','-Wl,--whole-archive '+str(library)+' -Wl,--no-whole-archive -lpthread','-o',simv,sv,*sources], 'vcs-build')
+    original_library=FESVR/'lib/libfesvr.a';negative_native=out/'installed-loader-native';negative_simv=out/'installed-loader-simv'
+    execute([os.environ['CXX'],*shlex.split(include),'-g',*sources,original_library,'-lpthread','-o',negative_native],'installed-native-build')
+    execute([Path(os.environ['VCS_HOME'])/'bin/vcs','-full64','-sverilog','-timescale=1ns/1ps','-top','tsi_startup_metadata_fesvr_tb',
+             '-cc',os.environ['CC'],'-cpp',os.environ['CXX'],f'-Mdir={out/"installed-csrc"}','-CFLAGS',include+' -DTSI_METADATA_DPI',
+             '-LDFLAGS','-Wl,--whole-archive '+str(original_library)+' -Wl,--no-whole-archive -lpthread','-o',negative_simv,sv,*sources], 'installed-vcs-build')
+    resources=[];negative_controls=[]
+    for backend in ('native','vcs-dpi'):
+        for original in (False,True):
+            dest=out/('loader-resources-'+backend+('-installed' if original else '-owned'))
+            binary=(negative_native if original else sanitized) if backend=='native' else (negative_simv if original else simv)
+            argv=[binary,'loader-resources',elf,'unused',dest] if backend=='native' else [binary,'-no_save',
+                  '+mode=loader-resources','+source='+str(elf),'+image=unused','+destination='+str(dest)]
+            c=execute(argv,dest.name,expected=2 if original else 0)
+            (negative_controls if original else resources).append(c)
     def invoke(backend,mode,image,dest,name):
         argv=[native if mode=='capture' else sanitized,mode,elf,image,dest] if backend=='native' else [simv,'-no_save',
               '+mode='+mode,'+source='+str(elf),'+image='+str(image),'+destination='+str(dest)]
@@ -135,6 +180,7 @@ def main():
     for b in bindings:require(file_sha(b['path'])==b['sha256'],'metadata source changed while native checks ran')
     report=dict(status='passed',scope='installed HTIF startup metadata component only; complete CPU restore pending',
                 commands=commands,restores=restores,incompatible=incompatible,source_inputs=bindings,
+                loader_resources=resources,installed_negative_controls=negative_controls,
                 level1_verified=False,level2_verified=False,artifact_sha256={str(p):file_sha(p) for p in sorted(out.rglob('*')) if p.is_file()})
     path=out/'summary.json';path.write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(audit(path),indent=2))
 

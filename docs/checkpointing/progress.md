@@ -14,55 +14,73 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 111, in progress. Recovery:
+Current milestone: M11-rocket-level1-level2, iteration 112, in progress. Recovery:
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md) and
-[tsi-metadata-compatibility.md](tsi-metadata-compatibility.md). Startup metadata
-revision 2 binds transport and seven pristine component contracts. Installed
-HTIF XLEN compatibility now rejects before metadata publication and permits
-correction/retry in the same destination. Exact XLEN policy and full build/HTIF
-ownership remain pending. Complete CPU admission remains disabled.
-Diagnostic root: `runs/m11-iteration111/`.
+[tsi-metadata-compatibility.md](tsi-metadata-compatibility.md). A build-local
+FESVR overlay now owns ELF descriptor/mapping cleanup through loader exceptions.
+Only `elfloader.o` changes; all 13 other installed archive members and Conda bytes
+remain unchanged. Exact HTIF/build/XLEN and aggregate CPU ownership remain pending.
+Complete CPU admission stays disabled. Diagnostic root: `runs/m11-iteration112/`.
 
-- `startup-metadata/invocation-i3dksq0b/summary.json` and its independent audit
-  pass 12 fresh sanitizer/VCS preparations, 84 unchanged peer images, 13,852
-  malformed images, 18 incompatible/legacy images and six installed-XLEN
-  rejection/recovery checks. Both actual installed-FESVR source loaders finish
-  through HTIF PASS. Zero and 64 XLEN policies remain distinct unowned state;
-  this increment checks their compatibility with the RV64 ELF.
-- All eight native regression suites pass, including 267 Python tests and
-  FCFS. Both exact-recipe four-hart controls pass at C=3,329,794; every complete
-  trace and workload/store label matches the reference. All 64 active host
-  component images pass; credits/tokens remain distinct from uncertified DUT
-  edges. Full initialization passes 1,470 commands. All 11 retained host suites
-  pass. Fresh initialization dispatch retains 240 restores and four first
-  divergences; BCD retains 68 fresh restores and polling 72 continuations.
-- Fresh ordinary RTL diagnostic passes 318,637 pattern-word readbacks / seven
-  clocks before edges. This is not a captured CPU checkpoint or replay. Three
-  complete CPU admission requests and all 16 invalid audit options reject.
-- All 51,399 sealed iteration-110 artifacts and 1,050 retained native input
-  bindings pass preservation checks. Existing controller commits are published
-  FireSim first then Chipyard; remote tips match. Local tracking-ref refreshes
-  failed on read-only `.git`. No staging or local commits were performed.
-- `remaining-host-owner-audit.json` identifies terminal, syscall, lifecycle and
-  context fields. Installed inherited HTIF and replacement polling each own
-  syscall descriptor resources; process-wide terminal and signal state must
-  be handled explicitly. Installed ELF-loader XLEN errors also bypass mapping
-  cleanup; metadata/peer rejection does not certify resource atomicity. The two
-  plans and protected files remain read-only.
+The independent provider audit rejected archive-only linking: `libriscv.so`
+otherwise supplied `load_elf`. The Makefrag now passes its audited member as a
+single driver object. Strong dynamic definition, actual shared-HTIF resolution,
+production metadata checks and both complete corrected workload controls pass.
+Final controls: `accepted/rocket-controls/invocation-f_4w073_/summary.json`.
+Earlier source-binding, linkage and harness failures remain indexed in `pilots.json`.
 
-Recovery artifacts: `summary.json`, `selected-results.json`,
-`raw-native-commands.json`, `verification-commands-native.json`,
-`native-input-archives.json`, `independent-audit-results.json` and
-`artifact-manifest.json` under the run root. The sanitizer mapping diagnostic
-retains its corrected exact commands and rejected relative-argument pilot.
+- `final/startup-metadata/invocation-na1k5u8y/summary.json` passes 704 native/VCS
+  loader resource cases, two original installed-loader negative controls, 192
+  repeated XLEN rejection/recovery checks, 12 fresh metadata readbacks, 84 peer
+  images, 13,900 malformed images and 18 incompatible/legacy cases. Kernel
+  descriptor/mapping counts return to baseline. Successful loads retain exact
+  metadata and target-write behavior, including BSS.
+- `shared-metadata/invocation-4k5iq0tw/summary.json` additionally passes the
+  production shared-HTIF route: 704 resource cases, 192 XLEN rejection/recovery
+  checks, 12 fresh complete readbacks, 84 peers, 13,844 invalid and 18 incompatible
+  images. `rocket-loader-binding/summary.json` confirms actual shared-library
+  resolution to the strong executable definition. `rocket-loader-linkage-final/`
+  binds native dependencies and providers: shared HTIF/syscalls, static contexts,
+  and the explicit loader object. Full host ownership remains pending.
+- Both complete exact-recipe default/buffered four-hart controls pass at
+  C=3,329,794. Every full trace and workload/store label matches the reference.
+  All 64 active host component images pass. Credits/tokens remain distinct from
+  uncertified semantic edges. The independently rebuilt loader object matches
+  both Rocket and metadata-test objects; its configuration/header inputs are bound.
+- All eight preserved native suites pass, including 267 Python tests and FCFS.
+  All 11 retained host suites, plus serial and transport fault-injection suites,
+  pass. Full initialization passes 1,471 commands; dispatch retains 240 fresh
+  restores / 7,012 peer readbacks / four first divergences. BCD retains 68 fresh
+  restores / four first divergences. Ordinary RTL diagnostic passes 318,637
+  pattern words / seven clocks before edges; it is not captured CPU state/replay.
+  Three complete CPU requests and all 16 invalid audit options still reject.
+- The extra native transport sanitizer check remains failed: the original library
+  and overlay each leak two 1 MiB coroutine stacks. Their native/VCS functional
+  outputs match exactly, including 1,012 independently checked requests.
+  `transport-context-diagnostic/summary.json` confirms the pre-existing leak;
+  its passing status does not indicate a passing sanitizer check. No suppression.
+- All 45,803 sealed iteration-111 artifacts / 1,050 original native input bindings
+  pass preservation checks. Failed source-binding/runner pilots remain in
+  `pilots.json`. Recovery: `summary.json`, `selected-results.json`,
+  `raw-native-commands.json`, `verification-commands-native.json`,
+  `native-input-archives.json`, `independent-audit-results.json`, and
+  `artifact-manifest.json` under the run root.
+- Existing controller commits are published FireSim first, then Chipyard;
+  queried remote tips match. No staging or local commits were performed.
+  Plans and protected inputs remain read-only.
 
-Next: fix/audit installed ELF-loader error cleanup, then complete exact HTIF
-configuration/build/XLEN policy, terminal/syscall,
-stop/signature/exit/signal/context ownership and atomic host reconstruction.
+Next: audit installed context stack cleanup and suspended-stack lifetime, then
+bind exact HTIF configuration/build/XLEN policy and terminal/syscall,
+stop/signature/exit/signal/context ownership, followed by atomic host assembly.
 Complete simulator/FAME/channel/memory/bridge ownership, coherent required CPU
-cuts, fresh Level-1 continuation and independently captured Level-2 readback/
-finite replay remain pending. BOOM/Saturn remain pending. No external dependency
-is missing. Both plans remain read-only; the controller owns commits.
+cuts, fresh Level-1 CPU continuation and independently captured Level-2 zero-edge
+readback/finite replay remain pending. BOOM/Saturn remain pending. No external
+dependency is missing. The controller owns local commits.
+
+Previous iteration 111: metadata revision-2 compatibility and pre-publication
+XLEN rejection are retained under `runs/m11-iteration111/`, including its
+historical installed-loader mapping-leak diagnostic. Historical metadata audits
+still run and explicitly make no resource-atomicity claim.
 
 Previous iteration-110 BCD recovery is retained in
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md) and [tsi-bcd.md](tsi-bcd.md).

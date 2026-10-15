@@ -15,6 +15,7 @@ import tempfile
 import threading
 from tools.checkpoint_formats.tests.native_parallel import checked_map
 
+from tools.checkpoint_formats.tests.fesvr_overlay import overlay_inputs, build_overlay
 from tools.checkpoint_formats.codec import require
 from tools.checkpoint_formats.evidence import file_sha
 from tools.checkpoint_formats.retained_evidence import check_native_input
@@ -244,6 +245,7 @@ def main():
               TESTS/'verify_tsi_serial_read_vcs.py', TESTS/'verify_tsi_host_control_fesvr_vcs.py',
               *sorted((STUBS/'fesvr').glob('*.h')), *sorted(TESTCHIP.glob('*.h')), *sorted((FESVR/'include/fesvr').glob('*.h'))]
     inputs = sorted(set(inputs))
+    inputs = [*inputs, *overlay_inputs()]
     snapshots = out/'source-snapshots'; snapshots.mkdir(); bindings = []
     for f in inputs:
         digest = file_sha(f); snapshot = snapshots/digest
@@ -258,6 +260,7 @@ def main():
         with command_lock:
             commands.append(c); (out/'commands.json').write_text(json.dumps(commands, indent=2)+'\n')
         return c
+    library = build_overlay(out, execute)
     include = f'-std=c++17 -I{CC} -I{STUBS}'; native = out/'init-native'; simv = out/'init-simv'
     execute([os.environ['CXX'], *shlex.split(include), '-Wall', '-Wextra', '-Werror', '-no-pie', '-g',
              '-fsanitize=address,undefined', '-fno-omit-frame-pointer', fixture, '-o', native], out/'native-build.log')

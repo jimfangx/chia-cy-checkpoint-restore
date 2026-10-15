@@ -10,6 +10,7 @@ testchipip_csrc_dir = $(chipyard_dir)/generators/testchipip/src/main/resources/t
 # DRIVER_H only used to update recipe pre-reqs (ok to track more files)
 
 # fesvr and related srcs
+include $(chipyard_dir)/generators/firechip/bridgestubs/src/main/makefrag/checkpoint-fesvr.mk
 DRIVER_H += \
 		$(shell find $(testchipip_csrc_dir) -name "*.h") \
 		$(shell find $(firechip_lib_dir)/fesvr -name "*.h")
@@ -17,7 +18,7 @@ DRIVER_CC += \
 		$(testchipip_csrc_dir)/testchip_tsi.cc \
 		$(testchipip_csrc_dir)/testchip_htif.cc \
 		$(firechip_lib_dir)/fesvr/firesim_tsi.cc \
-		$(RISCV)/lib/libfesvr.a
+		$(checkpoint_fesvr_library)
 # Disable missing override warning for testchipip.
 TARGET_CXX_FLAGS += \
 		-isystem $(testchipip_csrc_dir) \
