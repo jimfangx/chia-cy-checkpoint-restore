@@ -82,6 +82,11 @@ public:
   // signal, exit or context state and must not enable HTIF/CPU continuation.
   void prepare_polling_components(const polling_cut_t &images);
   polling_cut_t inspect_prepared_polling_components() const;
+  // Explicit component service, not tick()/complete HTIF admission. Resume
+  // until the next serial-read or idle yield, with no context/start/reset.
+  // Only sealed BCD read/write commands are owned; syscall, identity/memif,
+  // exit, signals and other devices fail closed before clearing tohost.
+  void advance_prepared_polling_components();
 
   // Startup metadata component only; does not restore devices or a caller.
   std::vector<uint8_t> save_startup_metadata() const;
@@ -137,6 +142,9 @@ private:
   bool metadata_prepared = false;
   bool metadata_poisoned = false;
   bool polling_components_prepared = false;
+  bool prepared_polling_service_active = false;
+  bool prepared_polling_service_poisoned = false;
+  class polling_services_t;
   firesim_tsi_startup_metadata_t startup_metadata;
   polling_cut_t metadata_pristine_components;
   polling_cut_t metadata_components() const;

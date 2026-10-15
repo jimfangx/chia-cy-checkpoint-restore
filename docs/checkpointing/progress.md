@@ -14,7 +14,61 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 120, in progress. Recovery:
+Current milestone: M11-rocket-level1-level2, iteration 121, in progress. Recovery:
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md) and
+[tsi-polling-preparation.md](tsi-polling-preparation.md). Prepared polling
+components now have an executable sealed BCD caller that never replays startup,
+reset or a coroutine. Complete HTIF/CPU admission remains disabled; both CPU
+levels remain unverified.
+
+Diagnostic root: `runs/m11-iteration121/`. Native ASan/UBSan and VCS DPI pass
+`polling-continue-final/invocation-er_7mscr/summary.json`: 224 fresh component
+continuations at 56 cuts, 6,160 host operations and 63,840 complete owner
+readbacks. All 24 unowned-command rejections and four external-exit guards pass.
+Four terminal-cursor corruptions stop at operation 21, request word 5, expected
+321 versus actual 256, without consuming the divergent word. Native/VCS mutation
+checks detect removal of validation before mailbox clear. Prerequisite atomic
+ten-owner preparation retains 224 preparations, 2,280 readbacks, 3,200 malformed
+rejections, 204 membership and 44 cross-owner/configuration rejections, 2,588
+allocation failures and 1,120 execution/preparation guards. These are component
+operation labels, not semantic CPU target cycles.
+
+All eight preserved native suites pass, including 267 Python tests and FCFS
+(`native-regressions/invocation-27qvwxe6/summary.json`). Fresh ordinary RTL VCS
+again reads all 318,637 pattern words/seven clocks before an edge; captured CPU
+replay is pending. Final-source exact-recipe control build is
+`rocket-controls-final/invocation-_zmvyqmc/`. Its executable includes the new
+caller API and every audited owner header; actual loader/context/TSI/bridge
+objects equal independent recompilation. All three complete default/buffered/
+sealed four-hart controls pass at C=3,329,794. Full hart traces and workload/store
+print-cycle labels match the reference; all 104 known component images at 12
+active samples pass independent audit. Each control uses full 16 GiB backing
+memory. All 17 retained host suites and all 19 independent component/native
+audits pass (`host-final/host-regression-results.json`,
+`independent-component-audits-final.json`). The separate new caller audit also
+passes. Recovery is `summary.json`, `selected-results.json`,
+`raw-native-commands.json`, `verification-commands-native.json`,
+`native-input-archives.json` and `artifact-manifest.json`. Four inherited host
+commands allocated fresh invocations in earlier runs roots; their exact original
+paths and bytes are indexed in `external-evidence.json` and were retained in
+place. Initial warning/source-race/import pilots remain separate in
+`diagnostic-pilots.json`. No external dependency is missing.
+
+The preservation audit passes 57,348 iteration-120 cataloged artifacts and 1,015
+native input bindings. The final sealed-manifest audit passes 85,949 iteration
+artifacts, 22,465 external artifacts and 1,037 native input bindings, with
+controller provenance verified. Exact native command records total 4,727. Existing controller commits were published FireSim first,
+then Chipyard; queried remote tips match. No staging or local commits; protected
+plans and environment bytes are unchanged. Both plans remain read-only.
+
+Next: own HTIF syscall/file-descriptor, process signal, stop/exit and memif state
+and complete the aggregate caller/driver/simulator ownership contract before
+admitting `tick()` after restore. Required semantic CPU cuts, fresh complete
+Level-1 continuation and independent captured Level-2 readback/replay remain
+pending. BOOM/Saturn stay pending; physical FPGA and ASIC power remain deferred.
+The controller owns local commits.
+
+Previous milestone: M11-rocket-level1-level2, iteration 120, in progress. Recovery:
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md) and
 [tsi-polling-preparation.md](tsi-polling-preparation.md). All ten known polling
 owners now prepare atomically in a fresh metadata-bound TSI, with complete

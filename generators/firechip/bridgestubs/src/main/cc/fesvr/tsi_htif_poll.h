@@ -19,6 +19,8 @@ public:
     virtual bool exiting() = 0;
     virtual bool read(uint64_t address, uint64_t &value) = 0;
     virtual void write(uint64_t address, uint64_t value) = 0;
+    // A restricted caller may reject unowned services before clearing tohost.
+    virtual void validate_command(uint64_t) {}
     virtual void dispatch(uint64_t value) = 0;
     virtual void tick_devices() = 0;
     virtual bool idle() = 0;
@@ -52,6 +54,7 @@ public:
       break;
     case phase_t::tohost_read:
       if (!s.read(tohost_address, current.tohost)) return result_t::blocked;
+      if (current.tohost) s.validate_command(current.tohost);
       current.phase = current.tohost ? phase_t::tohost_clear : phase_t::idle;
       break;
     case phase_t::tohost_clear:

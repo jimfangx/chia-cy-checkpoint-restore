@@ -1,6 +1,78 @@
 # Fresh preparation of known TSI polling components
 
-Iteration 120 adds `firesim_tsi_t::prepare_polling_components` and
+
+## Iteration 121: executable prepared polling components
+
+`advance_prepared_polling_components()` reconstructs the executable polling
+caller without constructing a coroutine or invoking `start`, `load_program`,
+`reset` or `stop`. It runs until the next serial-read or idle yield. Ordinary
+execution and this explicit component caller share `polling_services_t`, so
+partial reads, request issue, cache-flush packets, device dispatch and idle
+counts use the same code. Before and after each successful service, the
+existing cross-owner predicate checks a supported polling boundary. Prepared
+readback still requires an uninitialized host context; `tick()` remains disabled.
+
+Only sealed BCD reads and writes are admitted here. The component caller does
+not instantiate the default syscall/device list, execute identity requests
+through the unowned memif path, or process an HTIF exit. A command-validation
+hook runs immediately after the complete tohost read and before its clear is
+queued. Syscall/exit, identity, unknown BCD, disk and unknown-device commands
+reject at that point. A failed service poisons the caller and prevents retry or
+checkpoint publication. An externally requested HTIF exit rejects before any
+service. These restrictions do not establish complete HTIF or CPU ownership.
+
+The native ASan/UBSan and Y-2026.03-SP1 VCS suite passes 224 fresh continuations
+at all 56 retained operation cuts in all four producer/destination backend
+pairings. Both producers finish before destinations prepare. Every destination
+reads all ten images before service, then compares every image after each
+operation with both the finished producer and an independent Python byte oracle.
+The retained concatenated readbacks cover 6,160 host operations and 63,840
+complete owner images, including initial readback. Metadata remains unchanged;
+context entry stays disabled at every boundary. These are component operation
+labels, not CPU target-cycle labels.
+
+All 24 unowned-command rejections enqueue zero clear packets and preserve the
+terminal. Four external-exit guards reject without service. Four deliberate
+terminal-cursor corruptions first diverge at operation 21, request word 5:
+expected 321, actual 256. The divergent word remains unconsumed. Removing the
+pre-clear hook from diagnostic source copies is detected in both native and
+VCS execution; production sources are unchanged by this mutation check.
+
+The prerequisite ten-owner preparation suite also passes all 224 fresh
+preparations, 2,280 readbacks, 3,200 malformed-image rejections, 204 membership
+rejections, 44 cross-owner/configuration rejections, 2,588 allocation failures
+and 1,120 execution/preparation guards. Full CPU restore and captured ordinary
+RTL replay remain pending. In particular, complete syscall/file-descriptor,
+process signal, stop/exit, memif and simulator ownership cannot be inferred
+from this restricted caller.
+
+Evidence root:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration121/`.
+Accepted component evidence is
+`polling-continue-final/invocation-er_7mscr/summary.json`; the independent audit
+is `polling-continue-independent-audit.json`. The preflight mutation is
+`command-preflight-mutation/summary.json`. Source snapshots, complete readbacks,
+process IDs and all native argv remain under those directories. Earlier
+warning/source-race and diagnostic-import pilots are indexed separately in
+`diagnostic-pilots.json` and do not count as accepted evidence.
+
+Run from the Chipyard root:
+
+```sh
+source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh
+python -m tools.checkpoint_formats.tests.verify_tsi_polling_continue_vcs \
+  --out automations/checkpoint_loop/runs/m11-iteration121-controller-rechecks/polling-continue
+```
+
+Audit retained native commands, source bindings, every complete state image,
+negative case and first divergent operation:
+
+```sh
+python -m tools.checkpoint_formats.tests.verify_tsi_polling_continue_vcs --audit \
+  automations/checkpoint_loop/runs/m11-iteration121/polling-continue-final/invocation-er_7mscr/summary.json
+```
+
+Iteration 120 added `firesim_tsi_t::prepare_polling_components` and
 `inspect_prepared_polling_components`. These restore and read back the ten
 known polling components in a fresh TSI object after the separate startup
 metadata preparation. They do not enable HTIF context or CPU continuation.

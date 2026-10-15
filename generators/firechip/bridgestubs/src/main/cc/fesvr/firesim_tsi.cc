@@ -105,21 +105,18 @@ firesim_tsi_t::firesim_tsi_t(int argc, char **argv, bool can_have_loadmem)
   metadata_pristine_components = metadata_components();
 }
 
-int firesim_tsi_t::run_host() {
-  if (metadata_prepared || metadata_poisoned)
-    throw std::runtime_error("HTIF/context continuation after metadata component preparation is unsupported");
-  if (!owned_default_devices) return htif_t::run();
-  // Startup/ELF/symbol and stop/signature state remain upstream, separate from
-  // this resumable poll caller. Do not publish a complete TSI checkpoint.
-  start();
-  polling_active = true;
-  htif_poll = std::make_unique<firesim_tsi_htif_poll_t>(get_tohost_addr(), get_fromhost_addr());
-  bcd = std::make_unique<firesim_tsi_bcd_t>(*htif_poll, 1048576, terminal.get());
-  default_devices = std::make_unique<default_devices_t>(*this, *bcd);
-  class services_t final : public firesim_tsi_htif_poll_t::services_t {
+class firesim_tsi_t::polling_services_t final : public firesim_tsi_htif_poll_t::services_t {
   public:
-    services_t(firesim_tsi_t &tsi, device_list_t &devices) : tsi(tsi), devices(devices) {}
-    bool exiting() override { return tsi.should_exit(); }
+    polling_services_t(firesim_tsi_t &tsi, device_list_t *devices) : tsi(tsi), devices(devices) {}
+    bool exiting() override {
+      if (!devices && tsi.should_exit())
+        throw std::runtime_error("prepared polling component cannot service HTIF exit/signal");
+      return devices ? tsi.should_exit() : false;
+    }
+    void validate_command(uint64_t value) override {
+      if (!devices && ((value >> 56) != 1 || ((value >> 48) & 255) > 1))
+        throw std::runtime_error("prepared polling component supports only sealed BCD read/write");
+    }
     bool read(uint64_t address, uint64_t &value) override {
       if (tsi.serial_read.idle()) {
         tsi.flush_program_cache_lines(address, 8);
@@ -143,9 +140,11 @@ int firesim_tsi_t::run_host() {
     }
     void dispatch(uint64_t value) override {
       command_t command(tsi.memif(), value, [owner = tsi.htif_poll.get()](uint64_t response) { owner->respond(response); });
-      devices.handle_command(command);
+      validate_command(value);
+      if (devices) devices->handle_command(command);
+      else tsi.bcd->handle_command(command);
     }
-    void tick_devices() override { devices.tick(); }
+    void tick_devices() override { if (devices) devices->tick(); else tsi.bcd->tick(); }
     bool idle() override {
       if (tsi.host_control.current_phase() == firesim_tsi_host_control_t::phase_t::ready)
         tsi.host_control.begin_idle();
@@ -153,8 +152,22 @@ int firesim_tsi_t::run_host() {
     }
   private:
     firesim_tsi_t &tsi;
-    device_list_t &devices;
-  } services(*this, default_devices->list);
+    device_list_t *devices;
+};
+
+
+int firesim_tsi_t::run_host() {
+  if (metadata_prepared || metadata_poisoned)
+    throw std::runtime_error("HTIF/context continuation after metadata component preparation is unsupported");
+  if (!owned_default_devices) return htif_t::run();
+  // Startup/ELF/symbol and stop/signature state remain upstream, separate from
+  // this resumable poll caller. Do not publish a complete TSI checkpoint.
+  start();
+  polling_active = true;
+  htif_poll = std::make_unique<firesim_tsi_htif_poll_t>(get_tohost_addr(), get_fromhost_addr());
+  bcd = std::make_unique<firesim_tsi_bcd_t>(*htif_poll, 1048576, terminal.get());
+  default_devices = std::make_unique<default_devices_t>(*this, *bcd);
+  polling_services_t services(*this, &default_devices->list);
   for (;;) {
     const auto result = htif_poll->advance(services);
     if (result == firesim_tsi_htif_poll_t::result_t::complete) break;
@@ -381,11 +394,37 @@ void firesim_tsi_t::prepare_polling_components(const polling_cut_t &images) {
 
 firesim_tsi_t::polling_cut_t firesim_tsi_t::inspect_prepared_polling_components() const {
   if (!polling_components_prepared || !metadata_prepared || metadata_poisoned ||
-      host_context_initialized() || polling_active || !htif_poll || !bcd || default_devices)
+      host_context_initialized() || polling_active || !htif_poll || !bcd || default_devices ||
+      prepared_polling_service_active || prepared_polling_service_poisoned)
     throw std::runtime_error("TSI polling components have not been prepared in a fresh caller");
   validate_polling_components(*htif_poll, program_loader, init_control, host_control,
                               serial_read, loadmem_read, loadmem_queues);
   return polling_components();
+}
+
+void firesim_tsi_t::advance_prepared_polling_components() {
+  // Reconstruct the executable polling caller from explicit child phases;
+  // never initialize a coroutine or call start/load_program/reset/stop.
+  inspect_prepared_polling_components();
+  if (should_exit() || done())
+    throw std::runtime_error("prepared polling component cannot service HTIF exit/signal");
+  prepared_polling_service_active = true;
+  try {
+    polling_services_t services(*this, nullptr);
+    for (;;) {
+      const auto result = htif_poll->advance(services);
+      if (result == firesim_tsi_htif_poll_t::result_t::complete)
+        throw std::runtime_error("prepared polling component reached unowned HTIF stop");
+      if (result == firesim_tsi_htif_poll_t::result_t::blocked) break;
+    }
+    prepared_polling_service_active = false;
+    validate_polling_components(*htif_poll, program_loader, init_control, host_control,
+                                serial_read, loadmem_read, loadmem_queues);
+  } catch (...) {
+    prepared_polling_service_active = false;
+    prepared_polling_service_poisoned = true;
+    throw;
+  }
 }
 
 void firesim_tsi_t::idle() {

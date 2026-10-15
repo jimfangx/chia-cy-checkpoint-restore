@@ -41,6 +41,78 @@ static void packet(firesim_tsi_t &tsi,std::initializer_list<uint32_t> expected) 
   for (auto n:expected) require(tsi.data_available() && tsi.recv_word()==n,"unexpected startup packet");
   require(!tsi.data_available(),"extra startup packet");
 }
+static void continue_components(firesim_tsi_t &tsi,const std::string &mode,const fs::path &source,
+                                const char *plan,const fs::path &out) {
+  if(mode=="unsupported" || mode=="exit-guard") {
+    // At cut zero there is exactly one pending tohost request. Drain it as
+    // the transport would; no unsupported command may enqueue its clear.
+    while(tsi.data_available()) tsi.recv_word();
+    const auto before=tsi.terminal_owner().save_checkpoint();
+    if(mode=="exit-guard") tsi.htif_exit(0);
+    else {
+      std::ifstream f(plan);uint64_t command=0;f>>command;require(bool(f),"missing unsupported command");
+      tsi.send_word(command);tsi.send_word(command>>32);
+    }
+    bool rejected=false;
+    try {tsi.advance_prepared_polling_components();}catch(const std::runtime_error &){rejected=true;}
+    require(rejected && !tsi.data_available() && tsi.terminal_owner().save_checkpoint()==before,
+            "unowned command was acknowledged or changed the terminal");
+    for(unsigned op=0;op<3;++op) {
+      rejected=false;
+      try {if(op==0)tsi.advance_prepared_polling_components();else if(op==1)tsi.tick();
+        else if(mode=="unsupported")tsi.inspect_prepared_polling_components();else tsi.advance_prepared_polling_components();}
+      catch(const std::runtime_error &){rejected=true;}
+      require(rejected,"unowned/poisoned caller resumed");
+    }
+    std::cout<<"UNOWNED_REJECTED clear_packets=0 terminal_unchanged=1 reentry_guards=3 context_entries=0\n";
+    return;
+  }
+  const auto cut=std::stoul(source.filename().string().substr(4));
+  const bool corrupt=mode=="corrupt";
+  if(corrupt) {
+    auto image=tsi.terminal_owner().save_checkpoint();
+    // The independently configured three-byte input is followed by its cursor.
+    require(image.size()>=75,"missing terminal cursor");image.at(59)=1;
+    const_cast<checkpoint_owner_t &>(tsi.terminal_owner()).load_checkpoint(image);
+  }
+  std::ofstream readbacks(out/"continuation.bin",std::ios::binary);
+  std::ifstream steps(plan);require(bool(steps),"missing continuation plan");
+  size_t operation=0,readback_count=0;std::string line;
+  const auto metadata=tsi.save_startup_metadata();
+  while(std::getline(steps,line)) {
+    if(++operation<=cut)continue;
+    std::istringstream in(line);std::string op;uint64_t n=0;in>>op;
+    if(op=="TICK")tsi.advance_prepared_polling_components();
+    else if(op=="SEND") {in>>n;tsi.send_word(n);}
+    else if(op=="PACKET") {
+      size_t index=0;
+      while(in>>n) {
+        require(tsi.data_available(),"missing continuation request");
+        if(tsi.in_bits()!=n) {
+          require(corrupt && operation==21 && index==5 && n==321 && tsi.in_bits()==256,
+                  "unexpected first request divergence");
+          const auto divergent=tsi.in_bits();
+          require(tsi.in_bits()==divergent,"divergent request acknowledged");
+          std::cout<<"FIRST_DIVERGENCE operation="<<operation<<" request_word="<<index
+                   <<" expected="<<n<<" actual="<<divergent<<" acknowledged=0 context_entries=0\n";
+          return;
+        }
+        require(tsi.recv_word()==n,"request changed during service");++index;
+      }
+    } else throw std::runtime_error("unknown continuation operation");
+    const auto actual=tsi.inspect_prepared_polling_components();
+    if(!corrupt)require(actual==load(source.parent_path()/("cut-"+std::to_string(operation))),
+                        "continuation owner mismatch");
+    require(tsi.save_startup_metadata()==metadata && !tsi.done(),"continuation changed startup/exit state");
+    for(const auto &[name,image]:actual)readbacks.write(reinterpret_cast<const char *>(image.data()),image.size());
+    ++readback_count;
+    bool rejected=false;try {tsi.tick();}catch(const std::runtime_error &){rejected=true;}
+    require(rejected && tsi.inspect_prepared_polling_components()==actual,"component enabled context entry");
+  }
+  require(!corrupt && bool(readbacks),"corruption was not detected or incomplete readback");
+  std::cout<<"CONTINUATION operations="<<readback_count<<" complete_owner_readbacks="<<10*readback_count
+           <<" startup_replays=0 target_edges=0 context_entries=0\n";
+}
 extern void tsi_terminal_fail_allocation_after(long);
 static void rejection(firesim_tsi_t &tsi,const images_t &good,const fs::path &out) {
   const auto before=peers(tsi);
@@ -152,6 +224,10 @@ static int run(const char *mode,const char *elf,const char *input,const char *me
     const auto actual=tsi.inspect_prepared_polling_components();
     require(actual==good && !tsi.done(),"incomplete polling component readback");
     save(out/"preedge",actual);save(out/"preedge.metadata",tsi.save_startup_metadata());
+    if(std::string(mode)=="continue" || std::string(mode)=="corrupt" ||
+       std::string(mode)=="unsupported" || std::string(mode)=="exit-guard") {
+      continue_components(tsi,mode,source,plan,out);return 0;
+    }
     size_t guards=0;
     for(unsigned op=0;op<5;++op) {
       bool failed=false;
