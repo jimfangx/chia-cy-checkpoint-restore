@@ -1,0 +1,96 @@
+// See LICENSE for license details.
+#ifndef __FIRESIM_TSI_BCD_H
+#define __FIRESIM_TSI_BCD_H
+
+#include "core/widget_checkpoint.h"
+#include <fesvr/device.h>
+#include <fesvr/memif.h>
+#include <fesvr/term.h>
+#include <array>
+#include <deque>
+
+// Default HTIF device 1. Upstream bcd_t retains command_t callbacks into the
+// suspended run loop. Keep raw commands instead and bind responses to the
+// destination polling owner at construction. The terminal is an external
+// service, NOT checkpointed here; this is not complete HTIF/CPU ownership.
+class firesim_tsi_bcd_t final : public device_t, public checkpoint_owner_t {
+public:
+  using response_t = std::function<void(uint64_t)>;
+  explicit firesim_tsi_bcd_t(response_t response, uint64_t limit = 1048576)
+      : config(26, {1, limit}), response(std::move(response)), limit(limit) {
+    if (!this->response || !limit || limit > 1048576)
+      throw std::runtime_error("unsupported BCD response binding/queue limit");
+    register_command(0, [this](command_t cmd) {
+      widget_checkpoint_state_t::call_t call(boundary);
+      if (cmd.device() != 1 || pending.size() == this->limit)
+        throw std::runtime_error("BCD device/queue limit mismatch");
+      pending.push_back((uint64_t(cmd.device()) << 56) |
+                        (uint64_t(cmd.cmd()) << 48) | cmd.payload());
+    }, "read");
+    register_command(1, [this](command_t cmd) {
+      widget_checkpoint_state_t::call_t call(boundary);
+      if (cmd.device() != 1) throw std::runtime_error("BCD device mismatch");
+      canonical_terminal_t::write(cmd.payload());
+    }, "write");
+    register_command(255, [this](command_t cmd) {
+      widget_checkpoint_state_t::call_t call(boundary);
+      if (cmd.device() != 1) throw std::runtime_error("BCD device mismatch");
+      // Same 64-byte command/identity table as installed device_t/bcd_t.
+      std::array<char, 64> name{};
+      const auto what = cmd.payload() % 256;
+      const char *text = what == 0 ? "read" : what == 1 ? "write" :
+                         what == 255 ? "bcd" : "";
+      std::copy(text, text + std::strlen(text), name.begin());
+      cmd.memif().write(cmd.payload() / 256, name.size(), name.data());
+      cmd.respond(1);
+    }, "identity");
+  }
+  const char *identity() override { return "bcd"; }
+  void tick() override {
+    widget_checkpoint_state_t::call_t call(boundary);
+    if (pending.empty()) return;
+    const int ch = canonical_terminal_t::read();
+    if (ch == -1) return;
+    response((pending.front() & 0xffff000000000000ULL) | (0x100 | ch));
+    pending.pop_front();
+  }
+  std::string checkpoint_schema() const override { return "firesim.tsi.bcd.v1"; }
+  std::vector<uint8_t> save_checkpoint() const override {
+    boundary.require_idle(); auto out = config; out.word(pending.size());
+    for (auto command : pending) out.word(command);
+    return std::move(out.bytes);
+  }
+  void validate_checkpoint(const std::vector<uint8_t> &image) const override { parse(image); }
+  void load_checkpoint(const std::vector<uint8_t> &image) override {
+    auto next = parse(image); pending.swap(next);
+  }
+private:
+  widget_checkpoint_config_t config;
+  const response_t response;
+  const uint64_t limit;
+  std::deque<uint64_t> pending;
+  widget_checkpoint_state_t boundary;
+  std::deque<uint64_t> parse(const std::vector<uint8_t> &image) const {
+    boundary.require_idle(); const size_t start = config.bytes.size();
+    if (image.size() < start + 8 ||
+        !std::equal(config.bytes.begin(), config.bytes.end(), image.begin()))
+      throw std::runtime_error("BCD configuration/payload mismatch");
+    auto word = [&](size_t at) {
+      uint64_t value = 0;
+      for (unsigned i = 0; i < 8; ++i) value |= uint64_t(image[at+i]) << (8*i);
+      return value;
+    };
+    const auto count = word(start);
+    if (count > limit || image.size() != start + 8 + 8*count)
+      throw std::runtime_error("BCD queue length mismatch");
+    std::deque<uint64_t> next;
+    for (size_t i = 0; i < count; ++i) {
+      const auto command = word(start + 8 + 8*i);
+      if ((command >> 48) != 0x100)
+        throw std::runtime_error("BCD pending command is not device 1/read");
+      next.push_back(command);
+    }
+    return next;
+  }
+};
+#endif

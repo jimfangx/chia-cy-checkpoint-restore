@@ -14,6 +14,7 @@
 #include "tsi_program_loader.h"
 #include "tsi_htif_poll.h"
 #include "tsi_startup_metadata.h"
+#include "tsi_bcd.h"
 #include <memory>
 
 struct firesim_loadmem_t {
@@ -57,6 +58,10 @@ public:
     if (!htif_poll) throw std::runtime_error("HTIF polling has not started or uses unsupported devices");
     return *htif_poll;
   }
+  const checkpoint_owner_t &bcd_owner() const {
+    if (!bcd) throw std::runtime_error("default HTIF BCD has not started");
+    return *bcd;
+  }
 
   // Reset/initialization component dispatcher only. These calls never resume
   // HTIF or its context. A complete CPU profile still requires their owners.
@@ -95,6 +100,7 @@ private:
   bool owned_default_devices;
   bool polling_active = false;
   std::unique_ptr<firesim_tsi_htif_poll_t> htif_poll;
+  std::unique_ptr<firesim_tsi_bcd_t> bcd;
   firesim_tsi_program_loader_t program_loader;
   firesim_loadmem_read_t loadmem_read;
   firesim_loadmem_queues_t loadmem_queues;

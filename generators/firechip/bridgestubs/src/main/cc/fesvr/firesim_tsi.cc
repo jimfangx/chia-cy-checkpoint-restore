@@ -76,9 +76,9 @@ int firesim_tsi_t::run_host() {
   polling_active = true;
   htif_poll = std::make_unique<firesim_tsi_htif_poll_t>(get_tohost_addr(), get_fromhost_addr());
   syscall_t syscall(this);
-  bcd_t bcd;
+  bcd = std::make_unique<firesim_tsi_bcd_t>([this](uint64_t value) { htif_poll->respond(value); });
   device_list_t devices;
-  devices.register_device(&syscall); devices.register_device(&bcd);
+  devices.register_device(&syscall); devices.register_device(bcd.get());
   class services_t final : public firesim_tsi_htif_poll_t::services_t {
   public:
     services_t(firesim_tsi_t &tsi, device_list_t &devices) : tsi(tsi), devices(devices) {}

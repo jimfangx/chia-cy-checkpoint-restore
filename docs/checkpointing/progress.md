@@ -14,6 +14,61 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 110, in progress. Recovery:
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md) and [tsi-bcd.md](tsi-bcd.md).
+The default HTIF BCD now owns ordered pending raw commands and reconstructs its
+response sink from the destination polling owner. It retains no source callback
+or coroutine pointer. Terminal/syscall/HTIF context and aggregate CPU ownership
+remain pending; complete CPU admission stays disabled. Diagnostic root:
+`runs/m11-iteration110/`.
+
+- `bcd-current/invocation-yjvfpah0/summary.json` passes 68 fresh sanitizer/VCS
+  restores, including all 12 continuations of actual TSI-captured queues. All
+  64 continuation suffixes, identity memory writes and terminal bytes match the
+  installed reference. All 528 malformed and four incompatible images reject
+  atomically. Twenty-two active/interrupted guards and four first divergences
+  at missing BCD response / host event 11 pass. These are host service events,
+  not CPU target cycles.
+- Both actual installed-FESVR source loaders capture zero/one/two pending reads,
+  check both delayed-input fromhost writes and finish through HTIF PASS. The
+  corrected run retains the initial checker's wrong-decimal-constant pilot.
+- All eight current native suites pass (267 Python tests and FCFS) in
+  `native-regressions-current/invocation-rizi51yo/summary.json`. The earlier
+  suite completed all eight checks but rejected its changed checker source;
+  it is excluded from selected evidence. All 11 retained host suites pass.
+  Initialization retains all 768 actual and 320 mixed-policy fresh readbacks;
+  fresh dispatcher resumes pass 240 restores, 7,012 complete readbacks, 5,112
+  atomic invalid images and four first divergences.
+- Both complete exact-recipe default/buffered four-hart controls pass at
+  C=3,329,794. Every complete hart trace and workload/store CPU print-cycle
+  label matches the uninterrupted reference. All eight active host samples
+  pass 64 component-image inspections; master credits/clock tokens remain
+  distinct from uncertified semantic DUT edges and outstanding-memory cuts.
+  The native build binds all 60 current translation units/dependencies.
+- Fresh ordinary RTL diagnostic reads back 318,637 words / seven clocks before
+  edges; it is a pattern diagnostic, not captured CPU replay. Three complete
+  CPU admission requests and all 16 invalid host-audit options reject. The
+  previous iteration's 45,237 sealed artifacts pass preservation checks.
+- Existing iteration-109 controller commits are published FireSim first, then
+  Chipyard; queried remote tips match. Local tracking-ref refreshes failed on
+  read-only `.git`. Both plans, protected environment/Conda files, indices and
+  HEADs retain their bytes; no staging, local commits or history cleanup.
+
+Recovery artifacts: `summary.json`, `selected-results.json`,
+`raw-native-commands.json`, `verification-commands-native.json`,
+`native-input-archives.json`, `independent-audit-results.json` and
+`artifact-manifest.json` under the run root. The final audits bind current
+native inputs, full component readbacks, exact-recipe controls and unsupported
+CPU admission guards.
+
+Next: complete terminal/syscall resources, configuration/build/expected-XLEN,
+stop/signature/exit/signal and context ownership, then atomic host reconstruction.
+Complete simulator/FAME/channel/memory/bridge ownership, coherent required CPU
+cuts, fresh Level-1 continuation and independently captured Level-2 readback and
+finite replay remain pending. BOOM/Saturn remain pending; no external dependency
+is missing. Both plans remain read-only; the controller owns commits.
+
+Previous recovery (iteration 109):
 Current milestone: M11-rocket-level1-level2, iteration 109, in progress. Recovery:
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md) and
 [tsi-startup-metadata.md](tsi-startup-metadata.md). Production explicit-path ELF
