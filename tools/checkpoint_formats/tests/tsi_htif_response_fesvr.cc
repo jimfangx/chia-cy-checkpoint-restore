@@ -7,6 +7,7 @@
 #include <iostream>
 #include <fcntl.h>
 #include <unistd.h>
+#include "tsi_polling_cut_checks.h"
 namespace fs=std::filesystem;
 static void require(bool b,const char *s) { if (!b) throw std::runtime_error(s); }
 static void save(const fs::path &p,const std::vector<uint8_t> &b) {
@@ -17,6 +18,7 @@ static std::vector<uint8_t> read(const fs::path &p) {
   return {std::istreambuf_iterator<char>(f),std::istreambuf_iterator<char>()};
 }
 static void snapshot(firesim_tsi_t &tsi,const fs::path &out,const std::string &name) {
+  polling_cut_check(tsi,out,name,name!="complete");
   save(out/(name+".poll"),tsi.htif_poll_owner().save_checkpoint());
   save(out/(name+".serial"),tsi.serial_queue_owner().save_checkpoint());
   save(out/(name+".read"),tsi.serial_read_owner().save_checkpoint());

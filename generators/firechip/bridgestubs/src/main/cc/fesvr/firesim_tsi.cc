@@ -65,6 +65,7 @@ int firesim_tsi_t::run_host() {
   // Startup/ELF/symbol and stop/signature state remain upstream, separate from
   // this resumable poll caller. Do not publish a complete TSI checkpoint.
   start();
+  polling_active = true;
   htif_poll = std::make_unique<firesim_tsi_htif_poll_t>(get_tohost_addr(), get_fromhost_addr());
   syscall_t syscall(this);
   bcd_t bcd;
@@ -114,8 +115,48 @@ int firesim_tsi_t::run_host() {
     if (result == firesim_tsi_htif_poll_t::result_t::complete) break;
     if (result == firesim_tsi_htif_poll_t::result_t::blocked) switch_to_target();
   }
+  polling_active = false;
   stop();
   return exit_code();
+}
+
+firesim_tsi_t::polling_cut_t firesim_tsi_t::inspect_polling_cut() const {
+  if (!owned_default_devices)
+    throw std::runtime_error("TSI polling audit: installed custom/long-option HTIF path");
+  if (!polling_active || !htif_poll)
+    throw std::runtime_error("TSI polling audit: startup has not returned or polling has ended");
+  if (!host_context_suspended())
+    throw std::runtime_error("TSI polling audit: host context is not suspended at target");
+  // phase() rejects a call suspended inside a device/memif service, even
+  // though its coroutine has yielded back to the target.
+  const auto phase = htif_poll->phase();
+  using pp = firesim_tsi_htif_poll_t::phase_t;
+  using hp = firesim_tsi_host_control_t::phase_t;
+  const bool read = (phase == pp::tohost_read || phase == pp::fromhost_read) &&
+                    host_control.current_phase() == hp::ready &&
+                    serial_read.pending_for(htif_poll->pending_read_address(), 8);
+  const bool idle = phase == pp::idle && host_control.current_phase() == hp::idle &&
+                    !host_control.busy() && serial_read.idle();
+  if ((!read && !idle) ||
+      program_loader.phase() != firesim_tsi_program_loader_t::phase_t::complete ||
+      init_control.phase() != firesim_tsi_init_accesses_t::phase_t::complete ||
+      !host_control.loaded_in_host() || !host_control.loaded_in_target() ||
+      !loadmem_read.idle() || !loadmem_queues.empty())
+    throw std::runtime_error("TSI polling audit: incoherent or active startup/child owners");
+  const std::array<std::pair<const char *, const checkpoint_owner_t *>, 8> owners{{
+      {"poll", htif_poll.get()}, {"program", &program_loader}, {"init", &init_control},
+      {"host", &host_control}, {"read", &serial_read}, {"serial", &serial},
+      {"loadmem-read", &loadmem_read}, {"loadmem-queues", &loadmem_queues}}};
+  polling_cut_t result;
+  for (const auto &[name, owner] : owners) {
+    auto image = owner->save_checkpoint();
+    owner->validate_checkpoint(image);
+    result.emplace_back(name, std::move(image));
+  }
+  for (size_t i = 0; i < owners.size(); ++i)
+    if (owners[i].second->save_checkpoint() != result[i].second)
+      throw std::runtime_error("TSI polling audit: component changed during inspection");
+  return result;
 }
 
 void firesim_tsi_t::idle() {

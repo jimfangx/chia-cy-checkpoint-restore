@@ -46,6 +46,13 @@ def audit(path):
         require((out/backend/'input.bin').read_bytes()==b'A','changed deterministic BCD input')
         for cut,owners in oracle.items():
             for kind,value in owners.items():require((out/backend/(cut+'.'+kind)).read_bytes()==value,'actual response peer/caller differs '+cut+'/'+kind)
+            if str(TESTS/'tsi_polling_cut_checks.h') in bindings:
+                peer=dict(owners,program=config(23,1,0)+words(3),init=config(21,0,0)+words(8,0,0),
+                          **{'loadmem-read':config(14,4096,4)+words(0,0,0,0),
+                             'loadmem-queues':config(16,4096,4)+words(0,0,0,0,0,0,0)})
+                for kind,value in peer.items():
+                    f=out/backend/(cut+'.audit-'+kind)
+                    require(not f.exists() if cut=='complete' else f.read_bytes()==value,'wrong actual response cut admission '+cut+'/'+kind)
         require('REAL_FESVR_HTIF_RESPONSE bcd_input_bytes=1 callback='+str(RESPONSE)+' fromhost_writes=1 terminal_exit=0 cuts=5' in
                 (out/(backend+'.log')).read_text(),'actual callback/write/exit did not run')
     require(len(r['restores'])==20,'missing actual response readbacks')
@@ -68,7 +75,7 @@ def main():
     a.out.resolve().mkdir(parents=True,exist_ok=True);out=Path(tempfile.mkdtemp(prefix='invocation-',dir=a.out.resolve()))
     elf=out/'polling.elf';elf.write_bytes(polling_elf());source=TESTS/'tsi_htif_response_fesvr.cc';sv=TESTS/'tsi_htif_response_fesvr_tb.sv';library=FESVR/'lib/libfesvr.a'
     sources=[source,STUBS/'fesvr/firesim_tsi.cc',STUBS/'fesvr/owned_fesvr_tsi.cc',TESTCHIP/'testchip_tsi.cc',TESTCHIP/'testchip_htif.cc']
-    inputs=[*sources,sv,library,Path(__file__),TESTS/'verify_tsi_host_control_fesvr_vcs.py',TESTS/'verify_firesim_tsi_loadmem_vcs.py',
+    inputs=[*sources,sv,library,Path(__file__),TESTS/'tsi_polling_cut_checks.h',TESTS/'verify_tsi_host_control_fesvr_vcs.py',TESTS/'verify_firesim_tsi_loadmem_vcs.py',
             TESTS/'verify_semantic_vcs.py',TESTS/'verify_loadmem_read_checkpoint_vcs.py',*sorted((STUBS/'fesvr').glob('*.h')),
             *sorted(TESTCHIP.glob('*.h')),*sorted((FESVR/'include/fesvr').glob('*.h')),CC/'core/checkpoint.h',CC/'core/widget_checkpoint.h',
             ROOT/'env.sh',ROOT/'sims/firesim/env.sh',ROOT/'automations/checkpoint_loop/vcs-env.sh']

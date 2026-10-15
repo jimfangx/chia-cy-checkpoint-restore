@@ -44,6 +44,8 @@ public:
   // Inspection of this component does not enable the bridge's unsupported
   // aggregate checkpoint contract or restore the FESVR coroutine.
   const checkpoint_owner_t &control_owner() const { return *control; }
+  std::string host_component_scope() const override { return "tsi-polling"; }
+  host_component_images_t inspect_host_components() const override;
 
 private:
   const TSIBRIDGEMODULE_struct mmio_addrs;

@@ -1,13 +1,13 @@
 # CPU checkpoint matrix
 
-Current milestone: M11 Rocket, iteration 107. Level-1 and Level-2 acceptance
+Current milestone: M11 Rocket, iteration 108. Level-1 and Level-2 acceptance
 remain **in_progress**. No CPU checkpoint continuation or clean CPU RTL replay
 has passed. Physical FPGA validation, standalone Shuttle and ASIC power are
 outside this matrix. The verified FCFS evidence remains in its existing docs.
 
 | Family / existing recipe | Level 1 | Level 2 | Workload evidence |
 | --- | --- | --- | --- |
-| Rocket / `firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3` | in_progress: generated RTL inventory audited; TracerV and FireSim driver/termination-loop continuations pass; production TSI read, all four load-memory queues, bridge host control and FireSim idle/reset control pass fresh component restores; source-integrated FESVR serial FIFOs pass fresh component restores; serial-read progress passes complete fresh component restores; production TestChip initialization caller/serial-child dispatch and atomic four-owner component restores pass; program-load transport/entry/return ownership passes fresh component readbacks; production HTIF poll caller passes nine-phase fresh component continuations; complete HTIF/memif/device/context/TestChip-loader/cross-owner ownership and fresh CPU continuation pending | in_progress: complete ChipTop diagnostic inventory/readback retained; explicit event-phase image/replay contract passes ordinary RTL component checks; coherent metasim CPU capture/replay pending | Both complete corrected four-hart controls pass at C=3,329,794; every full trace and workload/store label matches; CPU checkpoint cuts remain pending |
+| Rocket / `firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3` | in_progress: generated RTL inventory audited; TracerV and FireSim driver/termination-loop continuations pass; production TSI read, all four load-memory queues, bridge host control and FireSim idle/reset control pass fresh component restores; source-integrated FESVR serial FIFOs pass fresh component restores; serial-read progress passes complete fresh component restores; production TestChip initialization caller/serial-child dispatch and atomic four-owner component restores pass; program-load transport/entry/return ownership passes fresh component readbacks; production HTIF poll caller passes nine-phase fresh component continuations; suspended eight-owner inspection passes actual Rocket workload samples; complete HTIF/memif/device/context/TestChip-loader/cross-owner ownership and fresh CPU continuation pending | in_progress: complete ChipTop diagnostic inventory/readback retained; explicit event-phase image/replay contract passes ordinary RTL component checks; coherent metasim CPU capture/replay pending | Both complete default/buffered four-hart audit controls pass at C=3,329,794; every full trace and workload/store label matches; eight active host samples pass; CPU checkpoint cuts remain pending |
 | BOOM / `firesim_boom_singlecore_no_nic_l2_llc4mb_ddr3` | pending | pending | No execution claimed |
 | Shuttle + Saturn / `firesim_saturn_GENV256D128_shuttle_singlecore_no_nic_l2_llc4mb_ddr3` | pending | pending | No vector execution claimed |
 
@@ -32,6 +32,127 @@ The recipe also specifies frequency 140 MHz and TIMING build strategy; these
 are retained in the recipe record, with no FPGA implementation invoked.
 VCS uses Y-2026.03-SP1, `-full64`, `VCS_FLAGS=-Mupdate`, system GCC/G++ 13,
 and the sourced Conda library/include directories. No Conda files are edited.
+
+## Iteration 108: suspended polling cut audit
+
+Diagnostic root:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration108/`.
+See [tsi-polling-cut-audit.md](tsi-polling-cut-audit.md) for the exact eight-owner
+boundary and production guards. All final selected native checks pass. This
+increment inspects production state; complete HTIF/TSI restore and both CPU
+checkpoint levels remain **in_progress**.
+
+`inspect_polling_cut()` requires returned startup, complete loading and
+initialization, empty load-memory state and an externally suspended host. It
+cross-checks the polling caller against its partial serial-read or idle child,
+validates all eight images and checks repeat-read stability. The bridge exposes
+this optional diagnostic without changing aggregate checkpoint admission.
+
+Both complete exact-recipe default/buffered four-hart controls pass at target
+count **3,329,794** in `rocket-controls/invocation-ieqwwfrh/summary.json`.
+Every complete instruction trace and workload/store CPU print-cycle label
+matches the independent uninterrupted reference. The exact six recipe settings
+above, all 60 native translation units and actual compiler header dependencies
+are bound by `rocket-build-identity.json`. No bitstream was built. The unchanged
+6,712-byte workload ELF is `runs/m11-iteration82/workload/rocket-quad.riscv`,
+SHA-256 `f3d86f54caf42b9589385e8021dba46777f647134f19595e38a3d452b745f3d4`.
+Its independently resolved mailboxes are `tohost=0x800003c0` and
+`fromhost=0x80000400`.
+
+Both actual CPU runs record these host inspections in
+`rocket-runtime/tsi-host-audit/` and `rocket-buffered-runtime/tsi-host-audit/`:
+
+| Requested master credit | Clock tokens enqueued | Host inspection in both modes |
+| --- | --- | --- |
+| 0 | 0 | startup not returned; explicit rejection, no component images |
+| 520,064 | 520,065 | idle; eight complete component images |
+| 700,032 | 700,033 | blocked tohost read; eight complete component images |
+| 900,096 | 900,097 | blocked tohost read; eight complete component images |
+| 3,250,048 | 3,250,049 | idle; eight complete component images |
+
+`rocket-host-audit.json` independently checks all ten records and all 64 active
+component images against the workload symbols and exact configurations. Each
+active record has 79 serialized 64-bit words including configuration/header
+words. This proves startup frames have returned at those samples. These labels
+are distinct from completed semantic target edges and CPU print-cycle labels.
+The memory-loop sample does not independently prove outstanding target memory;
+coherent CPU checkpoint cuts and continuation/replay remain pending.
+
+`current/active-service/invocation-1dlpa321/summary.json` passes actual installed
+syscall/memif integration in native C++ and VCS. A real 64-byte syscall read
+blocks before data and after one word; both cuts reject. After installed
+`sys_exit` returns, all eight components become inspectable; response queuing,
+fromhost publication and termination complete. Across both backends this gives
+four active-service rejections, ten startup/termination rejections and 32
+complete returned component images. Private device/context state is not restored.
+
+`current/actual-poll/invocation-09a8u8xu/summary.json` passes all 324 fresh
+component restores, including 252 polling-caller readbacks. Inspection at 126
+actual suspended polling/partial-read/idle cuts yields 1,008 complete component
+images with independently expected bytes. All 54 component-valid cross-owner
+corruptions reject without changing peers. BCD/fromhost integration in
+`actual-response/invocation-grnb1fz_/summary.json` retains all 20 fresh caller
+readbacks and independently checks all 64 inspected peer images. None of these
+host component tests establishes a CPU checkpoint.
+
+`htif-poll/` retains all 72 fresh sanitizer/VCS caller continuations, 1,332 complete
+readbacks, 38,744 atomic invalid-image checks, eight fresh invalid images and four
+first divergences. The full initialization retention suite passes 294 fixture
+continuations, all 768 actual caller and 320 mixed-policy readbacks. The fresh
+initialization dispatcher passes all 240 restores, 7,012 complete peer readbacks,
+5,112 atomic invalid images and four first divergences. The final source-bound
+`current/native-regressions/invocation-089ltlrq/summary.json` passes all eight
+suites, including 267 Python tests and FCFS. All 18 installed option-routing
+cases pass in `current/htif-options/`.
+
+Three complete CPU preflight/capture/restore requests still reject before CPU
+execution/publication. All 16 malformed/duplicate/missing audit-option and
+existing-directory cases reject without publication. The fresh ordinary RTL
+pattern probe reads back all 318,637 words / seven clocks before any edge. It
+remains a diagnostic, not a captured CPU image or captured trace replay.
+
+One concurrent VCS build collided with another build's timestamp/PID temporary
+directory. The failed log remains under `real-loader/`; the successful rerun is
+`current/real-loader/invocation-fn0qobkp/summary.json`. Follow-up builds inherit
+separate TMPDIR directories under this run. A wrong-directory ordinary-probe
+launcher, a wrong-parent-summary polling launcher and an initial linkage audit
+that omitted C++ ABI symbol tags are retained separately from their corrected
+successful runs. No check was removed. Earlier source-bound
+runs remain diagnostics; `selected-results.json` identifies the final evidence.
+
+Existing iteration-107 controller commits are published FireSim first, then
+Chipyard; independently queried remote tips match. Local tracking-ref refreshes
+failed on read-only `.git` after successful remote pushes. Neither plan,
+environment setup, PDF nor dirty Conda input was edited; no staging or local
+commits occurred.
+
+Recovery: `summary.json`, `selected-results.json`, `rocket-host-audit.json`,
+`raw-native-commands.json`, `verification-commands-native.json`,
+`native-input-archives.json`, `independent-audit-results.json` and complete
+`artifact-manifest.json`. Commands run from the Chipyard root. Fresh rechecks
+allocate new destinations outside the sealed iteration; use separate TMPDIRs
+when launching VCS builds from separate sandbox shells:
+
+```sh
+mkdir -p automations/checkpoint_loop/runs/m11-iteration108-controller-rechecks
+export TMPDIR="$(mktemp -d "$PWD/automations/checkpoint_loop/runs/m11-iteration108-controller-rechecks/active-tmp.XXXXXX")"
+source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh
+python -m tools.checkpoint_formats.tests.verify_tsi_polling_cut_vcs \
+  --out automations/checkpoint_loop/runs/m11-iteration108-controller-rechecks/active-service
+python -m tools.checkpoint_formats.tests.verify_rocket_controls_vcs \
+  --out automations/checkpoint_loop/runs/m11-iteration108-controller-rechecks/rocket-controls \
+  --seed-build automations/checkpoint_loop/runs/m11-iteration108/rocket-controls/invocation-ieqwwfrh/build \
+  --workload automations/checkpoint_loop/runs/m11-iteration82/workload \
+  --reference-runtime automations/checkpoint_loop/runs/m11-iteration85/rocket-runtime \
+  --reference-audit automations/checkpoint_loop/runs/m11-iteration85/rocket-workload-audit.json \
+  --host-audit-cycles 0,520064,700032,900096,3250048
+```
+
+Complete configuration-specific simulator/FAME/channel/memory/bridge ownership,
+HTIF metadata/device/stop/signature/context reconstruction and atomic CPU images,
+coherent required active cuts, fresh Level-1 continuation, independently captured
+Level-2 readback/replay and whole-CPU invalid-image/first-divergence cases remain
+pending. BOOM/Saturn remain pending; no external dependency is missing.
 
 ## Iteration 107: production HTIF polling caller
 

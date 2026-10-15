@@ -63,6 +63,12 @@ public:
   std::vector<uint8_t> save_initialization_checkpoint() const;
   void load_initialization_checkpoint(const std::vector<uint8_t> &image);
 
+  // Read-only, complete images of the eight already owned components at an
+  // externally suspended steady-state poll. This is an audit, not a complete
+  // HTIF/TSI image: metadata, devices, contexts and RTL remain unowned.
+  using polling_cut_t = std::vector<std::pair<std::string, std::vector<uint8_t>>>;
+  polling_cut_t inspect_polling_cut() const;
+
 protected:
   int run_host() override;
   void idle() override;
@@ -79,6 +85,7 @@ protected:
 
 private:
   bool owned_default_devices;
+  bool polling_active = false;
   std::unique_ptr<firesim_tsi_htif_poll_t> htif_poll;
   firesim_tsi_program_loader_t program_loader;
   firesim_loadmem_read_t loadmem_read;

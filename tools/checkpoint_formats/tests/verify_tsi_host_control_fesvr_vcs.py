@@ -82,6 +82,20 @@ def audit(path):
                 require({p.stem for p in case.glob('*.poll')}==set(polls),'missing real polling caller cuts')
                 for name,payload in polls.items():
                     require((case/(name+'.poll')).read_bytes()==payload,'real polling caller phase differs '+name)
+                if str(TESTS/'tsi_polling_cut_checks.h') in bindings:
+                    for name in polls:
+                        peer=dict(poll=polls[name],host=expected[name],
+                                  program=config(23,1,0)+words(3),
+                                  init=config(21,0,1)+words(0x10000010,0,0,8,1,0),
+                                  read=(case/(name+'.read')).read_bytes(),
+                                  serial=(case/(name+'.serial')).read_bytes(),
+                                  **{'loadmem-read':config(14,4096,4)+words(0,0,0,0),
+                                     'loadmem-queues':config(16,4096,4)+words(0,0,0,0,0,0,0)})
+                        for kind,value in peer.items():
+                            require((case/(name+'.audit-'+kind)).read_bytes()==value,'incomplete actual polling cut '+name+'/'+kind)
+                    text=(case.parent/(str(count)+'.log')).read_text()
+                    require('POLLING_CROSS_OWNER_REJECTIONS count=9 unchanged_peers=8 target_edges=0 context_entries=0' in text,
+                            'missing actual cross-owner rejection checks')
             require(f'REAL_HTIF_HOST_CONTROL idle_count={count} child_waits=3 poll_loops=3 serial_words=25' in
                     (case.parent/(str(count)+'.log')).read_text(),'actual child reset/HTIF poll did not finish')
     require(len(r['restores'])==2*images and len({a['pid'] for a in r['restores']})==2*images,'incomplete fresh restores')
@@ -119,7 +133,7 @@ def main():
     elf=out/'polling.elf'; elf.write_bytes(polling_elf())
     source=TESTS/'tsi_host_control_fesvr.cc'; sv=TESTS/'tsi_host_control_fesvr_tb.sv'; library=FESVR/'lib/libfesvr.a'
     sources=[source,STUBS/'fesvr/firesim_tsi.cc',STUBS/'fesvr/owned_fesvr_tsi.cc',TESTCHIP/'testchip_tsi.cc',TESTCHIP/'testchip_htif.cc']
-    inputs=[*sources,sv,library,Path(__file__),TESTS/'native_parallel.py',TESTS/'verify_tsi_host_control_vcs.py',TESTS/'verify_firesim_tsi_loadmem_vcs.py',
+    inputs=[*sources,sv,library,Path(__file__),TESTS/'tsi_polling_cut_checks.h',TESTS/'native_parallel.py',TESTS/'verify_tsi_host_control_vcs.py',TESTS/'verify_firesim_tsi_loadmem_vcs.py',
             TESTS/'verify_semantic_vcs.py',TESTS/'verify_loadmem_read_checkpoint_vcs.py',
             *sorted((STUBS/'fesvr').glob('*.h')),*sorted(TESTCHIP.glob('*.h')),*sorted((FESVR/'include/fesvr').glob('*.h')),
             CC/'core/checkpoint.h',CC/'core/widget_checkpoint.h',ROOT/'env.sh',ROOT/'sims/firesim/env.sh',

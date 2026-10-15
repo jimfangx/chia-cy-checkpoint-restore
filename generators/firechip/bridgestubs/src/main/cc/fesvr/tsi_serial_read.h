@@ -23,6 +23,11 @@ public:
     return current.phase == phase_t::response && current.address == address &&
            current.bytes == bytes && current.words.empty();
   }
+  bool pending_for(uint64_t address, uint64_t bytes) const {
+    require_idle();
+    return current.phase == phase_t::response && current.address == address &&
+           current.bytes == bytes && current.words.size() < bytes / 4;
+  }
   void swap_state(firesim_tsi_serial_read_t &other) noexcept {
     std::swap(current, other.current);
   }

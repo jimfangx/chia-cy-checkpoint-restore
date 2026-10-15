@@ -202,3 +202,10 @@ void tsibridge_t::tick() {
 
 bool tsibridge_t::terminate() { return control->query([this] { return fesvr->done(); }); }
 int tsibridge_t::exit_code() { return control->query([this] { return fesvr->exit_code(); }); }
+
+std::vector<std::pair<std::string, std::vector<uint8_t>>>
+tsibridge_t::inspect_host_components() const {
+  control->save_checkpoint(); // Reject inspection inside an active bridge call.
+  if (!fesvr) throw std::runtime_error("TSI polling audit: FESVR has not been created");
+  return fesvr->inspect_polling_cut();
+}

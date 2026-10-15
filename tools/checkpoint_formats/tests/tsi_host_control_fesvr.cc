@@ -6,6 +6,7 @@
 #include <fstream>
 #include <iostream>
 #include <cstdlib>
+#include "tsi_polling_cut_checks.h"
 namespace fs=std::filesystem;
 static void require(bool b,const char *s) {if(!b) throw std::runtime_error(s);}
 static void serial_snapshot(firesim_tsi_t &tsi,const fs::path &out,const std::string &name) {
@@ -20,6 +21,9 @@ static void serial_snapshot(firesim_tsi_t &tsi,const fs::path &out,const std::st
   i.write(reinterpret_cast<const char *>(init.data()),init.size());require(bool(i),"cannot save init caller owner");
 }
 static void snapshot(firesim_tsi_t &tsi,const fs::path &out,const std::string &name) {
+  const bool polling = name=="first-poll" || name.find("poll-half-")==0 || name.find("idle-")==0 || name.find("busy-poll-")==0;
+  polling_cut_check(tsi,out,name,polling);
+  if (name=="first-poll") polling_cross_owner_checks(tsi);
   auto bytes=tsi.host_control_owner().save_checkpoint();
   std::ofstream f(out/(name+".host"),std::ios::binary);
   f.write(reinterpret_cast<const char *>(bytes.data()),bytes.size());require(bool(f),"cannot save owner");

@@ -19,6 +19,7 @@ public:
     virtual bool receive(uint32_t &word) = 0;
   };
   enum class result_t { progress, blocked, complete };
+  bool idle() const { boundary.require_idle(); return state.phase == phase_t::idle; }
 
   void begin(uint64_t address, uint64_t bytes) {
     boundary.require_idle();

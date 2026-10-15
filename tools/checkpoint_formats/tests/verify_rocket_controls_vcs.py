@@ -43,7 +43,7 @@ def execute(command, destination, name):
     return result
 
 
-def control(binary, workload, reference, reference_audit, out, buffered):
+def control(binary, workload, reference, reference_audit, out, buffered, host_audit_cycles=None):
     name = 'rocket-buffered' if buffered else 'rocket'
     runtime = out / (name + '-runtime')
     runtime.mkdir()
@@ -52,6 +52,9 @@ def control(binary, workload, reference, reference_audit, out, buffered):
             '+memsize=17179869184', '+max-cycles=5000000', '+fesvr-step-size=128',
             '+blkdev-in-mem0=128', '+mm_useHardwareDefaultRuntimeSettings_0',
             '+tracefile=' + str(runtime / 'TRACEFILE')]
+    if host_audit_cycles is not None:
+        argv += ['+tsi-host-audit=' + str(runtime / 'tsi-host-audit'),
+                 '+tsi-host-audit-cycles=' + host_audit_cycles]
     if buffered:
         (runtime / 'input.bin').write_bytes(b'')
         argv += ['+tracerv-checkpoint-buffered', '+heartbeat-checkpoint-buffered',
@@ -96,6 +99,7 @@ def control(binary, workload, reference, reference_audit, out, buffered):
                   native_binary=str(binary), native_binary_sha256=file_sha(binary),
                   workload_sha256=file_sha(elf), full_backing_memory_bytes=17179869184,
                   tracerv_checkpoint_buffered=buffered,
+                  host_audit_cycles=host_audit_cycles,
                   level1_verified=False, level2_verified=False)
     (out / (name + '-control-summary.json')).write_text(json.dumps(result, indent=2) + '\n')
     return [run, audit], result
@@ -108,6 +112,7 @@ def main():
     parser.add_argument('--workload', type=Path, required=True)
     parser.add_argument('--reference-runtime', type=Path, required=True)
     parser.add_argument('--reference-audit', type=Path, required=True)
+    parser.add_argument('--host-audit-cycles', help='Optional comma-separated master-credit diagnostic cuts')
     args = parser.parse_args()
     require(os.environ.get('VCS_HOME') == VCS_HOME, 'source vcs-env.sh LAST')
     destination = args.out.resolve()
@@ -147,7 +152,7 @@ def main():
                         base.with_suffix('.sv').read_text() + bufgce, bufgce,
                         plusarg_model=(build / 'plusarg_reader.v').read_text())
     with ThreadPoolExecutor(max_workers=2) as pool:
-        jobs = [pool.submit(control, build / 'FireSim', workload, reference, reference_audit, out, buffered)
+        jobs = [pool.submit(control, build / 'FireSim', workload, reference, reference_audit, out, buffered, args.host_audit_cycles)
                 for buffered in (False, True)]
         results = [job.result() for job in jobs]
     for ran, _ in results:

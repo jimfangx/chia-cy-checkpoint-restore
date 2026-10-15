@@ -14,7 +14,58 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 107, in progress. Recovery:
+Current milestone: M11-rocket-level1-level2, iteration 108, in progress. Recovery:
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md) and
+[tsi-polling-cut-audit.md](tsi-polling-cut-audit.md). Production TSI inspection now
+validates all eight owned components at a suspended polling cut, including
+partial reads and idle countdowns. Startup, active syscall/memif/device services,
+termination and incoherent child states reject explicitly. This is read-only
+inspection; complete HTIF/TSI restore and both CPU checkpoint levels remain
+unsupported. Diagnostic root: `runs/m11-iteration108/`.
+
+- Both complete exact-recipe default/buffered four-hart controls pass at
+  C=3,329,794. Every complete instruction trace and workload/store CPU print-cycle
+  label matches the uninterrupted reference. All eight active host samples at
+  master credits 520,064, 700,032, 900,096 and 3,250,048 pass complete inspection:
+  64 component images, 79 serialized words per sample including configuration.
+  Startup rejects at zero. Clock-token counts are recorded separately (one
+  ahead at active samples); semantic DUT edge labels/outstanding memory remain
+  uncertified. Workload hash and exact settings are bound by the build identity.
+- Native/VCS installed-syscall checks reject both pending and partial 64-byte
+  memif reads, inspect all eight components after installed sys_exit returns,
+  then finish response publication/termination. Actual polling integration passes
+  54 cross-owner rejections and 1,008 independently expected component images at
+  126 cuts, all 324 fresh component restores and 252 fresh polling readbacks.
+  BCD/fromhost checks retain all 20 fresh caller readbacks. These are host tests.
+- All 72 fresh polling continuations, 1,332 complete readbacks, 38,744 atomic
+  invalid checks, eight fresh invalid images and four first divergences pass.
+  The retained initialization checks pass all 768 actual and 320 mixed-policy
+  readbacks; fresh initialization dispatch passes all 240 restores, 7,012 peer
+  readbacks, 5,112 atomic invalid images and four first divergences. All eight
+  final native suites, including 267 Python tests and FCFS, pass.
+- All 16 audit-option rejections and three unsupported complete-CPU admission
+  cases pass. The ordinary Rocket pattern diagnostic reads back all 318,637
+  words / seven clocks before edges; it is not a captured CPU image/replay.
+- Recovery: summary.json, selected-results.json, rocket-host-audit.json,
+  raw-native-commands.json, verification-commands-native.json,
+  native-input-archives.json, independent-audit-results.json and the complete
+  artifact-manifest.json under the run root. Failed VCS temporary-directory,
+  ordinary-launcher cwd, polling-parent-path and ABI-symbol audit pilots remain
+  separate from corrected runs. Use separate TMPDIRs for concurrent VCS builds.
+- Existing iteration-107 controller commits are published FireSim first, then
+  Chipyard; queried remote tips match. Local tracking-ref updates failed on
+  read-only .git after successful remote pushes. Protected plan, environment,
+  PDF and dirty Conda bytes match; no staging, local commits or history cleanup.
+
+Next: reconstruct hash-bound HTIF metadata and complete default-device,
+stop/signature/context ownership without replaying startup writes/reset. Complete
+configuration-specific simulator/FAME/channel/memory/bridge ownership, atomic CPU
+images, coherent early/warm/outstanding-memory/late cuts, fresh Level-1 CPU
+continuation, independently captured Level-2 readback/replay and whole-CPU
+rejection/corruption cases remain pending. BOOM/Saturn remain pending; no external
+dependency is missing. Both plans remain read-only; the controller owns commits.
+
+Previous recovery (iteration 107):
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md) and
 [tsi-htif-poll.md](tsi-htif-poll.md). Production default-device HTIF polling now
 owns all nine phases, the pending command and ordered fromhost responses, with

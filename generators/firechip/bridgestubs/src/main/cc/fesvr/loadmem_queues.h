@@ -74,6 +74,11 @@ public:
   bool requests_pending() const {
     return writes_pending() || !state->reads.empty();
   }
+  bool empty() const {
+    boundary.require_idle();
+    return !state->active.bytes && state->writes.empty() && state->reads.empty() &&
+           state->write_data.empty() && state->responses.empty();
+  }
   std::string checkpoint_schema() const override { return "firesim.tsi.loadmem-queues.v1"; }
   std::vector<uint8_t> save_checkpoint() const override {
     boundary.require_idle();

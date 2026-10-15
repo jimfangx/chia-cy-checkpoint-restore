@@ -9,6 +9,12 @@
 #include "core/simulation.h"
 #include "core/systematic_scheduler.h"
 #include "core/bridge_run_loop.h"
+#include <charconv>
+#include <filesystem>
+#include <fstream>
+#include <iomanip>
+#include <limits>
+#include <sstream>
 
 class firesim_top_t : public systematic_scheduler_t, public simulation_t,
                       private bridge_run_loop_t::services_t {
@@ -80,6 +86,7 @@ private:
   widget_checkpoint_state_t checkpoint_state;
   bool started = false;
   bool finalized = false;
+  void record_tsi_host_audit(uint64_t credit, const std::string &directory);
   bool horizon_reached() override { return finished_scheduled_tasks(); }
   void run_tasks() override { run_scheduled_tasks(); }
   void issue_step() override { peek_poke.step(get_largest_stepsize(), false); }
@@ -122,6 +129,90 @@ firesim_top_t::firesim_top_t(simif_t &simif,
           return interval;
         });
   }
+
+  // Optional read-only evidence for CPU owner development. Anonymous tasks
+  // intentionally remain unsupported by aggregate checkpoint admission.
+  std::string audit_directory, audit_cycles;
+  bool have_directory = false, have_cycles = false;
+  for (const auto &arg : args) {
+    if (arg.rfind("+tsi-host-audit=", 0) == 0) {
+      if (have_directory) throw std::runtime_error("duplicate TSI host audit directory");
+      have_directory = true; audit_directory = arg.substr(16);
+    }
+    if (arg.rfind("+tsi-host-audit-cycles=", 0) == 0) {
+      if (have_cycles) throw std::runtime_error("duplicate TSI host audit cycles");
+      have_cycles = true; audit_cycles = arg.substr(23);
+    }
+  }
+  if (have_directory != have_cycles || (have_directory && audit_directory.empty()))
+    throw std::runtime_error("TSI host audit requires directory and cycles");
+  if (have_directory) {
+    if (std::filesystem::exists(audit_directory))
+      throw std::runtime_error("TSI host audit directory already exists");
+    std::vector<uint64_t> cycles;
+    std::istringstream input(audit_cycles);
+    std::string value;
+    while (std::getline(input, value, ',')) {
+      uint64_t cycle = 0;
+      auto parsed = std::from_chars(value.data(), value.data() + value.size(), cycle);
+      if (parsed.ec != std::errc() || parsed.ptr != value.data() + value.size() ||
+          cycle == std::numeric_limits<uint64_t>::max() ||
+          (!cycles.empty() && cycle <= cycles.back()))
+        throw std::runtime_error("invalid TSI host audit cycle list");
+      cycles.push_back(cycle);
+    }
+    if (cycles.empty() || audit_cycles.back() == ',')
+      throw std::runtime_error("empty TSI host audit cycle");
+    if (std::none_of(bridges.begin(), bridges.end(), [](const auto *bridge) {
+          return bridge->host_component_scope() == "tsi-polling";
+        }))
+      throw std::runtime_error("TSI host audit requires a TSI bridge");
+    for (auto cycle : cycles)
+      register_task(cycle, [this, cycle, audit_directory] {
+        record_tsi_host_audit(cycle, audit_directory);
+        return std::numeric_limits<uint64_t>::max() - cycle;
+      });
+  }
+}
+
+void firesim_top_t::record_tsi_host_audit(uint64_t credit, const std::string &directory) {
+  // Credit and clock-token count are distinct labels. Neither asserts that
+  // a semantic DUT edge or memory transaction completed at this boundary.
+  std::ostringstream out;
+  out << "{\"format\":\"firesim-tsi-host-audit-v1\",\"master_credit\":" << credit
+      << ",\"clock_tokens_enqueued\":" << registry.get_widget<clockmodule_t>().tcycle()
+      << ",\"level1_verified\":false,\"level2_verified\":false,\"bridges\":[";
+  bool first = true;
+  for (auto *bridge : bridges) {
+    if (bridge->host_component_scope() != "tsi-polling") continue;
+    if (!first) out << ',';
+    first = false;
+    std::vector<std::pair<std::string, std::vector<uint8_t>>> images;
+    std::string rejection;
+    try { images = bridge->inspect_host_components(); }
+    catch (const std::runtime_error &error) { rejection = error.what(); }
+    out << "{\"rejection\":" << std::quoted(rejection) << ",\"components\":{";
+    bool first_component = true;
+    for (const auto &[name, image] : images) {
+      if (!first_component) out << ',';
+      first_component = false;
+      out << std::quoted(name) << ":\"";
+      for (auto byte : image)
+        out << std::hex << std::setfill('0') << std::setw(2) << unsigned(byte);
+      out << std::dec << '"';
+    }
+    out << "}}";
+  }
+  out << "]}\n";
+  std::filesystem::create_directories(directory);
+  auto destination = std::filesystem::path(directory) / (std::to_string(credit) + ".json");
+  auto temporary = destination.string() + ".tmp";
+  if (std::filesystem::exists(destination) || std::filesystem::exists(temporary))
+    throw std::runtime_error("TSI host audit destination already exists");
+  std::ofstream file(temporary, std::ios::binary);
+  file << out.str(); file.close();
+  if (!file) throw std::runtime_error("TSI host audit write failed");
+  std::filesystem::rename(temporary, destination);
 }
 
 int firesim_top_t::simulation_run() {

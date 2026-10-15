@@ -44,8 +44,10 @@ private:
   context_t host;
   context_t *target;
   bool host_initialized = false;
+  bool host_suspended = false;
 protected:
   bool host_context_initialized() const { return host_initialized; }
+  bool host_context_suspended() const { return host_initialized && host_suspended; }
 private:
   static void host_thread(void *tsi);
 };

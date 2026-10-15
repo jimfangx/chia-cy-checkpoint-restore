@@ -6,7 +6,7 @@
 void firesim_fesvr_tsi_t::host_thread(void *arg) {
   auto tsi = static_cast<firesim_fesvr_tsi_t *>(arg);
   tsi->run_host();
-  while (true) tsi->target->switch_to();
+  while (true) tsi->switch_to_target();
 }
 
 firesim_fesvr_tsi_t::firesim_fesvr_tsi_t(int argc, char **argv) : htif_t(argc, argv) {
@@ -51,4 +51,8 @@ void firesim_fesvr_tsi_t::switch_to_host() {
   }
   host.switch_to();
 }
-void firesim_fesvr_tsi_t::switch_to_target() { target->switch_to(); }
+void firesim_fesvr_tsi_t::switch_to_target() {
+  host_suspended = true;
+  target->switch_to();
+  host_suspended = false;
+}

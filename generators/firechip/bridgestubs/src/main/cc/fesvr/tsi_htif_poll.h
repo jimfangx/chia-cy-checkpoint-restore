@@ -30,6 +30,12 @@ public:
       throw std::runtime_error("unsupported HTIF poll addresses/queue limit");
   }
   phase_t phase() const { boundary.require_idle(); return current.phase; }
+  uint64_t pending_read_address() const {
+    boundary.require_idle();
+    if (current.phase == phase_t::tohost_read) return tohost_address;
+    if (current.phase == phase_t::fromhost_read && !current.responses.empty()) return fromhost_address;
+    throw std::runtime_error("HTIF poll has no pending read");
+  }
   // Device callbacks bind the destination object, never a coroutine-local
   // queue. Callback/device reconstruction remains a separate required owner.
   void respond(uint64_t value) {
