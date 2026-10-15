@@ -13,6 +13,7 @@
 #include "tsi_init_accesses.h"
 #include "tsi_program_loader.h"
 #include "tsi_htif_poll.h"
+#include "tsi_startup_metadata.h"
 #include <memory>
 
 struct firesim_loadmem_t {
@@ -69,11 +70,18 @@ public:
   using polling_cut_t = std::vector<std::pair<std::string, std::vector<uint8_t>>>;
   polling_cut_t inspect_polling_cut() const;
 
+  // Startup metadata component only; does not restore devices or a caller.
+  std::vector<uint8_t> save_startup_metadata() const;
+  void prepare_startup_metadata(const std::vector<uint8_t> &image);
+
 protected:
   int run_host() override;
   void idle() override;
 
   void reset() override;
+  std::map<std::string, uint64_t> load_payload(const std::string &payload,
+                                             reg_t *entry, reg_t offset) override;
+  bool is_address_preloaded(addr_t, size_t) override { return preparing_metadata; }
 
   void load_mem_write(addr_t addr, size_t nbytes, const void *src) override;
   void load_mem_read(addr_t addr, size_t nbytes, void *dst) override;
@@ -94,6 +102,15 @@ private:
   firesim_tsi_init_accesses_t init_control;
   widget_checkpoint_config_t initialization_config;
   bool initialization_component_restored = false;
+  std::vector<std::string> metadata_arguments;
+  bool metadata_supported = false;
+  bool preparing_metadata = false;
+  bool metadata_prepared = false;
+  bool metadata_poisoned = false;
+  firesim_tsi_startup_metadata_t startup_metadata;
+  polling_cut_t metadata_pristine_components;
+  polling_cut_t metadata_components() const;
+  void check_startup_metadata() const;
   static void validate_initialization(const firesim_tsi_host_control_t &host,
                                       const firesim_tsi_init_accesses_t &init,
                                       const firesim_tsi_serial_read_t &read);

@@ -14,6 +14,53 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 109, in progress. Recovery:
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md) and
+[tsi-startup-metadata.md](tsi-startup-metadata.md). Production explicit-path ELF
+loads now use sealed byte snapshots. The installed HTIF entry/mailboxes/symbol
+map can be reconstructed in a pristine object without target writes, reset or
+host coroutine entry. This is a metadata component only; complete CPU ownership,
+fresh Level-1 continuation and independently captured Level-2 replay remain
+pending. Diagnostic root: `runs/m11-iteration109/`.
+
+- Native/VCS metadata checks pass eight fresh sanitizer/VCS readbacks and all
+  56 unchanged peer-component images. Every image byte/truncation plus extension
+  is tested: 7,364 atomic invalid cases, followed by valid preparation. All 14
+  changed-ELF/argument and unsupported-option cases reject without partial
+  restore. Expected XLEN/build, devices/stop/signature/signal/context and aggregate
+  ownership remain pending; prepared objects explicitly reject execution.
+- Both complete exact-recipe default/buffered four-hart controls pass at
+  C=3,329,794. Every complete instruction trace and workload/store CPU print-cycle
+  label matches the uninterrupted reference. All eight active host samples pass
+  complete eight-owner inspection; clock-token/master-credit labels remain
+  distinct from semantic DUT edges. Outstanding memory cuts are uncertified.
+- All ten additional host suites and all eight full native regression suites
+  pass, including 267 Python tests and FCFS. Polling retains 72 fresh
+  continuations, 1,332 readbacks, 38,744 atomic invalid cases and four first
+  divergences; actual polling retains 324 fresh component restores / 252 caller
+  readbacks. Full initialization and 240 fresh dispatcher restores pass. All
+  60 exact-recipe native units/dependencies bind current sources.
+- The fresh ordinary Rocket pattern diagnostic reads back all 318,637 words /
+  seven clocks before edges. This is not a captured CPU image/replay. Three
+  complete CPU admission requests and all 16 invalid audit options still reject.
+  The previous iteration's 60,240 sealed artifacts pass preservation checks.
+- Recovery: summary.json, selected-results.json, raw-native-commands.json,
+  verification-commands-native.json, native-input-archives.json,
+  independent-audit-results.json and artifact-manifest.json under the run root.
+  Existing iteration-108 controller commits are published FireSim first, then
+  Chipyard; queried remote tips match. Local tracking-ref refreshes failed on
+  read-only .git after successful pushes. Protected inputs and indices match;
+  no staging, local commits, plan/environment/Conda edits or history cleanup.
+
+Next: bind configuration/build/XLEN and complete default-device, stop/signature,
+signal and context ownership; atomically restore coherent host owners without
+repeating startup writes/reset. Complete simulator/FAME/channel/memory/bridge
+ownership, coherent early/warm/outstanding-memory/late CPU cuts, fresh Level-1
+continuation, independently captured Level-2 readback/replay and whole-CPU
+rejection/corruption cases remain pending. BOOM/Saturn remain pending. No external
+dependency is missing. Both plans remain read-only; the controller owns commits.
+
+Previous recovery (iteration 108):
 Current milestone: M11-rocket-level1-level2, iteration 108, in progress. Recovery:
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md) and
 [tsi-polling-cut-audit.md](tsi-polling-cut-audit.md). Production TSI inspection now

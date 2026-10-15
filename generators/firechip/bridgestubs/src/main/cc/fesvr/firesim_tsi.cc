@@ -58,9 +58,17 @@ firesim_tsi_t::firesim_tsi_t(int argc, char **argv, bool can_have_loadmem)
 
   // always use loadmem if the target supports it
   has_loadmem = can_have_loadmem;
+  metadata_arguments.assign(argv + 1, argv + argc);
+  metadata_supported = owned_default_devices && !target_args().empty() && target_args()[0] != "none";
+  for (const auto &arg : metadata_arguments)
+    for (const auto *unsupported : {"+payload=", "+symbol-elf=", "+signature=", "+signature-granularity="})
+      if (arg.find(unsupported) == 0) metadata_supported = false;
+  metadata_pristine_components = metadata_components();
 }
 
 int firesim_tsi_t::run_host() {
+  if (metadata_prepared || metadata_poisoned)
+    throw std::runtime_error("HTIF/context continuation after metadata component preparation is unsupported");
   if (!owned_default_devices) return htif_t::run();
   // Startup/ELF/symbol and stop/signature state remain upstream, separate from
   // this resumable poll caller. Do not publish a complete TSI checkpoint.
@@ -120,6 +128,86 @@ int firesim_tsi_t::run_host() {
   return exit_code();
 }
 
+std::map<std::string, uint64_t> firesim_tsi_t::load_payload(
+    const std::string &payload, reg_t *entry, reg_t offset) {
+  if (!metadata_supported || payload != target_args().at(0))
+    return htif_t::load_payload(payload, entry, offset);
+  // Preserve installed HTIF's path-search behavior for ordinary execution.
+  // Such a load cannot supply this explicit-path metadata component.
+  if (!preparing_metadata && access(payload.c_str(), F_OK) != 0) {
+    metadata_supported = false;
+    return htif_t::load_payload(payload, entry, offset);
+  }
+  auto bytes = preparing_metadata ? startup_metadata.elf : firesim_tsi_elf_bytes(payload);
+  firesim_tsi_elf_snapshot_t snapshot(bytes);
+  auto symbols = htif_t::load_payload(snapshot.path(), entry, offset);
+  startup_metadata = {std::move(bytes), *entry, symbols};
+  return symbols;
+}
+
+firesim_tsi_t::polling_cut_t firesim_tsi_t::metadata_components() const {
+  polling_cut_t result;
+  for (const auto &[name, owner] : std::array<std::pair<const char *, const checkpoint_owner_t *>, 7>{{
+      {"program", &program_loader}, {"init", &init_control}, {"host", &host_control},
+      {"read", &serial_read}, {"serial", &serial}, {"loadmem-read", &loadmem_read},
+      {"loadmem-queues", &loadmem_queues}}})
+    result.emplace_back(name, owner->save_checkpoint());
+  return result;
+}
+
+void firesim_tsi_t::check_startup_metadata() const {
+  // Installed HTIF's read-only getters lack const qualifiers.
+  auto &self = const_cast<firesim_tsi_t &>(*this);
+  if (!metadata_supported || metadata_poisoned || startup_metadata.elf.empty())
+    throw std::runtime_error("unsupported or incomplete TSI startup metadata");
+  const auto &symbols = startup_metadata.symbols;
+  auto expected = [&](const char *name) { auto p = symbols.find(name); return p == symbols.end() ? 0 : p->second; };
+  const bool mailboxes = symbols.count("tohost") && symbols.count("fromhost");
+  if (self.get_entry_point() != startup_metadata.entry ||
+      self.get_tohost_addr() != (mailboxes ? expected("tohost") : 0) ||
+      self.get_fromhost_addr() != (mailboxes ? expected("fromhost") : 0))
+    throw std::runtime_error("TSI startup entry/mailbox readback differs");
+  std::map<uint64_t, std::string> canonical;
+  for (const auto &[name, address] : symbols) canonical.emplace(address, name);
+  for (const auto &[address, name] : canonical) {
+    const char *actual = self.get_symbol(address);
+    if (!actual || name != actual) throw std::runtime_error("TSI startup symbol readback differs");
+  }
+}
+
+std::vector<uint8_t> firesim_tsi_t::save_startup_metadata() const {
+  if (!metadata_prepared) inspect_polling_cut();
+  else if (host_context_initialized() || metadata_components() != metadata_pristine_components)
+    throw std::runtime_error("metadata-only preparation changed a caller component");
+  check_startup_metadata();
+  return startup_metadata.image(metadata_arguments);
+}
+
+void firesim_tsi_t::prepare_startup_metadata(const std::vector<uint8_t> &image) {
+  if (!metadata_supported || metadata_prepared || metadata_poisoned || host_context_initialized() ||
+      !startup_metadata.elf.empty() || metadata_components() != metadata_pristine_components ||
+      should_exit() || done())
+    throw std::runtime_error("TSI metadata preparation requires a pristine supported caller");
+  auto candidate = firesim_tsi_startup_metadata_t::probe(firesim_tsi_elf_bytes(target_args().at(0)));
+  if (candidate.image(metadata_arguments) != image)
+    throw std::runtime_error("TSI startup metadata ELF/arguments/complete image mismatch");
+  startup_metadata = std::move(candidate);
+  preparing_metadata = true;
+  try {
+    // Bypass TestChip/FireSim load_program's yield and program-loader phases.
+    // Installed load_payload sees all bytes as preloaded, so neither memif
+    // read/modify/write nor target reset/initialization can be reissued.
+    htif_t::load_program();
+    preparing_metadata = false;
+    check_startup_metadata();
+    if (metadata_components() != metadata_pristine_components || host_context_initialized())
+      throw std::runtime_error("metadata preparation entered target services");
+    metadata_prepared = true;
+  } catch (...) {
+    preparing_metadata = false; metadata_poisoned = true; throw;
+  }
+}
+
 firesim_tsi_t::polling_cut_t firesim_tsi_t::inspect_polling_cut() const {
   if (!owned_default_devices)
     throw std::runtime_error("TSI polling audit: installed custom/long-option HTIF path");
@@ -175,6 +263,7 @@ void firesim_tsi_t::send_loadmem_word(uint32_t word) {
 }
 
 void firesim_tsi_t::read_chunk(addr_t address, size_t bytes, void *destination) {
+  if (preparing_metadata) throw std::runtime_error("metadata preparation attempted a target read");
   if (program_loader.loadmem_mode()) load_mem_read(address, bytes, destination);
   else {
     flush_program_cache_lines(address, bytes);
@@ -183,6 +272,7 @@ void firesim_tsi_t::read_chunk(addr_t address, size_t bytes, void *destination) 
 }
 
 void firesim_tsi_t::write_chunk(addr_t address, size_t bytes, const void *source) {
+  if (preparing_metadata) throw std::runtime_error("metadata preparation attempted a target write");
   if (program_loader.loadmem_mode()) load_mem_write(address, bytes, source);
   else {
     flush_program_cache_lines(address, bytes);
@@ -251,12 +341,15 @@ void firesim_tsi_t::load_mem_read(addr_t addr, size_t nbytes, void *dst) {
 }
 
 void firesim_tsi_t::tick() {
+  if (metadata_prepared || metadata_poisoned)
+    throw std::runtime_error("HTIF/context continuation after metadata component preparation is unsupported");
   if (initialization_component_restored)
     throw std::runtime_error("HTIF/context continuation after component restore is unsupported");
   switch_to_host();
 }
 
 void firesim_tsi_t::reset() {
+  if (preparing_metadata) throw std::runtime_error("metadata preparation attempted target reset");
   // after program loading, this function is called and spins until the target
   // thread/bridge has synced/drained all in-flight fesvr xacts
   host_control.begin_reset();
