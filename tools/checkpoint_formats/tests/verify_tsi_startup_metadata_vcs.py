@@ -24,12 +24,19 @@ def pristine_peers():
                 **{'loadmem-read':config(14,4096,4)+words(0,0,0,0),'loadmem-queues':config(16,4096,4)+words(0,0,0,0,0,0,0)})
 
 
-def canonical(elf, legacy=False, revision=3, required_xlen=0):
+def canonical(elf, legacy=False, revision=3, required_xlen=0, sealed_input=None, terminal=None,
+              omit_terminal=False, reorder_peers=False):
     def blob(b):
         return words(len(b))+b
     args=[b'+permissive', b'+no_hart0_msip', b'+permissive-off', str(elf).encode()]
+    if sealed_input is not None:
+        args.insert(2, ('+checkpoint-terminal-input='+str(sealed_input)).encode())
     symbols=[(b'',0),(b'fromhost',0x80002008),(b'tohost',0x80002000)]
     peers=pristine_peers()
+    if terminal is not None and not omit_terminal:
+        peers['terminal']=terminal
+    if reorder_peers:
+        peers=dict(reversed(list(peers.items())))
     configuration=(config(25,revision,1,0,8,1024,*([required_xlen] if revision>=3 else []))+words(len(peers))+
                    b''.join(blob(n.encode())+blob(b) for n,b in peers.items()))
     header=config(25) if legacy else config(25,revision)+blob(configuration)

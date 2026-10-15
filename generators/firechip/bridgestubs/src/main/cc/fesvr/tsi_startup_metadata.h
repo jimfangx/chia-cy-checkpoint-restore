@@ -49,10 +49,14 @@ struct firesim_tsi_startup_metadata_t {
   std::map<std::string, uint64_t> symbols;
 
   std::vector<uint8_t> image(const std::vector<std::string> &arguments,
-                             const std::vector<uint8_t> &configuration) const {
+                             const std::vector<uint8_t> &configuration,
+                             uint64_t revision = 3) const {
     // Version 3 also binds the installed HTIF's exact required-XLEN policy.
     // Legacy metadata images cannot certify that contract and must reject.
-    widget_checkpoint_config_t out(25, {3});
+    // Version 4 additionally binds the sealed terminal's pristine image.
+    // Keep live-mode version 3 byte-compatible with its existing evidence.
+    if (revision != 3 && revision != 4) throw std::runtime_error("unsupported TSI metadata revision");
+    widget_checkpoint_config_t out(25, {revision});
     auto blob = [&](const auto &value) {
       out.word(value.size()); out.bytes.insert(out.bytes.end(), value.begin(), value.end());
     };

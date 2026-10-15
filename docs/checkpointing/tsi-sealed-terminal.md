@@ -1,7 +1,9 @@
 # Sealed terminal component state
 
-Iteration 116 adds an opt-in production BCD terminal owner. Complete Rocket
-Level-1 continuation and captured Level-2 readback/replay remain pending.
+Iteration 116 added an opt-in production BCD terminal owner. Iteration 117
+binds that owner into startup metadata and the suspended polling audit.
+Complete Rocket Level-1 continuation and captured Level-2 readback/replay remain
+pending.
 
 `+checkpoint-terminal-input=/absolute/path/to/input.bin`, inside the permissive
 host options, captures a regular file's bytes at TSI construction. The file
@@ -26,19 +28,49 @@ output and transcript overflow poison the owner rather than acknowledging an
 uncertain cut. BCD still separately owns pending commands and response binding.
 
 The production TSI lifetime owns the terminal before its BCD. Ordinary execution
-and the original BCD component interface remain compatible. Startup metadata
-preparation explicitly rejects the new mode: its seven-peer metadata contract
-does not yet bind this additional owner. The terminal accessor is for inspection;
+and the original BCD component interface remain compatible. Sealed startup metadata uses revision 4 and binds the terminal
+configuration and pristine image as its eighth peer. Ordinary live-mode
+metadata retains its revision-3 bytes. The terminal accessor is for inspection;
 complete HTIF/device/caller/aggregate restoration is still disabled. Syscall
 descriptors, process signals, live terminal/termios state and stop/exit state
 remain separate pending owners. The sealed stream does not model timed input
 arrival; it represents an input file whose bytes are available from startup.
-The existing eight-component `inspect_polling_cut()` audit excludes this new
-owner. Its images cannot establish a complete sealed-mode cut. The sealed
+In sealed mode, `inspect_polling_cut()` now includes BCD and terminal alongside
+the eight protocol owners. Each image is validated and saved again to check
+stability. This ten-component audit still cannot establish a complete HTIF or
+CPU cut: syscall, signal, stop/exit and coherent caller restoration remain pending. The sealed
 input service applies to the owned default BCD route; configured installed HTIF
 routes remain outside this component's checkpoint scope.
 
-## Native verification
+## Iteration 117: metadata binding and complete known-peer inspection
+
+Diagnostic root: `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration117/`.
+`terminal/invocation-vszs_4d9/summary.json` retains the native sanitizer and VCS
+DPI checks, exact argv, source snapshots and every image/readback. The independent
+Python oracle checks revision-4 bytes, ordered owner membership, ELF metadata,
+required XLEN, arguments and sealed input. Eight fresh metadata preparations
+read back metadata and all eight pristine peers before services or context entry.
+Replacing the original terminal file after construction does not affect the
+prepared state. All 16,004 malformed images and 16 incompatible configurations
+(live mode, different input, omitted terminal, reordered peers) reject before
+peer or mailbox mutation. Three guards per valid preparation prevent entering
+the caller, duplicate preparation or inspecting a nonexistent polling context.
+
+Two real TSI transport runs audit all ten owners at first poll, after consuming
+all input and after writing output (60 complete component images). Their
+startup metadata remains identical across terminal progress. The original
+52 paired terminal/BCD restores, 312 host events, 568 malformed rejections,
+four incompatible inputs, eight incomplete pairs, 28 service guards and four
+first response divergences remain covered. These are host component events;
+no semantic CPU target-cycle or whole-runtime continuation is claimed.
+
+Reproduce with the command below, changing the output to
+`automations/checkpoint_loop/runs/m11-iteration117-controller-rechecks/terminal`.
+Audit the new retained invocation with `--audit` and its absolute summary path.
+See the CPU matrix for the full exact-recipe workload controls and ordinary
+RTL diagnostic. Complete aggregate restoration remains pending.
+
+## Iteration 116 native verification (historical)
 
 The retained invocation is
 `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration116/terminal/invocation-imxpr74q/summary.json`.

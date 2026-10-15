@@ -19,6 +19,8 @@ from tools.checkpoint_formats.tests.verify_loadmem_read_checkpoint_vcs import EN
 from tools.checkpoint_formats.tests.verify_semantic_vcs import ROOT, run
 from tools.checkpoint_formats.tests.verify_firesim_tsi_loadmem_vcs import CC, STUBS, TESTS, TESTCHIP, FESVR
 from tools.checkpoint_formats.tests.verify_tsi_host_control_fesvr_vcs import polling_elf
+from tools.checkpoint_formats.tests.verify_tsi_startup_metadata_vcs import canonical, pristine_peers
+from tools.checkpoint_formats.tests.verify_tsi_polling_cut_vcs import OWNERS, audit_components
 
 INPUT = bytes([65, 0, 255])
 READ = 1 << 56
@@ -75,8 +77,20 @@ def audit(path):
         for name, expected in [('pristine', image(0)), ('consumed', image(3)), ('written', image(3, b'Z'))]:
             require((integration/(name+'.terminal')).read_bytes() == expected, 'production terminal state differs')
         require((integration/'output.bin').read_bytes() == b'Z', 'actual production BCD output differs')
-        require('ACTUAL_TSI_TERMINAL input_bytes=3 output_bytes=1 source_file_replaced=1 metadata_rejected=1 exit=0' in
+        metadata_bound = report.get('sealed_metadata_bound', False)
+        marker = ('metadata_bound=1 audited_components=10' if metadata_bound else 'metadata_rejected=1')
+        require(('ACTUAL_TSI_TERMINAL input_bytes=3 output_bytes=1 source_file_replaced=1 '+marker+' exit=0') in
                 (out/(backend+'-integration.log')).read_text(), 'production terminal did not execute')
+        if metadata_bound:
+            expected = canonical(out/'polling.elf', revision=4, sealed_input=out/'sealed-input.bin', terminal=image(0))
+            require((integration/'startup.metadata').read_bytes()==expected, 'sealed startup binding differs from independent oracle')
+            for cut, expected_terminal in [('pristine',image(0)),('consumed',image(3)),('written',image(3,b'Z'))]:
+                paths=list(integration.glob(cut+'.audit-*'))
+                require({p.name.split('.audit-')[1] for p in paths}==OWNERS|{'bcd','terminal'}, 'incomplete sealed device audit')
+                images={n:(integration/(cut+'.audit-'+n)).read_bytes() for n in OWNERS}
+                audit_components(images, msip=False)
+                require((integration/(cut+'.audit-terminal')).read_bytes()==expected_terminal and
+                        (integration/(cut+'.audit-bcd')).read_bytes()==config(26,1,1048576)+words(0), 'wrong actual sealed device state')
         require('TERMINAL_GUARDS live=3 active=5 interrupted=5 output_limit=1' in (out/(backend+'-guards.log')).read_text(), 'terminal guards incomplete')
     require(len(report['restores']) == 52 and len(report['invalid']) == 4 and len(report['corruptions']) == 4, 'missing terminal fresh processes')
     for case in report['restores']:
@@ -104,10 +118,32 @@ def audit(path):
         require(not any(s in text for s in ('ERROR: AddressSanitizer', 'runtime error:', 'LeakSanitizer: detected')), 'terminal sanitizer failure')
         pids.append(int(re.search(r'fresh_process_pid=(\d+)', text)[1]))
     require(len(pids) == len(set(pids)), 'terminal check reused native process')
+    metadata_result={}
+    if report.get('sealed_metadata_bound'):
+        expected=canonical(out/'polling.elf',revision=4,sealed_input=out/'sealed-input.bin',terminal=image(0))
+        peers=dict(pristine_peers(),terminal=image(0))
+        require(len(report['metadata_cases'])==24, 'missing fresh sealed metadata checks')
+        malformed=0
+        for case in report['metadata_cases']:
+            dest=Path(case['destination']);text=Path(case['log']).read_text();mode=case['mode']
+            if mode in ('metadata-prepare','metadata-invalid'):
+                count=2*len(expected)+1 if mode=='metadata-invalid' else 0
+                require(f'SEALED_METADATA_READBACK unchanged_peers=8 target_edges=0 target_services=0 context_entries=0 guards=3 malformed_rejections={count}' in text, 'sealed preparation entered services/missed rejections')
+                malformed+=count
+                require({p.name for p in dest.iterdir()}=={'preedge.metadata',*{'preedge.'+n for n in peers}}, 'sealed readback omitted peer')
+                require((dest/'preedge.metadata').read_bytes()==expected, 'fresh sealed metadata readback differs')
+                for n,b in peers.items():require((dest/('preedge.'+n)).read_bytes()==b, 'sealed preparation mutated '+n)
+            else:
+                require(f'SEALED_METADATA_INCOMPATIBLE mode={mode} unchanged_peers={7 if mode=="metadata-live" else 8} services=0' in text and not list(dest.iterdir()), 'incompatible sealed metadata published a partial owner')
+        for kind,options in [('missing-peer',{'omit_terminal':True}),('reordered-peers',{'reorder_peers':True})]:
+            require((out/(kind+'-images/startup.metadata')).read_bytes()==canonical(out/'polling.elf',revision=4,sealed_input=out/'sealed-input.bin',terminal=image(0),**options), 'unbound peer membership negative image')
+        metadata_result=dict(fresh_sealed_metadata_readbacks=8, unchanged_peer_readbacks=64,
+                             sealed_metadata_malformed_rejections=malformed, sealed_metadata_incompatible_rejections=16,
+                             sealed_polling_device_audits=6, sealed_polling_component_images=60)
     return dict(status='passed', complete_fresh_pair_readbacks=52, continued_host_events=312,
                 atomic_malformed_images=4*invalid_count, incompatible_images=4, incomplete_pairs=8,
                 first_semantic_divergences=4, production_TSI_runs=2, service_guards=28,
-                level1_verified=False, level2_verified=False)
+                **metadata_result, level1_verified=False, level2_verified=False)
 
 
 def main():
@@ -125,6 +161,7 @@ def main():
     inputs = [*sources, sv, Path(__file__), *overlay_inputs(), FESVR/'lib/libfesvr.a',
               TESTS/'verify_tsi_host_control_fesvr_vcs.py', TESTS/'verify_firesim_tsi_loadmem_vcs.py',
               TESTS/'verify_semantic_vcs.py', TESTS/'verify_loadmem_read_checkpoint_vcs.py',
+              TESTS/'verify_tsi_startup_metadata_vcs.py', TESTS/'verify_tsi_polling_cut_vcs.py',
               *sorted((STUBS/'fesvr').glob('*.h')), *sorted(TESTCHIP.glob('*.h')), *sorted((FESVR/'include/fesvr').glob('*.h')),
               CC/'core/checkpoint.h', CC/'core/widget_checkpoint.h', ROOT/'env.sh', ROOT/'sims/firesim/env.sh', ROOT/'automations/checkpoint_loop/vcs-env.sh']
     snapshots = out/'sources'; snapshots.mkdir(); bindings = []
@@ -170,10 +207,20 @@ def main():
             case = invoke(backend, 'corrupt', f'{producer}-{backend}-corrupt', corruption, 1)
             case['first_divergence'] = dict(host_event=2, expected=f'RESPONSE {READ | 0x141}', actual=f'RESPONSE {READ | 0x100}')
             corruptions.append(case)
+    for kind,options in [('missing-peer',{'omit_terminal':True}),('reordered-peers',{'reorder_peers':True})]:
+        dest=out/(kind+'-images');dest.mkdir()
+        (dest/'startup.metadata').write_bytes(canonical(elf,revision=4,sealed_input=out/'sealed-input.bin',terminal=image(0),**options))
+    metadata_cases=[]
+    for producer in ('native','vcs-dpi'):
+        for backend in ('native','vcs-dpi'):
+            for suffix in ('prepare','invalid','wrong-input','live','missing-peer','reordered-peers'):
+                images=out/(suffix+'-images') if suffix in ('missing-peer','reordered-peers') else out/(producer+'-integration')
+                metadata_cases.append(invoke(backend,'metadata-'+suffix,f'{producer}-{backend}-metadata-{suffix}',images))
     for binding in bindings:
         require(file_sha(binding['path']) == binding['sha256'], 'terminal source changed during execution')
     report = dict(status='passed', scope='sealed terminal/BCD components only; complete CPU restore unsupported', commands=commands,
-                  restores=restores, invalid=invalid, corruptions=corruptions, source_inputs=bindings, level1_verified=False, level2_verified=False,
+                  restores=restores, invalid=invalid, corruptions=corruptions, source_inputs=bindings,
+                  sealed_metadata_bound=True,metadata_cases=metadata_cases,level1_verified=False, level2_verified=False,
                   artifact_sha256={str(p):file_sha(p) for p in sorted(out.rglob('*')) if p.is_file()})
     path = out/'summary.json'; path.write_text(json.dumps(report, indent=2)+'\n')
     print(json.dumps(dict(audit(path), summary=str(path)), indent=2))

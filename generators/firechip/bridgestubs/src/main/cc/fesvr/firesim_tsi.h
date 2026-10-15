@@ -70,7 +70,8 @@ public:
   std::vector<uint8_t> save_initialization_checkpoint() const;
   void load_initialization_checkpoint(const std::vector<uint8_t> &image);
 
-  // Read-only, complete images of the eight already owned components at an
+  // Read-only images of the eight protocol components, plus BCD and terminal
+  // in sealed mode, at an
   // externally suspended steady-state poll. This is an audit, not a complete
   // HTIF/TSI image: metadata, devices, contexts and RTL remain unowned.
   using polling_cut_t = std::vector<std::pair<std::string, std::vector<uint8_t>>>;
@@ -132,6 +133,7 @@ private:
   firesim_tsi_startup_metadata_t startup_metadata;
   polling_cut_t metadata_pristine_components;
   polling_cut_t metadata_components() const;
+  uint64_t metadata_revision() const { return terminal->checkpoint_schema().empty() ? 3 : 4; }
   std::vector<uint8_t> metadata_configuration(unsigned required_xlen) const;
   unsigned preflight_startup_metadata(const firesim_tsi_startup_metadata_t &candidate);
   void check_startup_metadata() const;

@@ -21,6 +21,28 @@ static void put(std::vector<uint8_t> &v, size_t at, uint64_t n) {
 }
 static constexpr uint64_t READ = 0x0100000000000000ULL;
 static const std::vector<uint8_t> INPUT{65,0,255};
+static auto metadata_peers(const firesim_tsi_t &tsi) {
+  firesim_tsi_t::polling_cut_t result;
+  for (const auto &[name, owner] : std::vector<std::pair<std::string, const checkpoint_owner_t *>>{
+      {"program",&tsi.program_loader_owner()},{"init",&tsi.init_accesses_owner()},
+      {"host",&tsi.host_control_owner()},{"read",&tsi.serial_read_owner()},
+      {"serial",&tsi.serial_queue_owner()},{"loadmem-read",&tsi.loadmem_read_owner()},
+      {"loadmem-queues",&tsi.loadmem_queue_owner()}})
+    result.emplace_back(name,owner->save_checkpoint());
+  if (!tsi.terminal_owner().checkpoint_schema().empty())
+    result.emplace_back("terminal",tsi.terminal_owner().save_checkpoint());
+  return result;
+}
+static auto polling_audit(firesim_tsi_t &tsi, const fs::path &out, const std::string &name) {
+  const auto before=tsi.inspect_polling_cut();
+  require(before.size()==10,"sealed polling audit omitted an owner");
+  require(before[8].first=="bcd" && before[8].second==tsi.bcd_owner().save_checkpoint() &&
+          before[9].first=="terminal" && before[9].second==tsi.terminal_owner().save_checkpoint(),
+          "sealed polling device readback differs");
+  for(const auto &[id,bytes]:before)save(out/(name+".audit-"+id),bytes);
+  require(tsi.inspect_polling_cut()==before,"inspection changed a peer");
+  return before;
+}
 class memory_t final : public memif_t {
 public:
   memory_t() : memif_t(nullptr) {}
@@ -122,7 +144,7 @@ static void packet(firesim_tsi_t &tsi, std::initializer_list<uint32_t> expected)
   require(!tsi.data_available(),"extra production packet");
 }
 static void integration(const fs::path &elf, const fs::path &out) {
-  const auto input=out/"input.bin";save(input,INPUT);
+  const auto input=elf.parent_path()/"sealed-input.bin";save(input,INPUT);
   std::vector<std::string> args{"terminal","+permissive","+no_hart0_msip",
     "+checkpoint-terminal-input="+input.string(),"+permissive-off",elf};
   std::vector<char *> argv;for(auto &arg:args)argv.push_back(arg.data());
@@ -137,6 +159,8 @@ static void integration(const fs::path &elf, const fs::path &out) {
   tsi.send_loadmem_word(0xaabbccdd);tsi.send_loadmem_word(0x11223344);tsi.tick();
   require(tsi.recv_loadmem_write_req(request) && request.addr==0x80001000 && request.size==8,"ELF merge differs");
   tsi.recv_loadmem_data(bytes.data(),8);tsi.set_loaded_in_target(true);tsi.tick();packet(tsi,{0,0x80002000,0,1,0});
+  polling_audit(tsi,out,"pristine");
+  const auto metadata=tsi.save_startup_metadata();save(out/"startup.metadata",metadata);
   for(auto ch:INPUT) {
     tsi.send_word(0);tsi.send_word(0x01000000);tsi.tick();
     packet(tsi,{1,0x80002000,0,1,0,0,0,0,0x80002008,0,1,0});
@@ -144,6 +168,7 @@ static void integration(const fs::path &elf, const fs::path &out) {
     packet(tsi,{1,0x80002008,0,1,0,0x100|uint32_t(ch),0x01000000,0,0x80002000,0,1,0});
   }
   save(out/"consumed.terminal",tsi.terminal_owner().save_checkpoint());
+  polling_audit(tsi,out,"consumed");
   // BCD write routes through the same owned transcript, including binary 0.
   const int original=dup(1),fd=open((out/"output.bin").c_str(),O_CREAT|O_TRUNC|O_WRONLY,0600);
   require(original>=0 && fd>=0 && dup2(fd,1)==1,"cannot redirect terminal output");close(fd);
@@ -151,16 +176,58 @@ static void integration(const fs::path &elf, const fs::path &out) {
   packet(tsi,{1,0x80002000,0,1,0,0,0,0,0x80002000,0,1,0});
   require(dup2(original,1)==1,"cannot restore stdout");close(original);
   save(out/"written.terminal",tsi.terminal_owner().save_checkpoint());
-  bool failed=false;try{tsi.save_startup_metadata();}catch(const std::runtime_error &){failed=true;}
-  require(failed,"unbound aggregate metadata admitted terminal peer");
+  polling_audit(tsi,out,"written");
+  require(tsi.save_startup_metadata()==metadata,"terminal progress changed startup configuration");
   tsi.send_word(1);tsi.send_word(0);tsi.tick();packet(tsi,{1,0x80002000,0,1,0,0,0});
   require(tsi.done() && tsi.exit_code()==0,"production exit differs");
-  std::cout<<"ACTUAL_TSI_TERMINAL input_bytes=3 output_bytes=1 source_file_replaced=1 metadata_rejected=1 exit=0\n";
+  std::cout<<"ACTUAL_TSI_TERMINAL input_bytes=3 output_bytes=1 source_file_replaced=1 metadata_bound=1 audited_components=10 exit=0\n";
+}
+static void metadata(const std::string &mode,const fs::path &elf,const fs::path &images,const fs::path &out) {
+  const auto input=elf.parent_path()/"sealed-input.bin";
+  save(input,mode=="metadata-wrong-input" ? std::vector<uint8_t>{65,0,254} : INPUT);
+  std::vector<std::string> args{"terminal","+permissive","+no_hart0_msip"};
+  if(mode!="metadata-live")args.push_back("+checkpoint-terminal-input="+input.string());
+  args.insert(args.end(),{"+permissive-off",elf});
+  std::vector<char *> argv;for(auto &arg:args)argv.push_back(arg.data());
+  firesim_tsi_t tsi(argv.size(),argv.data(),true);
+  const auto before=metadata_peers(tsi);
+  const auto good=read_file(images/"startup.metadata");
+  size_t rejected=0;
+  auto reject=[&](const std::vector<uint8_t> &candidate) {
+    bool failed=false;try{tsi.prepare_startup_metadata(candidate);}catch(const std::runtime_error &){failed=true;}
+    require(failed && metadata_peers(tsi)==before && !tsi.get_tohost_addr() && !tsi.get_fromhost_addr() && !tsi.done(),
+            "invalid sealed metadata partially restored a peer/mailbox");++rejected;
+  };
+  if(mode=="metadata-live" || mode=="metadata-wrong-input" || mode=="metadata-missing-peer" || mode=="metadata-reordered-peers") {
+    reject(good);
+    std::cout<<"SEALED_METADATA_INCOMPATIBLE mode="<<mode<<" unchanged_peers="<<before.size()<<" services=0\n";return;
+  }
+  if(mode=="metadata-invalid") {
+    for(size_t n=0;n<good.size();++n)reject({good.begin(),good.begin()+n});
+    for(size_t at=0;at<good.size();++at){auto v=good;v[at]^=1;reject(v);}
+    auto v=good;v.push_back(0);reject(v);
+  }
+  require(mode=="metadata-prepare" || mode=="metadata-invalid","unknown metadata mode");
+  // Construction captured bytes; preparation must not reopen this input file.
+  save(input,{});
+  tsi.prepare_startup_metadata(good);
+  require(metadata_peers(tsi)==before && tsi.save_startup_metadata()==good && !tsi.done(),"sealed metadata incomplete readback");
+  save(out/"preedge.metadata",tsi.save_startup_metadata());
+  for(const auto &[name,bytes]:before)save(out/("preedge."+name),bytes);
+  size_t guards=0;
+  for(int op=0;op<3;++op) {
+    bool failed=false;try{if(op==0)tsi.tick();else if(op==1)tsi.prepare_startup_metadata(good);else tsi.inspect_polling_cut();}
+    catch(const std::runtime_error &){failed=true;}require(failed,"metadata-only caller executed or duplicated preparation");++guards;
+  }
+  require(metadata_peers(tsi)==before && tsi.save_startup_metadata()==good,"guard changed prepared peer");
+  std::cout<<"SEALED_METADATA_READBACK unchanged_peers=8 target_edges=0 target_services=0 context_entries=0 guards="<<guards
+           <<" malformed_rejections="<<rejected<<'\n';
 }
 static int run(const char *mode,const char *source,const char *images,const char *destination,int cut) {
   try {
     const std::string op(mode);fs::path out(destination);fs::create_directories(out);
     if(op=="guards")guards();else if(op=="integration")integration(source,out);
+    else if(op.rfind("metadata-",0)==0)metadata(op,source,images,out);
     else if(op=="invalid")invalid(images,out);
     else {require(op=="capture" || op=="restore" || op=="corrupt","unknown terminal mode");execute(op,images,out,cut);}
     return 0;

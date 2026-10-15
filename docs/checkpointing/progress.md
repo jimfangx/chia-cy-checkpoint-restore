@@ -14,7 +14,56 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 116, in progress. Recovery:
+Current milestone: M11-rocket-level1-level2, iteration 117, in progress. Recovery:
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md) and
+[tsi-sealed-terminal.md](tsi-sealed-terminal.md). Sealed startup metadata now
+uses revision 4 and binds the terminal's complete pristine image/input as its
+eighth peer; default live metadata retains revision-3 bytes. The production
+sealed polling audit includes all ten known protocol/BCD/terminal owners,
+validates each image and checks repeated complete readback. Complete CPU
+admission remains disabled. Neither Rocket Level-1 continuation nor captured
+Level-2 replay has passed.
+
+Diagnostic root: `runs/m11-iteration117/`. New native sanitizer/VCS evidence is
+`terminal/invocation-vszs_4d9/summary.json`: eight fresh sealed metadata readbacks,
+64 unchanged peer images, 16,004 atomic malformed rejections, 16 incompatible
+input/mode/missing-owner/order cases and 24 caller/duplicate-preparation guards.
+Two actual TSI runs audit 60 component images through input/output progress.
+Existing terminal/BCD checks retain 52 fresh paired restores, 312 host events,
+568 malformed rejections and four first response divergences after cursor
+corruption. These remain component events, not CPU target-cycle cuts.
+
+All eight preserved native suites pass, including 267 Python tests and FCFS.
+Startup metadata and device-lifetime suites also pass. The fresh ordinary RTL
+pattern diagnostic again reads all 318,637 words/seven clocks before any edge;
+this is not captured CPU replay. All three exact-recipe default/buffered/sealed
+controls pass at C=3,329,794. Every full hart trace and workload/store print-cycle
+label matches the reference. All 104 known host images pass at 12 active samples
+(64 default/buffered, 40 sealed); master credits and one-ahead enqueue labels
+remain distinct from uncertified semantic CPU cuts. The build's loader/context/
+TSI/bridge objects equal independent recompilation. All 13 retained host suites
+and all 17 independent component/native evidence audits pass. Dispatcher checks
+retain 240 fresh continuations, 7,012 peer readbacks, 5,112 atomic invalid images
+and four first component divergences. All 53,355 prior cataloged artifacts and
+1,005 native input bindings pass the final preservation guard. Existing
+controller commits were published FireSim first, then Chipyard; remote tips
+match despite local read-only tracking-ref warnings. Both plans remain unchanged.
+
+Recovery files under the run root: `summary.json`, `selected-results.json`,
+`raw-native-commands.json`, `verification-commands-native.json`,
+`native-input-archives.json`, `artifact-manifest.json`,
+`independent-component-audits.json`, `native-terminal-build-audit.json`,
+`sealed-workload-independent-audit.json` and `preservation-audit.json`.
+
+Next: finish atomic aggregate restoration including terminal and BCD, coherent
+caller reconstruction without startup writes/reset, syscall/file-descriptor,
+signal and stop/exit ownership. Complete simulator/FAME/channel/memory/bridge
+ownership, required CPU cuts, fresh Level-1 continuation and independently
+captured Level-2 zero-edge readback/finite replay remain pending. No external
+dependency is missing. BOOM/Saturn remain pending; physical FPGA and ASIC power
+stay deferred. The controller owns local commits; no staging or local commits.
+
+Previous iteration 116, in progress. Recovery:
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md) and
 [tsi-sealed-terminal.md](tsi-sealed-terminal.md). An opt-in production BCD
 terminal owner captures a bounded input file, cursor and binary output

@@ -99,8 +99,6 @@ firesim_tsi_t::firesim_tsi_t(int argc, char **argv, bool can_have_loadmem)
   has_loadmem = can_have_loadmem;
   metadata_arguments.assign(argv + 1, argv + argc);
   metadata_supported = owned_default_devices && !target_args().empty() && target_args()[0] != "none";
-  // Aggregate metadata does not yet bind this additional peer owner.
-  if (!terminal->checkpoint_schema().empty()) metadata_supported = false;
   for (const auto &arg : metadata_arguments)
     for (const auto *unsupported : {"+payload=", "+symbol-elf=", "+signature=", "+signature-granularity="})
       if (arg.find(unsupported) == 0) metadata_supported = false;
@@ -194,12 +192,14 @@ firesim_tsi_t::polling_cut_t firesim_tsi_t::metadata_components() const {
       {"read", &serial_read}, {"serial", &serial}, {"loadmem-read", &loadmem_read},
       {"loadmem-queues", &loadmem_queues}}})
     result.emplace_back(name, owner->save_checkpoint());
+  if (!terminal->checkpoint_schema().empty())
+    result.emplace_back("terminal", terminal->save_checkpoint());
   return result;
 }
 
 std::vector<uint8_t> firesim_tsi_t::metadata_configuration(unsigned required_xlen) const {
   auto &self = const_cast<firesim_tsi_t &>(*this);
-  widget_checkpoint_config_t config(25, {3, uint64_t(has_loadmem),
+  widget_checkpoint_config_t config(25, {metadata_revision(), uint64_t(has_loadmem),
       uint64_t(self.get_target_endianness()), self.chunk_align(), self.chunk_max_size(), required_xlen});
   config.word(metadata_pristine_components.size());
   for (const auto &[name, bytes] : metadata_pristine_components) {
@@ -256,7 +256,7 @@ std::vector<uint8_t> firesim_tsi_t::save_startup_metadata() const {
     throw std::runtime_error("metadata-only preparation changed a caller component");
   check_startup_metadata();
   const auto xlen = const_cast<firesim_tsi_t &>(*this).preflight_startup_metadata(startup_metadata);
-  return startup_metadata.image(metadata_arguments, metadata_configuration(xlen));
+  return startup_metadata.image(metadata_arguments, metadata_configuration(xlen), metadata_revision());
 }
 
 void firesim_tsi_t::prepare_startup_metadata(const std::vector<uint8_t> &image) {
@@ -266,7 +266,7 @@ void firesim_tsi_t::prepare_startup_metadata(const std::vector<uint8_t> &image) 
     throw std::runtime_error("TSI metadata preparation requires a pristine supported caller");
   auto candidate = firesim_tsi_startup_metadata_t::probe(firesim_tsi_elf_bytes(target_args().at(0)));
   const auto xlen = preflight_startup_metadata(candidate);
-  if (candidate.image(metadata_arguments, metadata_configuration(xlen)) != image)
+  if (candidate.image(metadata_arguments, metadata_configuration(xlen), metadata_revision()) != image)
     throw std::runtime_error("TSI startup metadata ELF/arguments/complete image mismatch");
   startup_metadata = std::move(candidate);
   preparing_metadata = true;
@@ -308,10 +308,15 @@ firesim_tsi_t::polling_cut_t firesim_tsi_t::inspect_polling_cut() const {
       !host_control.loaded_in_host() || !host_control.loaded_in_target() ||
       !loadmem_read.idle() || !loadmem_queues.empty())
     throw std::runtime_error("TSI polling audit: incoherent or active startup/child owners");
-  const std::array<std::pair<const char *, const checkpoint_owner_t *>, 8> owners{{
+  std::vector<std::pair<const char *, const checkpoint_owner_t *>> owners{
       {"poll", htif_poll.get()}, {"program", &program_loader}, {"init", &init_control},
       {"host", &host_control}, {"read", &serial_read}, {"serial", &serial},
-      {"loadmem-read", &loadmem_read}, {"loadmem-queues", &loadmem_queues}}};
+      {"loadmem-read", &loadmem_read}, {"loadmem-queues", &loadmem_queues}};
+  if (!terminal->checkpoint_schema().empty()) {
+    if (!bcd) throw std::runtime_error("TSI sealed polling audit: missing BCD owner");
+    owners.emplace_back("bcd", bcd.get());
+    owners.emplace_back("terminal", terminal.get());
+  }
   polling_cut_t result;
   for (const auto &[name, owner] : owners) {
     auto image = owner->save_checkpoint();
