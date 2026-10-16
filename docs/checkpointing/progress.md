@@ -14,6 +14,53 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 145, in progress.
+Production polling now routes explicit `+checkpoint-syscall-exit` through the
+owned syscall-93 caller. A fourteen-owner group restores polling, nested memif
+progress, serial queues and actual lifecycle fields atomically, preserving
+cache flush, writeback and response order. Recovery:
+[tsi-polling-syscall.md](tsi-polling-syscall.md). Complete CPU Level 1 stays disabled.
+
+Diagnostics: `runs/m11-iteration145/`. The exact-recipe linked archive passes
+eight scenarios / 703 host-operation cuts / 2,812 fresh cross-backend restores,
+1,867,040 owner-image comparisons and 127,736 operations. Both backends reject
+1,844 malformed cases, 56 membership faults and seven cross-owner faults;
+all 846 allocation-failure positions preserve the destination. Eight actual
+semantic faults stop at their first unconsumed outgoing word. Eighty-four fresh
+invalid-image processes, ten late guards and fifteen admission/terminal checks
+pass. The independent auditor rejects fourteen missing/duplicate/changed
+source, build, process and divergence evidence variants. Accepted:
+`recipe-polling-syscall-final-inputs/invocation-ckf8ipgj/summary.json`.
+
+The separate 1,200-restore syscall suite and 686 signal/thread processes pass
+against that same linked archive. The full legacy polling/direct-exit suite,
+all eight native core suites (280 Python tests / 5,286 artifacts / 819 source
+bindings) and all thirty retained auditors pass. Ordinary RTL VCS and its
+independent audit pass four retained cuts: 318,637 words before edges per cut,
+256 events / 21,760 comparisons, sixteen semantic faults and 44 invalid cases.
+Both exact-recipe default/buffered **16-GiB four-hart controls pass at
+C=3,329,794**; all eight complete hart traces and workload/store labels match.
+Controls: `rocket-controls-final-inputs/invocation-uv_o5b21/summary.json`.
+
+Final catalogs: `summary.json`, `selected-results.json`,
+`verification-commands.json`, `raw-native-commands.json`,
+`native-input-archives.json` and `artifact-manifest.json`. Initial pilots retain
+fixture offset/oracle/link errors, a missing provider-include snapshot and
+source-drift rejections. Superseded runs are never accepted as passing; final
+full scopes use sealed inputs. Both plans, papers and environment helpers are
+unchanged. Existing controller checkpoints reached both remote main branches,
+FireSim first; read-only local tracking-ref warnings followed remote success.
+No staging or local commits.
+
+Next: audit/remove unused default-session descriptors in restricted mode;
+cover its idle/outer-completion cuts, own outer startup/stop/return/context and
+signal coordination, then publish a coherent simulator/bridge/memory cut and
+validate complete fresh CPU Level 1. Generic syscalls remain unsupported in
+restricted mode. No external dependency is missing. BOOM/Saturn remain pending;
+standalone Shuttle, physical FPGA validation and ASIC power remain outside scope.
+
+Previous iteration 144 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 144, in progress.
 Added the executable syscall-93 parent component: eight request words, nested
 read/write progress, actual-provider exit and response ordering, with atomic

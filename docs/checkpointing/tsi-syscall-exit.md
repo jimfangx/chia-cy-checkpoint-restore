@@ -25,8 +25,9 @@ or wrapping commands reject explicitly. A callback exception poisons the
 caller. Reentrant capture, restore, begin and advance reject. The existing
 strict lifecycle signal policy and caller-held exclusion still apply.
 
-This adapter is not wired into the live FireSim polling dispatch yet. Its
-services require an independently owned polling response destination. Session
+Iteration 145 wires this adapter into explicit restricted live polling and
+adds atomic polling-group preparation; see [tsi-polling-syscall.md](tsi-polling-syscall.md).
+The original iteration-144 component tests below remain independent. Session
 construction/descriptors, generic syscalls and their external effects, process
 signal coordination, enclosing stop/return/context callers and coherent
 simulator/bridge/memory publication remain pending. It does not enable complete
@@ -43,7 +44,7 @@ The CPU matrix records the accepted invocation and exact commands after all
 checks finish. Diagnostic pilots and failures remain under
 `automations/checkpoint_loop/runs/m11-iteration144/`.
 
-The next integration must preserve these live-path details:
+The integration requirements identified in iteration 144 were:
 
 - `polling_services_t::dispatch` currently constructs the installed callback
   and calls `default_devices->list`. Route only the explicitly admitted parent

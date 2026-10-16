@@ -19,6 +19,7 @@
 #include "tsi_memif_write.h"
 #include "tsi_memif_read.h"
 #include "tsi_bcd_identity.h"
+#include "tsi_syscall_exit.h"
 #include <memory>
 
 struct firesim_loadmem_t {
@@ -72,6 +73,10 @@ public:
   const checkpoint_owner_t &memif_write_owner() const { return memif_write; }
   const checkpoint_owner_t &memif_read_owner() const { return memif_read; }
   const checkpoint_owner_t &bcd_identity_owner() const { return bcd_identity; }
+  const checkpoint_owner_t &syscall_exit_owner() const {
+    if (!syscall_exit) throw std::runtime_error("restricted syscall mode is disabled");
+    return *syscall_exit;
+  }
   // Direct pass/fail and no-signature stop only. This never restores the
   // installed session/signal/exit fields or certifies a complete HTIF cut.
   std::vector<uint8_t> save_htif_exit_component() const;
@@ -107,12 +112,15 @@ public:
   private:
     friend class firesim_tsi_t;
     friend class firesim_tsi_polling_lifecycle_t;
+    friend class firesim_tsi_polling_syscall_t;
     struct state_t;
     explicit prepared_polling_components_t(firesim_tsi_t &tsi, const polling_cut_t &images,
-                                           bool completed_exit = false);
+                                           bool completed_exit = false, bool syscall = false);
     void recheck();
     void publish() noexcept;
     void require_exit_boundary(firesim_tsi_htif_exit_t::phase_t phase) const;
+    void require_syscall_boundary(const firesim_tsi_syscall_exit_t &caller,
+                                 firesim_htif_lifecycle_state_t provider) const;
     std::unique_ptr<state_t> state;
   };
   prepared_polling_components_t prepare_polling_components_candidate(const polling_cut_t &images);
@@ -147,6 +155,7 @@ protected:
 
 private:
   friend class firesim_tsi_polling_lifecycle_t;
+  friend class firesim_tsi_polling_syscall_t;
   polling_cut_t inspect_live_polling_protocol() const;
   polling_cut_t inspect_fresh_polling_protocol(bool completed_exit = false) const;
   // Only the guarded lifecycle group may finish an already requested exit.
@@ -182,6 +191,9 @@ private:
   // Destroy the table/syscall before the devices and polling callback owner.
   std::unique_ptr<default_devices_t> default_devices;
   firesim_tsi_htif_exit_t htif_exit_component;
+  // Explicit opt-in syscall-93 dispatch. Ordinary installed sessions retain
+  // their existing syscall path; this caller never owns session/descriptors.
+  std::unique_ptr<firesim_tsi_syscall_exit_t> syscall_exit;
   firesim_tsi_program_loader_t program_loader;
   firesim_tsi_memif_write_t memif_write;
   firesim_tsi_memif_read_t memif_read;
@@ -215,12 +227,16 @@ private:
       const firesim_tsi_host_control_t &host, const firesim_tsi_serial_read_t &read,
       const firesim_loadmem_read_t &loadread, const firesim_loadmem_queues_t &queues,
       const firesim_tsi_bcd_identity_t &identity, const firesim_tsi_memif_write_t &writer,
-      bool completed_exit = false);
+      bool completed_exit = false, bool syscall = false);
   static void validate_initialization(const firesim_tsi_host_control_t &host,
                                       const firesim_tsi_init_accesses_t &init,
                                       const firesim_tsi_serial_read_t &read);
   void flush_program_cache_lines(addr_t address, size_t bytes);
   void write_identity(uint64_t address, const firesim_tsi_bcd_t::identity_t &bytes);
   bool dispatch_identity(uint64_t command);
+  bool dispatch_syscall_exit(uint64_t command);
+  void advance_prepared_syscall_components();
+  static void validate_syscall_boundary(const firesim_tsi_htif_poll_t &poll,
+      const firesim_tsi_syscall_exit_t &caller, firesim_htif_lifecycle_state_t provider);
 };
 #endif // __FIRESIM_TSI_H

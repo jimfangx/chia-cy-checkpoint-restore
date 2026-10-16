@@ -3,6 +3,7 @@
 #define FIRESIM_HTIF_LIFECYCLE_H
 
 #include <cstdint>
+#include <stdexcept>
 class htif_t;
 
 // Actual provider fields, independent of direct-command/poll continuation.
@@ -30,4 +31,23 @@ void firesim_htif_lifecycle_publish(htif_t &, firesim_htif_lifecycle_state_t,
 // Destination must have absent exit and stopped=false. No HTIF service, device,
 // memory operation, coroutine switch or target edge is performed.
 void firesim_htif_lifecycle_restore(htif_t &, firesim_htif_lifecycle_state_t);
+
+// Optional consumer interface. Keep the existing provider definitions strong;
+// ordinary installed-HTIF builds must link without those definitions. Never
+// infer availability from a header, synthetic fields or an archive filename.
+struct firesim_htif_lifecycle_api_t {
+  firesim_htif_lifecycle_state_t (*read)(const htif_t &);
+  void (*validate_restore)(const htif_t &, firesim_htif_lifecycle_state_t);
+  void (*publish)(htif_t &, firesim_htif_lifecycle_state_t,
+                  void (*)(void *) noexcept, void *);
+};
+extern "C" const firesim_htif_lifecycle_api_t *firesim_htif_lifecycle_api() __attribute__((weak));
+inline const firesim_htif_lifecycle_api_t &firesim_htif_require_lifecycle_api() {
+  if (!firesim_htif_lifecycle_api)
+    throw std::runtime_error("restricted syscall requires actual HTIF provider");
+  const auto *api = firesim_htif_lifecycle_api();
+  if (!api || !api->read || !api->validate_restore || !api->publish)
+    throw std::runtime_error("incomplete HTIF lifecycle provider interface");
+  return *api;
+}
 #endif

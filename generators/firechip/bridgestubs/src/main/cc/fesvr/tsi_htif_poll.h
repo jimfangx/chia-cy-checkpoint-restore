@@ -46,6 +46,11 @@ public:
     if (current.phase == phase_t::fromhost_read && !current.responses.empty()) return fromhost_address;
     throw std::runtime_error("HTIF poll has no pending read");
   }
+  bool response_is(uint64_t value) const {
+    boundary.require_idle();
+    return current.responses.size() == 1 && current.responses.front() == value;
+  }
+  bool responses_empty() const { boundary.require_idle(); return current.responses.empty(); }
   // Device callbacks bind the destination object, never a coroutine-local
   // queue. Callback/device reconstruction remains a separate required owner.
   void respond(uint64_t value) {

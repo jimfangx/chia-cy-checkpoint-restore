@@ -124,3 +124,9 @@ firesim_htif_lifecycle_state_t firesim_htif_lifecycle_read(const htif_t &htif) {
 void firesim_htif_lifecycle_restore(htif_t &htif, firesim_htif_lifecycle_state_t state) {
   firesim_htif_lifecycle_access_t::publish(htif, state, nullptr, nullptr);
 }
+
+extern "C" const firesim_htif_lifecycle_api_t *firesim_htif_lifecycle_api() {
+  static const firesim_htif_lifecycle_api_t api{
+      &firesim_htif_lifecycle_read, &firesim_htif_lifecycle_validate_restore, &firesim_htif_lifecycle_publish};
+  return &api;
+}

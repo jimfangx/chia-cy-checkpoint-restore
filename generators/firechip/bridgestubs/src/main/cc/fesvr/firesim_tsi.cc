@@ -1,5 +1,6 @@
 // See LICENSE for license details
 #include "firesim_tsi.h"
+#include "tsi_polling_syscall.h"
 #include <inttypes.h>
 #include <stdio.h>
 #include <array>
@@ -104,6 +105,18 @@ firesim_tsi_t::firesim_tsi_t(int argc, char **argv, bool can_have_loadmem)
   for (const auto &arg : metadata_arguments)
     for (const auto *unsupported : {"+payload=", "+symbol-elf=", "+signature=", "+signature-granularity="})
       if (arg.find(unsupported) == 0) metadata_supported = false;
+  bool requested = false;
+  for (const auto &arg : metadata_arguments) {
+    if (arg != "+checkpoint-syscall-exit") continue;
+    if (requested) throw std::runtime_error("duplicate restricted syscall option");
+    requested = true;
+  }
+  if (requested) {
+    if (!metadata_supported || terminal->checkpoint_schema().empty())
+      throw std::runtime_error("restricted syscall requires sealed default metadata");
+    firesim_htif_require_lifecycle_api();
+    syscall_exit = std::make_unique<firesim_tsi_syscall_exit_t>(*this, serial);
+  }
   metadata_pristine_components = metadata_components();
 }
 
@@ -113,11 +126,18 @@ class firesim_tsi_t::polling_services_t final : public firesim_tsi_htif_poll_t::
       : tsi(tsi), devices(devices), completing_exit(completing_exit) {}
     bool exiting() override {
       if (completing_exit) return tsi.should_exit();
-      if (!devices && tsi.should_exit())
+      if (!devices && !tsi.syscall_exit && tsi.should_exit())
         throw std::runtime_error("prepared polling component cannot service HTIF exit/signal");
-      return devices ? tsi.should_exit() : false;
+      return (devices || tsi.syscall_exit) ? tsi.should_exit() : false;
     }
     void validate_command(uint64_t value) override {
+      if (tsi.syscall_exit) {
+        // An odd direct exit or other device is not this parent's command.
+        // Reject it before polling clears tohost or enters installed dispatch.
+        if (!value || value >> 48 || (value & 1) || value > 0xffffffffffffULL-63)
+          throw std::runtime_error("restricted polling requires syscall-93 request address");
+        return;
+      }
       if (devices) return;
       const auto command = (value >> 48) & 255;
       // Identity dispatch has explicit caller/write/merge-read owners. Reject
@@ -148,6 +168,7 @@ class firesim_tsi_t::polling_services_t final : public firesim_tsi_htif_poll_t::
     }
     bool dispatch(uint64_t value) override {
       validate_command(value);
+      if (tsi.syscall_exit) return tsi.dispatch_syscall_exit(value);
       if ((value >> 48) == 0x1ff) {
         return tsi.dispatch_identity(value);
       }
@@ -161,7 +182,10 @@ class firesim_tsi_t::polling_services_t final : public firesim_tsi_htif_poll_t::
       else tsi.bcd->handle_command(command);
       return true;
     }
-    void tick_devices() override { if (devices) devices->tick(); else tsi.bcd->tick(); }
+    void tick_devices() override {
+      if (tsi.syscall_exit) return; // restricted dispatch admits no device work
+      if (devices) devices->tick(); else tsi.bcd->tick();
+    }
     bool idle() override {
       if (tsi.host_control.current_phase() == firesim_tsi_host_control_t::phase_t::ready)
         tsi.host_control.begin_idle();
@@ -227,6 +251,8 @@ std::map<std::string, uint64_t> firesim_tsi_t::load_payload(
 }
 
 firesim_tsi_t::polling_cut_t firesim_tsi_t::metadata_components() const {
+  if (syscall_exit && syscall_exit->current.phase != firesim_tsi_syscall_exit_t::phase_t::idle)
+    throw std::runtime_error("TSI metadata has an active syscall parent");
   if (!memif_read.idle()) throw std::runtime_error("TSI metadata has an active generic memif reader");
   if (!bcd_identity.idle()) throw std::runtime_error("TSI metadata has an active BCD identity caller");
   if (!memif_write.idle()) throw std::runtime_error("TSI metadata has an active memif write child");
@@ -295,7 +321,9 @@ void firesim_tsi_t::check_startup_metadata() const {
 }
 
 std::vector<uint8_t> firesim_tsi_t::save_startup_metadata() const {
-  if (!metadata_prepared) inspect_polling_cut();
+  if (syscall_exit && (polling_active || polling_components_prepared))
+    firesim_tsi_polling_syscall_t(const_cast<firesim_tsi_t &>(*this)).inspect();
+  else if (!metadata_prepared) inspect_polling_cut();
   else if (polling_components_prepared) inspect_prepared_polling_components();
   else if (host_context_initialized() || metadata_components() != metadata_pristine_components)
     throw std::runtime_error("metadata-only preparation changed a caller component");
@@ -338,6 +366,8 @@ firesim_tsi_t::polling_cut_t firesim_tsi_t::inspect_polling_cut() const {
 }
 
 firesim_tsi_t::polling_cut_t firesim_tsi_t::inspect_live_polling_protocol() const {
+  if (syscall_exit)
+    throw std::runtime_error("TSI polling audit lacks the restricted syscall parent");
   // The generic syscall parent is still on the installed stack. Its reader
   // is inspectable separately, never part of the sealed polling aggregate.
   if (!memif_read.idle()) throw std::runtime_error("TSI polling audit lacks the generic memif caller");
@@ -417,12 +447,42 @@ bool firesim_tsi_t::dispatch_identity(uint64_t command) {
   return true;
 }
 
+bool firesim_tsi_t::dispatch_syscall_exit(uint64_t command) {
+  class services_t final : public firesim_tsi_syscall_exit_t::services_t {
+  public:
+    explicit services_t(firesim_tsi_t &tsi) : tsi(tsi) {}
+    void issue(uint64_t address, uint64_t bytes) override {
+      tsi.flush_program_cache_lines(address, bytes); tsi.serial.issue_read(address, bytes);
+    }
+    bool receive(uint32_t &word) override {
+      if (!tsi.serial.response_available()) return false;
+      word = tsi.serial.pop_response(); return true;
+    }
+    void write(uint64_t address, size_t bytes, const uint32_t *words) override {
+      tsi.write_chunk(address, bytes, words);
+    }
+    void respond(uint64_t value) override { tsi.htif_poll->respond(value); }
+  private:
+    firesim_tsi_t &tsi;
+  } services(*this);
+  auto &caller = *syscall_exit;
+  if (caller.current.phase == firesim_tsi_syscall_exit_t::phase_t::idle) caller.begin(command);
+  else if (caller.current.command != command)
+    throw std::runtime_error("HTIF polling/syscall command mismatch");
+  for (;;) {
+    const auto result = caller.advance(services);
+    if (result == firesim_tsi_syscall_exit_t::result_t::complete) return true;
+    // Both caller guards unwind before run_host switches to the target.
+    if (result == firesim_tsi_syscall_exit_t::result_t::blocked) return false;
+  }
+}
+
 void firesim_tsi_t::validate_polling_components(const firesim_tsi_htif_poll_t &poll,
     const firesim_tsi_program_loader_t &program, const firesim_tsi_init_accesses_t &init,
     const firesim_tsi_host_control_t &host, const firesim_tsi_serial_read_t &reader,
     const firesim_loadmem_read_t &loadread, const firesim_loadmem_queues_t &queues,
     const firesim_tsi_bcd_identity_t &identity, const firesim_tsi_memif_write_t &writer,
-    bool completed_exit) {
+    bool completed_exit, bool syscall) {
   // phase() also rejects an active or interrupted device/memif service.
   const auto phase = poll.phase();
   using pp = firesim_tsi_htif_poll_t::phase_t;
@@ -434,9 +494,9 @@ void firesim_tsi_t::validate_polling_components(const firesim_tsi_htif_poll_t &p
                     !host.busy() && reader.idle();
   // pending_for validates the copied writer address/payload against the raw
   // identity command. The independent mailbox reader cannot also be active.
-  const bool dispatch = phase == pp::dispatch && host.current_phase() == hp::ready &&
-                        reader.idle() && identity.blocked_for(poll.pending_dispatch_command());
   const bool inactive = identity.idle() && writer.idle();
+  const bool dispatch = phase == pp::dispatch && host.current_phase() == hp::ready && reader.idle() &&
+      (syscall ? inactive : identity.blocked_for(poll.pending_dispatch_command()));
   const bool complete = completed_exit && phase == pp::complete &&
                         host.current_phase() == hp::ready && reader.idle();
   if ((!dispatch && (!(read || idle || complete) || !inactive)) ||
@@ -496,7 +556,7 @@ struct firesim_tsi_t::prepared_polling_components_t::state_t {
   std::unique_ptr<firesim_tsi_bcd_t::prepared_polling_t> devices;
   bool consumed = false;
 
-  state_t(firesim_tsi_t &tsi, const polling_cut_t &images, bool completed_exit)
+  state_t(firesim_tsi_t &tsi, const polling_cut_t &images, bool completed_exit, bool syscall)
       : tsi(tsi), program(tsi.program_loader), init(tsi.init_control), host(tsi.host_control),
         reader(tsi.serial_read), transport(tsi.serial), loadread(tsi.loadmem_read),
         identity(writer, transport) {
@@ -520,7 +580,7 @@ struct firesim_tsi_t::prepared_polling_components_t::state_t {
     writer.load_checkpoint(images[11].second);
     identity.load_checkpoint(images[10].second);
     validate_polling_components(*poll, program, init, host, reader, loadread, queues, identity, writer,
-                                completed_exit);
+                                completed_exit, syscall);
     // Parse and allocate the remaining three replacements without changing
     // the actual terminal. The temporary ordered image list also precedes
     // publication. Its destruction cannot affect the owned replacements.
@@ -544,8 +604,8 @@ struct firesim_tsi_t::prepared_polling_components_t::state_t {
 };
 
 firesim_tsi_t::prepared_polling_components_t::prepared_polling_components_t(
-    firesim_tsi_t &tsi, const polling_cut_t &images, bool completed_exit)
-    : state(std::make_unique<state_t>(tsi, images, completed_exit)) {}
+    firesim_tsi_t &tsi, const polling_cut_t &images, bool completed_exit, bool syscall)
+    : state(std::make_unique<state_t>(tsi, images, completed_exit, syscall)) {}
 firesim_tsi_t::prepared_polling_components_t::~prepared_polling_components_t() = default;
 void firesim_tsi_t::prepared_polling_components_t::commit() {
   recheck();
@@ -560,14 +620,38 @@ void firesim_tsi_t::prepared_polling_components_t::publish() noexcept {
 }
 void firesim_tsi_t::prepared_polling_components_t::require_exit_boundary(
     firesim_tsi_htif_exit_t::phase_t phase) const {
+  if (state->tsi.syscall_exit) throw std::runtime_error("direct exit group excludes restricted syscall mode");
   using ep = firesim_tsi_htif_exit_t::phase_t;
   if ((phase == ep::stopped &&
        state->poll->phase() != firesim_tsi_htif_poll_t::phase_t::complete) || (phase == ep::requested &&
       state->poll->phase() != firesim_tsi_htif_poll_t::phase_t::fromhost_read))
     throw std::runtime_error("TSI aggregate lacks this exit/stop parent boundary");
 }
+void firesim_tsi_t::validate_syscall_boundary(const firesim_tsi_htif_poll_t &poll,
+    const firesim_tsi_syscall_exit_t &caller, firesim_htif_lifecycle_state_t provider) {
+  caller.boundary.require_idle();
+  firesim_tsi_syscall_exit_t::validate(caller.current, provider);
+  using sp = firesim_tsi_syscall_exit_t::phase_t;
+  using pp = firesim_tsi_htif_poll_t::phase_t;
+  const auto phase = poll.phase();
+  const bool idle = caller.current.phase == sp::idle &&
+      (phase == pp::tohost_read || phase == pp::idle) && poll.responses_empty();
+  const bool dispatch = phase == pp::dispatch && caller.current.phase != sp::idle &&
+      caller.current.phase != sp::complete && poll.responses_empty() &&
+      caller.current.command == poll.pending_dispatch_command();
+  const bool complete = caller.current.phase == sp::complete &&
+      ((phase == pp::fromhost_read && poll.response_is(1)) ||
+       (phase == pp::complete && poll.responses_empty()));
+  if (!(idle || dispatch || complete))
+    throw std::runtime_error("TSI polling/syscall parent/response boundary mismatch");
+}
+void firesim_tsi_t::prepared_polling_components_t::require_syscall_boundary(
+    const firesim_tsi_syscall_exit_t &caller, firesim_htif_lifecycle_state_t provider) const {
+  firesim_tsi_t::validate_syscall_boundary(*state->poll, caller, provider);
+}
 firesim_tsi_t::prepared_polling_components_t firesim_tsi_t::prepare_polling_components_candidate(
     const polling_cut_t &images) {
+  if (syscall_exit) throw std::runtime_error("twelve-owner preparation excludes restricted syscall mode");
   return prepared_polling_components_t(*this, images);
 }
 void firesim_tsi_t::prepare_polling_components(const polling_cut_t &images) {
@@ -576,6 +660,7 @@ void firesim_tsi_t::prepare_polling_components(const polling_cut_t &images) {
 }
 
 firesim_tsi_t::polling_cut_t firesim_tsi_t::inspect_prepared_polling_components() const {
+  if (syscall_exit) throw std::runtime_error("twelve-owner inspection excludes restricted syscall mode");
   if (htif_exit_component.phase() != firesim_tsi_htif_exit_t::phase_t::running ||
       should_exit() || const_cast<firesim_tsi_t &>(*this).done())
     throw std::runtime_error("prepared polling audit lacks HTIF exit/signal/stop owners");
@@ -591,6 +676,23 @@ firesim_tsi_t::polling_cut_t firesim_tsi_t::inspect_fresh_polling_protocol(bool 
                               serial_read, loadmem_read, loadmem_queues, bcd_identity, memif_write,
                               completed_exit);
   return polling_components();
+}
+
+void firesim_tsi_t::advance_prepared_syscall_components() {
+  prepared_polling_service_active = true;
+  try {
+    polling_services_t services(*this, nullptr);
+    for (;;) {
+      const auto result = htif_poll->advance(services);
+      // Stop/return/session teardown belong to an independent outer caller.
+      if (result != firesim_tsi_htif_poll_t::result_t::progress) break;
+    }
+    prepared_polling_service_active = false;
+  } catch (...) {
+    prepared_polling_service_active = false;
+    prepared_polling_service_poisoned = true;
+    throw;
+  }
 }
 
 bool firesim_tsi_t::advance_prepared_exit_components() {

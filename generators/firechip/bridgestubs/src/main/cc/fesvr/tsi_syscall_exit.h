@@ -110,6 +110,8 @@ public:
     provider.commit(publish);
   }
 private:
+  friend class firesim_tsi_polling_syscall_t;
+  friend class firesim_tsi_t;
   struct state_t {
     phase_t phase = phase_t::idle;
     uint64_t command = 0;
@@ -126,7 +128,7 @@ private:
   firesim_htif_lifecycle_state_t provider_state() const {
     if (htif.get_target_endianness() != endianness_little)
       throw std::runtime_error("syscall exit requires little-endian target");
-    return firesim_htif_lifecycle_read(htif);
+    return firesim_htif_require_lifecycle_api().read(htif);
   }
   static uint64_t word(const std::vector<uint8_t> &image, size_t at) {
     uint64_t value = 0;

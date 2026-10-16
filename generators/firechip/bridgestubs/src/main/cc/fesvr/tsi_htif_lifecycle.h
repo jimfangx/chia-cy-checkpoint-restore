@@ -12,7 +12,7 @@ public:
   explicit firesim_tsi_htif_lifecycle_t(htif_t &htif) : htif(htif) {}
   std::string checkpoint_schema() const override { return "firesim.tsi.htif-lifecycle.v1"; }
   std::vector<uint8_t> save_checkpoint() const override {
-    auto state = firesim_htif_lifecycle_read(htif);
+    auto state = firesim_htif_require_lifecycle_api().read(htif);
     auto out = config;
     out.word(state.has_exit); out.word(state.raw_exit); out.word(state.stopped);
     return std::move(out.bytes);
@@ -32,7 +32,7 @@ public:
       static_assert(std::is_nothrow_invocable<Publish &>::value,
                     "lifecycle peer publication must be noexcept");
       if (consumed) throw std::runtime_error("HTIF lifecycle candidate already committed");
-      firesim_htif_lifecycle_publish(htif, state, [](void *p) noexcept {
+      firesim_htif_require_lifecycle_api().publish(htif, state, [](void *p) noexcept {
         (*static_cast<Publish *>(p))();
       }, &publish_peers);
       consumed = true;
@@ -41,7 +41,7 @@ public:
   private:
     friend class firesim_tsi_htif_lifecycle_t;
     prepared_t(htif_t &htif, firesim_htif_lifecycle_state_t state) : htif(htif), state(state) {
-      firesim_htif_lifecycle_validate_restore(htif, state);
+      firesim_htif_require_lifecycle_api().validate_restore(htif, state);
     }
     htif_t &htif;
     const firesim_htif_lifecycle_state_t state;
