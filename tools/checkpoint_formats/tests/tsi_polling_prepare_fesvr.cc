@@ -124,6 +124,64 @@ static void continue_components(firesim_tsi_t &tsi,const std::string &mode,const
            <<" startup_replays=0 target_edges=0 context_entries=0\n";
 }
 extern void tsi_terminal_fail_allocation_after(long);
+static_assert(!std::is_copy_constructible<firesim_tsi_t::prepared_polling_components_t>::value,
+              "polling candidates must not be copied");
+static_assert(!std::is_move_constructible<firesim_tsi_t::prepared_polling_components_t>::value,
+              "polling candidates must not be moved");
+static void candidate_guards(firesim_tsi_t &tsi,const images_t &good,const fs::path &out) {
+  const auto before=peers(tsi), metadata=images_t{{"metadata",tsi.save_startup_metadata()}};
+  auto unchanged=[&](const images_t &expected) {
+    require(peers(tsi)==expected && !tsi.done(),"candidate changed destination peers");
+    bool absent=false;try {tsi.htif_poll_owner();}catch(const std::runtime_error &){absent=true;}
+    require(absent,"candidate published caller before commit");
+  };
+  {auto abandoned=tsi.prepare_polling_components_candidate(good);unchanged(before);}
+  unchanged(before);
+  // Changes to three distinct actual destination owners must reject at the
+  // final check. Check the changed state too: rejection must not roll it back.
+  for(unsigned which=0;which<3;++which) {
+    auto next=tsi.prepare_polling_components_candidate(good);
+    if(which==0)tsi.send_word(0x12345678);
+    else if(which==1)tsi.set_loaded_in_target(true);
+    else {
+      auto terminal=tsi.terminal_owner().save_checkpoint();
+      terminal.at(59)=1;
+      const_cast<checkpoint_owner_t &>(tsi.terminal_owner()).load_checkpoint(terminal);
+    }
+    const auto changed=peers(tsi);require(changed!=before,"late mutation had no effect");
+    bool rejected=false;try {next.commit();}catch(const std::runtime_error &){rejected=true;}
+    require(rejected,"candidate accepted changed destination");unchanged(changed);
+    const auto &owner=which==0?tsi.serial_queue_owner():which==1?tsi.host_control_owner():tsi.terminal_owner();
+    const auto name=which==0?"serial":which==1?"host":"terminal";
+    for(const auto &[key,image]:before)if(key==name)const_cast<checkpoint_owner_t &>(owner).load_checkpoint(image);
+    unchanged(before);
+  }
+  auto owned=good;
+  auto next=tsi.prepare_polling_components_candidate(owned);
+  auto competitor=tsi.prepare_polling_components_candidate(owned);
+  owned.clear(); // The candidates must own every replacement, including bytes.
+  long failures=0;
+  for(;;++failures) {
+    bool exhausted=false;tsi_terminal_fail_allocation_after(failures);
+    try {next.commit();}catch(const std::bad_alloc &){exhausted=true;}
+    catch(...){tsi_terminal_fail_allocation_after(-1);throw;}
+    tsi_terminal_fail_allocation_after(-1);
+    if(!exhausted)break;
+    unchanged(before);
+  }
+  require(failures>0 && tsi.inspect_prepared_polling_components()==good,"candidate commit/readback incomplete");
+  unsigned rejections=0;
+  for(unsigned which=0;which<2;++which) {
+    bool rejected=false;try {if(which==0)next.commit();else competitor.commit();}
+    catch(const std::runtime_error &){rejected=true;}
+    require(rejected && tsi.inspect_prepared_polling_components()==good,"consumed/competing candidate changed peers");
+    ++rejections;
+  }
+  require(tsi.save_startup_metadata()==metadata[0].second,"candidate changed metadata");
+  save(out/"preedge",tsi.inspect_prepared_polling_components());
+  std::cout<<"CANDIDATE_GUARDS abandoned=1 late_peer_rejections=3 commit_allocation_failures="<<failures
+           <<" consumed_competing_rejections="<<rejections<<" owners=12 context_entries=0 target_edges=0\n";
+}
 static void rejection(firesim_tsi_t &tsi,const images_t &good,const fs::path &out) {
   const auto before=peers(tsi);
   const auto metadata=tsi.save_startup_metadata();
@@ -230,7 +288,16 @@ static int run(const char *mode,const char *elf,const char *input,const char *me
     require(rejected && peers(tsi)==before,"unprepared metadata accepted polling state");
     tsi.prepare_startup_metadata(bytes(metadata));
     if(std::string(mode)=="invalid") {rejection(tsi,good,out);return 0;}
-    tsi.prepare_polling_components(good);
+    if(std::string(mode)=="candidate-guards") {candidate_guards(tsi,good,out);return 0;}
+    {
+      auto owned=good;
+      auto next=tsi.prepare_polling_components_candidate(owned);
+      require(peers(tsi)==before && !tsi.done(),"preparation published a peer");
+      owned.clear();next.commit();
+      bool rejected=false;try {next.commit();}catch(const std::runtime_error &){rejected=true;}
+      require(rejected,"candidate committed twice");
+      std::cout<<"CANDIDATE_READBACK unpublished_peers=10 input_lifetime_independent=1 single_use=1\n";
+    }
     const auto actual=tsi.inspect_prepared_polling_components();
     require(actual==good && !tsi.done(),"incomplete polling component readback");
     save(out/"preedge",actual);save(out/"preedge.metadata",tsi.save_startup_metadata());

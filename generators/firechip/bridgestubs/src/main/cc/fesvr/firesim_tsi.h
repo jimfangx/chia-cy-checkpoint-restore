@@ -93,6 +93,24 @@ public:
   // a fresh caller and a sealed terminal. This does not restore syscall,
   // signal, exit or context state and must not enable HTIF/CPU continuation.
   void prepare_polling_components(const polling_cut_t &images);
+  // Destination-bound preparation without publication. All images are parsed
+  // and owned by the candidate; commit rechecks the fresh destination before
+  // nonthrowing publication. The suspended TSI must outlive its candidate.
+  class prepared_polling_components_t {
+  public:
+    ~prepared_polling_components_t();
+    prepared_polling_components_t(const prepared_polling_components_t &) = delete;
+    prepared_polling_components_t &operator=(const prepared_polling_components_t &) = delete;
+    prepared_polling_components_t(prepared_polling_components_t &&) = delete;
+    prepared_polling_components_t &operator=(prepared_polling_components_t &&) = delete;
+    void commit();
+  private:
+    friend class firesim_tsi_t;
+    struct state_t;
+    explicit prepared_polling_components_t(firesim_tsi_t &tsi, const polling_cut_t &images);
+    std::unique_ptr<state_t> state;
+  };
+  prepared_polling_components_t prepare_polling_components_candidate(const polling_cut_t &images);
   polling_cut_t inspect_prepared_polling_components() const;
   // Explicit component service, not tick()/complete HTIF admission. Resume
   // until the next serial-read or idle yield, with no context/start/reset.
@@ -180,6 +198,7 @@ private:
   unsigned preflight_startup_metadata(const firesim_tsi_startup_metadata_t &candidate);
   void check_startup_metadata() const;
   polling_cut_t polling_components() const;
+  void require_pristine_polling_destination();
   static void validate_polling_components(const firesim_tsi_htif_poll_t &poll,
       const firesim_tsi_program_loader_t &program, const firesim_tsi_init_accesses_t &init,
       const firesim_tsi_host_control_t &host, const firesim_tsi_serial_read_t &read,

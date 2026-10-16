@@ -107,18 +107,37 @@ public:
   // must come from a caller-validated coherent cut; membership alone cannot
   // prove their provenance. Never resume a complete TSI from just this group.
   void load_sealed_polling_checkpoint(const sealed_checkpoint_t &images) {
-    if (!bound_poll || !terminal || images.size() != 3 || images[0].first != "poll" ||
-        images[1].first != "terminal" || images[2].first != "bcd")
-      throw std::runtime_error("sealed polling restore requires bound poll, terminal and BCD owners");
-    auto next_terminal = terminal->parse(images[1].second);
-    auto next_pending = parse(images[2].second);
-    auto next_poll = bound_poll->parse(images[0].second);
-    static_assert(noexcept(pending.swap(next_pending)), "BCD commit must not allocate");
-    terminal->commit(next_terminal);
-    pending.swap(next_pending);
-    bound_poll->commit(next_poll);
+    prepared_polling_t next(*this, images);
+    next.publish();
   }
 private:
+  friend class firesim_tsi_t;
+  // Private publication primitive for the complete polling coordinator. The
+  // coordinator must validate the still-suspended destination before calling
+  // publish; no parser, allocation or service belongs in that final phase.
+  struct prepared_polling_t {
+    prepared_polling_t(const prepared_polling_t &) = delete;
+    prepared_polling_t &operator=(const prepared_polling_t &) = delete;
+    prepared_polling_t(firesim_tsi_bcd_t &owner, const sealed_checkpoint_t &images)
+        : owner(owner) {
+      if (!owner.bound_poll || !owner.terminal || images.size() != 3 ||
+          images[0].first != "poll" || images[1].first != "terminal" || images[2].first != "bcd")
+        throw std::runtime_error("sealed polling restore requires bound poll, terminal and BCD owners");
+      next_terminal = owner.terminal->parse(images[1].second);
+      next_pending = owner.parse(images[2].second);
+      next_poll = owner.bound_poll->parse(images[0].second);
+    }
+    void publish() noexcept {
+      static_assert(noexcept(owner.pending.swap(next_pending)), "BCD commit must not allocate");
+      owner.terminal->commit(next_terminal);
+      owner.pending.swap(next_pending);
+      owner.bound_poll->commit(next_poll);
+    }
+    firesim_tsi_bcd_t &owner;
+    std::pair<uint64_t, std::vector<uint8_t>> next_terminal;
+    std::deque<uint64_t> next_pending;
+    firesim_tsi_htif_poll_t::state_t next_poll;
+  };
   widget_checkpoint_config_t config;
   const response_t response;
   const uint64_t limit;

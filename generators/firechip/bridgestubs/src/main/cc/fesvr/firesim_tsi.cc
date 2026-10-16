@@ -461,52 +461,92 @@ firesim_tsi_t::polling_cut_t firesim_tsi_t::polling_components() const {
   return result;
 }
 
-void firesim_tsi_t::prepare_polling_components(const polling_cut_t &images) {
+void firesim_tsi_t::require_pristine_polling_destination() {
   if (!metadata_prepared || metadata_poisoned || polling_components_prepared ||
       host_context_initialized() || polling_active || htif_poll || bcd || default_devices ||
       !owned_default_devices || terminal->checkpoint_schema().empty() ||
       should_exit() || done() || metadata_components() != metadata_pristine_components)
     throw std::runtime_error("TSI polling preparation requires pristine sealed metadata-only caller");
   check_startup_metadata();
-  static const std::array<const char *, 12> names{{"poll", "program", "init", "host", "read",
-      "serial", "loadmem-read", "loadmem-queues", "bcd", "terminal", "identity", "write"}};
-  if (images.size() != names.size())
-    throw std::runtime_error("TSI polling preparation requires all twelve ordered components");
-  for (size_t i = 0; i < names.size(); ++i)
-    if (images[i].first != names[i])
-      throw std::runtime_error("TSI polling preparation component membership/order mismatch");
+}
 
-  // All parsers and cross-owner validation operate on destination-configured
-  // candidates. Never copy callbacks, pointers, service guards or contexts.
-  auto program = program_loader; auto init = init_control; auto host = host_control;
-  auto reader = serial_read; auto transport = serial; auto loadread = loadmem_read;
+struct firesim_tsi_t::prepared_polling_components_t::state_t {
+  firesim_tsi_t &tsi;
+  firesim_tsi_program_loader_t program;
+  firesim_tsi_init_accesses_t init;
+  firesim_tsi_host_control_t host;
+  firesim_tsi_serial_read_t reader;
+  firesim_tsi_serial_state_t transport;
+  firesim_loadmem_read_t loadread;
   firesim_tsi_memif_write_t writer;
-  firesim_tsi_bcd_identity_t identity(writer, transport);
+  firesim_tsi_bcd_identity_t identity;
   firesim_loadmem_queues_t queues;
-  auto poll = std::make_unique<firesim_tsi_htif_poll_t>(get_tohost_addr(), get_fromhost_addr());
-  auto device = std::make_unique<firesim_tsi_bcd_t>(*poll, 1048576, terminal.get(),
-      [this](uint64_t address, const firesim_tsi_bcd_t::identity_t &bytes) { write_identity(address, bytes); });
-  std::array<checkpoint_owner_t *, 8> candidates{{poll.get(), &program, &init, &host,
-      &reader, &transport, &loadread, &queues}};
-  for (size_t i = 0; i < candidates.size(); ++i)
-    candidates[i]->load_checkpoint(images[i].second);
-  writer.load_checkpoint(images[11].second);
-  identity.load_checkpoint(images[10].second);
-  validate_polling_components(*poll, program, init, host, reader, loadread, queues, identity, writer);
+  std::unique_ptr<firesim_tsi_htif_poll_t> poll;
+  std::unique_ptr<firesim_tsi_bcd_t> device;
+  std::unique_ptr<firesim_tsi_bcd_t::prepared_polling_t> devices;
+  bool consumed = false;
 
-  // This final preparation allocates the three remaining replacements before
-  // changing the real terminal. Everything after its commit is nonthrowing.
-  // Constructing the ordered image list must also precede publication.
-  device->load_sealed_polling_checkpoint({images[0], images[9], images[8]});
-  program_loader.swap_state(program); init_control.swap_state(init);
-  host_control.swap_state(host); serial_read.swap_state(reader); serial.swap_state(transport);
-  loadmem_read.swap_state(loadread); loadmem_queues.swap_state(queues);
-  static_assert(std::is_nothrow_move_assignable<firesim_tsi_memif_write_t>::value,
-                "polling write publication must not allocate");
-  memif_write = std::move(writer);
-  bcd_identity.swap_state(identity);
-  htif_poll.swap(poll); bcd.swap(device);
-  polling_components_prepared = true;
+  state_t(firesim_tsi_t &tsi, const polling_cut_t &images)
+      : tsi(tsi), program(tsi.program_loader), init(tsi.init_control), host(tsi.host_control),
+        reader(tsi.serial_read), transport(tsi.serial), loadread(tsi.loadmem_read),
+        identity(writer, transport) {
+    tsi.require_pristine_polling_destination();
+    static const std::array<const char *, 12> names{{"poll", "program", "init", "host", "read",
+        "serial", "loadmem-read", "loadmem-queues", "bcd", "terminal", "identity", "write"}};
+    if (images.size() != names.size())
+      throw std::runtime_error("TSI polling preparation requires all twelve ordered components");
+    for (size_t i = 0; i < names.size(); ++i)
+      if (images[i].first != names[i])
+        throw std::runtime_error("TSI polling preparation component membership/order mismatch");
+    // Candidates carry destination configuration and bindings. No callback,
+    // pointer, process context or input-image storage is copied from the cut.
+    poll = std::make_unique<firesim_tsi_htif_poll_t>(tsi.get_tohost_addr(), tsi.get_fromhost_addr());
+    device = std::make_unique<firesim_tsi_bcd_t>(*poll, 1048576, tsi.terminal.get(),
+        [&tsi](uint64_t address, const firesim_tsi_bcd_t::identity_t &bytes) { tsi.write_identity(address, bytes); });
+    std::array<checkpoint_owner_t *, 8> candidates{{poll.get(), &program, &init, &host,
+        &reader, &transport, &loadread, &queues}};
+    for (size_t i = 0; i < candidates.size(); ++i)
+      candidates[i]->load_checkpoint(images[i].second);
+    writer.load_checkpoint(images[11].second);
+    identity.load_checkpoint(images[10].second);
+    validate_polling_components(*poll, program, init, host, reader, loadread, queues, identity, writer);
+    // Parse and allocate the remaining three replacements without changing
+    // the actual terminal. The temporary ordered image list also precedes
+    // publication. Its destruction cannot affect the owned replacements.
+    devices = std::make_unique<firesim_tsi_bcd_t::prepared_polling_t>(
+        *device, firesim_tsi_bcd_t::sealed_checkpoint_t{images[0], images[9], images[8]});
+  }
+
+  void publish() noexcept {
+    devices->publish();
+    tsi.program_loader.swap_state(program); tsi.init_control.swap_state(init);
+    tsi.host_control.swap_state(host); tsi.serial_read.swap_state(reader); tsi.serial.swap_state(transport);
+    tsi.loadmem_read.swap_state(loadread); tsi.loadmem_queues.swap_state(queues);
+    static_assert(std::is_nothrow_move_assignable<firesim_tsi_memif_write_t>::value,
+                  "polling write publication must not allocate");
+    tsi.memif_write = std::move(writer);
+    tsi.bcd_identity.swap_state(identity);
+    tsi.htif_poll.swap(poll); tsi.bcd.swap(device);
+    tsi.polling_components_prepared = true;
+    consumed = true;
+  }
+};
+
+firesim_tsi_t::prepared_polling_components_t::prepared_polling_components_t(
+    firesim_tsi_t &tsi, const polling_cut_t &images) : state(std::make_unique<state_t>(tsi, images)) {}
+firesim_tsi_t::prepared_polling_components_t::~prepared_polling_components_t() = default;
+void firesim_tsi_t::prepared_polling_components_t::commit() {
+  if (state->consumed) throw std::runtime_error("TSI polling candidate already committed");
+  state->tsi.require_pristine_polling_destination();
+  state->publish();
+}
+firesim_tsi_t::prepared_polling_components_t firesim_tsi_t::prepare_polling_components_candidate(
+    const polling_cut_t &images) {
+  return prepared_polling_components_t(*this, images);
+}
+void firesim_tsi_t::prepare_polling_components(const polling_cut_t &images) {
+  auto next = prepare_polling_components_candidate(images);
+  next.commit();
 }
 
 firesim_tsi_t::polling_cut_t firesim_tsi_t::inspect_prepared_polling_components() const {

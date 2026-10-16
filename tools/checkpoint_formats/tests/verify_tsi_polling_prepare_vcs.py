@@ -207,6 +207,13 @@ def audit(path):
     for binding in bindings.values():
         require(file_sha(binding['snapshot']) == binding['sha256'], 'changed preparation source snapshot')
         check_native_input(ROOT, binding['path'], binding['sha256'], bindings)
+    # Retain compatibility with earlier executed suites, while preventing a
+    # new suite from dropping its candidate checks by deleting a report flag.
+    header = Path(bindings[str(STUBS/'fesvr/firesim_tsi.h')]['snapshot']).read_text()
+    split_source = 'class prepared_polling_components_t {' in header
+    split_report = report.get('split_preparation', False)
+    require(type(split_report) is bool and split_report == split_source,
+            'split preparation source/report contract mismatch')
     plan, images = scenario(report.get('aligned_identity', False))
     require((out/'polling.elf').read_bytes() == polling_elf() and (out/'terminal.bin').read_bytes() == INPUT, 'changed source configuration')
     require((out/'plan.txt').read_text() == '\n'.join(plan)+'\n', 'changed polling service plan')
@@ -225,6 +232,9 @@ def audit(path):
             require((dest/('preedge.'+name)).read_bytes() == images[case['cut']][name], 'incomplete prepared readback '+name)
         require((dest/'preedge.metadata').read_bytes() == Path(case['metadata']).read_bytes(), 'changed prepared metadata')
         require('PREPARATION_READBACK owners=12 target_edges=0 target_services=0 context_entries=0 guards=5' in Path(case['log']).read_text(), 'prepared caller executed')
+        if report.get('split_preparation'):
+            require('CANDIDATE_READBACK unpublished_peers=10 input_lifetime_independent=1 single_use=1' in
+                    Path(case['log']).read_text(), 'candidate published early, borrowed images or was reused')
     malformed = allocations = 0
     require(len(report['invalids']) == 4, 'missing negative backend pair')
     for case in report['invalids']:
@@ -234,6 +244,21 @@ def audit(path):
         allocations += int(match[2])
         for name in NAMES:
             require((Path(case['destination'])/('preedge.'+name)).read_bytes() == images[-1][name], 'incomplete restore after failure')
+    candidate_allocations = 0
+    if report.get('split_preparation'):
+        cases = report['candidate_guards']
+        require(len(cases) == 4 and {(c['producer'], c['backend']) for c in cases} ==
+                {(p, b) for p in ('native', 'vcs-dpi') for b in ('native', 'vcs-dpi')}, 'missing candidate guard pairings')
+        for case in cases:
+            require(case in report['commands'], 'unbound candidate guard command')
+            match = re.search(r'CANDIDATE_GUARDS abandoned=1 late_peer_rejections=3 commit_allocation_failures=(\d+) '
+                              r'consumed_competing_rejections=2 owners=12 context_entries=0 target_edges=0',
+                              Path(case['log']).read_text())
+            require(match and int(match[1]) > 0 and case['cut'] == len(images)-1, 'missing final candidate guards')
+            candidate_allocations += int(match[1])
+            for name in NAMES:
+                require((Path(case['destination'])/('preedge.'+name)).read_bytes() == images[-1][name],
+                        'candidate commit lost a peer')
     pids = []
     for command in report['commands']:
         log = Path(command['log']).read_text()
@@ -245,6 +270,8 @@ def audit(path):
                 complete_prepared_readbacks=12*(len(report['preparations'])+len(report['invalids'])),
                 component_cuts=len(images), malformed_rejections=malformed, membership_rejections=244,
                 cross_owner_or_config_rejections=44, allocation_failures=allocations,
+                candidate_guard_processes=len(report.get('candidate_guards', [])),
+                candidate_commit_allocation_failures=candidate_allocations,
                 context_execution_guards=5*len(report['preparations']), level1_verified=False, level2_verified=False)
 
 
@@ -328,10 +355,14 @@ def main():
         for backend in ('native', 'vcs-dpi'):
             invalids.append(invoke(backend, 'invalid', f'{producer}-{backend}-invalid', producer, len(events)-1))
     commands.extend(invalids)
+    candidate_guards = [invoke(backend, 'candidate-guards', f'{producer}-{backend}-candidate-guards', producer, len(events)-1)
+                        for producer in ('native', 'vcs-dpi') for backend in ('native', 'vcs-dpi')]
+    commands.extend(candidate_guards)
     for binding in bindings:
         require(file_sha(binding['path']) == binding['sha256'], 'source changed during preparation checks')
     report = dict(status='passed', scope='twelve known polling components; no context or CPU continuation',
                   commands=commands, preparations=preparations, invalids=invalids, source_inputs=bindings,
+                  split_preparation=True, candidate_guards=candidate_guards,
                   aligned_identity=args.identity, level1_verified=False, level2_verified=False,
                   artifact_sha256={str(p): file_sha(p) for p in sorted(out.rglob('*')) if p.is_file()})
     path = out/'summary.json'

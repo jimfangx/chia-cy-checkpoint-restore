@@ -1,5 +1,56 @@
 # Fresh preparation of known TSI polling components
 
+## Iteration 134: deferred publication
+
+Iteration 134 separates parsing and allocation from publication for the twelve
+known sealed TSI polling owners. This remains a host-component interface;
+complete Rocket Level-1 continuation and captured Level-2 replay are pending.
+
+`prepare_polling_components_candidate(images)` constructs a destination-bound
+candidate without changing the actual destination. It owns parsed replacement
+storage, including terminal transcript/cursor, BCD commands, poll responses,
+serial queues, startup children, identity caller and write child. Input image
+storage may be released immediately. The candidate cannot be copied or moved.
+Destroying an unpublished candidate performs no service or assignment.
+
+`commit()` rechecks the metadata-only, sealed, pristine destination, including
+its actual component images and startup configuration. Any failed guard or
+allocation leaves all peers unpublished. The final publication uses only
+nonthrowing swaps, moves and scalar assignments. A successful candidate is
+consumed; a competing candidate then rejects against the occupied destination.
+The original `prepare_polling_components()` wrapper uses this same path.
+
+The bound poll/BCD/terminal parser now provides a private preparation primitive
+to the TSI coordinator. Its unchecked, nonthrowing publication is inaccessible
+to external callers. The existing three-owner loader continues to parse all
+three replacements before publishing any of them.
+
+The caller must suspend the destination and keep exclusive access throughout
+preparation/publication. The TSI must outlive its candidates. These checks do
+not reserve process signals or own syscall sessions, descriptors, outer
+contexts, or complete simulator/bridge/memory state. Lifecycle and direct-exit
+recorders are still separate owners. Their eventual aggregate must complete
+every destination/cross-owner check before the final lifecycle guard, then
+publish every prepared peer without allocation. Public `commit()` performs
+checks and allocations and cannot itself be called inside a `noexcept`
+lifecycle publication callback.
+
+Validation and executable native commands are recorded in
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Diagnostics reside under
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration134/`.
+
+Native ASan/UBSan and VCS pass 2,976 preparations and 2,976 complete fresh
+component continuations across all 744 operation cuts. All 13,302,720 continued
+owner readbacks match the producer and independent byte oracle. Candidate
+abandonment, late-peer changes, commit allocation failures and consumed or
+competing candidates pass in all four backend pairings. The three-owner loader,
+active-dispatch faults, recipe-linked lifecycle suite and preserved regressions
+also pass. Both full four-hart exact-recipe controls match their uninterrupted
+reference. These remain component and uninterrupted-control results. Exact
+invocations and negative cases are indexed by `selected-results.json` and
+`verification-commands.json` under the diagnostic root above. All prior sections
+and their historical evidence follow unchanged.
+
 ## Iteration 126: twelve-owner preparation and continuation
 
 Sealed polling now atomically prepares the parent, identity caller and write
