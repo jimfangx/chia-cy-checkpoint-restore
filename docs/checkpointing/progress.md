@@ -14,6 +14,48 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 144, in progress.
+Added the executable syscall-93 parent component: eight request words, nested
+read/write progress, actual-provider exit and response ordering, with atomic
+caller/serial/lifecycle restore. It is not yet wired into live polling dispatch;
+complete Rocket Level 1 remains disabled. Recovery:
+[tsi-syscall-exit.md](tsi-syscall-exit.md).
+
+Diagnostics: `runs/m11-iteration144/`. The recipe archive-bound syscall suite
+passes four scenarios / 300 host-operation cuts / 1,200 fresh cross-backend
+restores, 141,408 complete owner comparisons and 45,936 operations. Its
+independent audit passes and rejects twelve incomplete/duplicate evidence
+variants. Eight installed-syscall differentials, eighteen fresh invalid images,
+814 malformed cases per backend, atomic ownership/allocation guards and four
+actual first-boundary semantic faults pass. Accepted:
+`recipe-syscall/invocation-9b6f2981/summary.json`.
+
+All eight native suites pass: 280 Python tests / 5,283 artifacts / 816 source
+bindings. All thirty retained auditors pass. Fresh ordinary RTL VCS four-cut
+replay and its independent audit pass: 318,637 words before edges per cut,
+256 captured events / 21,760 comparisons, sixteen semantic faults and 44 invalid
+cases. Both exact-recipe default/buffered **16-GiB four-hart controls pass at
+C=3,329,794**. All eight full hart traces and workload/store labels match the
+uninterrupted reference. The accepted controls/build are under
+`rocket-controls/invocation-iyg5oler/summary.json` and its adjacent build identity.
+
+Initial pilots retain an unaligned oracle error and source-drift rejections.
+Final catalogs: `summary.json`, `selected-results.json`,
+`verification-commands.json`, `raw-native-commands.json`,
+`native-input-archives.json` and `artifact-manifest.json`. All selected scopes
+pass their independent audits. Native artifacts and immutable inputs remain at
+their original invocation paths. No CPU Level-1 continuation is claimed.
+
+Next: wire the restricted parent into owned live polling and own sessions,
+descriptors, general syscall parents, signals and outer execution; publish a
+coherent simulator/bridge/memory cut and validate fresh complete CPU Level 1.
+No external dependency is missing. Plans and environment inputs are unchanged.
+Existing controller commits reached both remote main branches, FireSim first;
+local tracking-ref updates reported read-only filesystem errors after remote
+success, independently confirmed by `ls-remote`.
+
+Previous iteration 143 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 143, in progress.
 The exact-source delivered-signal provider now audits every kernel thread's
 SIGINT/TERM/ABRT mask and local/shared pending state, with stable task inventory

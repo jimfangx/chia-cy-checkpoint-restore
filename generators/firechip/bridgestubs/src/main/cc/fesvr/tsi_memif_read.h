@@ -17,6 +17,10 @@ public:
   using services_t = firesim_tsi_serial_read_t::services_t;
 
   bool idle() const { require_idle(); return current.phase == phase_t::idle; }
+  bool pending_read(uint64_t address, uint64_t bytes) const {
+    require_idle();
+    return current.phase != phase_t::idle && current.address == address && current.data.size() == bytes;
+  }
   void begin(uint64_t address, uint64_t bytes) {
     require_idle();
     if (!idle()) throw std::runtime_error("memif read already pending");
