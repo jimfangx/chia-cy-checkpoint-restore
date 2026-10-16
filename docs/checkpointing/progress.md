@@ -14,58 +14,54 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 126, in progress. Recovery:
-[tsi-polling-dispatch-restore.md](tsi-polling-dispatch-restore.md) and
-[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Sealed polling now prepares
-all twelve owners atomically, admits coherent active identity head/tail merge
-cuts and continues them through the ordinary explicit dispatch service. Final
-publication preserves destination-bound writer/FIFO references. Unsealed
-inspection retains eight owners and rejects active identity. Complete HTIF/CPU
-continuation remains disabled; neither CPU level meets acceptance.
+Current milestone: M11-rocket-level1-level2, iteration 127, in progress. Recovery:
+[tsi-memif-read.md](tsi-memif-read.md) and
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Added an explicit generic
+memif read owner with head/tail/body state, copied output and pending serial
+child, plus atomic reader/FIFO loading. Production syscall/HTIF dispatch remains
+pending; sealed polling retains twelve owners and complete CPU admission stays
+disabled. Both CPU levels remain in_progress.
 
-Diagnostic root: `runs/m11-iteration126/`. Native ASan/UBSan and VCS pass
-2,976 fresh preparations and 2,976 fresh continuations at all 744 component
-cuts, 1,105,584 continued operations and 13,302,720 complete
-owner readbacks. Active-dispatch negatives pass eight fresh processes,
-9,312 malformed images, 392 membership and
-104 cross-owner rejections and 5,440 allocation failures.
-Eight actual restored merge-byte/command corruptions first diverge at host
-operation 111/request word 1 without consuming it. Both native/VCS controls
-detect early publication and non-yield admission. Baseline polling negatives
-and unowned-service/exit guards also pass. All labels here are host operations.
+Diagnostics: `runs/m11-iteration127/`. Native ASan/UBSan and VCS pass all
+1,692 fresh continuations at 423 component cuts: 357,012 continued operations
+and 717,408 complete reader/FIFO images. All 30 invalid-image processes, 78
+allocation failures and twelve first-divergence corruptions pass. Independent
+audit also checks all 24 complete corrupted pre-service images. Both native/VCS
+tail/body omission mutation controls pass. All eight native suites (267 Python
+tests and FCFS), all 24 retained component audits and 306,422 iteration-126
+artifacts are independently verified. Fresh ordinary RTL VCS passes 318,637
+diagnostic pattern words/seven clocks before an edge; captured CPU replay
+remains pending. Exact-recipe default/buffered/sealed four-hart controls all
+pass at C=3,329,794 after a native VCS rebuild, each with full 16 GiB memory.
+Every full trace and workload/store target label matches; twelve active host
+samples match all 112 known component images. These are uninterrupted controls,
+not complete CPU checkpoint continuations. Final independent audits pass.
 
-Actual ordinary HTIF passes 128 identities and all 2,892 sampled cuts, including
-1,344 newly admitted active sealed inspections; separate four-owner preparation
-retains 2,688 fresh processes / 10,752 complete readbacks. Parent, caller/write/
-FIFO and writer/FIFO regressions remain independently audited. All eight native
-suites (267 Python tests and FCFS), seventeen host suites and 24 independent
-component/native audits pass. The three exact-recipe four-hart controls pass at
-C=3,329,794 with full 16 GiB backing memory each; every complete trace and
-workload/store label matches. Twelve active host samples match 112 known images.
-Actual TSI/bridge/loader/context objects equal independent recompilation.
-Ordinary RTL VCS repeats all 318,637 diagnostic pattern-word/seven-clock
-readbacks before an edge; captured CPU replay remains pending.
+Accepted reader summary: `read-final/invocation-pkkpcbgv/summary.json`.
+Accepted regression summary: `native-regressions/invocation-tf3yrt83/summary.json`.
+Recovery catalogs are `summary.json`, `selected-results.json`,
+`raw-native-commands.json`, `verification-commands.json`,
+`native-input-archives.json` and `artifact-manifest.json`. Independent reader
+evidence is in `read-independent-audit.json`; exact CPU controls are in
+`rocket-controls/invocation-yom27fih/summary.json` and
+`rocket-sealed-terminal-final/summary.json`. The production adapter still needs
+per-chunk cache flushing and startup loadmem policy. Development
+pilots, the rejected changed-source invocation and the wrapper's post-check
+formatting failure are diagnostic-only (`diagnostic-pilots.json`).
 
-Recovery artifacts: `summary.json`, `selected-results.json`,
-`raw-native-commands.json`, `verification-commands-native.json`,
-`native-input-archives.json` and `artifact-manifest.json`. Accepted summaries:
-`polling-contained/invocation-r668nvfh/summary.json`,
-`dispatch-final/invocation-hnqi0dlq/summary.json`,
-`actual-identity/invocation-_fb3nih6/summary.json` and
-`native-regressions-contained/invocation-t2gizqw2/summary.json`. The interrupted 600-second aggregate run and
-development pilots remain diagnostic-only. The wrapper now gives its complete
-preparation subprocess a separate aggregate deadline, keeping individual
-command deadlines and every case. The prior audit preserves 145,341 iteration-
-125 artifacts and 1,043 native bindings. Existing controller iteration-125
-commits were published FireSim first, then Chipyard; remote tips are confirmed.
-Plans/environments retain their original bytes; no staging or local commits.
-The controller owns the upcoming iteration-126 checkpoint and publication.
+Existing controller iteration-126 checkpoints were published FireSim first,
+then Chipyard; both remote tips are confirmed. No staging or local commits.
+The controller owns the upcoming iteration-127 checkpoint and publication.
+No missing external dependency is known. Next: production caller/parent
+integration and remaining syscall/session, descriptor, signal, stop/exit and
+simulator ownership, then coherent CPU cuts and complete independent Level-1
+continuation and Level-2 captured readback/replay. BOOM/Saturn remain pending;
+standalone Shuttle, physical FPGA validation and ASIC power remain excluded.
 
-Next: complete other memif/syscall, descriptor, signal, stop/exit and simulator
-owners ([remaining inventory](htif-remaining-owners.md)), then coherent CPU capture, complete fresh Level-1 continuation and
-independent captured Level-2 readback/replay at the required active cuts.
-No external dependency is missing. BOOM/Saturn remain pending; standalone
-Shuttle, physical FPGA validation and ASIC power remain excluded/deferred.
+Previous iteration 126: atomic twelve-owner sealed polling preparation and
+active identity continuation passed. Full evidence and exact workload controls
+remain in `runs/m11-iteration126/`; see
+[tsi-polling-dispatch-restore.md](tsi-polling-dispatch-restore.md).
 
 Previous milestone checkpoint: M11-rocket-level1-level2, iteration 125, in progress. Recovery:
 [tsi-polling-dispatch.md](tsi-polling-dispatch.md) and

@@ -1,6 +1,6 @@
 # Remaining HTIF owners after twelve-owner polling preparation
 
-Iteration 126's sealed transaction restores twelve protocol/device components.
+The sealed transaction restores twelve protocol/device components.
 It still prohibits complete context entry. The following inventory explains the
 remaining boundary; it does not grant whole-HTIF or CPU checkpoint support.
 
@@ -19,7 +19,7 @@ hashes, native `nm` commands and the current lifetime-test binding are in
 | Signals | Translation-unit `signal_exit`, registered handlers and the policy for delivery across a cut. The reference constructor installs handlers but does not reset the shared flag. A per-instance POD image cannot silently replace process-wide signal ownership. |
 | Inherited devices | `htif_t` always contains its own syscall proxy, BCD, device table and dynamic-device vector. The supported FireSim caller uses a separate session table/syscall and its owned BCD. Binding one table does not inventory the other. |
 | Active session and descriptors | The session owns `syscall_t` tables, `fds`, `fds_index`, `chroot` and destination HTIF/memif references. Preserve descriptor aliases/shared open-file descriptions, offsets and external input/output policy when affected; raw host descriptor numbers are process-specific. |
-| Generic memif read | The serial-read owner holds one transport chunk. Installed `memif_t::read` also retains unaligned head/tail buffers, address/length/output cursor and aligned-body loop position on its native stack. Owning the serial child does not reconstruct this caller. |
+| Generic memif read | Iteration 127 adds an explicit head/tail/body caller with owned output bytes, body cursor and pending serial child ([contract](tsi-memif-read.md)). Native/VCS component tests compare against installed `memif_t::read`; production syscall/HTIF dispatch and its parent continuation remain pending. The installed generic caller still uses its native stack. |
 | Proxied syscall | The eight-word `magicmem` request, syscall selection and arguments, input/output buffers, host-operation result/errno and the return-memory write cursor can outlive a nested target yield. Filesystem, cwd and chroot effects require explicit ownership or rejection. |
 | Outer host execution | The component service bypasses startup/reset/stop and never initializes a coroutine. Restoring `tick()` additionally needs the host/target context lifecycle and executable outer caller, without replaying startup or consuming an extra host tick/target edge. |
 
