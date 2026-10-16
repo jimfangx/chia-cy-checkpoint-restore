@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 import shlex
 import shutil
+import subprocess
 import tempfile
 
 from tools.checkpoint_formats.codec import require
@@ -21,9 +22,7 @@ from tools.checkpoint_formats.tests import verify_tsi_polling_prepare_vcs as pre
 
 UNSUPPORTED = (1, 0x80001000, (1 << 56) | (255 << 48) | 0x80003000,
                (1 << 56) | (2 << 48), 2 << 56, 255 << 56)
-REJECTED = (1, 0x80001000, (1 << 56) | (2 << 48), 2 << 56, 255 << 56) + tuple(
-    (1 << 56) | (255 << 48) | ((0x1280003008 + offset) << 8) | what
-    for offset in range(1, 8) for what in (0, 1, 255, 2))
+REJECTED = (1, 0x80001000, (1 << 56) | (2 << 48), 2 << 56, 255 << 56)
 
 
 def audit(path):
@@ -56,10 +55,10 @@ def audit(path):
             require((dest/('preedge.'+n)).read_bytes() == images[cut][n], 'incomplete pre-service readback')
         require((dest/'preedge.metadata').read_bytes() == Path(case['metadata']).read_bytes(), 'changed startup metadata')
         count = len(plan)-cut
-        require(f'CONTINUATION operations={count} complete_owner_readbacks={10*count} startup_replays=0 target_edges=0 context_entries=0'
+        require(f'CONTINUATION operations={count} complete_owner_readbacks={12*count} startup_replays=0 target_edges=0 context_entries=0'
                 in Path(case['log']).read_text(), 'missing completed component continuation')
         operations += count
-        readbacks += 10*(count+1)
+        readbacks += 12*(count+1)
     unsupported = tuple(report.get('unsupported_commands', UNSUPPORTED))
     require(len(report['unsupported']) == 4*len(unsupported), 'incomplete unowned service checks')
     for case in report['unsupported']:
@@ -101,6 +100,8 @@ def main():
     parser.add_argument('--out', type=Path)
     parser.add_argument('--audit', type=Path)
     parser.add_argument('--identity', action='store_true', help='also exercise aligned BCD identity writes')
+    parser.add_argument('--preparation-summary', type=Path,
+                        help='reuse an independently audited complete preparation invocation')
     args = parser.parse_args()
     if args.audit:
         print(json.dumps(audit(args.audit), indent=2))
@@ -112,14 +113,35 @@ def main():
     out = Path(tempfile.mkdtemp(prefix='invocation-', dir=args.out.resolve()))
     commands = []
 
-    def execute(argv, log):
+    def execute(argv, log, aggregate=False):
         command = ['bash', '-lc', ENVIRONMENT+shlex.join(map(str, argv))]
-        run(command, log, cwd=ROOT)
-        return dict(cwd='.', argv=command, log=str(log), expected_exit=0)
+        cwd = ROOT if aggregate else out
+        if aggregate:
+            # This subprocess runs thousands of fresh native/VCS checks. Its
+            # deadline is independent of each individual command's 600s bound.
+            with log.open('x') as output:
+                output.write(f'cwd={ROOT}\nargv={json.dumps(command)}\n'); output.flush()
+                process = subprocess.Popen(command, cwd=ROOT, stdout=output, stderr=subprocess.STDOUT)
+                output.write(f'fresh_process_pid={process.pid}\n'); output.flush()
+                try:
+                    code = process.wait(timeout=14400)
+                except subprocess.TimeoutExpired:
+                    process.kill(); process.wait(); raise
+                output.write(f'exit={code}\n')
+            require(code == 0, 'complete preparation suite failed: '+str(log))
+        else:
+            run(command, log, cwd=cwd)
+        return dict(cwd=str(cwd.relative_to(ROOT)), argv=command, log=str(log), expected_exit=0)
 
-    commands.append(execute(['python', '-m', preparation.__name__, '--out', out/'preparation',
-                             *(['--identity'] if args.identity else [])], out/'preparation.log'))
-    bases = list((out/'preparation').glob('invocation-*/summary.json'))
+    if args.preparation_summary:
+        bases = [args.preparation_summary.resolve()]
+        preparation.audit(bases[0])
+        require(json.loads(bases[0].read_text()).get('aligned_identity', False) == args.identity,
+                'preparation scenario differs from continuation')
+    else:
+        commands.append(execute(['python', '-m', preparation.__name__, '--out', out/'preparation',
+                                 *(['--identity'] if args.identity else [])], out/'preparation.log', aggregate=True))
+        bases = list((out/'preparation').glob('invocation-*/summary.json'))
     require(len(bases) == 1, 'ambiguous preparation invocation')
     base = bases[0].parent
     # Original preparation archived the production C++ sources and libraries.
@@ -141,7 +163,7 @@ def main():
 
     jobs = [(b, 'continue', f'{p}-{b}-continue-{c}', p, c)
             for p in ('native', 'vcs-dpi') for b in ('native', 'vcs-dpi') for c in range(len(images))]
-    with ThreadPoolExecutor(max_workers=4) as pool:
+    with ThreadPoolExecutor(max_workers=8) as pool:
         continuations = list(pool.map(lambda j: invoke(*j), jobs))
     commands.extend(continuations)
     unsupported, exit_guards, corruptions, identity_corruptions = [], [], [], []

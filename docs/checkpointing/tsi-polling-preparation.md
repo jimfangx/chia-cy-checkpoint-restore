@@ -1,5 +1,14 @@
 # Fresh preparation of known TSI polling components
 
+## Iteration 126: twelve-owner preparation and continuation
+
+Sealed polling now atomically prepares the parent, identity caller and write
+child with the other nine owners and admits actual head/tail merge yields.
+Prepared identities use the ordinary explicit dispatch service for every
+address residue. See [tsi-polling-dispatch-restore.md](tsi-polling-dispatch-restore.md)
+and the current CPU matrix for native/VCS evidence. Complete CPU acceptance
+remains pending. The earlier sections below describe their original iterations.
+
 ## Iteration 125: parent identity dispatch returns blocked
 
 Ordinary identity dispatch now unwinds both owner guards before yielding.

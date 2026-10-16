@@ -78,7 +78,7 @@ def audit(path):
             require((integration/(name+'.terminal')).read_bytes() == expected, 'production terminal state differs')
         require((integration/'output.bin').read_bytes() == b'Z', 'actual production BCD output differs')
         metadata_bound = report.get('sealed_metadata_bound', False)
-        marker = ('metadata_bound=1 audited_components=10' if metadata_bound else 'metadata_rejected=1')
+        marker = ('metadata_bound=1 audited_components=12' if metadata_bound else 'metadata_rejected=1')
         require(('ACTUAL_TSI_TERMINAL input_bytes=3 output_bytes=1 source_file_replaced=1 '+marker+' exit=0') in
                 (out/(backend+'-integration.log')).read_text(), 'production terminal did not execute')
         if metadata_bound:
@@ -86,11 +86,15 @@ def audit(path):
             require((integration/'startup.metadata').read_bytes()==expected, 'sealed startup binding differs from independent oracle')
             for cut, expected_terminal in [('pristine',image(0)),('consumed',image(3)),('written',image(3,b'Z'))]:
                 paths=list(integration.glob(cut+'.audit-*'))
-                require({p.name.split('.audit-')[1] for p in paths}==OWNERS|{'bcd','terminal'}, 'incomplete sealed device audit')
+                require({p.name.split('.audit-')[1] for p in paths}==OWNERS|{'bcd','terminal','identity','write'}, 'incomplete sealed device audit')
                 images={n:(integration/(cut+'.audit-'+n)).read_bytes() for n in OWNERS}
                 audit_components(images, msip=False)
                 require((integration/(cut+'.audit-terminal')).read_bytes()==expected_terminal and
                         (integration/(cut+'.audit-bcd')).read_bytes()==config(26,1,1048576)+words(0), 'wrong actual sealed device state')
+                from tools.checkpoint_formats.tests.verify_tsi_memif_identity_fesvr_vcs import identity_image
+                from tools.checkpoint_formats.tests.verify_tsi_memif_write_vcs import writer
+                require((integration/(cut+'.audit-identity')).read_bytes()==identity_image(writer()) and
+                        (integration/(cut+'.audit-write')).read_bytes()==writer(), 'sealed idle identity/write state differs')
         require('TERMINAL_GUARDS live=3 active=5 interrupted=5 output_limit=1' in (out/(backend+'-guards.log')).read_text(), 'terminal guards incomplete')
     require(len(report['restores']) == 52 and len(report['invalid']) == 4 and len(report['corruptions']) == 4, 'missing terminal fresh processes')
     for case in report['restores']:
@@ -178,6 +182,7 @@ def main():
               TESTS/'verify_tsi_host_control_fesvr_vcs.py', TESTS/'verify_firesim_tsi_loadmem_vcs.py',
               TESTS/'verify_semantic_vcs.py', TESTS/'verify_loadmem_read_checkpoint_vcs.py',
               TESTS/'verify_tsi_startup_metadata_vcs.py', TESTS/'verify_tsi_polling_cut_vcs.py',
+              TESTS/'verify_tsi_memif_identity_fesvr_vcs.py', TESTS/'verify_tsi_memif_write_vcs.py',
               *sorted((STUBS/'fesvr').glob('*.h')), *sorted(TESTCHIP.glob('*.h')), *sorted((FESVR/'include/fesvr').glob('*.h')),
               CC/'core/checkpoint.h', CC/'core/widget_checkpoint.h', ROOT/'env.sh', ROOT/'sims/firesim/env.sh', ROOT/'automations/checkpoint_loop/vcs-env.sh']
     snapshots = out/'sources'; snapshots.mkdir(); bindings = []

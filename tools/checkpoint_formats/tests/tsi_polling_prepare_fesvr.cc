@@ -1,4 +1,4 @@
-// Fresh preparation of all ten known polling components. No CPU/context resume.
+// Fresh preparation of all twelve known polling components. No CPU/context resume.
 #include "fesvr/firesim_tsi.h"
 #include <array>
 #include <filesystem>
@@ -9,8 +9,8 @@
 #include <unistd.h>
 namespace fs = std::filesystem;
 using images_t = firesim_tsi_t::polling_cut_t;
-static const std::array<const char *, 10> names{{"poll","program","init","host","read",
-  "serial","loadmem-read","loadmem-queues","bcd","terminal"}};
+static const std::array<const char *, 12> names{{"poll","program","init","host","read",
+  "serial","loadmem-read","loadmem-queues","bcd","terminal","identity","write"}};
 static void require(bool ok, const char *message) { if (!ok) throw std::runtime_error(message); }
 static auto bytes(const fs::path &p) {
   std::ifstream f(p,std::ios::binary); require(bool(f),"missing image");
@@ -33,7 +33,8 @@ static auto peers(const firesim_tsi_t &tsi) {
       {"program",&tsi.program_loader_owner()},{"init",&tsi.init_accesses_owner()},
       {"host",&tsi.host_control_owner()},{"read",&tsi.serial_read_owner()},
       {"serial",&tsi.serial_queue_owner()},{"loadmem-read",&tsi.loadmem_read_owner()},
-      {"loadmem-queues",&tsi.loadmem_queue_owner()},{"terminal",&tsi.terminal_owner()}})
+      {"loadmem-queues",&tsi.loadmem_queue_owner()},{"terminal",&tsi.terminal_owner()},{"identity",&tsi.bcd_identity_owner()},
+      {"write",&tsi.memif_write_owner()}})
     result.emplace_back(name,owner->save_checkpoint());
   return result;
 }
@@ -119,7 +120,7 @@ static void continue_components(firesim_tsi_t &tsi,const std::string &mode,const
     require(rejected && tsi.inspect_prepared_polling_components()==actual,"component enabled context entry");
   }
   require(!corrupt && bool(readbacks),"corruption was not detected or incomplete readback");
-  std::cout<<"CONTINUATION operations="<<readback_count<<" complete_owner_readbacks="<<10*readback_count
+  std::cout<<"CONTINUATION operations="<<readback_count<<" complete_owner_readbacks="<<names.size()*readback_count
            <<" startup_replays=0 target_edges=0 context_entries=0\n";
 }
 extern void tsi_terminal_fail_allocation_after(long);
@@ -220,7 +221,7 @@ static int run(const char *mode,const char *elf,const char *input,const char *me
       tsi.send_word(1);tsi.send_word(0);tsi.tick();packet(tsi,{1,0x80002000,0,1,0,0,0});
       require(tsi.done() && tsi.exit_code()==0,"source HTIF did not exit");
       require(dup2(previous,1)==1,"cannot restore stdout");close(previous);
-      std::cout<<"CAPTURE cuts="<<cut+1<<" owners=10 source_exit=0 cpu_edges=0\n";
+      std::cout<<"CAPTURE cuts="<<cut+1<<" owners=12 source_exit=0 cpu_edges=0\n";
       return 0;
     }
     const auto good=load(source);
@@ -246,7 +247,7 @@ static int run(const char *mode,const char *elf,const char *input,const char *me
       catch(const std::runtime_error &) {failed=true;}
       require(failed && tsi.inspect_prepared_polling_components()==actual,"prepared caller entered or changed a peer");++guards;
     }
-    std::cout<<"PREPARATION_READBACK owners=10 target_edges=0 target_services=0 context_entries=0 guards="<<guards<<'\n';
+    std::cout<<"PREPARATION_READBACK owners=12 target_edges=0 target_services=0 context_entries=0 guards="<<guards<<'\n';
     return 0;
   } catch(const std::exception &e) {std::cerr<<"FAIL "<<e.what()<<'\n';return 2;}
 }

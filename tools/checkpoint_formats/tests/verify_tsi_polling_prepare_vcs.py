@@ -1,4 +1,4 @@
-"""Atomic preparation of ten production TSI polling components, native and VCS.
+"""Atomic preparation of twelve production TSI polling components, native and VCS.
 
 No host context is resumed after preparation. CPU acceptance remains pending.
 """
@@ -20,8 +20,10 @@ from tools.checkpoint_formats.tests.verify_semantic_vcs import ROOT, run
 from tools.checkpoint_formats.tests.verify_loadmem_read_checkpoint_vcs import ENVIRONMENT, config, words
 from tools.checkpoint_formats.tests.verify_firesim_tsi_loadmem_vcs import CC, STUBS, TESTS, TESTCHIP, FESVR
 from tools.checkpoint_formats.tests.verify_tsi_host_control_fesvr_vcs import polling_elf
+from tools.checkpoint_formats.tests.verify_tsi_memif_identity_fesvr_vcs import identity_image
+from tools.checkpoint_formats.tests.verify_tsi_memif_write_vcs import writer, reader, initial
 
-NAMES = ('poll', 'program', 'init', 'host', 'read', 'serial', 'loadmem-read', 'loadmem-queues', 'bcd', 'terminal')
+NAMES = ('poll', 'program', 'init', 'host', 'read', 'serial', 'loadmem-read', 'loadmem-queues', 'bcd', 'terminal', 'identity', 'write')
 READ = 1 << 56
 TOHOST, FROMHOST = 0x80002000, 0x80002008
 INPUT = b'A\0\xff'
@@ -30,13 +32,14 @@ INPUT = b'A\0\xff'
 def scenario(identity=False):
     """Independent byte oracle for the installed caller's explicit operations."""
     phase, host_phase, remaining, flags = 1, 0, 0, 6
+    command, w = 0, writer()
     address, partial, requests, responses = TOHOST, [], [0, TOHOST, 0, 1, 0], []
     queue, pending, cursor, output = [], 0, 0, b''
     plan, images = [], []
 
     def snapshot():
         images.append(dict(
-            poll=config(24, TOHOST, FROMHOST, 1048576)+words(phase, 0, len(queue), *queue),
+            poll=config(24, TOHOST, FROMHOST, 1048576)+words(phase, command, len(queue), *queue),
             program=config(23, 1, 0)+words(3), init=config(21, 0, 0)+words(8, 0, 0),
             host=config(18, 3)+words(host_phase, remaining, flags),
             read=config(20, 1024, 4, 2, 2)+(words(2, address, 8, len(partial), *partial) if address else words(0, 0, 0, 0)),
@@ -44,7 +47,8 @@ def scenario(identity=False):
             **{'loadmem-read': config(14, 4096, 4)+words(0, 0, 0, 0),
                'loadmem-queues': config(16, 4096, 4)+words(0, 0, 0, 0, 0, 0, 0)},
             bcd=config(26, 1, 1048576)+words(pending, *([READ]*pending)),
-            terminal=config(27, 1, 1048576, 3)+INPUT+words(cursor, len(output))+output))
+            terminal=config(27, 1, 1048576, 3)+INPUT+words(cursor, len(output))+output,
+            identity=identity_image(w), write=w))
 
     def step(line):
         plan.append(line)
@@ -118,36 +122,76 @@ def scenario(identity=False):
         step('TICK')
         packet()
     if identity:
-        # Address spans both serial address words. Exercise every defined
-        # identity and the empty unknown-command name, including an address
-        # aligned to eight but not sixteen bytes.
-        for what, text in ((0, b'read'), (1, b'write'), (255, b'bcd'), (2, b'')):
-            destination = 0x1280003008 + 64 * what
-            command = (1 << 56) | (255 << 48) | (destination << 8) | what
-            send(command & 0xffffffff)
-            read_partial()
-            send(command >> 32)
-            responses.clear()
-            partial, phase, address = [], 6, FROMHOST
-            queue.append((1 << 56) | (255 << 48) | 1)
-            data = text.ljust(64, b'\0')
-            payload = [int.from_bytes(data[i:i+4], 'little') for i in range(0, 64, 4)]
-            requests = [1, TOHOST, 0, 1, 0, 0, 0,
-                        1, destination & 0xffffffff, destination >> 32, 15, 0, *payload,
-                        0, FROMHOST, 0, 1, 0]
-            step('TICK')
-            packet(10)  # The identity packet has a partially consumed header.
-            packet()
-            send(0)
-            read_partial()
-            send(0)
-            responses.clear()
-            response = queue.pop(0)
-            requests = [1, FROMHOST, 0, 1, 0, response & 0xffffffff, response >> 32,
-                        0, TOHOST, 0, 1, 0]
-            partial, phase, address = [], 1, TOHOST
-            step('TICK')
-            packet()
+        for residue in range(8):
+            for what, text in ((0, b'read'), (1, b'write'), (255, b'bcd'), (2, b'')):
+                destination = 0x1280003008 + 0x10000*residue + 64*what + residue
+                value = (1 << 56) | (255 << 48) | (destination << 8) | what
+                data = text.ljust(64, b'\0')
+                send(value & 0xffffffff)
+                read_partial()
+                send(value >> 32)
+                responses.clear()
+                partial, address = [], 0
+                requests = [1, TOHOST, 0, 1, 0, 0, 0]
+                if residue:
+                    phase, command = 3, value
+                    head, start = 8-residue, destination & ~7
+                    requests += [0, start & 0xffffffff, start >> 32, 1, 0]
+                    w = writer(1, destination, 0, data, reader(2, start))
+                    step('TICK')
+                    packet(10)  # Partially consumed merge-read header.
+                    packet()
+                    original = bytes(initial(start+i) for i in range(8))
+                    low, high = (int.from_bytes(original[i:i+4], 'little') for i in (0, 4))
+                    send(low)
+                    responses.clear()
+                    w = writer(1, destination, 0, data, reader(2, start, [low]))
+                    step('TICK')
+                    send(high)
+                    responses.clear()
+                    merged = original[:residue]+data[:head]
+                    payload = [int.from_bytes(merged[i:i+4], 'little') for i in (0, 4)]
+                    tail = destination+head+56
+                    requests = [1, start & 0xffffffff, start >> 32, 1, 0, *payload,
+                                0, tail & 0xffffffff, tail >> 32, 1, 0]
+                    w = writer(2, destination, 0, data, reader(2, tail))
+                    step('TICK')
+                    packet(4)
+                    packet()
+                    original = bytes(initial(tail+i) for i in range(8))
+                    low, high = (int.from_bytes(original[i:i+4], 'little') for i in (0, 4))
+                    send(low)
+                    responses.clear()
+                    w = writer(2, destination, 0, data, reader(2, tail, [low]))
+                    step('TICK')
+                    send(high)
+                    responses.clear()
+                    merged = data[head+56:]+original[residue:]
+                    payload = [int.from_bytes(merged[i:i+4], 'little') for i in (0, 4)]
+                    body = data[head:head+56]
+                    payload_body = [int.from_bytes(body[i:i+4], 'little') for i in range(0, 56, 4)]
+                    body_address = destination+head
+                    requests = [1, tail & 0xffffffff, tail >> 32, 1, 0, *payload,
+                                1, body_address & 0xffffffff, body_address >> 32, 13, 0, *payload_body]
+                else:
+                    payload = [int.from_bytes(data[i:i+4], 'little') for i in range(0, 64, 4)]
+                    requests += [1, destination & 0xffffffff, destination >> 32, 15, 0, *payload]
+                queue.append((1 << 56) | (255 << 48) | 1)
+                partial, phase, command, address, w = [], 6, 0, FROMHOST, writer()
+                requests += [0, FROMHOST, 0, 1, 0]
+                step('TICK')
+                packet(10)
+                packet()
+                send(0)
+                read_partial()
+                send(0)
+                responses.clear()
+                response = queue.pop(0)
+                requests = [1, FROMHOST, 0, 1, 0, response & 0xffffffff, response >> 32,
+                            0, TOHOST, 0, 1, 0]
+                partial, phase, address = [], 1, TOHOST
+                step('TICK')
+                packet()
     return plan, images
 
 
@@ -169,7 +213,7 @@ def audit(path):
     for backend in ('native', 'vcs-dpi'):
         capture = out/(backend+'-capture')
         require((capture/'output.bin').read_bytes() == b'Z', 'wrong source terminal execution')
-        require(f'CAPTURE cuts={len(images)} owners=10 source_exit=0 cpu_edges=0' in (out/(backend+'-capture.log')).read_text(), 'source did not finish')
+        require(f'CAPTURE cuts={len(images)} owners=12 source_exit=0 cpu_edges=0' in (out/(backend+'-capture.log')).read_text(), 'source did not finish')
         for cut, expected in enumerate(images):
             for name in NAMES:
                 require((capture/f'cut-{cut}.{name}').read_bytes() == expected[name], f'independent captured byte mismatch {backend}/{cut}/{name}')
@@ -180,11 +224,11 @@ def audit(path):
         for name in NAMES:
             require((dest/('preedge.'+name)).read_bytes() == images[case['cut']][name], 'incomplete prepared readback '+name)
         require((dest/'preedge.metadata').read_bytes() == Path(case['metadata']).read_bytes(), 'changed prepared metadata')
-        require('PREPARATION_READBACK owners=10 target_edges=0 target_services=0 context_entries=0 guards=5' in Path(case['log']).read_text(), 'prepared caller executed')
+        require('PREPARATION_READBACK owners=12 target_edges=0 target_services=0 context_entries=0 guards=5' in Path(case['log']).read_text(), 'prepared caller executed')
     malformed = allocations = 0
     require(len(report['invalids']) == 4, 'missing negative backend pair')
     for case in report['invalids']:
-        match = re.search(r'PREPARATION_ATOMIC malformed=(\d+) membership=51 cross=11 allocation_failures=(\d+) unchanged_on_failure=1 context_entries=0 target_edges=0', Path(case['log']).read_text())
+        match = re.search(r'PREPARATION_ATOMIC malformed=(\d+) membership=61 cross=11 allocation_failures=(\d+) unchanged_on_failure=1 context_entries=0 target_edges=0', Path(case['log']).read_text())
         require(match and int(match[1]) == sum(len(v)+2 for v in images[-1].values()) and int(match[2]) >= 30, 'incomplete atomic negative coverage')
         malformed += int(match[1])
         allocations += int(match[2])
@@ -197,9 +241,9 @@ def audit(path):
         require(not any(s in log for s in ('ERROR: AddressSanitizer', 'runtime error:', 'LeakSanitizer: detected')), 'preparation sanitizer failure')
         pids.append(int(re.search(r'fresh_process_pid=(\d+)', log)[1]))
     require(len(pids) == len(set(pids)), 'reused preparation process')
-    return dict(status='passed', fresh_ten_owner_preparations=len(report['preparations']),
-                complete_prepared_readbacks=10*(len(report['preparations'])+len(report['invalids'])),
-                component_cuts=len(images), malformed_rejections=malformed, membership_rejections=204,
+    return dict(status='passed', fresh_twelve_owner_preparations=len(report['preparations']),
+                complete_prepared_readbacks=12*(len(report['preparations'])+len(report['invalids'])),
+                component_cuts=len(images), malformed_rejections=malformed, membership_rejections=244,
                 cross_owner_or_config_rejections=44, allocation_failures=allocations,
                 context_execution_guards=5*len(report['preparations']), level1_verified=False, level2_verified=False)
 
@@ -221,7 +265,8 @@ def main():
     sources = [source, STUBS/'fesvr/firesim_tsi.cc', STUBS/'fesvr/owned_fesvr_tsi.cc', TESTCHIP/'testchip_tsi.cc', TESTCHIP/'testchip_htif.cc', allocator]
     library = FESVR/'lib/libfesvr.a'
     inputs = [*sources, sv, library, Path(__file__), TESTS/'verify_tsi_host_control_fesvr_vcs.py',
-              TESTS/'verify_firesim_tsi_loadmem_vcs.py', TESTS/'verify_semantic_vcs.py', TESTS/'verify_loadmem_read_checkpoint_vcs.py',
+              TESTS/'verify_firesim_tsi_loadmem_vcs.py', TESTS/'verify_tsi_memif_identity_fesvr_vcs.py',
+              TESTS/'verify_tsi_memif_write_vcs.py', TESTS/'verify_semantic_vcs.py', TESTS/'verify_loadmem_read_checkpoint_vcs.py',
               ROOT/'tools/checkpoint_formats/retained_evidence.py', ROOT/'tools/checkpoint_formats/evidence.py',
               *sorted((STUBS/'fesvr').glob('*.h')), *sorted(TESTCHIP.glob('*.h')), *sorted((FESVR/'include/fesvr').glob('*.h')),
               CC/'core/checkpoint.h', CC/'core/widget_checkpoint.h', *overlay_inputs(),
@@ -275,7 +320,7 @@ def main():
         commands.append(invoke(backend, 'capture', backend+'-capture'))
     jobs = [(backend, 'restore', f'{producer}-{backend}-cut-{cut}', producer, cut)
             for producer in ('native', 'vcs-dpi') for backend in ('native', 'vcs-dpi') for cut in range(len(events))]
-    with ThreadPoolExecutor(max_workers=4) as pool:
+    with ThreadPoolExecutor(max_workers=8) as pool:
         preparations = list(pool.map(lambda job: invoke(*job), jobs))
     commands.extend(preparations)
     invalids = []
@@ -285,7 +330,7 @@ def main():
     commands.extend(invalids)
     for binding in bindings:
         require(file_sha(binding['path']) == binding['sha256'], 'source changed during preparation checks')
-    report = dict(status='passed', scope='ten known polling components; no context or CPU continuation',
+    report = dict(status='passed', scope='twelve known polling components; no context or CPU continuation',
                   commands=commands, preparations=preparations, invalids=invalids, source_inputs=bindings,
                   aligned_identity=args.identity, level1_verified=False, level2_verified=False,
                   artifact_sha256={str(p): file_sha(p) for p in sorted(out.rglob('*')) if p.is_file()})

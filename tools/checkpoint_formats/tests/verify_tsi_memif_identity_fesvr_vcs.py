@@ -166,8 +166,8 @@ def audit(path):
         expected_active = sum(w != writer() for w, _, _ in states)
         for backend in ('native', 'vcs-dpi'):
             name = f'{backend}-capture-{flush}'
-            require(f'ACTUAL_IDENTITY cuts={len(states)} active_child_cuts={expected_active} polling_guards={expected_active} source_exit=0 cpu_edges=0'
-                    in (out/(name+'.log')).read_text(), 'ordinary source did not finish or active caller admitted')
+            require(f'ACTUAL_IDENTITY cuts={len(states)} active_child_cuts={expected_active} polling_guards=0 source_exit=0 cpu_edges=0'
+                    in (out/(name+'.log')).read_text(), 'ordinary source did not finish or coherent identity rejected')
             for cut, (w, q, parent) in enumerate(states):
                 require((out/name/f'cut-{cut}.write').read_bytes() == w and
                         (out/name/f'cut-{cut}.serial').read_bytes() == q and
@@ -199,7 +199,7 @@ def audit(path):
         pids.append(int(re.search(r'fresh_process_pid=(\d+)', log)[1]))
     require(len(pids) == len(set(pids)), 'reused actual readback process')
     return dict(status='passed', ordinary_identity_commands=128, captured_component_cuts=count,
-                active_child_cuts=active, polling_admission_rejections=active,
+                active_child_cuts=active, polling_admission_rejections=0, polling_dispatch_admissions=active,
                 fresh_child_readbacks=len(report['readbacks']), complete_owner_readbacks=4*len(report['readbacks']),
                 parent_dispatch_readbacks=active,
                 level1_verified=False, level2_verified=False)

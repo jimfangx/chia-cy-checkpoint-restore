@@ -82,15 +82,15 @@ public:
   using polling_cut_t = std::vector<std::pair<std::string, std::vector<uint8_t>>>;
   polling_cut_t inspect_polling_cut() const;
 
-  // Ten known polling components only. Requires metadata-only preparation in
+  // Twelve known sealed polling components only. Requires metadata-only preparation in
   // a fresh caller and a sealed terminal. This does not restore syscall,
   // signal, exit or context state and must not enable HTIF/CPU continuation.
   void prepare_polling_components(const polling_cut_t &images);
   polling_cut_t inspect_prepared_polling_components() const;
   // Explicit component service, not tick()/complete HTIF admission. Resume
   // until the next serial-read or idle yield, with no context/start/reset.
-  // Sealed BCD read/write and aligned identity commands only. Unaligned
-  // identity needs an unowned memif read/merge caller; it, syscall, exit,
+  // Sealed BCD read/write and identity commands only. The identity caller and
+  // its read/merge/write child are explicit owners. Syscall, exit,
   // signals and other devices fail closed before clearing tohost.
   void advance_prepared_polling_components();
 
@@ -164,7 +164,8 @@ private:
   static void validate_polling_components(const firesim_tsi_htif_poll_t &poll,
       const firesim_tsi_program_loader_t &program, const firesim_tsi_init_accesses_t &init,
       const firesim_tsi_host_control_t &host, const firesim_tsi_serial_read_t &read,
-      const firesim_loadmem_read_t &loadread, const firesim_loadmem_queues_t &queues);
+      const firesim_loadmem_read_t &loadread, const firesim_loadmem_queues_t &queues,
+      const firesim_tsi_bcd_identity_t &identity, const firesim_tsi_memif_write_t &writer);
   static void validate_initialization(const firesim_tsi_host_control_t &host,
                                       const firesim_tsi_init_accesses_t &init,
                                       const firesim_tsi_serial_read_t &read);

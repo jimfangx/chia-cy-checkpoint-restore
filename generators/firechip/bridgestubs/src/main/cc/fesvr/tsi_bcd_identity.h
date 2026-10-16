@@ -24,6 +24,14 @@ public:
     boundary.require_idle(); validate_child(current, writer);
     return current.phase != phase_t::idle && current.command == command;
   }
+  bool blocked_for(uint64_t command) const {
+    return pending_for(command) && current.phase == phase_t::writing && writer.pending_merge();
+  }
+  // Publish only state, preserving this caller's destination-bound child and
+  // FIFO references. Candidate parsing/validation must precede this swap.
+  void swap_state(firesim_tsi_bcd_identity_t &other) noexcept {
+    std::swap(current, other.current);
+  }
   void begin(uint64_t command) {
     boundary.require_idle();
     if (!idle() || !writer.idle()) throw std::runtime_error("BCD identity caller/child already pending");

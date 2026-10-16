@@ -35,7 +35,7 @@ static auto metadata_peers(const firesim_tsi_t &tsi) {
 }
 static auto polling_audit(firesim_tsi_t &tsi, const fs::path &out, const std::string &name) {
   const auto before=tsi.inspect_polling_cut();
-  require(before.size()==10,"sealed polling audit omitted an owner");
+  require(before.size()==12,"sealed polling audit omitted an owner");
   require(before[8].first=="bcd" && before[8].second==tsi.bcd_owner().save_checkpoint() &&
           before[9].first=="terminal" && before[9].second==tsi.terminal_owner().save_checkpoint(),
           "sealed polling device readback differs");
@@ -239,7 +239,7 @@ static void integration(const fs::path &elf, const fs::path &out) {
   require(tsi.save_startup_metadata()==metadata,"terminal progress changed startup configuration");
   tsi.send_word(1);tsi.send_word(0);tsi.tick();packet(tsi,{1,0x80002000,0,1,0,0,0});
   require(tsi.done() && tsi.exit_code()==0,"production exit differs");
-  std::cout<<"ACTUAL_TSI_TERMINAL input_bytes=3 output_bytes=1 source_file_replaced=1 metadata_bound=1 audited_components=10 exit=0\n";
+  std::cout<<"ACTUAL_TSI_TERMINAL input_bytes=3 output_bytes=1 source_file_replaced=1 metadata_bound=1 audited_components=12 exit=0\n";
 }
 static void metadata(const std::string &mode,const fs::path &elf,const fs::path &images,const fs::path &out) {
   const auto input=elf.parent_path()/"sealed-input.bin";

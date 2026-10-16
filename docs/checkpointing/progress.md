@@ -14,7 +14,60 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 125, in progress. Recovery:
+Current milestone: M11-rocket-level1-level2, iteration 126, in progress. Recovery:
+[tsi-polling-dispatch-restore.md](tsi-polling-dispatch-restore.md) and
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Sealed polling now prepares
+all twelve owners atomically, admits coherent active identity head/tail merge
+cuts and continues them through the ordinary explicit dispatch service. Final
+publication preserves destination-bound writer/FIFO references. Unsealed
+inspection retains eight owners and rejects active identity. Complete HTIF/CPU
+continuation remains disabled; neither CPU level meets acceptance.
+
+Diagnostic root: `runs/m11-iteration126/`. Native ASan/UBSan and VCS pass
+2,976 fresh preparations and 2,976 fresh continuations at all 744 component
+cuts, 1,105,584 continued operations and 13,302,720 complete
+owner readbacks. Active-dispatch negatives pass eight fresh processes,
+9,312 malformed images, 392 membership and
+104 cross-owner rejections and 5,440 allocation failures.
+Eight actual restored merge-byte/command corruptions first diverge at host
+operation 111/request word 1 without consuming it. Both native/VCS controls
+detect early publication and non-yield admission. Baseline polling negatives
+and unowned-service/exit guards also pass. All labels here are host operations.
+
+Actual ordinary HTIF passes 128 identities and all 2,892 sampled cuts, including
+1,344 newly admitted active sealed inspections; separate four-owner preparation
+retains 2,688 fresh processes / 10,752 complete readbacks. Parent, caller/write/
+FIFO and writer/FIFO regressions remain independently audited. All eight native
+suites (267 Python tests and FCFS), seventeen host suites and 24 independent
+component/native audits pass. The three exact-recipe four-hart controls pass at
+C=3,329,794 with full 16 GiB backing memory each; every complete trace and
+workload/store label matches. Twelve active host samples match 112 known images.
+Actual TSI/bridge/loader/context objects equal independent recompilation.
+Ordinary RTL VCS repeats all 318,637 diagnostic pattern-word/seven-clock
+readbacks before an edge; captured CPU replay remains pending.
+
+Recovery artifacts: `summary.json`, `selected-results.json`,
+`raw-native-commands.json`, `verification-commands-native.json`,
+`native-input-archives.json` and `artifact-manifest.json`. Accepted summaries:
+`polling-contained/invocation-r668nvfh/summary.json`,
+`dispatch-final/invocation-hnqi0dlq/summary.json`,
+`actual-identity/invocation-_fb3nih6/summary.json` and
+`native-regressions-contained/invocation-t2gizqw2/summary.json`. The interrupted 600-second aggregate run and
+development pilots remain diagnostic-only. The wrapper now gives its complete
+preparation subprocess a separate aggregate deadline, keeping individual
+command deadlines and every case. The prior audit preserves 145,341 iteration-
+125 artifacts and 1,043 native bindings. Existing controller iteration-125
+commits were published FireSim first, then Chipyard; remote tips are confirmed.
+Plans/environments retain their original bytes; no staging or local commits.
+The controller owns the upcoming iteration-126 checkpoint and publication.
+
+Next: complete other memif/syscall, descriptor, signal, stop/exit and simulator
+owners ([remaining inventory](htif-remaining-owners.md)), then coherent CPU capture, complete fresh Level-1 continuation and
+independent captured Level-2 readback/replay at the required active cuts.
+No external dependency is missing. BOOM/Saturn remain pending; standalone
+Shuttle, physical FPGA validation and ASIC power remain excluded/deferred.
+
+Previous milestone checkpoint: M11-rocket-level1-level2, iteration 125, in progress. Recovery:
 [tsi-polling-dispatch.md](tsi-polling-dispatch.md) and
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Ordinary identity dispatch
 now returns blocked through both owner guards before switching to the target.

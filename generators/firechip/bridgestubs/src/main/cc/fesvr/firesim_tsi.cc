@@ -117,13 +117,10 @@ class firesim_tsi_t::polling_services_t final : public firesim_tsi_htif_poll_t::
     void validate_command(uint64_t value) override {
       if (devices) return;
       const auto command = (value >> 48) & 255;
-      const auto address = (value & 0xffffffffffffULL) / 256;
-      // Aligned 64-byte identity writes have no read/merge or suspended memif
-      // caller: their entire effect is an owned outbound serial packet. Reject
-      // unsupported commands before the polling caller queues tohost's clear.
-      if ((value >> 56) != 1 ||
-          (command > 1 && (command != 255 || (address & 7))))
-        throw std::runtime_error("prepared polling component requires sealed BCD read/write or aligned identity");
+      // Identity dispatch has explicit caller/write/merge-read owners. Reject
+      // all other unowned commands before the caller queues tohost's clear.
+      if ((value >> 56) != 1 || (command > 1 && command != 255))
+        throw std::runtime_error("prepared polling component requires sealed BCD read/write or identity");
     }
     bool read(uint64_t address, uint64_t &value) override {
       if (tsi.serial_read.idle()) {
@@ -147,7 +144,8 @@ class firesim_tsi_t::polling_services_t final : public firesim_tsi_htif_poll_t::
       tsi.write_chunk(address, 8, words);
     }
     bool dispatch(uint64_t value) override {
-      if (devices && (value >> 48) == 0x1ff) {
+      validate_command(value);
+      if ((value >> 48) == 0x1ff) {
         return tsi.dispatch_identity(value);
       }
       command_t command(tsi.memif(), value, [owner = tsi.htif_poll.get()](uint64_t response) { owner->respond(response); });
@@ -314,10 +312,10 @@ void firesim_tsi_t::prepare_startup_metadata(const std::vector<uint8_t> &image) 
 }
 
 firesim_tsi_t::polling_cut_t firesim_tsi_t::inspect_polling_cut() const {
-  if (!bcd_identity.idle())
-    throw std::runtime_error("TSI polling audit: BCD identity caller is not part of this cut");
-  if (!memif_write.idle())
-    throw std::runtime_error("TSI polling audit: memif write/device caller is not part of this cut");
+  // Unsealed inspection still exposes only its historical eight owners. It
+  // must never admit an active identity whose two owners it does not return.
+  if (terminal->checkpoint_schema().empty() && (!bcd_identity.idle() || !memif_write.idle()))
+    throw std::runtime_error("TSI unsealed polling audit lacks identity/write owners");
   if (!owned_default_devices)
     throw std::runtime_error("TSI polling audit: installed custom/long-option HTIF path");
   if (!polling_active || !htif_poll)
@@ -325,7 +323,7 @@ firesim_tsi_t::polling_cut_t firesim_tsi_t::inspect_polling_cut() const {
   if (!host_context_suspended())
     throw std::runtime_error("TSI polling audit: host context is not suspended at target");
   validate_polling_components(*htif_poll, program_loader, init_control, host_control,
-                              serial_read, loadmem_read, loadmem_queues);
+                              serial_read, loadmem_read, loadmem_queues, bcd_identity, memif_write);
   return polling_components();
 }
 
@@ -393,7 +391,8 @@ bool firesim_tsi_t::dispatch_identity(uint64_t command) {
 void firesim_tsi_t::validate_polling_components(const firesim_tsi_htif_poll_t &poll,
     const firesim_tsi_program_loader_t &program, const firesim_tsi_init_accesses_t &init,
     const firesim_tsi_host_control_t &host, const firesim_tsi_serial_read_t &reader,
-    const firesim_loadmem_read_t &loadread, const firesim_loadmem_queues_t &queues) {
+    const firesim_loadmem_read_t &loadread, const firesim_loadmem_queues_t &queues,
+    const firesim_tsi_bcd_identity_t &identity, const firesim_tsi_memif_write_t &writer) {
   // phase() also rejects an active or interrupted device/memif service.
   const auto phase = poll.phase();
   using pp = firesim_tsi_htif_poll_t::phase_t;
@@ -403,7 +402,12 @@ void firesim_tsi_t::validate_polling_components(const firesim_tsi_htif_poll_t &p
                     reader.pending_for(poll.pending_read_address(), 8);
   const bool idle = phase == pp::idle && host.current_phase() == hp::idle &&
                     !host.busy() && reader.idle();
-  if ((!read && !idle) ||
+  // pending_for validates the copied writer address/payload against the raw
+  // identity command. The independent mailbox reader cannot also be active.
+  const bool dispatch = phase == pp::dispatch && host.current_phase() == hp::ready &&
+                        reader.idle() && identity.blocked_for(poll.pending_dispatch_command());
+  const bool inactive = identity.idle() && writer.idle();
+  if ((!dispatch && (!(read || idle) || !inactive)) ||
       program.phase() != firesim_tsi_program_loader_t::phase_t::complete ||
       init.phase() != firesim_tsi_init_accesses_t::phase_t::complete ||
       !host.loaded_in_host() || !host.loaded_in_target() ||
@@ -420,6 +424,8 @@ firesim_tsi_t::polling_cut_t firesim_tsi_t::polling_components() const {
     if (!bcd) throw std::runtime_error("TSI sealed polling audit: missing BCD owner");
     owners.emplace_back("bcd", bcd.get());
     owners.emplace_back("terminal", terminal.get());
+    owners.emplace_back("identity", &bcd_identity);
+    owners.emplace_back("write", &memif_write);
   }
   polling_cut_t result;
   for (const auto &[name, owner] : owners) {
@@ -440,10 +446,10 @@ void firesim_tsi_t::prepare_polling_components(const polling_cut_t &images) {
       should_exit() || done() || metadata_components() != metadata_pristine_components)
     throw std::runtime_error("TSI polling preparation requires pristine sealed metadata-only caller");
   check_startup_metadata();
-  static const std::array<const char *, 10> names{{"poll", "program", "init", "host", "read",
-      "serial", "loadmem-read", "loadmem-queues", "bcd", "terminal"}};
+  static const std::array<const char *, 12> names{{"poll", "program", "init", "host", "read",
+      "serial", "loadmem-read", "loadmem-queues", "bcd", "terminal", "identity", "write"}};
   if (images.size() != names.size())
-    throw std::runtime_error("TSI polling preparation requires all ten ordered components");
+    throw std::runtime_error("TSI polling preparation requires all twelve ordered components");
   for (size_t i = 0; i < names.size(); ++i)
     if (images[i].first != names[i])
       throw std::runtime_error("TSI polling preparation component membership/order mismatch");
@@ -452,24 +458,19 @@ void firesim_tsi_t::prepare_polling_components(const polling_cut_t &images) {
   // candidates. Never copy callbacks, pointers, service guards or contexts.
   auto program = program_loader; auto init = init_control; auto host = host_control;
   auto reader = serial_read; auto transport = serial; auto loadread = loadmem_read;
+  firesim_tsi_memif_write_t writer;
+  firesim_tsi_bcd_identity_t identity(writer, transport);
   firesim_loadmem_queues_t queues;
   auto poll = std::make_unique<firesim_tsi_htif_poll_t>(get_tohost_addr(), get_fromhost_addr());
   auto device = std::make_unique<firesim_tsi_bcd_t>(*poll, 1048576, terminal.get(),
-      [this](uint64_t address, const firesim_tsi_bcd_t::identity_t &bytes) {
-        if (address & 7) throw std::runtime_error("prepared BCD identity requires aligned destination");
-        // Encode explicitly; no host byte order, char-buffer aliasing or
-        // borrowed coroutine pointer survives. issue_write atomically enqueues
-        // the entire packet, including the all-zero unknown-command identity.
-        std::array<uint32_t, 16> words{};
-        for (size_t i = 0; i < bytes.size(); ++i)
-          words[i / 4] |= uint32_t(uint8_t(bytes[i])) << (8 * (i % 4));
-        write_chunk(address, bytes.size(), words.data());
-      });
+      [this](uint64_t address, const firesim_tsi_bcd_t::identity_t &bytes) { write_identity(address, bytes); });
   std::array<checkpoint_owner_t *, 8> candidates{{poll.get(), &program, &init, &host,
       &reader, &transport, &loadread, &queues}};
   for (size_t i = 0; i < candidates.size(); ++i)
     candidates[i]->load_checkpoint(images[i].second);
-  validate_polling_components(*poll, program, init, host, reader, loadread, queues);
+  writer.load_checkpoint(images[11].second);
+  identity.load_checkpoint(images[10].second);
+  validate_polling_components(*poll, program, init, host, reader, loadread, queues, identity, writer);
 
   // This final preparation allocates the three remaining replacements before
   // changing the real terminal. Everything after its commit is nonthrowing.
@@ -478,6 +479,10 @@ void firesim_tsi_t::prepare_polling_components(const polling_cut_t &images) {
   program_loader.swap_state(program); init_control.swap_state(init);
   host_control.swap_state(host); serial_read.swap_state(reader); serial.swap_state(transport);
   loadmem_read.swap_state(loadread); loadmem_queues.swap_state(queues);
+  static_assert(std::is_nothrow_move_assignable<firesim_tsi_memif_write_t>::value,
+                "polling write publication must not allocate");
+  memif_write = std::move(writer);
+  bcd_identity.swap_state(identity);
   htif_poll.swap(poll); bcd.swap(device);
   polling_components_prepared = true;
 }
@@ -488,7 +493,7 @@ firesim_tsi_t::polling_cut_t firesim_tsi_t::inspect_prepared_polling_components(
       prepared_polling_service_active || prepared_polling_service_poisoned)
     throw std::runtime_error("TSI polling components have not been prepared in a fresh caller");
   validate_polling_components(*htif_poll, program_loader, init_control, host_control,
-                              serial_read, loadmem_read, loadmem_queues);
+                              serial_read, loadmem_read, loadmem_queues, bcd_identity, memif_write);
   return polling_components();
 }
 
@@ -509,7 +514,7 @@ void firesim_tsi_t::advance_prepared_polling_components() {
     }
     prepared_polling_service_active = false;
     validate_polling_components(*htif_poll, program_loader, init_control, host_control,
-                                serial_read, loadmem_read, loadmem_queues);
+                                serial_read, loadmem_read, loadmem_queues, bcd_identity, memif_write);
   } catch (...) {
     prepared_polling_service_active = false;
     prepared_polling_service_poisoned = true;

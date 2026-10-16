@@ -43,8 +43,8 @@ static int run(const char *mode,const char *elf,const char *input,const char *pl
       const auto image=tsi.memif_write_owner().save_checkpoint();
       const bool busy=image!=idle_image;
       bool rejected=false;try{tsi.inspect_polling_cut();}catch(const std::runtime_error &){rejected=true;}
-      require(rejected==busy,"active memif caller passed as an ordinary polling cut");
-      if(busy){++active;require(!tsi.done(),"active identity exited");++guards;}
+      require(!rejected,"coherent identity dispatch failed twelve-owner polling admission");
+      if(busy){++active;require(!tsi.done(),"active identity exited");}
       save(out/("cut-"+std::to_string(cut)+".write"),image);
       save(out/("cut-"+std::to_string(cut)+".identity"),tsi.bcd_identity_owner().save_checkpoint());
       save(out/("cut-"+std::to_string(cut)+".serial"),tsi.serial_queue_owner().save_checkpoint());

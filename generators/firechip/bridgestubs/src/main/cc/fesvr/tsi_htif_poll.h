@@ -34,6 +34,12 @@ public:
       throw std::runtime_error("unsupported HTIF poll addresses/queue limit");
   }
   phase_t phase() const { boundary.require_idle(); return current.phase; }
+  uint64_t pending_dispatch_command() const {
+    boundary.require_idle();
+    if (current.phase != phase_t::dispatch)
+      throw std::runtime_error("HTIF poll has no pending dispatch");
+    return current.tohost;
+  }
   uint64_t pending_read_address() const {
     boundary.require_idle();
     if (current.phase == phase_t::tohost_read) return tohost_address;

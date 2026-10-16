@@ -25,6 +25,14 @@ public:
     require_idle();
     return current.phase != phase_t::idle && current.address == address && current.data == bytes;
   }
+  bool pending_merge() const {
+    require_idle();
+    if (current.phase != phase_t::head && current.phase != phase_t::tail) return false;
+    const auto prefix = head_size(current.address, current.data.size());
+    const auto count = current.phase == phase_t::head ? prefix : (current.data.size()-prefix)%8;
+    const auto offset = current.phase == phase_t::head ? 0 : current.data.size()-count;
+    return count && current.read.pending_for((current.address+offset)&~uint64_t(7), 8);
+  }
   void begin(uint64_t address, const std::vector<uint8_t> &bytes) {
     require_idle();
     if (!idle()) throw std::runtime_error("memif write already pending");

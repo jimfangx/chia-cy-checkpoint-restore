@@ -1,5 +1,14 @@
 # HTIF identity dispatch yield
 
+## Iteration 126: twelve-owner preparation and continuation
+
+Sealed polling now atomically prepares the parent, identity caller and write
+child with the other nine owners and admits actual head/tail merge yields.
+Prepared identities use the ordinary explicit dispatch service for every
+address residue. See [tsi-polling-dispatch-restore.md](tsi-polling-dispatch-restore.md)
+and the current CPU matrix for native/VCS evidence. Complete CPU acceptance
+remains pending. The earlier sections below describe their original iterations.
+
 Iteration 125 makes the ordinary HTIF parent's dispatch service return a
 completion flag. An identity child that needs a merge-read response returns
 blocked through both owner guards before `run_host()` switches to the target.
