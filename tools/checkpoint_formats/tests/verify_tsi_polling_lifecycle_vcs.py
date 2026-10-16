@@ -66,6 +66,14 @@ def scenarios():
     return result
 
 
+def completed_exit(raw, cut=-1):
+    """Original packet/exit oracle, independent of restored caller methods."""
+    _, states = exit_scenario(raw)
+    protocol = next(s for s in reversed(states) if s is not None)
+    _, direct = exiting.oracle(raw, 0)
+    return dict(protocol, **direct[cut][3], lifecycle=lifecycle(1, raw & 0xffffffff, 1))
+
+
 def audit(path):
     path = path.resolve(); out = path.parent; r = json.loads(path.read_text())
     require(r['status'] == 'passed' and not r['level1_verified'] and not r['level2_verified'], 'wrong aggregate scope')
@@ -139,6 +147,54 @@ def audit(path):
         invalids += int(match[1]); allocations += int(match[2])+int(match[3])
         for n in NAMES:
             require((Path(c['destination'])/('preedge.'+n)).read_bytes() == cases['polling'][1][-1][n], 'atomic aggregate lost owner')
+    exit_operations = exit_readbacks = 0
+    if r.get('pending_exit_revision') == 1:
+        required = {(n,p,b,c) for n,(_,images,_) in cases.items() for p in BACKENDS for b in BACKENDS
+                    for c,image in enumerate(images) if image is not None and image['exit'][56] == 1}
+        require(len(r['pending_exit']) == len(required) and
+                {(c['scenario'],c['producer'],c['backend'],c['cut']) for c in r['pending_exit']} == required,
+                'incomplete pending exit cut/backend matrix')
+        for c in r['pending_exit']:
+            name, cut = c['scenario'], c['cut']; raw = int(name.removeprefix('exit-'))
+            plan, images, _ = cases[name]; final = completed_exit(raw); dest = Path(c['destination'])
+            for owner in NAMES:
+                require((dest/('preedge.'+owner)).read_bytes() == images[cut][owner] and
+                        (dest/('final.'+owner)).read_bytes() == final[owner] and
+                        (out/(c['producer']+'-capture-'+name)/('completed.'+owner)).read_bytes() == final[owner],
+                        'incomplete pending exit initial/final/source owner '+owner)
+            wanted = b''.join((image or completed_exit(raw,index))[n]
+                              for index,image in enumerate(images) if index > cut for n in NAMES)
+            for index,image in enumerate(images):
+                if image is None:
+                    expected = completed_exit(raw,index)
+                    for n in NAMES:
+                        require((out/(c['producer']+'-capture-'+name)/f'cut-{index}.completed.{n}').read_bytes() == expected[n],
+                                'incomplete uninterrupted stopped caller cut')
+            require((dest/'continuation.bin').read_bytes() == wanted, 'pending exit continuation bytes differ')
+            count = len(plan)-cut
+            require(f'EXIT_CONTINUATION operations={count} owners=14 stopped=1 code={exiting.status(raw)} '
+                    'startup_replays=0 reentry_guards=3 target_edges=0 context_entries=0' in Path(c['log']).read_text(),
+                    'pending exit completion/status missing')
+            exit_operations += count; exit_readbacks += 14*(count+2)
+        require(len(r['exit_faults']) == len(exiting.PAYLOADS)*4 and
+                {(c['scenario'],c['producer'],c['backend']) for c in r['exit_faults']} ==
+                {(f'exit-{raw}',p,b) for raw in exiting.PAYLOADS for p in BACKENDS for b in BACKENDS},
+                'incomplete pending exit faults')
+        for c in r['exit_faults']:
+            plan, images, _ = cases[c['scenario']]
+            require(c['cut'] == next(i for i,s in enumerate(images) if s is not None and s['exit'][56] == 1),
+                    'wrong original pending exit fault cut')
+            require(f'EXIT_FIRST_DIVERGENCE operation={len(plan)} request_word=3 expected=321 actual=320 '
+                    'acknowledged=0 context_entries=0' in Path(c['log']).read_text(), 'missing actual exit response first divergence')
+            for n in NAMES:
+                require((Path(c['destination'])/('preedge.'+n)).read_bytes() == images[c['cut']][n], 'fault before complete readback')
+        expected_service_guards = {(p,b,g) for p in BACKENDS for b in BACKENDS for g in GUARDS}
+        require(len(r['exit_service_guards']) == len(expected_service_guards) and
+                {(c['producer'],c['backend'],c['guard']) for c in r['exit_service_guards']} == expected_service_guards,
+                'incomplete exit service guards')
+        for c in r['exit_service_guards']:
+            require('EXIT_SERVICE_GUARD '+c['guard']+' rejected=1 peers_unchanged=1 acknowledged=0 '
+                    'context_entries=0 target_edges=0' in Path(c['log']).read_text(), 'unguarded pending exit service')
     pids = []
     for command in r['commands']:
         log = Path(command['log']).read_text()
@@ -149,13 +205,16 @@ def audit(path):
     return dict(status='passed', captured_host_cuts=captures, fresh_fourteen_owner_readbacks=len(r['restores']),
                 requested_exit_readbacks=requested, continued_host_operations=operations, complete_owner_readbacks=readbacks,
                 invalid_image_rejections=invalids, allocation_failures=allocations, late_provider_guards=len(r['guards']),
-                level1_verified=False, level2_verified=False)
+                pending_exit_continuations=len(r.get('pending_exit', [])), pending_exit_operations=exit_operations,
+                pending_exit_owner_readbacks=exit_readbacks, exit_first_divergences=len(r.get('exit_faults', [])),
+                exit_service_guards=len(r.get('exit_service_guards', [])), level1_verified=False, level2_verified=False)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', type=Path)
     parser.add_argument('--audit', type=Path)
+    parser.add_argument('--pending-exit', action='store_true', help='also continue every requested exit to provider stop')
     args = parser.parse_args()
     if args.audit:
         print(json.dumps(audit(args.audit), indent=2)); return
@@ -216,9 +275,27 @@ def main():
         restores = list(pool.map(lambda a:invoke(*a),jobs))
     atomic = [invoke(b,'atomic',p+'-'+b+'-atomic','polling',p,len(cases['polling'][1])-1) for p in BACKENDS for b in BACKENDS]
     guards = [invoke(b,'guard-'+g,p+'-'+b+'-guard-'+g,producer=p,guard=g) for p in BACKENDS for b in BACKENDS for g in GUARDS]
+    pending_exit, exit_faults, service_guards = [], [], []
+    if args.pending_exit:
+        jobs = [(b,'continue-exit',f'{p}-{b}-{n}-exit-continue-{c}',n,p,c)
+                for n,(_,images,_) in cases.items() for p in BACKENDS for b in BACKENDS
+                for c,image in enumerate(images) if image is not None and image['exit'][56] == 1]
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            pending_exit = list(pool.map(lambda a:invoke(*a),jobs))
+        for raw in exiting.PAYLOADS:
+            n = f'exit-{raw}'; images = cases[n][1]
+            cut = next(i for i,s in enumerate(images) if s is not None and s['exit'][56] == 1)
+            for p in BACKENDS:
+                for b in BACKENDS:
+                    exit_faults.append(invoke(b,'exit-response-fault',f'{p}-{b}-{n}-exit-fault',n,p,cut))
+                    if raw == 1:
+                        service_guards += [invoke(b,'exit-service-guard-'+g,f'{p}-{b}-exit-service-guard-'+g,n,p,cut,guard=g)
+                                           for g in GUARDS]
     for b in bindings: require(file_sha(b['path']) == b['sha256'],'source changed during aggregate checks')
-    report = dict(status='passed',scope='fourteen host components; requested-exit readback only; complete HTIF/CPU pending',
+    report = dict(status='passed',scope='fourteen host components; complete HTIF/session/context/CPU pending',
                   source_inputs=bindings,commands=commands,restores=restores,atomic=atomic,guards=guards,
+                  pending_exit_revision=int(args.pending_exit),pending_exit=pending_exit,exit_faults=exit_faults,
+                  exit_service_guards=service_guards,
                   level1_verified=False,level2_verified=False,
                   artifact_sha256={str(p):file_sha(p) for p in sorted(out.rglob('*')) if p.is_file()})
     path = out/'summary.json'; path.write_text(json.dumps(report,indent=2)+'\n')

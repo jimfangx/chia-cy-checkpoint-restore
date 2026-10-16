@@ -147,7 +147,10 @@ protected:
 private:
   friend class firesim_tsi_polling_lifecycle_t;
   polling_cut_t inspect_live_polling_protocol() const;
-  polling_cut_t inspect_fresh_polling_protocol() const;
+  polling_cut_t inspect_fresh_polling_protocol(bool completed_exit = false) const;
+  // Only the guarded lifecycle group may finish an already requested exit.
+  // No startup, device dispatch, session reconstruction or context entry.
+  bool advance_prepared_exit_components();
   // Installed syscall_t retains the virtual memif() result when the default
   // session is constructed. Its caller/descriptor state remains unowned.
   class runtime_memif_t final : public memif_t {
@@ -210,7 +213,8 @@ private:
       const firesim_tsi_program_loader_t &program, const firesim_tsi_init_accesses_t &init,
       const firesim_tsi_host_control_t &host, const firesim_tsi_serial_read_t &read,
       const firesim_loadmem_read_t &loadread, const firesim_loadmem_queues_t &queues,
-      const firesim_tsi_bcd_identity_t &identity, const firesim_tsi_memif_write_t &writer);
+      const firesim_tsi_bcd_identity_t &identity, const firesim_tsi_memif_write_t &writer,
+      bool completed_exit = false);
   static void validate_initialization(const firesim_tsi_host_control_t &host,
                                       const firesim_tsi_init_accesses_t &init,
                                       const firesim_tsi_serial_read_t &read);

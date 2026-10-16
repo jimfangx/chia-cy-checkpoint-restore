@@ -14,6 +14,72 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 137, in progress. Recovery:
+[tsi-polling-lifecycle.md](tsi-polling-lifecycle.md) and
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Added guarded explicit
+pending-exit caller continuation through the actual no-signature provider stop.
+It finishes only the outstanding fromhost transaction and exit condition. An
+occupied mailbox preserves the response queue. All fourteen owners read back
+before service and after completion; repeated exit service, ordinary polling
+and tick reject without mutation. Stopped-image restore, session/destruction/
+return/context ownership and complete CPU admission remain pending.
+
+Diagnostics: `runs/m11-iteration137/`. Full aggregate native ASan/UBSan and VCS
+matrix passes all previous 1,936 captures / 3,872 fresh readbacks, 1,105,584 host
+operations / 15,532,384 owner readbacks, 5,132 invalid-image/membership/cross-owner
+rejections, 3,012 allocation failures and 24 final provider guards. Added 256
+pending-exit continuations pass 1,664 host operations / 30,464 owner readbacks.
+All 32 real response faults stop at original host operation 30 / request word 3
+before acknowledgement; all 24 late provider/signal service guards pass.
+Accepted aggregate: `aggregate-corrected/invocation-tm06fhlk/summary.json`.
+A separate native/VCS build using the actual exact-recipe provider archive
+passes the same 256 continuations / 32 faults / 24 guards in
+`recipe-pending-exit-d2zrsbaf/summary.json`. Its occupied-mailbox extension passes
+768 fresh continuations / 3,456 host operations / 69,888 owner readbacks across
+three nonzero mailbox values and all eight raw exit payloads in
+`occupied-exit-2uflihjh/summary.json`. All three independent audits pass.
+These remain host component checks with zero DUT edges.
+
+All eight preserved native suites pass (275 Python tests / FCFS included;
+5,258 artifacts / 798 source bindings), as do all 30 retained audits. Ordinary
+Rocket RTL diagnostic readback passes 318,637 words / seven clocks / zero edges.
+Both complete exact-recipe 16-GiB four-hart controls pass at C=3,329,794 in
+`rocket-controls-final/invocation-8vn9ksop/summary.json`. All full traces and
+workload/store cycle labels match the uninterrupted reference. Initial checker errors
+and source-guard rejections are retained separately; complete checks restarted
+with stable sources. Both plans and environment helpers preserve their bytes.
+Separate control/host audits pass eight active samples / 64 known component
+images, including the late cut. Preserved twelve-owner preparation and
+continuation pass all 2,976 fresh cases / 744 cuts; all eight continuation faults
+stop before acknowledgement. Dispatch, bound device and actual recipe-linked
+lifecycle suites pass, including 440 atomic transactions and twenty lifecycle
+first divergences. The preserved raw-bit suite passes all 32 first divergences /
+96 atomic cross-owner rejections; candidate type checks pass. All twelve commands
+and independent audits in `host-regressions-summary.json` pass. The occupied
+checker now uses original recipe source snapshots with retained-source guards;
+its complete 768-case matrix reran successfully. Recovery catalogs:
+`selected-results.json`, `verification-commands.json`, `raw-native-commands.json`,
+`native-input-archives.json`, `summary.json` and `artifact-manifest.json`.
+
+The controller's iteration-136 commits were published FireSim first, then
+Chipyard; both remote main tips match. No staging or local commits.
+
+Next: stopped-image/caller and complete session/descriptor/signal/syscall-parent/
+context ownership; complete configuration-specific simulator/bridge/memory
+ownership; coherent CPU cuts; complete fresh Level-1 continuation and independent
+captured Level-2 replay. No missing external dependency is known. Neither CPU
+checkpoint level is accepted. BOOM/Saturn remain pending. Standalone Shuttle,
+physical FPGA and ASIC power remain outside this task.
+
+Level-2 work can proceed independently of the remaining host session work.
+A useful next increment is preserving original StateIDs through FAME flattening
+and optimization, binding actual clock events and capturing complete ChipTop
+state/boundary traffic at a real workload cut. The current clean readback remains
+a diagnostic pattern. Matching hierarchy spellings is not a certified semantic
+mapping, and missing optimized storage must not receive guessed values.
+
+Previous iteration 136 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 136, in progress. Recovery:
 [tsi-polling-lifecycle.md](tsi-polling-lifecycle.md) and
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Added an opt-in fourteen-owner

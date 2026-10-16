@@ -15,6 +15,91 @@ static images_t load_group(const fs::path &prefix) {
 static auto destination_peers(const firesim_tsi_t &tsi) {
   auto result=peers(tsi);result.emplace_back("exit",tsi.save_htif_exit_component());return result;
 }
+static images_t completed_snapshot(const firesim_tsi_t &tsi) {
+  images_t result;
+  for (const auto &[name,owner]:std::vector<std::pair<const char *,const checkpoint_owner_t *>>{
+      {"poll",&tsi.htif_poll_owner()},{"program",&tsi.program_loader_owner()},
+      {"init",&tsi.init_accesses_owner()},{"host",&tsi.host_control_owner()},
+      {"read",&tsi.serial_read_owner()},{"serial",&tsi.serial_queue_owner()},
+      {"loadmem-read",&tsi.loadmem_read_owner()},{"loadmem-queues",&tsi.loadmem_queue_owner()},
+      {"bcd",&tsi.bcd_owner()},{"terminal",&tsi.terminal_owner()},
+      {"identity",&tsi.bcd_identity_owner()},{"write",&tsi.memif_write_owner()}})
+    result.emplace_back(name,owner->save_checkpoint());
+  result.emplace_back("exit",tsi.save_htif_exit_component());
+  result.emplace_back("lifecycle",firesim_tsi_htif_lifecycle_t(const_cast<firesim_tsi_t &>(tsi)).save_checkpoint());
+  return result;
+}
+static void continue_exit(firesim_tsi_t &tsi,group_t &group,const std::string &action,
+                          const fs::path &source,const char *plan,const fs::path &out) {
+  const bool fault=action=="exit-response-fault";
+  if(fault) {
+    auto image=tsi.htif_poll_owner().save_checkpoint();
+    require(image.size()==88,"missing pending exit response");image.at(80)^=1;
+    const_cast<checkpoint_owner_t &>(tsi.htif_poll_owner()).load_checkpoint(image);
+  }
+  const auto cut=std::stoul(source.filename().string().substr(4));
+  std::ifstream steps(plan);require(bool(steps),"missing exit plan");
+  std::ofstream continued(out/"continuation.bin",std::ios::binary);
+  std::string line;size_t operation=0,count=0;
+  while(std::getline(steps,line)) {
+    if(++operation<=cut)continue;
+    std::istringstream in(line);std::string op;uint64_t n=0;in>>op;
+    if(op=="TICK")group.advance_pending_exit();
+    else if(op=="SEND"){in>>n;tsi.send_word(n);}
+    else if(op=="PACKET") {
+      size_t word=0;
+      while(in>>n) {
+        require(tsi.data_available(),"missing exit packet");
+        const auto actual=tsi.in_bits();
+        if(actual!=n) {
+          require(fault && n==0x141 && actual==0x140 && tsi.in_bits()==actual,
+                  "unexpected exit first divergence or consumed word");
+          std::cout<<"EXIT_FIRST_DIVERGENCE operation="<<operation<<" request_word="<<word
+                   <<" expected="<<n<<" actual="<<actual<<" acknowledged=0 context_entries=0\n";
+          return;
+        }
+        require(tsi.recv_word()==n,"exit packet changed");++word;
+      }
+    } else throw std::runtime_error("unknown exit operation");
+    const auto actual=tsi.done()?group.inspect_completed_exit():group.inspect();
+    if(!fault) {
+      const auto prefix=source.parent_path()/("cut-"+std::to_string(operation));
+      const auto expected=load_group(fs::exists(prefix.string()+".stopped")?
+                                     fs::path(prefix.string()+".completed"):prefix);
+      require(actual==expected,"pending exit continuation owner mismatch");
+    }
+    for(const auto &[name,b]:actual)continued.write(reinterpret_cast<const char *>(b.data()),b.size());
+    ++count;
+  }
+  require(!fault && tsi.done() && bool(continued),"exit did not finish or fault was not detected");
+  const auto final=group.inspect_completed_exit();save(out/"final",final);
+  for(unsigned which=0;which<3;++which) {
+    bool failed=false;try{if(which==0)group.advance_pending_exit();else if(which==1)tsi.tick();
+      else tsi.advance_prepared_polling_components();}catch(const std::runtime_error &){failed=true;}
+    require(failed && group.inspect_completed_exit()==final,"completed exit repeated a service");
+  }
+  std::cout<<"EXIT_CONTINUATION operations="<<count<<" owners=14 stopped=1 code="<<tsi.exit_code()
+           <<" startup_replays=0 reentry_guards=3 target_edges=0 context_entries=0\n";
+}
+static void exit_service_guard(firesim_tsi_t &tsi,group_t &group,const std::string &which) {
+  const auto before=peers(tsi);
+  const auto poll=tsi.htif_poll_owner().save_checkpoint(),bcd=tsi.bcd_owner().save_checkpoint();
+  sigset_t set;sigemptyset(&set);sigaddset(&set,SIGTERM);struct sigaction old{},changed{};
+  if(which=="pending" || which=="delivered") {
+    require(!std::raise(SIGTERM),"exit late signal");
+    if(which=="delivered"){pthread_sigmask(SIG_UNBLOCK,&set,nullptr);pthread_sigmask(SIG_BLOCK,&set,nullptr);}
+  } else if(which=="mask")pthread_sigmask(SIG_UNBLOCK,&set,nullptr);
+  else if(which=="handler"){changed.sa_handler=SIG_IGN;sigemptyset(&changed.sa_mask);require(!sigaction(SIGTERM,&changed,&old),"exit handler");}
+  else if(which=="occupied-exit")tsi.htif_exit(0);
+  else if(which=="occupied-stop")tsi.stop();
+  else throw std::runtime_error("unknown exit service guard");
+  bool failed=false;try{group.advance_pending_exit();}catch(const std::runtime_error &){failed=true;}
+  require(failed && peers(tsi)==before && tsi.htif_poll_owner().save_checkpoint()==poll &&
+          tsi.bcd_owner().save_checkpoint()==bcd,"exit guard consumed service or changed peers");
+  if(which=="handler")sigaction(SIGTERM,&old,nullptr);
+  if(which=="mask")pthread_sigmask(SIG_BLOCK,&set,nullptr);
+  std::cout<<"EXIT_SERVICE_GUARD "<<which<<" rejected=1 peers_unchanged=1 acknowledged=0 context_entries=0 target_edges=0\n";
+}
 static void no_caller(const firesim_tsi_t &tsi) {
   bool absent=false;try{tsi.htif_poll_owner();}catch(const std::runtime_error &){absent=true;}
   require(absent,"aggregate published a caller/context");
@@ -140,9 +225,11 @@ static int aggregate_run(const char *mode,const char *elf,const char *input,cons
       require(bool(steps),"capture plan missing");
       while(std::getline(steps,line)){step(tsi,line,false);++cut;
         if(tsi.done()){bool failed=false;try{group.inspect();}catch(const std::runtime_error &){failed=true;}
-          require(failed,"unowned stopped parent accepted");std::ofstream(out/("cut-"+std::to_string(cut)+".stopped"))<<"rejected\n";}
+          require(failed,"unowned stopped parent accepted");std::ofstream(out/("cut-"+std::to_string(cut)+".stopped"))<<"rejected\n";
+          save(out/("cut-"+std::to_string(cut)+".completed"),completed_snapshot(tsi));}
         else save(out/("cut-"+std::to_string(cut)),group.inspect());}
       if(!tsi.done()){tsi.send_word(1);tsi.send_word(0);tsi.tick();require(tsi.done(),"source did not finish");}
+      save(out/"completed",completed_snapshot(tsi));
       std::cout<<"AGGREGATE_CAPTURE operations="<<cut<<" owners=14 source_finished=1 target_edges=0\n";return 0;
     }
     tsi.prepare_startup_metadata(bytes(metadata));auto good=load_group(source);
@@ -153,6 +240,12 @@ static int aggregate_run(const char *mode,const char *elf,const char *input,cons
     bool rejected=false;try{tsi.tick();}catch(const std::runtime_error &){rejected=true;}
     require(rejected,"aggregate enabled outer context");
     if(good[12].second.at(56)==1) {
+      if(action.rfind("exit-service-guard-",0)==0) {
+        exit_service_guard(tsi,group,action.substr(19));return 0;
+      }
+      if(action=="continue-exit" || action=="exit-response-fault") {
+        continue_exit(tsi,group,action,source,plan,out);return 0;
+      }
       const auto before=group.inspect();rejected=false;
       try{tsi.advance_prepared_polling_components();}catch(const std::runtime_error &){rejected=true;}
       require(rejected && group.inspect()==before,"unowned exit parent continued");

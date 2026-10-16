@@ -1,7 +1,8 @@
 # Atomic polling and HTIF lifecycle publication
 
 Iteration 136 adds `firesim_tsi_polling_lifecycle_t`, an opt-in fourteen-owner
-host group. It combines the twelve sealed polling components with the explicit
+host group. Iteration 137 adds explicit pending-exit caller continuation through
+the no-signature provider stop. The group combines the polling components with the explicit
 direct-exit recorder and the actual HTIF provider's optional exit and stopped
 fields. Complete Rocket Level-1 restoration and captured Level-2 replay remain
 pending. This interface does not enable a CPU checkpoint profile.
@@ -53,18 +54,34 @@ calls another public candidate's `commit()` inside that callback. Consumed or
 competing candidates reject. Late peer or provider changes reject before
 publishing any owner and preserve the actual changed destination.
 
-The new inspection reads every protocol word, the direct-exit recorder and the
+The inspection reads every protocol word, the direct-exit recorder and the
 actual private lifecycle fields. Existing twelve-owner inspection and service
 admission retain their stricter exit rejection. Fresh running groups use the
 existing explicit BCD/identity service. Pending-exit groups permit complete
-readback but still reject `tick()` and explicit polling continuation; restoring
-these owners does not reconstruct the exit/stop outer caller or its session.
+readback and still reject `tick()` and ordinary polling continuation. The separate
+`advance_pending_exit()` interface first inspects all protocol/provider owners,
+including actual optional raw status and the signal/signature guards. It admits
+only a fresh restored requested-exit group. Its private caller permits only
+`fromhost_read`, `fromhost_write` and the loop's exit condition. An incomplete
+read returns to the explicit caller; no service suspends inside a coroutine.
+An empty mailbox receives the queued response before stopping. An occupied
+mailbox preserves the queued response and stops without another write.
+The actual provider's no-signature `stop()` sets its stopped field, and the
+explicit exit recorder transitions with it. No syscall/device session is entered.
+
+`inspect_completed_exit()` validates the stopped recorder/provider, complete poll
+phase, idle children and every protocol word. It checks the actual provider
+twice. Completed-exit inspection admits the poll's terminal phase only in this
+private fresh-caller path; twelve-owner preparation and ordinary service retain
+their earlier rules. Repeated exit service, ordinary polling and `tick()` reject
+without mutation. Stopped images still reject restoration. The installed session,
+its destruction/return caller and outer context remain separate owners.
 Syscall/session/descriptors/signals/context and full simulator/bridge/memory
 ownership remain required before complete CPU admission.
 
 Native sanitizer and VCS checks, independent byte oracles, full source bindings,
 workload plans, exact commands and results are recorded under
-`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration136/`.
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration137/`.
 The final invocation and counts are recorded in
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). This iteration preserves the
 prior twelve-owner, lifecycle, FCFS and ordinary RTL diagnostic regressions.

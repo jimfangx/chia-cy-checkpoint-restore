@@ -109,8 +109,10 @@ firesim_tsi_t::firesim_tsi_t(int argc, char **argv, bool can_have_loadmem)
 
 class firesim_tsi_t::polling_services_t final : public firesim_tsi_htif_poll_t::services_t {
   public:
-    polling_services_t(firesim_tsi_t &tsi, device_list_t *devices) : tsi(tsi), devices(devices) {}
+    polling_services_t(firesim_tsi_t &tsi, device_list_t *devices, bool completing_exit = false)
+      : tsi(tsi), devices(devices), completing_exit(completing_exit) {}
     bool exiting() override {
+      if (completing_exit) return tsi.should_exit();
       if (!devices && tsi.should_exit())
         throw std::runtime_error("prepared polling component cannot service HTIF exit/signal");
       return devices ? tsi.should_exit() : false;
@@ -168,6 +170,7 @@ class firesim_tsi_t::polling_services_t final : public firesim_tsi_htif_poll_t::
   private:
     firesim_tsi_t &tsi;
     device_list_t *devices;
+    const bool completing_exit;
 };
 
 
@@ -418,7 +421,8 @@ void firesim_tsi_t::validate_polling_components(const firesim_tsi_htif_poll_t &p
     const firesim_tsi_program_loader_t &program, const firesim_tsi_init_accesses_t &init,
     const firesim_tsi_host_control_t &host, const firesim_tsi_serial_read_t &reader,
     const firesim_loadmem_read_t &loadread, const firesim_loadmem_queues_t &queues,
-    const firesim_tsi_bcd_identity_t &identity, const firesim_tsi_memif_write_t &writer) {
+    const firesim_tsi_bcd_identity_t &identity, const firesim_tsi_memif_write_t &writer,
+    bool completed_exit) {
   // phase() also rejects an active or interrupted device/memif service.
   const auto phase = poll.phase();
   using pp = firesim_tsi_htif_poll_t::phase_t;
@@ -433,7 +437,9 @@ void firesim_tsi_t::validate_polling_components(const firesim_tsi_htif_poll_t &p
   const bool dispatch = phase == pp::dispatch && host.current_phase() == hp::ready &&
                         reader.idle() && identity.blocked_for(poll.pending_dispatch_command());
   const bool inactive = identity.idle() && writer.idle();
-  if ((!dispatch && (!(read || idle) || !inactive)) ||
+  const bool complete = completed_exit && phase == pp::complete &&
+                        host.current_phase() == hp::ready && reader.idle();
+  if ((!dispatch && (!(read || idle || complete) || !inactive)) ||
       program.phase() != firesim_tsi_program_loader_t::phase_t::complete ||
       init.phase() != firesim_tsi_init_accesses_t::phase_t::complete ||
       !host.loaded_in_host() || !host.loaded_in_target() ||
@@ -573,14 +579,48 @@ firesim_tsi_t::polling_cut_t firesim_tsi_t::inspect_prepared_polling_components(
   return inspect_fresh_polling_protocol();
 }
 
-firesim_tsi_t::polling_cut_t firesim_tsi_t::inspect_fresh_polling_protocol() const {
+firesim_tsi_t::polling_cut_t firesim_tsi_t::inspect_fresh_polling_protocol(bool completed_exit) const {
   if (!polling_components_prepared || !metadata_prepared || metadata_poisoned ||
       host_context_initialized() || polling_active || !htif_poll || !bcd || default_devices ||
       prepared_polling_service_active || prepared_polling_service_poisoned)
     throw std::runtime_error("TSI polling components have not been prepared in a fresh caller");
   validate_polling_components(*htif_poll, program_loader, init_control, host_control,
-                              serial_read, loadmem_read, loadmem_queues, bcd_identity, memif_write);
+                              serial_read, loadmem_read, loadmem_queues, bcd_identity, memif_write,
+                              completed_exit);
   return polling_components();
+}
+
+bool firesim_tsi_t::advance_prepared_exit_components() {
+  // The lifecycle group has inspected the complete provider/protocol state,
+  // including signal/signature guards, before entering this private service.
+  // Only finish the outstanding fromhost transaction and the loop condition.
+  // This never reconstructs or dispatches the installed syscall session.
+  prepared_polling_service_active = true;
+  try {
+    polling_services_t services(*this, nullptr, true);
+    for (;;) {
+      using pp = firesim_tsi_htif_poll_t::phase_t;
+      const auto phase = htif_poll->phase();
+      if (phase != pp::fromhost_read && phase != pp::fromhost_write && phase != pp::ready)
+        throw std::runtime_error("prepared exit reached an unowned caller phase");
+      const auto result = htif_poll->advance(services);
+      if (result == firesim_tsi_htif_poll_t::result_t::blocked) {
+        prepared_polling_service_active = false;
+        return false;
+      }
+      if (result == firesim_tsi_htif_poll_t::result_t::complete) {
+        // Signature mode was rejected by the actual provider guard. The
+        // installed no-signature stop writes only the owned stopped field.
+        htif_exit_component.stop([this] { stop(); });
+        prepared_polling_service_active = false;
+        return true;
+      }
+    }
+  } catch (...) {
+    prepared_polling_service_active = false;
+    prepared_polling_service_poisoned = true;
+    throw;
+  }
 }
 
 void firesim_tsi_t::advance_prepared_polling_components() {

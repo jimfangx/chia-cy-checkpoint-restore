@@ -52,9 +52,38 @@ public:
   prepared_t prepare(const images_t &images) const { return prepared_t(tsi, images); }
   void load(const images_t &images) const { auto next = prepare(images); next.commit(); }
 
+  // Explicit pending direct-exit caller continuation. Returns false at the
+  // next serial-read yield, true after the actual no-signature provider stop.
+  // Stopped images still cannot be restored, and tick/context admission is
+  // unchanged. Session/descriptors and coroutine return remain unsupported.
+  bool advance_pending_exit() const {
+    inspect(); // full raw provider state and signal/signature checks, before service
+    if (!tsi.polling_components_prepared ||
+        tsi.htif_exit_component.phase() != firesim_tsi_htif_exit_t::phase_t::requested)
+      throw std::runtime_error("prepared exit requires a fresh requested-exit group");
+    const bool stopped = tsi.advance_prepared_exit_components();
+    if (stopped) inspect_completed_exit(); else inspect();
+    return stopped;
+  }
+  images_t inspect_completed_exit() const {
+    const auto state = firesim_htif_lifecycle_read(tsi);
+    validate_exit(tsi.htif_exit_component, state);
+    if (tsi.htif_exit_component.phase() != firesim_tsi_htif_exit_t::phase_t::stopped ||
+        !tsi.htif_poll || tsi.htif_poll->phase() != firesim_tsi_htif_poll_t::phase_t::complete ||
+        !tsi.memif_read.idle())
+      throw std::runtime_error("prepared exit has not completed its owned caller");
+    auto result = tsi.inspect_fresh_polling_protocol(true);
+    result.emplace_back("exit", tsi.htif_exit_component.save_checkpoint());
+    result.emplace_back("lifecycle", firesim_tsi_htif_lifecycle_t(tsi).save_checkpoint());
+    const auto after = firesim_htif_lifecycle_read(tsi);
+    if (state.has_exit != after.has_exit || state.raw_exit != after.raw_exit || state.stopped != after.stopped)
+      throw std::runtime_error("HTIF lifecycle changed during completed-exit inspection");
+    return result;
+  }
+
   // Read every owned byte before service. Requested-exit cuts are admitted
-  // only at the actual queued-response read yield. They remain readback-only:
-  // advance_prepared_polling_components and tick still reject exit/stop.
+  // only at the actual queued-response read yield. The ordinary polling and
+  // tick interfaces still reject exit/stop; use advance_pending_exit explicitly.
   images_t inspect() const {
     if (tsi.terminal->checkpoint_schema().empty() || !tsi.memif_read.idle())
       throw std::runtime_error("TSI polling/lifecycle requires sealed protocol and no syscall parent");
