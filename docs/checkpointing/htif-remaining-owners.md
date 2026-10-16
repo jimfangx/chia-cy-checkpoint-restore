@@ -31,6 +31,15 @@ TSI does not construct that session. Lifetime correctness therefore cannot be
 used as evidence that the active syscall session or its descriptor semantics
 have been restored. See [tsi-default-device-lifetime.md](tsi-default-device-lifetime.md).
 
+Iteration 131 adds an opt-in exact-header provider adapter for the actual
+private exit/stopped fields, with fresh native/VCS component readback and
+atomic rejection checks ([contract](tsi-htif-lifecycle.md)). It distinguishes
+absent/present zero and all raw status bits without executing a restore-time
+service. The default recipe still links installed `htif.o`; integrating this
+adapter with the recipe/aggregate is pending. It does not restore process
+signals, the exit caller, sessions/descriptors or any context. The inventory
+above therefore remains the list of owners required for full HTIF acceptance.
+
 In the checked-out reference, an odd device-0 payload directly assigns the
 optional exit value and returns without a response. A proxied `sys_exit` assigns
 an encoded value through `htif_exit`, writes back its syscall result and queues

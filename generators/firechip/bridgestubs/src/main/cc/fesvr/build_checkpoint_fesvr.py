@@ -10,7 +10,7 @@ import subprocess
 import tempfile
 
 
-def build(library, include, output, cxx, flags=()):
+def build(library, include, output, cxx, flags=(), htif_source=None):
     source = Path(__file__).resolve().with_name('owned_elfloader.cc')
     sources = {'elfloader.o': source, 'context.o': source.with_name('owned_context.cc')}
     library, include, output = (Path(p).resolve() for p in (library, include, output))
@@ -24,11 +24,48 @@ def build(library, include, output, cxx, flags=()):
     before = sha(library.read_bytes())
     with tempfile.TemporaryDirectory(prefix='fesvr-build-', dir=output.parent) as directory:
         work = Path(directory)
+        lifecycle_inputs = {}
+        if htif_source is not None:
+            # Opt-in ABI extension: add only a friend declaration, never fields,
+            # virtual methods, access-specifier rewrites or private-offset guesses.
+            # All original HTIF method bodies are compiled without modification.
+            htif_source = Path(htif_source).resolve()
+            header = include / 'fesvr/htif.h'
+            original = header.read_bytes()
+            if original != htif_source.with_suffix('.h').read_bytes():
+                raise ValueError('installed/source HTIF header mismatch')
+            marker = b'  friend class syscall_t;'
+            if original.count(marker) != 1:
+                raise ValueError('unsupported HTIF friend inventory')
+            shadow = work / 'include'
+            (shadow / 'fesvr').mkdir(parents=True)
+            (shadow / 'riscv').symlink_to(include / 'riscv', target_is_directory=True)
+            for path in (include / 'fesvr').glob('*.h'):
+                if path.name != 'htif.h':
+                    (shadow / 'fesvr' / path.name).symlink_to(path)
+            adapted = original.replace(marker, marker + b'\n  friend struct firesim_htif_lifecycle_access_t;')
+            (shadow / 'fesvr/htif.h').write_bytes(adapted)
+            provider = source.with_name('htif_lifecycle_provider.inc')
+            generated = shadow / 'fesvr/htif.cc'
+            generated.write_bytes(htif_source.read_bytes() + b'\n' + provider.read_bytes())
+            sources['htif.o'] = generated
+            lifecycle_inputs = {str(p): sha(p.read_bytes()) for p in
+                                (htif_source, header, provider, source.with_name('htif_lifecycle.h'))}
+            lifecycle_inputs['adapted_header_sha256'] = sha(adapted)
+            lifecycle_inputs['generated_provider_sha256'] = sha(generated.read_bytes())
+            if members.count('htif.o') != 1:
+                raise ValueError('unsupported HTIF archive member inventory')
         objects = []
         for member, replacement_source in sources.items():
             obj = work / member
+            extra = []
+            if member == 'htif.o':
+                extra = ['-I' + str(shadow), '-I' + str(include / 'fesvr'),
+                         '-I' + str(include / 'riscv'), '-I' + str(source.parent),
+                         # Match the installed provider's configured fallback.
+                         '-DPREFIX="' + str(include.parent) + '"']
             subprocess.run([*shlex.split(cxx), '-std=c++17', '-O2', '-fPIC', *flags,
-                            '-I' + str(include), '-c', replacement_source, '-o', obj], check=True)
+                            *extra, '-I' + str(include), '-c', replacement_source, '-o', obj], check=True)
             objects.append(obj)
         archive = work / output.name
         shutil.copyfile(library, archive)
@@ -48,6 +85,7 @@ def build(library, include, output, cxx, flags=()):
                       installed_sha256=before, source=str(source), source_sha256=sha(source.read_bytes()),
                       output=str(output), output_sha256=sha(archive.read_bytes()),
                       sources={str(p): sha(p.read_bytes()) for p in sources.values()},
+                      lifecycle_inputs=lifecycle_inputs,
                       members=digests, cxx=cxx, extra_flags=list(flags))
         # Publish only a complete, independently checked archive.
         os.replace(archive, output)
@@ -61,5 +99,6 @@ if __name__ == '__main__':
     parser.add_argument('--out', required=True)
     parser.add_argument('--cxx', required=True)
     parser.add_argument('--cxxflag', action='append', default=[])
+    parser.add_argument('--htif-source', help='opt-in exact-header HTIF lifecycle provider source')
     args = parser.parse_args()
-    build(args.library, args.include, args.out, args.cxx, args.cxxflag)
+    build(args.library, args.include, args.out, args.cxx, args.cxxflag, args.htif_source)

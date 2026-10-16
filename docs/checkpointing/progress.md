@@ -14,6 +14,52 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 131, in progress. Recovery:
+[tsi-htif-lifecycle.md](tsi-htif-lifecycle.md) and
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Added an opt-in
+exact-header FESVR provider overlay for the actual private optional exit and
+stopped fields. It preserves absent/present zero and every raw status bit,
+restores without services, and rejects invalid images, occupied destinations,
+signature mode and unsupported signal state before assignment. The default
+recipe still retains installed `htif.o`; provider/aggregate integration and
+complete signal/session/descriptor/context ownership remain pending. Neither
+CPU checkpoint level is accepted.
+
+Diagnostics: `runs/m11-iteration131/`. Accepted lifecycle summary:
+`lifecycle-final/invocation-y0rvbsmo/summary.json`; independent audit:
+`lifecycle-independent-audit.log`. Native/VCS pass 1,216 complete production
+lifecycle captures, 2,432 fresh final-class TSI readbacks, 88 additional
+optional/raw/stopped restores, 282 malformed-image processes, eighteen
+lifecycle guards, a source/header build rejection and twenty boundary-zero
+raw-status divergences. Every historical packet/host-tick/component byte
+matches the independent oracle. These are host components, not CPU cuts.
+All eight preserved native suites pass (267 Python tests and FCFS included),
+with 5,260 artifacts / 794 source bindings independently audited in
+`native-regressions/invocation-fixn0qrr/summary.json`. All 30 retained audits
+pass again in `retained-rechecks/invocation-lftt9_9r/summary.json`; the original last control audit needed
+its immutable iteration-129 builder source archive. Fresh ordinary Rocket RTL
+VCS passes 318,637 diagnostic words / seven clocks / zero edges
+(`ordinary-result.json`), not captured replay. The current default-provider
+exit suite also passes all 1,216 cuts / 6,080 complete source images, 2,432
+fresh projections, 268 invalid images, eighteen lifecycle rejections, twelve
+signal-delivery proofs and sixteen first divergences; independent audit passes
+(`exit/invocation-0zsktmm6/summary.json`). Recovery catalogs:
+`selected-results.json`, `verification-commands.json`, `raw-native-commands.json`,
+`summary.json` and `artifact-manifest.json`. Initial interrupted/changed-source
+pilots and the original missing-source-archive audit are excluded.
+
+Both plans and environment helpers retain their initial hashes. Existing
+controller iteration-130 commits were published FireSim first, then Chipyard;
+both GitHub main tips match. Read-only `.git` prevents local tracking-ref
+updates, but remote publication succeeded. No staging or local commits.
+No missing external dependency is known. Next: integrate actual lifecycle
+ownership with the exact-recipe build/aggregate, complete the remaining HTIF
+owners, coherent CPU cuts, complete fresh Level-1 continuation and independent
+captured Level-2 readback/replay. BOOM/Saturn remain pending; physical FPGA and
+ASIC power remain deferred.
+
+Previous iteration 130 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 130, in progress. Recovery:
 [tsi-htif-direct-exit.md](tsi-htif-direct-exit.md) and
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Fixed the controller's

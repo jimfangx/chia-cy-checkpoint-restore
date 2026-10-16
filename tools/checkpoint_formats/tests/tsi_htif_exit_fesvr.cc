@@ -23,7 +23,7 @@ static void save(const fs::path &p, const std::vector<uint8_t> &b) {
 // target memory or respond. Its no-signature stop performs no target service.
 class reference_t final : public htif_t {
 public:
-  reference_t() : htif_t(std::vector<std::string>{"none"}), syscall(this) {}
+  reference_t(const std::vector<std::string> &args = {"none"}) : htif_t(args), syscall(this) {}
   void request(uint64_t raw) {
     command_t command(memif(), raw, [](uint64_t) { throw std::runtime_error("direct exit responded"); });
     syscall.handle_command(command);
@@ -40,7 +40,8 @@ private:
 static void observed(reference_t &r, const fs::path &path) {
   std::ofstream f(path); f << r.exiting() << ' ' << r.done() << ' ' << r.exit_code() << '\n';
 }
-static void capture(const char *elf, const fs::path &out, uint64_t raw, uint64_t flush) {
+static void capture(const char *elf, const fs::path &out, uint64_t raw, uint64_t flush,
+                    std::function<void(htif_t &, const fs::path &)> observer = {}) {
   save(out/"input.bin", {65});
   std::ostringstream address; address << std::hex << flush;
   std::vector<std::string> args{"htif-exit", "+permissive", "+no_hart0_msip", "+idle-counts=3",
@@ -68,6 +69,7 @@ static void capture(const char *elf, const fs::path &out, uint64_t raw, uint64_t
     save(prefix.string()+".read", tsi.serial_read_owner().save_checkpoint());
     save(prefix.string()+".serial", tsi.serial_queue_owner().save_checkpoint());
     save(prefix.string()+".terminal", tsi.terminal_owner().save_checkpoint());
+    if (observer) observer(tsi, prefix);
     cuts << cut++ << ' ' << tick << ' ' << tsi.done() << ' ' << tsi.exit_code() << '\n';
   };
   auto service = [&] { tsi.tick(); ++tick; snapshot(); };
