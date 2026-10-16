@@ -3,6 +3,7 @@
 // translation-unit signal latch. No raw object bytes or host pointers escape.
 #include "htif_lifecycle.h"
 #include "htif_signal.h"
+#include "htif_signal_threads.h"
 #include <cstring>
 #include <pthread.h>
 #include <stdexcept>
@@ -33,6 +34,7 @@ struct firesim_htif_lifecycle_access_t {
       throw std::runtime_error("unsupported HTIF signal provider ABI");
 #endif
     }
+    firesim_htif_signal_threads::guard();
   }
   static firesim_htif_signal_state_t signal_read(const htif_t &htif) {
     signal_guard(htif);

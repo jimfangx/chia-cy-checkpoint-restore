@@ -58,3 +58,7 @@ that group still rejects delivered signals and cannot resume a signal-caused
 stop caller. Session/descriptors, syscall parent, executable outer caller,
 cross-thread signal coordination and coherent simulator/bridge/memory cuts
 remain necessary before complete CPU Level-1 admission.
+
+Iteration 143 adds a fail-closed audit of all kernel threads under the same
+exclusive-suspension contract. See [tsi-htif-signal-threads.md](tsi-htif-signal-threads.md).
+The production thread coordinator remains pending.

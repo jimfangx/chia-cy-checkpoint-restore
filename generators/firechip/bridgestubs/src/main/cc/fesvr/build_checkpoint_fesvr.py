@@ -51,7 +51,7 @@ def build(library, include, output, cxx, flags=(), htif_source=None):
             sources['htif.o'] = generated
             lifecycle_inputs = {str(p): sha(p.read_bytes()) for p in
                                 (htif_source, header, provider, source.with_name('htif_lifecycle.h'),
-                                 source.with_name('htif_signal.h'))}
+                                 source.with_name('htif_signal.h'), source.with_name('htif_signal_threads.h'))}
             lifecycle_inputs['adapted_header_sha256'] = sha(adapted)
             lifecycle_inputs['generated_provider_sha256'] = sha(generated.read_bytes())
             if members.count('htif.o') != 1:

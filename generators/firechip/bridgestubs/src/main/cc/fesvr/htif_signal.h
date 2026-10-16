@@ -14,7 +14,11 @@ struct firesim_htif_signal_state_t {
 // The coordinator must exclusively suspend every HTIF instance and prevent
 // INT/TERM/ABRT delivery in all threads throughout access. This thread must
 // have those signals blocked, no corresponding pending signals, and the exact
-// original BSD signal() actions. Other process/thread signal state is outside
+// original BSD signal() actions. The Linux provider additionally audits every
+// /proc/self/task status for blocked INT/TERM/ABRT and no local/shared pending
+// signals, and checks inventory stability. Unavailable/incomplete procfs rejects.
+// This audit does not suspend threads or replace the caller's exclusion policy.
+// Other process/thread signal state is outside
 // this component. Changed actions, signature mode and pending signals reject.
 // This contract alone does not authorize a complete process/TSI checkpoint.
 firesim_htif_signal_state_t firesim_htif_signal_read(const htif_t &);

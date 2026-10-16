@@ -59,7 +59,7 @@ def tag(kind, state):
     return kind+'-'+'-'.join(map(str, state))
 
 
-def expected_cases(out):
+def expected_cases(out, thread_guards=False):
     cases = []
     for backend in BACKENDS:
         for kind in KINDS:
@@ -98,8 +98,22 @@ def expected_cases(out):
             cases.append(dict(backend=backend, mode='corrupt', name=backend+'-corrupt-'+fault,
                               source=str(out/('native-capture-none-'+('1' if fault == 'raw' else '0')+'-0-0')/'captured.signal'),
                               scenario=fault, detail='0', expected=0))
+        if thread_guards:
+            for kind, sig in (('none', 0), ('int', signal.SIGINT), ('term', signal.SIGTERM)):
+                cases.append(dict(backend=backend, mode='thread-capture', name=backend+'-thread-capture-'+kind,
+                                  source='none', scenario=kind, detail=str(int(sig)), expected=0))
+                for producer in BACKENDS:
+                    cases.append(dict(backend=backend, mode='thread-restore',
+                                      name=producer+'-'+backend+'-thread-restore-'+kind,
+                                      source=str(out/(producer+'-thread-capture-'+kind)/'captured.signal'),
+                                      scenario=kind, detail=str(int(sig)), expected=0))
+            for guard in ('worker-mask', 'worker-pending', 'second-worker-pending', 'shared-pending'):
+                for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGABRT):
+                    cases.append(dict(backend=backend, mode='thread-guard', name=f'{backend}-{guard}-{int(sig)}',
+                                      source=str(out/'native-thread-capture-int/captured.signal'),
+                                      scenario=guard, detail=str(int(sig)), expected=0))
     # Every producer exits before any restore/negative process starts.
-    return sorted(cases, key=lambda c: c['mode'] != 'capture')
+    return sorted(cases, key=lambda c: c['mode'] not in ('capture', 'thread-capture'))
 
 
 def audit(path):
@@ -119,7 +133,7 @@ def audit(path):
     original = Path(bindings[str(PROVIDER)]['snapshot']).read_bytes()
     extension = Path(bindings[str(STUBS/'fesvr/htif_lifecycle_provider.inc')]['snapshot']).read_bytes()
     require(hashlib.sha256(original+b'\n'+extension).hexdigest() == overlay['lifecycle_inputs']['generated_provider_sha256'], 'changed original HTIF methods')
-    expected = expected_cases(out)
+    expected = expected_cases(out, r.get('thread_guards', False))
     require([c['case'] for c in r['cases']] == expected, 'missing/duplicate/reordered signal evidence')
     for record, case in zip(r['cases'], expected):
         log = Path(record['log']).read_text(); folder = out/case['name']; mode = case['mode']
@@ -157,6 +171,26 @@ def audit(path):
             require((folder/'first-divergence.txt').read_text() == f'FIRST_DIVERGENCE boundary=0 signal={signal_name} acknowledged=0 target_services=0\n', 'incorrect first divergence')
             corrupted = {'delivered':image(delivered=1), 'stopped':image(stopped=1), 'raw':image(1,4)}[case['scenario']]
             require((folder/'corrupted.signal').read_bytes() == corrupted, 'fault did not change actual semantic provider state')
+        if mode in ('thread-capture', 'thread-restore'):
+            prefix = 'captured' if mode == 'thread-capture' else 'readback'
+            delivered = int(case['scenario'] != 'none')
+            require((folder/(prefix+'.signal')).read_bytes() == image(1, 3, 0, delivered), 'incomplete threaded readback')
+            require((folder/(prefix+'.fields')).read_text() == fields(1, 3, 0, delivered), 'threaded fields differ')
+            require((folder/'continuation.txt').read_text() == trace(1, 3, 0, delivered), 'threaded first boundary differs')
+            if mode == 'thread-restore':
+                require((folder/'continuation.txt').read_bytes() == Path(case['source']).with_name('continuation.txt').read_bytes(),
+                        'threaded fresh continuation differs')
+        if mode == 'thread-guard':
+            require((folder/'unchanged.signal').read_bytes() == image(), 'thread guard published provider')
+            require((folder/'after.serial').read_bytes() == (folder/'before.serial').read_bytes(), 'thread guard published peer')
+            require((folder/'retry.signal').read_bytes() == Path(case['source']).read_bytes() and
+                    (folder/'retry.serial').read_bytes() != (folder/'before.serial').read_bytes(), 'thread retry did not publish')
+            require((folder/'transaction.txt').read_text() == 'rejected_callbacks=0 retry_callbacks=1 target_services=0\n', 'thread guard callback mismatch')
+            rejected = (folder/'rejections.txt').read_text().splitlines()
+            require(len(rejected) == 3 and [v.split()[0] for v in rejected] == ['capture', 'prepare', 'commit'], 'missing thread API guard')
+            if case['scenario'] != 'shared-pending':
+                reason = 'unblocked' if case['scenario'] == 'worker-mask' else 'pending'
+                require(all(reason+' HTIF signal in thread: ' in v for v in rejected), 'guard did not inspect actual worker')
     case_logs = {c['log'] for c in r['cases']}
     require(len(case_logs) == len(expected) and len({c['log'] for c in r['commands']}) == len(r['commands']), 'duplicate signal execution')
     require({c['log'] for c in r['commands']} == case_logs | {str(out/n) for n in
@@ -176,12 +210,17 @@ def audit(path):
                 atomic_publications=sum(c['mode']=='publish' for c in expected),
                 actual_handler_second_signal_exits=sum(c['expected']==255 for c in expected),
                 actual_first_boundary_faults=sum(c['mode']=='corrupt' for c in expected),
+                thread_captures=sum(c['mode']=='thread-capture' for c in expected),
+                thread_restores=sum(c['mode']=='thread-restore' for c in expected),
+                thread_guard_transactions=sum(c['mode']=='thread-guard' for c in expected),
                 level1_verified=False, level2_verified=False)
 
 
 def main():
     p = argparse.ArgumentParser(description=__doc__); p.add_argument('--out', type=Path); p.add_argument('--audit', type=Path)
-    p.add_argument('--recipe-build-identity', type=Path); a = p.parse_args()
+    p.add_argument('--recipe-build-identity', type=Path)
+    p.add_argument('--thread-guards', action='store_true', help='Also audit all-thread signal exclusion with real parked pthreads')
+    a = p.parse_args()
     if a.audit: print(json.dumps(audit(a.audit), indent=2)); return
     require(a.out and a.out.resolve().is_relative_to(ROOT/'automations/checkpoint_loop/runs'), 'need runs output')
     require(os.environ.get('VCS_HOME') == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1' and os.environ.get('CXX') == '/usr/bin/g++-13', 'source vcs-env LAST')
@@ -235,13 +274,15 @@ def main():
         argv = [native, *values] if case['backend'] == 'native' else [simv, '-no_save',
                 *['+'+k+'='+v for k,v in zip(('mode','source','destination','scenario','detail'), values)]]
         return dict(execute(argv, out/(case['name']+'.log'), case['expected']), case=case)
-    cases = expected_cases(out); results = []
+    cases = expected_cases(out, a.thread_guards); results = []
     with ThreadPoolExecutor(max_workers=8) as pool:
-        for producer in (True, False): results += list(pool.map(invoke, [c for c in cases if (c['mode']=='capture') == producer]))
+        for producer in (True, False):
+            results += list(pool.map(invoke, [c for c in cases if (c['mode'] in ('capture', 'thread-capture')) == producer]))
     for b in bindings: require(file_sha(b['path']) == b['sha256'], 'signal source changed during execution')
     report = dict(status='passed', scope='actual signal/lifecycle provider component; whole process/CPU pending',
                   source_inputs=bindings, commands=commands, cases=results, level1_verified=False, level2_verified=False,
                   recipe_build_identity=str(a.recipe_build_identity.resolve()) if a.recipe_build_identity else None,
+                  thread_guards=a.thread_guards,
                   artifact_sha256={str(p):file_sha(p) for p in sorted(out.rglob('*')) if p.is_file()})
     path = out/'summary.json'; path.write_text(json.dumps(report, indent=2)+'\n')
     try: result = audit(path)

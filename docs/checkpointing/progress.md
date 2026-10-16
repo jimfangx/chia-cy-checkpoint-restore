@@ -14,6 +14,61 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 143, in progress.
+The exact-source delivered-signal provider now audits every kernel thread's
+SIGINT/TERM/ABRT mask and local/shared pending state, with stable task inventory
+and explicit procfs rejection. Production cross-thread coordination and complete
+CPU Level 1 remain pending. Recovery:
+[tsi-htif-signal-threads.md](tsi-htif-signal-threads.md).
+
+Diagnostics: `runs/m11-iteration143/`. The archive actually linked into the
+rebuilt exact Rocket recipe passes all 686 native ASan/UBSan and VCS signal
+processes, including 24 actual cross-thread transactions and twelve fresh
+threaded restores. Capture, preparation and final commit reject worker/shared
+signal faults without publication; repaired parked workers permit one atomic
+retry. Both auditors pass; fourteen incomplete/duplicate evidence sets reject.
+Six new tests detect the retained prior provider's missing checks. Accepted:
+`recipe-signals/invocation-g9yeawcm/summary.json`.
+
+Strict lifecycle and the full running/pending/stopped polling suite pass,
+including 2,432 lifecycle restores, 3,872 protocol readbacks, 1,105,584 host
+operations, 256 pending-exit continuations and 96 stopped restores. All eight
+native suites pass: 280 Python tests / 5,280 artifacts / 813 source bindings.
+All thirty retained independent auditors pass. The initial general suite
+rejected mid-run test-source drift; its fresh complete rerun is
+`native-regressions/invocation-1s7q9cgo/summary.json`.
+
+Fresh ordinary RTL VCS passes all four retained Rocket windows: every one of
+318,637 words before edges, 256 events / 21,760 comparisons, sixteen actual
+stored-CSR first divergences and 44 invalid cases. Captured target-cycle labels
+are unchanged. Evidence: `native-replay/invocation-ugf9msom/summary.json`.
+Both exact-recipe default/buffered **16-GiB four-hart controls pass at
+C=3,329,794**. All eight full hart traces and workload/store labels match the
+uninterrupted reference: `rocket-controls/invocation-8dy5111m/summary.json`.
+Generated inventory stays 11,464 entries / 445,838 words / sixty native units.
+
+Final catalogs: `summary.json`, `selected-results.json`,
+`verification-commands.json`, `raw-native-commands.json`,
+`native-input-archives.json` and `artifact-manifest.json`.
+`final-independent-audit.json` passes all selected scopes. Initial signal
+pilots exposed pending-SIGABRT draining and thread-teardown test assumptions;
+failed pilots remain separate diagnostics.
+
+Controller commits were published FireSim first, then Chipyard; both remote
+main tips match local HEADs. No staging or local commits. Both plans, papers
+and environment helpers retain their starting bytes.
+
+Next: default session/descriptors, syscall parent, executable outer caller,
+production signal coordination and signal-caused stop callers; coherent
+simulator/bridge/memory cuts and fresh complete CPU Level-1 continuation.
+Session construction duplicates stdin/stdout and cannot substitute for restoring
+external state or the suspended parent. The thread audit requires caller-held
+exclusive suspension. Complete CPU Level 1 stays disabled. No external
+dependency is missing. BOOM/Saturn remain pending; standalone Shuttle, physical
+FPGA validation and ASIC power remain outside this task.
+
+Previous iteration 142 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 142, in progress.
 The opt-in exact-source HTIF provider now has a separate delivered-signal plus
 private lifecycle component. It restores actual `signal_exit`, optional raw
