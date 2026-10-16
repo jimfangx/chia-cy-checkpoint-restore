@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import re
 import shlex
+import shutil
 import subprocess
 import tempfile
 
@@ -19,6 +20,7 @@ from tools.checkpoint_formats.cpu_native import VCS_HOME, record_build
 from tools.checkpoint_formats.cpu_recipe import ROOT, RECIPES, native_build_command, recipe_settings
 from tools.checkpoint_formats.evidence import file_sha
 from tools.checkpoint_formats.simulator import check_generated_rtl
+from tools.checkpoint_formats.native_regressions import source_inputs
 
 ENVIRONMENT = ('source env.sh && source sims/firesim/env.sh && '
                'source automations/checkpoint_loop/vcs-env.sh && ')
@@ -113,6 +115,7 @@ def main():
     parser.add_argument('--reference-runtime', type=Path, required=True)
     parser.add_argument('--reference-audit', type=Path, required=True)
     parser.add_argument('--host-audit-cycles', help='Optional comma-separated master-credit diagnostic cuts')
+    parser.add_argument('--htif-source', type=Path, help='Opt-in exact-header lifecycle provider')
     args = parser.parse_args()
     require(os.environ.get('VCS_HOME') == VCS_HOME, 'source vcs-env.sh LAST')
     destination = args.out.resolve()
@@ -140,11 +143,35 @@ def main():
         require(seed.is_dir() and seed.is_relative_to(ROOT / 'automations/checkpoint_loop/runs'),
                 'seed must be an existing diagnostic build')
         subprocess.run(['cp', '-a', '--reflink=auto', str(seed), str(out / 'build')], check=True)
-    commands = [execute(native_build_command(recipe, out / 'build', 'vcs'), out, 'rocket-vcs-build')]
+    # Freeze maintained native sources BEFORE compilation, not just after it.
+    # Generated artifacts are subsequently bound by record_build.
+    inputs = source_inputs(ROOT) | {Path(recipe['recipe_file'])}
+    for directory in ('generators/firechip/bridgestubs/src/main', 'generators/firechip/chip/src/main',
+                      'generators/testchipip/src/main/resources/testchipip/csrc'):
+        inputs.update(p for p in (ROOT / directory).rglob('*') if p.is_file() and
+                      p.suffix in ('.cc', '.h', '.inc', '.mk'))
+    if args.htif_source:
+        inputs.update((args.htif_source.resolve(), args.htif_source.resolve().with_suffix('.h')))
+    snapshots = out / 'source-snapshots'
+    snapshots.mkdir()
+    bindings = []
+    for path in sorted(inputs):
+        digest = file_sha(path)
+        snapshot = snapshots / digest
+        if not snapshot.exists():
+            shutil.copyfile(path, snapshot)
+        require(file_sha(snapshot) == file_sha(path) == digest, 'source changed before CPU build')
+        bindings.append(dict(path=str(path), sha256=digest, snapshot=str(snapshot)))
+    (out / 'pre-build-inputs.json').write_text(json.dumps(dict(files=bindings), indent=2) + '\n')
+    commands = [execute(native_build_command(recipe, out / 'build', 'vcs', htif_source=args.htif_source), out, 'rocket-vcs-build')]
     builds = list((out / 'build/f2').iterdir())
     require(len(builds) == 1, 'ambiguous exact-recipe native build directory')
     build = builds[0]
     identity = record_build(recipe, build, out / 'rocket-vcs-build.log', out / 'rocket-build-identity.json')
+    require(identity['htif_lifecycle_provider_linked'] == bool(args.htif_source),
+            'CPU build did not link the selected HTIF variant')
+    for binding in bindings:
+        require(file_sha(binding['path']) == binding['sha256'], 'source changed during CPU build')
     base = build / 'FireSim-generated'
     manifest = json.loads(base.with_suffix('.simulator-state.json').read_text())
     bufgce = (ROOT / 'sims/firesim/sim/midas/src/main/verilog/BUFGCE.v').read_text()
@@ -160,12 +187,16 @@ def main():
     # Verify all recorded inputs again after both complete native processes.
     for path, digest in identity['sources_sha256'].items():
         require(file_sha(path) == digest, 'native input changed while controls ran: ' + path)
+    for binding in bindings:
+        require(file_sha(binding['path']) == binding['sha256'], 'source changed during CPU controls')
     summary = dict(status='passed', scope='exact recipe rebuild and two complete four-hart controls',
                    artifact_root=str(out), recipe=recipe, commands=commands,
                    controls=[result for _, result in results],
                    input_hashes={str(Path(__file__).resolve()): file_sha(__file__),
                                  str(workload / 'summary.json'): file_sha(workload / 'summary.json'),
                                  str(reference_audit): file_sha(reference_audit)},
+                   pre_build_inputs=str(out / 'pre-build-inputs.json'),
+                   pre_build_inputs_sha256=file_sha(out / 'pre-build-inputs.json'),
                    level1_verified=False, level2_verified=False)
     (out / 'summary.json').write_text(json.dumps(summary, indent=2) + '\n')
     print(json.dumps(dict(status='passed', summary=str(out / 'summary.json'),

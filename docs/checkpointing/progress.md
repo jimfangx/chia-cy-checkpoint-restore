@@ -14,7 +14,43 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 131, in progress. Recovery:
+Current milestone: M11-rocket-level1-level2, iteration 132, in progress. Recovery:
+[tsi-htif-recipe-integration.md](tsi-htif-recipe-integration.md) and
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Added explicit production
+Make/recipe selection of the actual lifecycle provider, a separately linked
+HTIF object with an executed-build audit, and source snapshots before native
+compilation. The complete lifecycle suite passes using the actual linked
+recipe archive. Aggregate lifecycle/session/context ownership and both complete
+CPU checkpoint levels remain pending.
+
+Diagnostics: `runs/m11-iteration132/`. Accepted lifecycle:
+`recipe-lifecycle/invocation-qzzg2vo_/summary.json`; independent audit passes.
+All eight preserved native suites pass (268 Python tests / FCFS included;
+5,254 artifacts / 794 source bindings), as do all 30 retained audits, the
+complete 318,637-word / seven-clock / zero-edge ordinary Rocket diagnostic
+readback, production Make provider selection/header rejection and eight
+read-only incompatible build-record rejections. Both complete exact-recipe
+four-hart controls pass at C=3,329,794 in
+`rocket-controls/invocation-lnj9j73_/`, each with full 16 GiB memory. Every
+full hart trace and workload/store cycle label matches the uninterrupted
+reference. All eight active host samples / 64 known component images match,
+including the late cut; these are not complete CPU checkpoints. Both
+independent control audits pass. Five contradictory/untyped provider metadata
+flags reject in the independent auditor, and the final 268-test Python run
+passes. Recovery catalogs: `selected-results.json`, `verification-commands.json`,
+`raw-native-commands.json`, `native-input-archives.json`, `summary.json` and
+`artifact-manifest.json`. The optional initial live-prefix pilot expected
+buffered trace files before finish and is excluded; both complete final
+controls pass. Both plans and environment helpers retain their initial hashes.
+Existing controller iteration-131 commits were published FireSim first, then Chipyard;
+both GitHub main tips match. No staging or local commits. No missing external
+dependency is known. Complete fresh Level-1 continuation and independent
+captured Level-2 replay remain pending; BOOM/Saturn remain pending. Physical
+FPGA and ASIC power remain deferred.
+
+Previous iteration 131 recovery follows.
+
+Previous milestone checkpoint: M11-rocket-level1-level2, iteration 131, in progress. Recovery:
 [tsi-htif-lifecycle.md](tsi-htif-lifecycle.md) and
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Added an opt-in
 exact-header FESVR provider overlay for the actual private optional exit and

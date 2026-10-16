@@ -46,7 +46,7 @@ def recipe_settings(name, recipe_file=RECIPE_FILE):
                 fpga_bitstream_required=False, checkpoint_support_verified=False)
 
 
-def native_build_command(settings, build, goal, *, semantic_root=None):
+def native_build_command(settings, build, goal, *, semantic_root=None, htif_source=None):
     require(goal in ('verilog', 'vcs'), 'CPU validation uses RTL generation or VCS metasim only')
     build = Path(build).resolve()
     require(build.is_relative_to(ROOT / 'automations/checkpoint_loop/runs'),
@@ -55,6 +55,11 @@ def native_build_command(settings, build, goal, *, semantic_root=None):
     args += [field + '=' + (settings['resolved_makefrag'] if field == 'TARGET_PROJECT_MAKEFRAG'
                            else settings['settings'][field]) for field in FIELDS]
     args += [f'BUILD_DIR={build}', 'SIMULATOR_CHECKPOINT_INVENTORY=FPGATop', 'JAVA_HEAP_SIZE=32G']
+    if htif_source is not None:
+        htif_source = Path(htif_source).resolve()
+        require(htif_source.is_file() and htif_source.suffix == '.cc' and
+                htif_source.with_suffix('.h').is_file(), 'exact HTIF source/header pair required')
+        args += ['CHECKPOINT_HTIF_SOURCE=' + str(htif_source)]
     if semantic_root is not None:
         require(type(semantic_root) is str and semantic_root, 'explicit pre-FAME root required')
         args += ['SEMANTIC_BRIDGE_CHECKPOINT_ROOT=' + semantic_root]
@@ -77,10 +82,11 @@ def main():
     parser.add_argument('--build', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--semantic-root')
+    parser.add_argument('--htif-source', type=Path, help='Opt-in exact-header lifecycle provider')
     args = parser.parse_args()
     settings = recipe_settings(args.recipe)
     settings['commands'] = {goal: native_build_command(settings, args.build, goal,
-                                                      semantic_root=args.semantic_root)
+                                                      semantic_root=args.semantic_root, htif_source=args.htif_source)
                             for goal in ('verilog', 'vcs')}
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(settings, indent=2) + '\n')

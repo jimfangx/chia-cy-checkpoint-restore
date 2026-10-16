@@ -57,11 +57,15 @@ def record_build(recipe, build, log, destination):
              ROOT / 'tools/checkpoint_formats/cpu_recipe.py', Path(__file__)]
     paths += list((ROOT / 'sims/firesim/sim/make').glob('*.mk'))
     paths += list(Path(recipe['resolved_makefrag']).glob('*.mk'))
-    # The build-local archive replaces exactly two installed members. Bind both
-    # archives, the replacement source/build rule and its independent report.
+    # Bind the actual selected variant, including an explicitly linked HTIF
+    # object when requested. Never infer lifecycle ownership from archive presence.
     loader_dir = ROOT / 'generators/firechip/bridgestubs/src/main/cc/fesvr'
     loader_make = ROOT / 'generators/firechip/bridgestubs/src/main/makefrag/checkpoint-fesvr.mk'
-    overlay = build / 'checkpoint-fesvr/libfesvr-checkpoint.a'
+    htif_objects = [Path(token) for token in argv if token.endswith('/owned-htif.o')]
+    require(len(htif_objects) <= 1, 'ambiguous CPU HTIF provider link inputs')
+    lifecycle = bool(htif_objects)
+    overlay = build / ('checkpoint-fesvr/lifecycle/libfesvr-checkpoint.a' if lifecycle
+                       else 'checkpoint-fesvr/libfesvr-checkpoint.a')
     overlay_report = json.loads(overlay.with_suffix('.json').read_text())
     require(overlay_report['status'] == 'passed' and overlay_report['output'] == str(overlay) and
             overlay_report['output_sha256'] == file_sha(overlay) and
@@ -69,15 +73,43 @@ def record_build(recipe, build, log, destination):
             overlay_report['installed_sha256'] == file_sha(overlay_report['installed_archive']),
             'unbound CPU ELF-loader overlay')
     require({name for name, hashes in overlay_report['members'].items()
-             if hashes['installed'] != hashes['overlay']} == {'elfloader.o', 'context.o'},
+             if hashes['installed'] != hashes['overlay']} ==
+            ({'elfloader.o', 'context.o', 'htif.o'} if lifecycle else {'elfloader.o', 'context.o'}),
             'CPU overlay changed unrelated installed owners')
-    require(overlay_report['sources'] == {
+    expected_sources = {
                 str(loader_dir / name): file_sha(loader_dir / name)
-                for name in ('owned_elfloader.cc', 'owned_context.cc')},
+                for name in ('owned_elfloader.cc', 'owned_context.cc')}
+    lifecycle_inputs = overlay_report.get('lifecycle_inputs', {})
+    if lifecycle:
+        import hashlib
+        provider = [Path(p) for p in lifecycle_inputs if p.endswith('/htif.cc')]
+        require(len(provider) == 1 and
+                'CHECKPOINT_HTIF_SOURCE=' + str(provider[0]) in Path(log).read_text(),
+                'CPU lifecycle provider was not explicitly selected')
+        provider = provider[0]
+        require(provider.with_suffix('.h').read_bytes() ==
+                (Path(overlay_report['installed_archive']).parent.parent / 'include/fesvr/htif.h').read_bytes(),
+                'CPU lifecycle source/header ABI mismatch')
+        generated = provider.read_bytes() + b'\n' + (loader_dir / 'htif_lifecycle_provider.inc').read_bytes()
+        digest = hashlib.sha256(generated).hexdigest()
+        generated_sources = {p: d for p, d in overlay_report['sources'].items() if Path(p).name == 'htif.cc'}
+        require(len(generated_sources) == 1 and set(generated_sources.values()) == {digest} and
+                lifecycle_inputs['generated_provider_sha256'] == digest,
+                'CPU lifecycle generated provider differs from original method bodies')
+        expected_sources.update(generated_sources)
+        for p, digest in lifecycle_inputs.items():
+            if not p.endswith('_sha256'):
+                require(file_sha(p) == digest, 'unbound CPU lifecycle provider input ' + p)
+                paths.append(Path(p))
+        paths.append(provider.with_suffix('.h'))
+    else:
+        require(not lifecycle_inputs, 'installed CPU HTIF variant contains lifecycle replacement')
+    require(overlay_report['sources'] == expected_sources,
             'unbound CPU resource overlay sources')
     # Explicit objects prevent a shared libriscv.so definition from satisfying
     # either replacement before static archive extraction.
-    for member, name in [('elfloader.o', 'owned-elfloader.o'), ('context.o', 'owned-context.o')]:
+    for member, name in [('elfloader.o', 'owned-elfloader.o'), ('context.o', 'owned-context.o')] + (
+            [('htif.o', 'owned-htif.o')] if lifecycle else []):
         obj = overlay.parent / name
         require(str(obj) in argv and obj.read_bytes() ==
                 subprocess.check_output(['ar', 'p', overlay, member]),
@@ -111,6 +143,9 @@ def record_build(recipe, build, log, destination):
     paths = list(dict.fromkeys(path.resolve() for path in paths))
     require(all(path.is_file() for path in paths), 'missing CPU native build input')
     symbols = subprocess.check_output(['nm', '-C', str(binary)], text=True)
+    require(all((' T ' + name in symbols) == lifecycle for name in
+                ('firesim_htif_lifecycle_read(', 'firesim_htif_lifecycle_restore(')),
+            'CPU lifecycle symbols do not match the selected provider')
     require('uart_t::save_checkpoint() const' in symbols and
             'heartbeat_t::save_checkpoint() const' in symbols, 'missing audited host adapters')
     require(all(name in symbols for name in (
@@ -133,6 +168,7 @@ def record_build(recipe, build, log, destination):
                   uart_adapter_linked=True, heartbeat_adapter_linked=True,
                   firesim_driver_adapter_linked=True, bridge_run_loop_adapter_linked=True,
                   owned_fesvr_serial_adapter_linked=True,
+                  htif_lifecycle_provider_linked=lifecycle,
                   checkpoint_profile=None, level1_verified=False, level2_verified=False)
     Path(destination).write_text(json.dumps(report, indent=2) + '\n')
     return report

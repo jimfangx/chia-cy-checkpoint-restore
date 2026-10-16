@@ -58,6 +58,17 @@ def audit(path):
     require(overlay['status'] == 'passed' and overlay['output_sha256'] == file_sha(out/'libfesvr-checkpoint.a'), 'wrong provider overlay')
     require({m for m, v in overlay['members'].items() if v['installed'] != v['overlay']} ==
             {'elfloader.o', 'context.o', 'htif.o'}, 'unrelated installed provider changed')
+    if r.get('recipe_build_identity'):
+        identity = json.loads(Path(r['recipe_build_identity']).read_text())
+        require(identity['htif_lifecycle_provider_linked'] and not identity['level1_verified'] and
+                not identity['level2_verified'], 'wrong recipe provider scope')
+        binary = Path(identity['native_binary'])
+        production = binary.parent / 'checkpoint-fesvr/lifecycle/libfesvr-checkpoint.a'
+        require(identity['sources_sha256'][str(production)] == file_sha(production) ==
+                file_sha(out/'libfesvr-checkpoint.a'), 'lifecycle suite did not use actual recipe archive')
+        for name in ('owned-htif.o', 'owned-context.o', 'owned-elfloader.o'):
+            obj = production.parent / name
+            require(identity['sources_sha256'][str(obj)] == file_sha(obj), 'changed actual recipe provider object')
     for p, digest in overlay['lifecycle_inputs'].items():
         if not p.endswith('_sha256'):
             require(bindings[p]['sha256'] == digest, 'unbound lifecycle provider input')
@@ -139,6 +150,7 @@ def audit(path):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__); p.add_argument('--out', type=Path); p.add_argument('--audit', type=Path)
+    p.add_argument('--recipe-build-identity', type=Path, help='Test the actual linked exact-recipe lifecycle archive')
     a = p.parse_args()
     if a.audit:
         print(json.dumps(audit(a.audit), indent=2)); return
@@ -157,6 +169,16 @@ def main():
               CC/'core/checkpoint.h', CC/'core/widget_checkpoint.h',
               ROOT/'tools/checkpoint_formats/retained_evidence.py', ROOT/'tools/checkpoint_formats/evidence.py',
               ROOT/'env.sh', ROOT/'sims/firesim/env.sh', ROOT/'automations/checkpoint_loop/vcs-env.sh']
+    production = None
+    if a.recipe_build_identity:
+        identity_path = a.recipe_build_identity.resolve()
+        identity = json.loads(identity_path.read_text())
+        require(identity.get('htif_lifecycle_provider_linked') is True, 'recipe provider is not linked')
+        production = Path(identity['native_binary']).parent/'checkpoint-fesvr/lifecycle/libfesvr-checkpoint.a'
+        for path, digest in identity['sources_sha256'].items():
+            require(file_sha(path) == digest, 'changed exact-recipe build input '+path)
+        inputs += [identity_path, production, production.with_suffix('.json')]
+        inputs += [production.parent/n for n in ('owned-htif.o', 'owned-context.o', 'owned-elfloader.o')]
     snapshots = out/'sources'; snapshots.mkdir(); bindings, commands = [], []
     for path in dict.fromkeys(inputs):
         digest = file_sha(path); snapshot = snapshots/digest
@@ -170,8 +192,12 @@ def main():
         run(command, log, cwd=out, expected=expected)
         commands.append(dict(cwd=str(out.relative_to(ROOT)), argv=command, log=str(log), returncode=expected))
     library = out/'libfesvr-checkpoint.a'
-    execute(['python3', BUILDER, '--library', FESVR/'lib/libfesvr.a', '--include', FESVR/'include',
-             '--out', library, '--cxx', os.environ['CXX'], '--htif-source', PROVIDER], out/'fesvr-overlay-build.log')
+    if production:
+        shutil.copyfile(production, library)
+        shutil.copyfile(production.with_suffix('.json'), library.with_suffix('.json'))
+    else:
+        execute(['python3', BUILDER, '--library', FESVR/'lib/libfesvr.a', '--include', FESVR/'include',
+                 '--out', library, '--cxx', os.environ['CXX'], '--htif-source', PROVIDER], out/'fesvr-overlay-build.log')
     incompatible = out/'incompatible-provider'; incompatible.mkdir()
     (incompatible/'htif.cc').write_bytes(PROVIDER.read_bytes())
     (incompatible/'htif.h').write_bytes(PROVIDER.with_suffix('.h').read_bytes()+b'\n')
@@ -218,6 +244,7 @@ def main():
     for b in bindings:
         require(file_sha(b['path']) == b['sha256'], 'source changed during lifecycle verification')
     report = dict(status='passed', scope='actual private lifecycle fields; opt-in provider; complete HTIF/CPU restore pending',
+                  recipe_build_identity=str(a.recipe_build_identity.resolve()) if a.recipe_build_identity else None,
                   source_inputs=bindings, commands=commands, level1_verified=False, level2_verified=False,
                   artifact_sha256={str(p): file_sha(p) for p in sorted(out.rglob('*')) if p.is_file()})
     path = out/'summary.json'; path.write_text(json.dumps(report, indent=2)+'\n')

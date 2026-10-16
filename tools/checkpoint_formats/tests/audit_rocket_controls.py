@@ -1,5 +1,6 @@
 """Independently re-audit one immutable complete Rocket control invocation."""
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -34,6 +35,14 @@ def audit(summary_path, source_archive=None):
             'incomplete or incompatible executed native CPU build')
     for path, digest in identity['sources_sha256'].items():
         check_native_input(ROOT, path, digest, archived)
+    if 'pre_build_inputs' in summary:
+        require(file_sha(summary['pre_build_inputs']) == summary['pre_build_inputs_sha256'],
+                'CPU pre-build input catalog changed')
+        pre_build = json.loads(Path(summary['pre_build_inputs']).read_text())['files']
+        for binding in pre_build:
+            require(file_sha(binding['snapshot']) == binding['sha256'], 'CPU pre-build source snapshot changed')
+            check_native_input(ROOT, binding['path'], binding['sha256'],
+                               {binding['path']: binding})
     binary = Path(identity['native_binary'])
     require(binary.parent.parent.parent == out / 'build' and binary.name == 'FireSim',
             'CPU executable is outside its immutable invocation')
@@ -41,6 +50,41 @@ def audit(summary_path, source_archive=None):
     command, native_build_argv = vcs_invocation(log, binary)
     require(command == identity['vcs_build_command'],
             'native build log no longer binds its executable')
+    declared = identity.get('htif_lifecycle_provider_linked', False)
+    provider_objects = [p for p in native_build_argv if p.endswith('/owned-htif.o')]
+    require(type(declared) is bool and len(provider_objects) == int(declared),
+            'CPU lifecycle provider declaration differs from executed link inputs')
+    if identity.get('htif_lifecycle_provider_linked', False):
+        library = binary.parent / 'checkpoint-fesvr/lifecycle/libfesvr-checkpoint.a'
+        provider = json.loads(library.with_suffix('.json').read_text())
+        require(provider['output'] == str(library) and provider['output_sha256'] == file_sha(library) and
+                {m for m, v in provider['members'].items() if v['installed'] != v['overlay']} ==
+                {'elfloader.o', 'context.o', 'htif.o'}, 'wrong CPU lifecycle archive')
+        installed = Path(provider['installed_archive'])
+        require(file_sha(installed) == provider['installed_sha256'], 'changed installed CPU provider')
+        for member, hashes in provider['members'].items():
+            require(hashlib.sha256(subprocess.check_output(['ar', 'p', library, member])).hexdigest() == hashes['overlay'] and
+                    hashlib.sha256(subprocess.check_output(['ar', 'p', installed, member])).hexdigest() == hashes['installed'],
+                    'CPU provider member hash differs ' + member)
+        for member, name in (('elfloader.o', 'owned-elfloader.o'), ('context.o', 'owned-context.o'), ('htif.o', 'owned-htif.o')):
+            obj = library.parent / name
+            require(native_build_argv.count(str(obj)) == 1 and obj.read_bytes() ==
+                    subprocess.check_output(['ar', 'p', library, member]), 'CPU provider object not linked exactly once')
+        symbols = subprocess.check_output(['nm', '-C', str(binary)], text=True)
+        require(all(' T ' + name in symbols for name in
+                    ('firesim_htif_lifecycle_read(', 'firesim_htif_lifecycle_restore(')), 'CPU provider symbols missing')
+        bindings = {b['path']: b for b in pre_build}
+        original = [p for p in provider['lifecycle_inputs'] if p.endswith('/htif.cc')]
+        require(len(original) == 1 and 'CHECKPOINT_HTIF_SOURCE=' + original[0] in log, 'provider selection unbound')
+        original = Path(original[0])
+        header = Path(bindings[str(original.with_suffix('.h'))]['snapshot']).read_bytes()
+        require(header == (installed.parent.parent / 'include/fesvr/htif.h').read_bytes(), 'provider header ABI differs')
+        extension = ROOT / 'generators/firechip/bridgestubs/src/main/cc/fesvr/htif_lifecycle_provider.inc'
+        generated = Path(bindings[str(original)]['snapshot']).read_bytes() + b'\n' + Path(bindings[str(extension)]['snapshot']).read_bytes()
+        adapted = header.replace(b'  friend class syscall_t;', b'  friend class syscall_t;\n  friend struct firesim_htif_lifecycle_access_t;')
+        require(hashlib.sha256(generated).hexdigest() == provider['lifecycle_inputs']['generated_provider_sha256'] and
+                hashlib.sha256(adapted).hexdigest() == provider['lifecycle_inputs']['adapted_header_sha256'],
+                'CPU provider method bodies or friend-only ABI extension changed')
     actual_units = sorted({str(Path(token)) for token in native_build_argv
                            if token.startswith('/') and Path(token).suffix in ('.cc', '.cpp', '.c')})
     require(actual_units == identity['translation_units'], 'native source inventory differs from executed VCS argv')

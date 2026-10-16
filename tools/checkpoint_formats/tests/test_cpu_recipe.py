@@ -41,6 +41,19 @@ class CPURecipeTest(unittest.TestCase):
             self.assertEqual(modified['settings']['PLATFORM_CONFIG'], 'ChangedConfiguration')
             self.assertNotEqual(modified['recipe_file_sha256'], recipe_settings(name)['recipe_file_sha256'])
 
+    def test_explicit_lifecycle_provider_preserves_recipe_and_rejects_missing_source(self):
+        settings = recipe_settings(RECIPES['Rocket'])
+        build = ROOT / 'automations/checkpoint_loop/runs/test/build'
+        source = ROOT / 'toolchains/riscv-tools/riscv-isa-sim/fesvr/htif.cc'
+        command = native_build_command(settings, build, 'vcs', htif_source=source)
+        argv = shlex.split(command['argv'][2].partition(' && make ')[2])
+        self.assertIn('CHECKPOINT_HTIF_SOURCE=' + str(source), argv)
+        self.assertEqual(settings, recipe_settings(RECIPES['Rocket']))
+        self.assertFalse(any('CHECKPOINT_HTIF_SOURCE=' in token for token in
+                             shlex.split(native_build_command(settings, build, 'vcs')['argv'][2])))
+        with self.assertRaises(FormatError):
+            native_build_command(settings, build, 'vcs', htif_source=source.with_name('missing.cc'))
+
     def test_unknown_recipe_incomplete_settings_and_non_metasim_goals_reject(self):
         with self.assertRaises(FormatError):
             recipe_settings('standalone_shuttle')
