@@ -41,7 +41,13 @@ def scenario():
     step('X 0',1)
     step('R 4096 1 '+str(command_value),2,value=command_value)
     step('W 4096 0',3)
-    step('D '+str(command_value)+' 1 34',5,responses=(34,))
+    # A blocked dispatch must unwind the parent guard, retain its command and
+    # queue, and retry only the child on the next call. A child may publish a
+    # response before its final explicit return; the queue must survive too.
+    step('D '+str(command_value)+' 0 0',3)
+    step('D '+str(command_value)+' 1 34 0',3,responses=(34,))
+    step('D '+str(command_value)+' 0 0',3)
+    step('D '+str(command_value)+' 0 1',5)
     step('T 1 18446744073709551615',6,value=0,responses=(2**64-1,))
     step('R 8192 1 0',7)
     step('W 8192 17',0,pop=True)
@@ -56,7 +62,7 @@ def scenario():
     step('X 0',1)
     step('R 4096 1 1',2,value=1)
     step('W 4096 0',3)
-    step('D 1 0',5)
+    step('D 1 0 1',5)
     step('T 0',6,value=0)
     step('N',0)
     step('X 1',8)
@@ -132,7 +138,9 @@ def main():
         plan=out/f'cut-{cut}.plan'; plan.write_text('\n'.join(events[cut:])+ ('\n' if events[cut:] else ''))
         for backend in ('native','vcs-dpi'):
             c=invoke(backend,src,plan,out/f'{backend}-cut-{cut}'); restores.append(dict(c,cut=cut))
-    for cut,signal,offset in ((11,'tohost_command',64),(14,'write_data',80)):
+    dispatch_cut = next(i for i, e in enumerate(events) if e.startswith('D '))
+    response_cut = next(i for i, e in enumerate(events) if e == 'W 8192 17')
+    for cut,signal,offset in ((dispatch_cut+1,'tohost_command',64),(response_cut,'write_data',80)):
         image=bytearray(images[cut]); image[offset]^=1
         src=out/f'corrupt-{cut}.owner'; src.write_bytes(image)
         plan=out/f'cut-{cut}.plan'

@@ -170,6 +170,6 @@ private:
                                       const firesim_tsi_serial_read_t &read);
   void flush_program_cache_lines(addr_t address, size_t bytes);
   void write_identity(uint64_t address, const firesim_tsi_bcd_t::identity_t &bytes);
-  void dispatch_identity(uint64_t command);
+  bool dispatch_identity(uint64_t command);
 };
 #endif // __FIRESIM_TSI_H

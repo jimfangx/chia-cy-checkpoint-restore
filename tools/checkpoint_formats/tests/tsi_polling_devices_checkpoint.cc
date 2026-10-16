@@ -69,10 +69,11 @@ public:
   void write(uint64_t address, uint64_t value) override {
     check("W "+std::to_string(address)+" "+std::to_string(value));
   }
-  void dispatch(uint64_t value) override {
+  bool dispatch(uint64_t value) override {
     check("D "+std::to_string(value));
     command_t command(memory, value, [this](uint64_t response) { g.poll.respond(response); });
     g.bcd.handle_command(command);
+    return true;
   }
   void tick_devices() override { check("T"); g.bcd.tick(); }
   bool idle() override { char op; unsigned ready=0; std::istringstream(line) >> op >> ready;

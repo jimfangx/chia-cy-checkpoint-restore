@@ -14,7 +14,58 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 124, in progress. Recovery:
+Current milestone: M11-rocket-level1-level2, iteration 125, in progress. Recovery:
+[tsi-polling-dispatch.md](tsi-polling-dispatch.md) and
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Ordinary identity dispatch
+now returns blocked through both owner guards before switching to the target.
+Its parent command/phase/response queue is readable during active merge cuts;
+retries validate and resume the existing child. Twelve-owner atomic polling
+preparation/admission remains pending. Prepared admission stays aligned-only;
+complete HTIF/CPU continuation remains disabled.
+
+Diagnostic root: `runs/m11-iteration125/`. The parent suite passes 78 fresh
+native/VCS continuations, 1,560 complete readbacks, 42,010 internal invalid-image
+checks, eight separate invalid-image processes and four first-divergence cases.
+Actual ordinary HTIF passes 128 identity commands and 2,892 sampled cuts,
+including 1,344 complete active parent images; 2,688 fresh preparations read
+back all 10,752 parent/caller/write/FIFO images. Parent readback is separate
+from the atomic child group, not an aggregate restore. Both native/VCS
+mutation controls detect discarded child yields and the old suspended callback.
+Caller/write/FIFO continuation retains 4,020 fresh processes, 30 invalid-image
+processes and twelve first-divergence cases; aligned preparation retains 400
+continuations and all negative cases. All labels here are host operations.
+
+All eight native suites (267 Python tests and FCFS), all seventeen host suites
+and all 23 independent component/native audits pass. All three exact-recipe
+four-hart controls pass at C=3,329,794; complete traces, workload/store labels
+and 104 known component images at twelve active samples match. Each retains
+full 16 GiB backing memory. Rebuilt TSI/bridge/loader/context objects equal
+independent recompilation. Ordinary RTL VCS reads all 318,637 pattern words and
+seven clocks before any edge; captured CPU replay remains pending. No external
+dependency is missing.
+
+Recovery artifacts: `summary.json`, `selected-results.json`,
+`raw-native-commands.json`, `verification-commands-native.json`,
+`native-input-archives.json` and `artifact-manifest.json`. Accepted summaries:
+`poll/invocation-y_vih7sy/summary.json`,
+`actual-identity/invocation-vuq1hjdo/summary.json`,
+`identity/invocation-rqf51t_j/summary.json` and
+`aligned-identity/invocation-jawcnuph/summary.json`. The post-test prior audit
+preserves all 184,830 iteration-124 artifacts and 1,044 input bindings. Earlier
+diagnostic import/include pilots remain separate. Existing controller
+iteration-124 commits were published FireSim first, then Chipyard, with remote
+tips independently confirmed; local remote-tracking updates were denied by
+the sandbox after successful pushes. Plans/environments retain their original
+bytes; no staging or local commits. The controller owns the upcoming
+iteration-125 checkpoint and its publication.
+
+Next: extend parent/identity/write phase predicates and atomic preparation to
+all twelve owners, then complete other memif/syscall, descriptor, signal,
+stop/exit and simulator ownership. Coherent CPU capture, complete fresh Level-1
+continuation and independent captured Level-2 readback/replay remain pending.
+BOOM/Saturn remain pending; physical FPGA validation and ASIC power are deferred.
+
+Previous iteration 124, in progress. Recovery:
 [tsi-bcd-identity.md](tsi-bcd-identity.md) and
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Ordinary identity dispatch
 now owns its command and write/response/return cursors, with atomic preparation

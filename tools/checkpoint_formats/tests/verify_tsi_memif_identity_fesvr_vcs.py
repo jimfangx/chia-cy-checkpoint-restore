@@ -1,4 +1,4 @@
-"""Audit write-child images from actual installed-HTIF BCD identity dispatch.
+"""Audit parent/caller/write/FIFO images from ordinary HTIF identity dispatch.
 
 Ordinary host execution and fresh child-only readback; no CPU admission.
 """
@@ -41,9 +41,12 @@ def identity_image(w):
 def scenario(flush):
     plan, states = [], []
     w, requests, responses = writer(), [], []
+    parent_phase, parent_command, parent_responses = 1, 0, []
 
     def snapshot():
-        states.append((w, serial(requests, responses)))
+        parent = config(24, TOHOST, FROMHOST, 1048576)+words(
+            parent_phase, parent_command, len(parent_responses), *parent_responses)
+        states.append((w, serial(requests, responses), parent))
 
     def step(line):
         plan.append(line)
@@ -89,6 +92,7 @@ def scenario(flush):
             responses.clear()
             packet(1, TOHOST, 8, bytes(8))
             if residue:
+                parent_phase, parent_command = 3, value
                 head = 8-residue
                 start = address & ~7
                 packet(0, start, 8)
@@ -124,6 +128,8 @@ def scenario(flush):
                 packet(1, address, 64, data)
             packet(0, FROMHOST, 8)
             w = writer()
+            parent_phase, parent_command = 6, 0
+            parent_responses = [(1 << 56) | (255 << 48) | 1]
             step('TICK')
             drain()
             send(0)
@@ -133,6 +139,7 @@ def scenario(flush):
             responses.clear()
             packet(1, FROMHOST, 8, ((1 << 56) | (255 << 48) | 1).to_bytes(8, 'little'))
             packet(0, TOHOST, 8)
+            parent_phase, parent_responses = 1, []
             step('TICK')
             drain()
     return plan, states
@@ -156,20 +163,21 @@ def audit(path):
     for flush in (0, 0x10000000):
         plan, states = scenario(flush)
         require((out/f'plan-{flush}.txt').read_text().splitlines() == plan, 'changed actual dispatch oracle')
-        expected_active = sum(w != writer() for w, _ in states)
+        expected_active = sum(w != writer() for w, _, _ in states)
         for backend in ('native', 'vcs-dpi'):
             name = f'{backend}-capture-{flush}'
             require(f'ACTUAL_IDENTITY cuts={len(states)} active_child_cuts={expected_active} polling_guards={expected_active} source_exit=0 cpu_edges=0'
                     in (out/(name+'.log')).read_text(), 'ordinary source did not finish or active caller admitted')
-            for cut, (w, q) in enumerate(states):
+            for cut, (w, q, parent) in enumerate(states):
                 require((out/name/f'cut-{cut}.write').read_bytes() == w and
                         (out/name/f'cut-{cut}.serial').read_bytes() == q and
-                        (out/name/f'cut-{cut}.identity').read_bytes() == identity_image(w),
+                        (out/name/f'cut-{cut}.identity').read_bytes() == identity_image(w) and
+                        (out/name/f'cut-{cut}.poll').read_bytes() == parent,
                         'actual complete caller/child/queue bytes differ')
             count += len(states)
             active += expected_active
     expected_cases = {(p, b, f, c) for f in (0, 0x10000000) for p in ('native', 'vcs-dpi')
-                      for b in ('native', 'vcs-dpi') for c, (w, _) in enumerate(scenario(f)[1]) if w != writer()}
+                      for b in ('native', 'vcs-dpi') for c, (w, _, _) in enumerate(scenario(f)[1]) if w != writer()}
     require(len(report['readbacks']) == len(expected_cases) and
             {(c['producer'], c['backend'], c['flush'], c['cut']) for c in report['readbacks']} == expected_cases,
             'missing actual child readback backend/cut pairing')
@@ -177,7 +185,8 @@ def audit(path):
         source, dest = Path(case['source']), Path(case['destination'])
         require((dest/'preedge.write').read_bytes() == Path(str(source)+'.write').read_bytes() and
                 (dest/'preedge.serial').read_bytes() == Path(str(source)+'.serial').read_bytes() and
-                (dest/'preedge.identity').read_bytes() == Path(str(source)+'.identity').read_bytes(),
+                (dest/'preedge.identity').read_bytes() == Path(str(source)+'.identity').read_bytes() and
+                (dest/'preedge.poll').read_bytes() == Path(str(source)+'.poll').read_bytes(),
                 'actual fresh complete readback differs')
         require('COMPLETE_CHILD_READBACK context_entries=0 target_services=0 target_edges=0' in Path(case['log']).read_text(),
                 'fresh child restore entered services')
@@ -191,7 +200,8 @@ def audit(path):
     require(len(pids) == len(set(pids)), 'reused actual readback process')
     return dict(status='passed', ordinary_identity_commands=128, captured_component_cuts=count,
                 active_child_cuts=active, polling_admission_rejections=active,
-                fresh_child_readbacks=len(report['readbacks']), complete_owner_readbacks=3*len(report['readbacks']),
+                fresh_child_readbacks=len(report['readbacks']), complete_owner_readbacks=4*len(report['readbacks']),
+                parent_dispatch_readbacks=active,
                 level1_verified=False, level2_verified=False)
 
 
@@ -261,7 +271,7 @@ def main():
             commands.append(invoke(backend, 'capture', f'{backend}-capture-{flush}', flush))
         jobs.extend((b, 'readback', f'{p}-{b}-readback-{flush}-{c}', flush, p, c)
                     for p in ('native', 'vcs-dpi') for b in ('native', 'vcs-dpi')
-                    for c, (w, _) in enumerate(states) if w != writer())
+                    for c, (w, _, _) in enumerate(states) if w != writer())
     with ThreadPoolExecutor(max_workers=4) as pool:
         readbacks = list(pool.map(lambda job: invoke(*job), jobs))
     commands.extend(readbacks)

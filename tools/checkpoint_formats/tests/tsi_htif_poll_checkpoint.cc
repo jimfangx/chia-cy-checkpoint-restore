@@ -45,8 +45,8 @@ public:
     service("W"); equal(number(), address, "write_address"); equal(number(), value, "write_data");
   }
   void responses() { const auto n = number(); for (size_t i = 0; i < n; ++i) owner.respond(number()); }
-  void dispatch(uint64_t value) override {
-    service("D"); equal(number(), value, "tohost_command"); responses();
+  bool dispatch(uint64_t value) override {
+    service("D"); equal(number(), value, "tohost_command"); responses(); return number();
   }
   void tick_devices() override { service("T"); responses(); }
   bool idle() override { service("I"); return number(); }

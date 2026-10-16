@@ -1,5 +1,11 @@
 # Explicit BCD identity caller
 
+Iteration 125 updates the parent service to return blocked before the host
+context switches; the parent image is now readable during ordinary unaligned
+identity dispatch. See [tsi-polling-dispatch.md](tsi-polling-dispatch.md).
+Atomic preparation/admission of all twelve polling owners remains pending.
+The descriptions below record the iteration-124 component boundary and tests.
+
 Iteration 124 adds `firesim_tsi_bcd_identity_t` between ordinary HTIF device
 dispatch and the explicit memif write child. It owns the raw device-1,
 command-255 request and the write, response and return cursors. Ordinary

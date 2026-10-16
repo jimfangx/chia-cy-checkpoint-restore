@@ -21,6 +21,9 @@ static int run(const char *mode,const char *elf,const char *input,const char *pl
       caller.load_components({{"identity",bytes(std::string(source)+".identity")},{"write",a},{"serial",b}});
       save(out/"preedge.identity",caller.save_checkpoint());
       save(out/"preedge.write",w.save_checkpoint());save(out/"preedge.serial",q.save_checkpoint());
+      firesim_tsi_htif_poll_t poll(0x80002000,0x80002008);
+      poll.load_checkpoint(bytes(std::string(source)+".poll"));
+      save(out/"preedge.poll",poll.save_checkpoint());
       std::cout<<"COMPLETE_CHILD_READBACK context_entries=0 target_services=0 target_edges=0\n";return 0;
     }
     std::vector<std::string> args{"memif-identity","+permissive","+no_hart0_msip","+idle-counts=3",
@@ -45,6 +48,9 @@ static int run(const char *mode,const char *elf,const char *input,const char *pl
       save(out/("cut-"+std::to_string(cut)+".write"),image);
       save(out/("cut-"+std::to_string(cut)+".identity"),tsi.bcd_identity_owner().save_checkpoint());
       save(out/("cut-"+std::to_string(cut)+".serial"),tsi.serial_queue_owner().save_checkpoint());
+      // This read must now succeed even while the identity child is blocked:
+      // dispatch returned through both guards before the host context yielded.
+      save(out/("cut-"+std::to_string(cut)+".poll"),tsi.htif_poll_owner().save_checkpoint());
     };
     snapshot();std::ifstream steps(plan);require(bool(steps),"missing plan");std::string line;
     while(std::getline(steps,line)) {

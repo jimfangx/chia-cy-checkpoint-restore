@@ -21,7 +21,9 @@ public:
     virtual void write(uint64_t address, uint64_t value) = 0;
     // A restricted caller may reject unowned services before clearing tohost.
     virtual void validate_command(uint64_t) {}
-    virtual void dispatch(uint64_t value) = 0;
+    // Return false after an explicit child yield. Never suspend inside this
+    // service: the parent guard must unwind before a cut can be inspected.
+    virtual bool dispatch(uint64_t value) = 0;
     virtual void tick_devices() = 0;
     virtual bool idle() = 0;
   };
@@ -60,7 +62,8 @@ public:
     case phase_t::tohost_clear:
       s.write(tohost_address, 0); current.phase = phase_t::dispatch; break;
     case phase_t::dispatch:
-      device_service(s, false); current.phase = phase_t::devices; break;
+      if (!device_service(s, false)) return result_t::blocked;
+      current.phase = phase_t::devices; break;
     case phase_t::idle:
       if (!s.idle()) return result_t::blocked;
       current.phase = tohost_address ? phase_t::devices : phase_t::ready;
@@ -108,11 +111,13 @@ private:
   const uint64_t tohost_address, fromhost_address, limit;
   widget_checkpoint_state_t boundary;
   bool accepting_responses = false;
-  void device_service(services_t &s, bool tick) {
+  bool device_service(services_t &s, bool tick) {
     accepting_responses = true;
-    try { if (tick) s.tick_devices(); else s.dispatch(current.tohost); }
+    bool complete = true;
+    try { if (tick) s.tick_devices(); else complete = s.dispatch(current.tohost); }
     catch (...) { accepting_responses = false; throw; }
     accepting_responses = false;
+    return complete;
   }
   state_t parse(const std::vector<uint8_t> &image) const {
     boundary.require_idle(); const size_t start = config.bytes.size();

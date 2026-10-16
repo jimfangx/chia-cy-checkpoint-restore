@@ -146,14 +146,15 @@ class firesim_tsi_t::polling_services_t final : public firesim_tsi_htif_poll_t::
       const uint32_t words[2] = {uint32_t(value), uint32_t(value >> 32)};
       tsi.write_chunk(address, 8, words);
     }
-    void dispatch(uint64_t value) override {
+    bool dispatch(uint64_t value) override {
       if (devices && (value >> 48) == 0x1ff) {
-        tsi.dispatch_identity(value); return;
+        return tsi.dispatch_identity(value);
       }
       command_t command(tsi.memif(), value, [owner = tsi.htif_poll.get()](uint64_t response) { owner->respond(response); });
       validate_command(value);
       if (devices) devices->handle_command(command);
       else tsi.bcd->handle_command(command);
+      return true;
     }
     void tick_devices() override { if (devices) devices->tick(); else tsi.bcd->tick(); }
     bool idle() override {
@@ -357,7 +358,7 @@ void firesim_tsi_t::write_identity(uint64_t address, const firesim_tsi_bcd_t::id
   } catch (...) { memif_write.interrupt(); throw; }
 }
 
-void firesim_tsi_t::dispatch_identity(uint64_t command) {
+bool firesim_tsi_t::dispatch_identity(uint64_t command) {
   class services_t final : public firesim_tsi_bcd_identity_t::services_t {
   public:
     explicit services_t(firesim_tsi_t &tsi) : tsi(tsi) {}
@@ -375,13 +376,18 @@ void firesim_tsi_t::dispatch_identity(uint64_t command) {
   private:
     firesim_tsi_t &tsi;
   } services(*this);
-  bcd_identity.begin(command);
+  if (bcd_identity.idle()) bcd_identity.begin(command);
+  else if (!bcd_identity.pending_for(command))
+    throw std::runtime_error("HTIF dispatch/BCD identity command mismatch");
   for (;;) {
     const auto result = bcd_identity.advance(services);
     if (result == firesim_tsi_bcd_identity_t::result_t::complete) break;
-    if (result == firesim_tsi_bcd_identity_t::result_t::blocked) switch_to_target();
+    // Propagate the yield through the parent service. run_host switches only
+    // after both explicit owner guards have returned.
+    if (result == firesim_tsi_bcd_identity_t::result_t::blocked) return false;
   }
   bcd_identity.finish();
+  return true;
 }
 
 void firesim_tsi_t::validate_polling_components(const firesim_tsi_htif_poll_t &poll,

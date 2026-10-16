@@ -20,6 +20,10 @@ public:
   firesim_tsi_bcd_identity_t(firesim_tsi_memif_write_t &writer,
                            firesim_tsi_serial_state_t &serial) : writer(writer), serial(serial) {}
   bool idle() const { boundary.require_idle(); return current.phase == phase_t::idle; }
+  bool pending_for(uint64_t command) const {
+    boundary.require_idle(); validate_child(current, writer);
+    return current.phase != phase_t::idle && current.command == command;
+  }
   void begin(uint64_t command) {
     boundary.require_idle();
     if (!idle() || !writer.idle()) throw std::runtime_error("BCD identity caller/child already pending");

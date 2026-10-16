@@ -1,5 +1,13 @@
 # Fresh preparation of known TSI polling components
 
+## Iteration 125: parent identity dispatch returns blocked
+
+Ordinary identity dispatch now unwinds both owner guards before yielding.
+Complete parent images are readable at those host boundaries. See
+[tsi-polling-dispatch.md](tsi-polling-dispatch.md). The existing prepared
+ten-owner admission and aligned identity behavior remain in force; adding
+dispatch predicates and atomic twelve-owner preparation is still pending.
+
 ## Iteration 124: explicit identity dispatch caller
 
 Ordinary BCD identity dispatch additionally owns its raw command and the
