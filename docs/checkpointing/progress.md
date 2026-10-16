@@ -6,13 +6,58 @@ Shuttle + Saturn recipes in `sims/firesim-staging/sample_config_build_recipes.ya
 Standalone Shuttle is excluded because no recipe exists. Physical FPGA
 validation and ASIC power are deferred. Follow the detailed current instructions
 at the top of `plan_agent.md` and the appended M11-M13 loop milestones.
-Rocket preparation is in progress; BOOM and Shuttle + Saturn remain pending.
-No CPU checkpoint acceptance is claimed. Preserve the verified iteration-81
-FCFS state and evidence below; resume without resetting saved loop progress.
+Rocket Level-2 finite replay passes; complete Rocket Level 1 remains in progress.
+BOOM and Shuttle + Saturn remain pending; no complete CPU milestone is accepted.
+Preserve the verified iteration-81 FCFS state and evidence below; resume without resetting saved loop progress.
 
 Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
+
+Current milestone: M11-rocket-level1-level2, iteration 139, in progress.
+Rocket Level 2 now passes complete captured ChipTop finite replay at four cuts;
+complete Level-1 CPU continuation remains pending. Recovery:
+[rocket-semantic-event-capture.md](rocket-semantic-event-capture.md) and
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md).
+
+Diagnostics: `runs/m11-iteration139/`. The exact preservation-enabled recipe
+build passes the explicit 62-unit native audit. The full 16-GiB self-checking
+four-hart capture run passes at the reported fastest-clock C=3,329,794. All four
+complete hart traces and workload/store labels match the uninterrupted reference.
+All nine semantic/generated sidecars match the actual running metasim build.
+`source-end-clock-audit.json` separately records the reported bridge count
+(3,329,794) and the observer's logged completed mbus rises (3,329,793).
+Checkpoint/replay labels use observed original-clock completed rises.
+
+Actual original-clock cuts C=100/700000/900000/3250000 each restore and read back
+all 8,644 owners / 318,637 words before any ordinary RTL edge. Fresh pre-FAME VCS
+passes 256 captured clock events / 21,760 output comparisons at original event
+and completed-rise labels. Sixteen actual per-hart stored CSR faults stop at
+their first divergent boundary before acknowledgement. All 44 invalid-image /
+atomic native-loader cases pass. Independent audits bind every original word,
+clock count, boundary value, native command, image, readback and comparison.
+C=900000 contains two pending cached TileLink grants and two voluntary writebacks;
+its external AXI window is idle. Observer state remains outside Level 2 and has
+no Level-1 restore adapter. The CPU Level-1 profile stays disabled.
+
+All eight preserved native suites pass, including FCFS and 280 Python tests /
+5,276 artifacts / 809 source bindings. All 30 retained audits pass. Initial
+catalog/source-stability pilots are retained separately from accepted evidence.
+Catalogs: `selected-results.json`, `verification-commands.json`,
+`raw-native-commands.json`, `native-input-archives.json`, `summary.json` and
+`artifact-manifest.json`. Both plans, papers, helpers and local HEADs retain
+their starting bytes/values. No staging or local commits. The controller's
+iteration-138 checkpoints were published FireSim first and then Chipyard; both
+remote main tips match despite read-only local tracking-ref errors.
+
+Next: complete configuration-specific Level-1 session/descriptors/signals/syscall
+parent/context and simulator/bridge/memory ownership, coherent CPU cuts and fresh
+metasim continuation. Active event-observer state also needs explicit rejection
+or ownership in a future Level-1 profile. Keep Level 2 independent. No external
+dependency is missing. BOOM/Saturn remain pending; standalone Shuttle, physical
+FPGA validation and ASIC power remain outside this task.
+
+Previous iteration 138 recovery follows.
 
 Current milestone: M11-rocket-level1-level2, iteration 138, in progress. Recovery:
 [semantic-fame-state-map.md](semantic-fame-state-map.md) and

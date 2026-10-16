@@ -31,7 +31,7 @@ def vcs_invocation(log, binary):
     return lines[0], argv
 
 
-def record_build(recipe, build, log, destination):
+def record_build(recipe, build, log, destination, *, semantic_event_capture=False):
     require(os.environ.get('VCS_HOME') == VCS_HOME and
             os.environ.get('CC') == '/usr/bin/gcc-13' and
             os.environ.get('CXX') == '/usr/bin/g++-13', 'source vcs-env.sh LAST')
@@ -45,8 +45,14 @@ def record_build(recipe, build, log, destination):
     # Iteration 101 adds the source-integrated FESVR serial adapter to the 59
     # audited units. Its distinct class name avoids patching the library ABI.
     owned_tsi = ROOT / 'generators/firechip/bridgestubs/src/main/cc/fesvr/owned_fesvr_tsi.cc'
-    require(len(units) == 60 and str(cc / 'core/bridge_run_loop.cc') in units and str(owned_tsi) in units,
+    capture_units = {str(ROOT / 'tools/checkpoint_formats' / name) for name in
+                     ('fame_capture.cc', 'semantic_restore.cc')} if semantic_event_capture else set()
+    require(capture_units.issubset(units) and len(set(units) - capture_units) == 60 and
+            str(cc / 'core/bridge_run_loop.cc') in units and str(owned_tsi) in units,
             'changed CPU native translation unit inventory; audit it explicitly')
+    if semantic_event_capture:
+        require('-debug_access+all' in argv and '+vpi' in argv and
+                any(token.endswith('/capture.sv') for token in argv), 'missing native semantic event observer')
     paths = [binary, Path(log).resolve(), Path(recipe['recipe_file']),
              ROOT / 'env.sh', ROOT / 'sims/firesim/env.sh',
              ROOT / 'automations/checkpoint_loop/vcs-env.sh',
@@ -168,6 +174,7 @@ def record_build(recipe, build, log, destination):
                   uart_adapter_linked=True, heartbeat_adapter_linked=True,
                   firesim_driver_adapter_linked=True, bridge_run_loop_adapter_linked=True,
                   owned_fesvr_serial_adapter_linked=True,
+                  semantic_event_capture_linked=semantic_event_capture,
                   htif_lifecycle_provider_linked=lifecycle,
                   checkpoint_profile=None, level1_verified=False, level2_verified=False)
     Path(destination).write_text(json.dumps(report, indent=2) + '\n')
