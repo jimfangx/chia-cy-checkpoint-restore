@@ -8,7 +8,7 @@ checkpoint_fesvr_context := $(checkpoint_fesvr_output)/owned-context.o
 checkpoint_fesvr_inputs := $(checkpoint_fesvr_dir)/owned_elfloader.cc $(checkpoint_fesvr_dir)/owned_context.cc $(checkpoint_fesvr_dir)/elfloader_policy.h $(checkpoint_fesvr_dir)/build_checkpoint_fesvr.py
 ifneq ($(strip $(CHECKPOINT_HTIF_SOURCE)),)
 checkpoint_fesvr_htif := $(checkpoint_fesvr_output)/owned-htif.o
-checkpoint_fesvr_inputs += $(CHECKPOINT_HTIF_SOURCE) $(patsubst %.cc,%.h,$(CHECKPOINT_HTIF_SOURCE)) $(checkpoint_fesvr_dir)/htif_lifecycle.h $(checkpoint_fesvr_dir)/htif_lifecycle_provider.inc
+checkpoint_fesvr_inputs += $(CHECKPOINT_HTIF_SOURCE) $(patsubst %.cc,%.h,$(CHECKPOINT_HTIF_SOURCE)) $(checkpoint_fesvr_dir)/htif_lifecycle.h $(checkpoint_fesvr_dir)/htif_signal.h $(checkpoint_fesvr_dir)/htif_lifecycle_provider.inc
 $(checkpoint_fesvr_htif): $(checkpoint_fesvr_library)
 	$(AR) p $< htif.o > $@.tmp && mv $@.tmp $@
 endif

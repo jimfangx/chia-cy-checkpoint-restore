@@ -14,6 +14,65 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 142, in progress.
+The opt-in exact-source HTIF provider now has a separate delivered-signal plus
+private lifecycle component. It restores actual `signal_exit`, optional raw
+exit and stopped fields atomically with prepared peers, without redelivering a
+signal or replaying a service. Existing strict lifecycle/fourteen-owner polling
+interfaces still reject delivered signals. Complete CPU Level 1 stays disabled.
+Recovery: [tsi-htif-signal.md](tsi-htif-signal.md).
+
+Diagnostics: `runs/m11-iteration142/`. The archive-bound native ASan/UBSan and
+VCS suite passes 644 fresh processes: 72 actual captures, 144 fresh restores,
+300 invalid images, forty late-guard transactions, 72 serial-peer publications,
+two actual second-signal exits and six actual provider first-boundary faults.
+The independent archive/state/continuation auditor passes and rejects eight
+missing/duplicate evidence variants. Accepted signal invocation:
+`recipe-signals/invocation-68fia3n2/summary.json`.
+
+The strict lifecycle regression passes 2,432 fresh restores, 282 malformed
+cases and 440 atomic transactions. The full fourteen-owner running/pending/
+stopped polling suite passes, including 3,872 fresh protocol readbacks,
+1,105,584 host operations, 256 pending-exit continuations and 96 stopped
+restores. All eight preserved native suites pass: 280 Python tests / 5,279
+artifacts / 812 source bindings. All thirty retained independent auditors pass.
+
+Fresh ordinary RTL VCS passes all four retained complete Rocket windows:
+318,637 words per zero-edge readback, 256 captured events / 21,760 output
+comparisons, sixteen actual stored-CSR first divergences and 44 invalid cases.
+The independent audit also checks the retained complete source capture.
+These remain the original captured inputs and target-cycle labels.
+
+Both exact-recipe complete default and buffered **16-GiB four-hart controls
+pass at C=3,329,794**. All eight complete hart traces and every workload/store
+label match the uninterrupted reference. Accepted control evidence:
+`rocket-controls/invocation-xew5lebr/summary.json`.
+The rebuilt binary's actual linked archive supplies the new signal suite.
+
+Final recovery catalogs: `summary.json`, `selected-results.json`,
+`verification-commands.json`, `raw-native-commands.json`,
+`native-input-archives.json` and `artifact-manifest.json`. The initial standalone
+644-case signal suite remains a separate diagnostic; the accepted suite tests
+the archive actually linked into the exact Rocket recipe.
+The final independent audit passes all selected scopes and seals 147,975
+artifacts, 972 native source bindings and 8,573 executed native commands.
+Its result is `final-independent-audit.json`; milestone status is in_progress.
+
+Existing controller commits were published FireSim first and then Chipyard;
+both remote main tips match local HEADs. No staging or local commits.
+The plans, root papers and environment helpers retain their starting bytes.
+
+Next: default session/descriptors, syscall parent, executable outer caller,
+cross-thread signal coordination and signal-caused stop callers; coherent
+simulator/bridge/memory cuts and complete fresh Level-1 CPU continuation.
+The new projection requires exclusive suspended-provider access, blocked
+INT/TERM/ABRT, original handler policy and no pending kernel signals. It does
+not establish complete process signal ownership or extend polling admission.
+No external dependency is missing. BOOM/Saturn remain pending; standalone
+Shuttle, physical FPGA validation and ASIC power remain outside this task.
+
+Previous iteration 141 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 141, in progress.
 Semantic capture observers now explicitly exclude Level-1 admission. Public
 FAME/legacy semantic-capture options reject in parsing; the linked FAME backend
