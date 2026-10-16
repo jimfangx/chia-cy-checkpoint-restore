@@ -2,10 +2,11 @@
 
 Iteration 136 adds `firesim_tsi_polling_lifecycle_t`, an opt-in fourteen-owner
 host group. Iteration 137 adds explicit pending-exit caller continuation through
-the no-signature provider stop. The group combines the polling components with the explicit
+the no-signature provider stop; iteration 140 adds fresh restoration of the
+completed direct-exit group. The group combines the polling components with the explicit
 direct-exit recorder and the actual HTIF provider's optional exit and stopped
-fields. Complete Rocket Level-1 restoration and captured Level-2 replay remain
-pending. This interface does not enable a CPU checkpoint profile.
+fields. Complete Rocket Level-1 restoration remains pending; independent Rocket
+Level-2 finite replay passes separately. This interface does not enable a CPU checkpoint profile.
 
 The ordered group is explicit; it does not reuse the FCFS driver whitelist:
 
@@ -44,7 +45,8 @@ statuses and odd raw statuses are distinct. A running recorder requires absent
 exit and stopped=false. A requested recorder requires the same present odd raw
 status, stopped=false and an actual pending `fromhost_read` parent boundary.
 The supported pending-exit source cuts retain response traffic while the peer's
-fromhost mailbox was occupied. Stopped-parent restoration remains unsupported.
+fromhost mailbox was occupied. Stopped restoration is admitted only when the
+polling caller is complete and the provider/recorder agree on stopped/raw state.
 
 At commit, all allocating protocol/destination checks precede the provider's
 final mask/pending-signal/handler/signature/optional-exit/stopped guards. The
@@ -74,12 +76,35 @@ phase, idle children and every protocol word. It checks the actual provider
 twice. Completed-exit inspection admits the poll's terminal phase only in this
 private fresh-caller path; twelve-owner preparation and ordinary service retain
 their earlier rules. Repeated exit service, ordinary polling and `tick()` reject
-without mutation. Stopped images still reject restoration. The installed session,
+without mutation. The installed session,
 its destruction/return caller and outer context remain separate owners.
 Syscall/session/descriptors/signals/context and full simulator/bridge/memory
 ownership remain required before complete CPU admission.
 
-Native sanitizer and VCS checks, independent byte oracles, full source bindings,
+Iteration 140 permits terminal fourteen-owner readback through a private
+preparation flag available only to the lifecycle coordinator. The public
+twelve-owner path retains its completed-caller rejection. All protocol images
+and provider guards validate before publication, including the completed poll,
+idle children, raw optional status and stopped bit. Restore never calls stop,
+initializes a coroutine, replays startup or dispatches a device. Its terminal
+group permits `inspect_completed_exit()` and rejects ordinary inspection,
+pending-exit service, polling, tick and candidate reuse. Pending responses,
+serial packet tails, BCD commands and terminal bytes survive complete readback.
+This does not reconstruct the ended source coroutine or its session teardown.
+
+The final native sanitizer/VCS invocation is
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration140/polling-lifecycle-final/invocation-rsfaix44/summary.json`.
+All 96 stopped restores, 112 incompatible owner groups, 5,284 malformed cases,
+3,000 allocation failures, 24 final guards and 32 actual status first divergences
+pass, alongside the complete retained running/pending suite. The matrix records
+full executable commands and the separate complete CPU workload/regression checks.
+An additional twelve fresh restores preserve two pending BCD commands,
+the nonempty transcript `5a` and three different residual serial packet tails;
+source and restored bytes match independently for every owner. Existing output
+is not re-emitted. The public twelve-owner regression separately passes all
+2,976 fresh preparations with its ordinary admission rules intact.
+
+Historical iteration-137 native sanitizer and VCS checks, independent byte oracles, full source bindings,
 workload plans, exact commands and results are recorded under
 `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration137/`.
 The final invocation and counts are recorded in

@@ -36,16 +36,16 @@ public:
   private:
     friend class firesim_tsi_polling_lifecycle_t;
     prepared_t(firesim_tsi_t &tsi, const images_t &images)
-        : tsi(tsi), polling(tsi.prepare_polling_components_candidate(protocol(images))),
+        : tsi(tsi), exit(parsed_exit(images)),
+          polling(tsi, protocol(images), exit.phase() == firesim_tsi_htif_exit_t::phase_t::stopped),
           lifecycle(firesim_tsi_htif_lifecycle_t(tsi).prepare_checkpoint(images.at(13).second)) {
-      exit.load_checkpoint(images.at(12).second);
       validate_exit(exit, lifecycle.restored_state());
       polling.require_exit_boundary(exit.phase());
       require_pristine_exit(tsi);
     }
     firesim_tsi_t &tsi;
-    firesim_tsi_t::prepared_polling_components_t polling;
     firesim_tsi_htif_exit_t exit;
+    firesim_tsi_t::prepared_polling_components_t polling;
     firesim_tsi_htif_lifecycle_t::prepared_t lifecycle;
     bool consumed = false;
   };
@@ -54,8 +54,9 @@ public:
 
   // Explicit pending direct-exit caller continuation. Returns false at the
   // next serial-read yield, true after the actual no-signature provider stop.
-  // Stopped images still cannot be restored, and tick/context admission is
-  // unchanged. Session/descriptors and coroutine return remain unsupported.
+  // Stopped images restore through this group for complete terminal readback;
+  // tick/context admission is unchanged. Session/descriptors and coroutine
+  // return remain unsupported. Restore itself never calls stop().
   bool advance_pending_exit() const {
     inspect(); // full raw provider state and signal/signature checks, before service
     if (!tsi.polling_components_prepared ||
@@ -112,6 +113,13 @@ private:
       throw std::runtime_error("TSI polling/lifecycle requires fourteen ordered owners");
     // The twelve-owner parser checks every protocol name and order.
     return images_t(images.begin(), images.begin()+12);
+  }
+  static firesim_tsi_htif_exit_t parsed_exit(const images_t &images) {
+    if (images.size() != 14 || images[12].first != "exit" || images[13].first != "lifecycle")
+      throw std::runtime_error("TSI polling/lifecycle requires fourteen ordered owners");
+    firesim_tsi_htif_exit_t result;
+    result.load_checkpoint(images[12].second);
+    return result;
   }
   static void require_pristine_exit(const firesim_tsi_t &tsi) {
     if (tsi.htif_exit_component.phase() != firesim_tsi_htif_exit_t::phase_t::running ||

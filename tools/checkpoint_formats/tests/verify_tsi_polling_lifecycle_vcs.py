@@ -74,6 +74,105 @@ def completed_exit(raw, cut=-1):
     return dict(protocol, **direct[cut][3], lifecycle=lifecycle(1, raw & 0xffffffff, 1))
 
 
+def stopped_cross_cases(raw):
+    """Independently valid components with incompatible caller/lifecycle state."""
+    final = completed_exit(raw)
+    _, images = exit_scenario(raw)
+    pending = next(s for s in reversed(images) if s is not None)
+    return {
+        'absent-exit': dict(final, lifecycle=lifecycle()),
+        'unstopped-provider': dict(final, lifecycle=lifecycle(1, raw & 0xffffffff)),
+        'wrong-raw': dict(final, lifecycle=lifecycle(1, (raw ^ 2) & 0xffffffff, 1)),
+        'running-complete': dict(final, exit=exiting.exit_image(), lifecycle=lifecycle()),
+        'requested-complete': dict(final, exit=exiting.exit_image(1, raw),
+                                   lifecycle=lifecycle(1, raw & 0xffffffff)),
+        'stopped-pending-read': dict(pending, exit=exiting.exit_image(2, raw),
+                                    lifecycle=lifecycle(1, raw & 0xffffffff, 1)),
+        'stopped-running-read': dict(images[0], exit=exiting.exit_image(2, raw),
+                                    lifecycle=lifecycle(1, raw & 0xffffffff, 1)),
+    }
+
+
+def audit_stopped(r, out, cases):
+    if r.get('stopped_exit_revision') != 1:
+        return {}
+    required = {(n,p,b,c) for n,(_,images,_) in cases.items() for p in BACKENDS for b in BACKENDS
+                for c,image in enumerate(images) if image is None}
+    require(len(r['stopped_restores']) == len(required) and
+            {(c['scenario'],c['producer'],c['backend'],c['cut']) for c in r['stopped_restores']} == required,
+            'incomplete stopped cut/backend matrix')
+    for c in r['stopped_restores']:
+        raw = int(c['scenario'].removeprefix('exit-')); dest = Path(c['destination'])
+        expected = completed_exit(raw, c['cut'])
+        for owner in NAMES:
+            require((dest/('preedge.'+owner)).read_bytes() == expected[owner] and
+                    (dest/('final.'+owner)).read_bytes() == expected[owner] and
+                    (out/(c['producer']+'-capture-'+c['scenario'])/
+                     f"cut-{c['cut']}.completed.{owner}").read_bytes() == expected[owner],
+                    'stopped source/restored word mismatch '+owner)
+        require(f'STOPPED_READBACK owners=14 reentry_guards=6 code={exiting.status(raw)} '
+                'target_edges=0 target_services=0 stop_services=0 startup_replays=0 context_entries=0' in
+                Path(c['log']).read_text(), 'stopped restore performed service or missed guards')
+    expected_faults = {(raw,p,b) for raw in exiting.PAYLOADS for p in BACKENDS for b in BACKENDS}
+    require(len(r['stopped_faults']) == len(expected_faults) and
+            {(int(c['scenario'].removeprefix('exit-')),c['producer'],c['backend'])
+             for c in r['stopped_faults']} == expected_faults, 'incomplete stopped fault matrix')
+    for c in r['stopped_faults']:
+        raw = int(c['scenario'].removeprefix('exit-')); dest = Path(c['destination'])
+        expected = completed_exit(raw,c['cut'])
+        expected.update(exit=exiting.exit_image(2,raw^2), lifecycle=lifecycle(1,(raw^2)&0xffffffff,1))
+        for n in NAMES:
+            require((dest/('preedge.'+n)).read_bytes() == expected[n], 'stopped fault lacks complete readback')
+        require(f'STOPPED_FIRST_DIVERGENCE boundary=0 signal=exit_code expected={exiting.status(raw)} '
+                f'actual={exiting.status(raw^2)} acknowledged=0 stop_services=0 target_edges=0 context_entries=0'
+                in Path(c['log']).read_text() and not (dest/'final.exit').exists(),
+                'stopped actual semantic fault not detected at first boundary')
+    required_cross = {(raw,k,b) for raw in exiting.PAYLOADS for k in stopped_cross_cases(raw) for b in BACKENDS}
+    require(len(r['stopped_cross']) == len(required_cross) and
+            {(c['raw'],c['cross'],c['backend']) for c in r['stopped_cross']} == required_cross,
+            'incomplete stopped cross-owner checks')
+    for c in r['stopped_cross']:
+        expected = stopped_cross_cases(c['raw'])[c['cross']]
+        for n in NAMES:
+            require(Path(c['source']+'.'+n).read_bytes() == expected[n], 'wrong stopped cross-owner bytes')
+        dest = Path(c['destination'])
+        for before in dest.glob('before.*'):
+            require(before.read_bytes() == (dest/before.name.replace('before.','unchanged.',1)).read_bytes(),
+                    'stopped cross-owner check changed destination '+before.name)
+        require(len(list(dest.glob('before.*'))) == 12, 'incomplete stopped cross-owner destination audit')
+        require('STOPPED_CROSS_REJECT peers_unchanged=1 target_edges=0 target_services=0 context_entries=0'
+                in Path(c['log']).read_text(), 'stopped cross-owner mismatch published state')
+    required_guards = {(p,b,g) for p in BACKENDS for b in BACKENDS for g in GUARDS}
+    require(len(r['stopped_guards']) == len(required_guards) and
+            {(c['producer'],c['backend'],c['guard']) for c in r['stopped_guards']} == required_guards,
+            'incomplete stopped final guard checks')
+    for c in r['stopped_guards']:
+        dest = Path(c['destination'])
+        for n in ('program','init','host','read','serial','loadmem-read','loadmem-queues','terminal','identity','write'):
+            require((dest/('before.'+n)).read_bytes() == (dest/('after.'+n)).read_bytes(),
+                    'stopped late provider guard published '+n)
+        require('AGGREGATE_LATE_GUARD '+c['guard']+' rejected=1 peers_unchanged=1 context_entries=0 target_edges=0'
+                in Path(c['log']).read_text(), 'stopped final guard published state')
+    require(len(r['stopped_atomic']) == 4 and
+            {(c['producer'],c['backend']) for c in r['stopped_atomic']} == {(p,b) for p in BACKENDS for b in BACKENDS},
+            'incomplete stopped atomic backend pairs')
+    invalids = allocations = 0
+    for c in r['stopped_atomic']:
+        match = re.search(r'AGGREGATE_ATOMIC malformed_membership_cross=(\d+) late_peers=3 prepare_allocations=(\d+) '
+                          r'commit_allocations=(\d+) abandoned=1 consumed_competing=2 owners=14 target_edges=0 context_entries=0',
+                          Path(c['log']).read_text())
+        require(match and int(match[1]) > 1000 and int(match[2]) > 30 and int(match[3]) > 0,
+                'incomplete stopped atomic/allocator tests')
+        invalids += int(match[1]); allocations += int(match[2])+int(match[3])
+        for n in NAMES:
+            require((Path(c['destination'])/('preedge.'+n)).read_bytes() == completed_exit(1,c['cut'])[n],
+                    'stopped atomic publication lost owner '+n)
+    return dict(stopped_fresh_readbacks=len(required), stopped_owner_readbacks=len(required)*14,
+                stopped_first_divergences=len(r['stopped_faults']), stopped_cross_rejections=len(required_cross),
+                stopped_final_guards=len(required_guards), stopped_atomic_rejections=invalids,
+                stopped_allocation_failures=allocations)
+
+
 def audit(path):
     path = path.resolve(); out = path.parent; r = json.loads(path.read_text())
     require(r['status'] == 'passed' and not r['level1_verified'] and not r['level2_verified'], 'wrong aggregate scope')
@@ -207,7 +306,8 @@ def audit(path):
                 invalid_image_rejections=invalids, allocation_failures=allocations, late_provider_guards=len(r['guards']),
                 pending_exit_continuations=len(r.get('pending_exit', [])), pending_exit_operations=exit_operations,
                 pending_exit_owner_readbacks=exit_readbacks, exit_first_divergences=len(r.get('exit_faults', [])),
-                exit_service_guards=len(r.get('exit_service_guards', [])), level1_verified=False, level2_verified=False)
+                exit_service_guards=len(r.get('exit_service_guards', [])), **audit_stopped(r,out,cases),
+                level1_verified=False, level2_verified=False)
 
 
 def main():
@@ -215,6 +315,7 @@ def main():
     parser.add_argument('--out', type=Path)
     parser.add_argument('--audit', type=Path)
     parser.add_argument('--pending-exit', action='store_true', help='also continue every requested exit to provider stop')
+    parser.add_argument('--stopped-exit', action='store_true', help='also restore every completed direct-exit cut')
     args = parser.parse_args()
     if args.audit:
         print(json.dumps(audit(args.audit), indent=2)); return
@@ -261,7 +362,11 @@ def main():
         (out/(n+'.plan')).write_text('\n'.join(plan)+'\n'); (out/(n+'.input')).write_bytes(terminal)
     def invoke(backend, mode, name, scenario='polling', producer='native', cut=0, **extra):
         dest = out/name; source = out/(producer+'-capture-'+scenario)/f'cut-{cut}'
+        if mode.startswith('stopped-'):
+            source = Path(str(source)+'.completed')
         metadata = source.parent/'startup.metadata'
+        if mode == 'stopped-cross-reject':
+            source = Path(extra['source'])
         values = [mode,elf,out/(scenario+'.input'),metadata,source,out/(scenario+'.plan'),dest]
         argv = [native,*values] if backend == 'native' else [simv,'-no_save',*['+'+k+'='+str(v) for k,v in
                 zip(('mode','elf','terminal','metadata','source','plan','destination'),values)]]
@@ -291,11 +396,38 @@ def main():
                     if raw == 1:
                         service_guards += [invoke(b,'exit-service-guard-'+g,f'{p}-{b}-exit-service-guard-'+g,n,p,cut,guard=g)
                                            for g in GUARDS]
+    stopped_restores, stopped_faults, stopped_atomic, stopped_guards, stopped_cross = [], [], [], [], []
+    if args.stopped_exit:
+        jobs = [(b,'stopped-restore',f'{p}-{b}-{n}-stopped-{c}',n,p,c)
+                for n,(_,images,_) in cases.items() for p in BACKENDS for b in BACKENDS
+                for c,image in enumerate(images) if image is None]
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            stopped_restores = list(pool.map(lambda a:invoke(*a),jobs))
+        for raw in exiting.PAYLOADS:
+            n = f'exit-{raw}'; images = cases[n][1]
+            cut = next(i for i,s in enumerate(images) if s is None)
+            for p in BACKENDS:
+                for b in BACKENDS:
+                    stopped_faults.append(invoke(b,'stopped-corrupt-exit',f'{p}-{b}-{n}-stopped-fault',n,p,cut))
+                    if raw == 1:
+                        stopped_atomic.append(invoke(b,'stopped-atomic',p+'-'+b+'-stopped-atomic',n,p,cut))
+                        stopped_guards += [invoke(b,'stopped-guard-'+g,p+'-'+b+'-stopped-guard-'+g,n,p,cut,guard=g)
+                                           for g in GUARDS]
+            for k,image in stopped_cross_cases(raw).items():
+                prefix = out/f'cross-{raw}-{k}'
+                for owner in NAMES:
+                    Path(str(prefix)+'.'+owner).write_bytes(image[owner])
+                for b in BACKENDS:
+                    stopped_cross.append(invoke(b,'stopped-cross-reject',b+f'-cross-{raw}-{k}',n,'native',cut,
+                                                raw=raw,cross=k,source=str(prefix)))
     for b in bindings: require(file_sha(b['path']) == b['sha256'],'source changed during aggregate checks')
     report = dict(status='passed',scope='fourteen host components; complete HTIF/session/context/CPU pending',
                   source_inputs=bindings,commands=commands,restores=restores,atomic=atomic,guards=guards,
                   pending_exit_revision=int(args.pending_exit),pending_exit=pending_exit,exit_faults=exit_faults,
                   exit_service_guards=service_guards,
+                  stopped_exit_revision=int(args.stopped_exit),stopped_restores=stopped_restores,
+                  stopped_faults=stopped_faults,stopped_atomic=stopped_atomic,stopped_guards=stopped_guards,
+                  stopped_cross=stopped_cross,
                   level1_verified=False,level2_verified=False,
                   artifact_sha256={str(p):file_sha(p) for p in sorted(out.rglob('*')) if p.is_file()})
     path = out/'summary.json'; path.write_text(json.dumps(report,indent=2)+'\n')

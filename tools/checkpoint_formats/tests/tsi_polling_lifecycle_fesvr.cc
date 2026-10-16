@@ -122,6 +122,8 @@ static void startup(firesim_tsi_t &tsi) {
 }
 static void atomic_cases(firesim_tsi_t &tsi,const images_t &good,const fs::path &out) {
   group_t group(tsi);const auto before=destination_peers(tsi);
+  const bool stopped=good[12].second.at(56)==2;
+  auto inspect=[&]{return stopped?group.inspect_completed_exit():group.inspect();};
   const auto lifecycle=firesim_tsi_htif_lifecycle_t(tsi).save_checkpoint();
   auto unchanged=[&] {
     require(destination_peers(tsi)==before && firesim_tsi_htif_lifecycle_t(tsi).save_checkpoint()==lifecycle,
@@ -130,6 +132,13 @@ static void atomic_cases(firesim_tsi_t &tsi,const images_t &good,const fs::path 
   size_t rejected=0;
   auto reject=[&](const images_t &bad){bool failed=false;try{auto next=group.prepare(bad);}
     catch(const std::runtime_error &){failed=true;}require(failed,"invalid aggregate accepted");unchanged();++rejected;};
+  if(stopped) {
+    // The narrower public twelve-owner path must still reject a complete poll.
+    bool failed=false;
+    try{tsi.prepare_polling_components(images_t(good.begin(),good.begin()+12));}
+    catch(const std::runtime_error &){failed=true;}
+    require(failed,"stopped poll entered twelve-owner preparation");unchanged();++rejected;
+  }
   // Every truncated prefix, configuration-byte mutation and trailing byte of
   // each of the fourteen complete images. Parse all peers before publication.
   for(size_t i=0;i<good.size();++i) {
@@ -154,8 +163,11 @@ static void atomic_cases(firesim_tsi_t &tsi,const images_t &good,const fs::path 
     auto next=group.prepare(good);
     if(which==0)tsi.send_word(0x12345678);
     else if(which==1)tsi.set_loaded_in_target(true);
-    else {auto b=tsi.terminal_owner().save_checkpoint();b.at(59)=1;
-      const_cast<checkpoint_owner_t &>(tsi.terminal_owner()).load_checkpoint(b);}
+    else {
+      auto &terminal=static_cast<firesim_tsi_terminal_t &>(
+          const_cast<checkpoint_owner_t &>(tsi.terminal_owner()));
+      require(terminal.read()>=0,"late terminal mutation needs sealed input");
+    }
     const auto changed=destination_peers(tsi);require(changed!=before,"ineffective late-peer fault");
     bool failed=false;try{next.commit();}catch(const std::runtime_error &){failed=true;}
     require(failed && destination_peers(tsi)==changed &&
@@ -180,13 +192,51 @@ static void atomic_cases(firesim_tsi_t &tsi,const images_t &good,const fs::path 
     catch(...){tsi_terminal_fail_allocation_after(-1);throw;}
     tsi_terminal_fail_allocation_after(-1);if(!exhausted)break;unchanged();
   }
-  require(prepare_failures>30 && commit_failures>0 && group.inspect()==good,"incomplete aggregate after allocation sweep");
+  require(prepare_failures>30 && commit_failures>0 && inspect()==good,"incomplete aggregate after allocation sweep");
   for(unsigned i=0;i<2;++i){bool failed=false;try{if(i)competing.commit();else next.commit();}
-    catch(const std::runtime_error &){failed=true;}require(failed && group.inspect()==good,"aggregate candidate reused");}
-  save(out/"preedge",group.inspect());
+    catch(const std::runtime_error &){failed=true;}require(failed && inspect()==good,"aggregate candidate reused");}
+  save(out/"preedge",inspect());
   std::cout<<"AGGREGATE_ATOMIC malformed_membership_cross="<<rejected<<" late_peers="<<late
            <<" prepare_allocations="<<prepare_failures<<" commit_allocations="<<commit_failures
            <<" abandoned=1 consumed_competing=2 owners=14 target_edges=0 context_entries=0\n";
+}
+static void stopped_restore(firesim_tsi_t &tsi,images_t good,const fs::path &out,bool fault) {
+  group_t group(tsi);
+  firesim_tsi_htif_exit_t original;original.load_checkpoint(good[12].second);
+  const auto raw=original.raw_exit();
+  if(fault) {
+    // Corrupt actual semantic status in both related images, so format and
+    // cross-owner checks still pass. Detect it via the restored provider.
+    good[12].second.at(64)^=2;good[13].second.at(64)^=2;
+  }
+  const auto before=destination_peers(tsi);
+  auto next=group.prepare(good);auto competing=group.prepare(good);
+  require(destination_peers(tsi)==before,"stopped preparation published peers");no_caller(tsi);
+  next.commit();save(out/"preedge",group.inspect_completed_exit());
+  require(group.inspect_completed_exit()==good && tsi.done(),"incomplete stopped readback");
+  for(unsigned which=0;which<6;++which) {
+    bool rejected=false;
+    try {
+      if(which==0)group.advance_pending_exit();
+      else if(which==1)tsi.tick();
+      else if(which==2)tsi.advance_prepared_polling_components();
+      else if(which==3)group.inspect();
+      else if(which==4)next.commit();
+      else competing.commit();
+    }catch(const std::runtime_error &){rejected=true;}
+    require(rejected && group.inspect_completed_exit()==good,"stopped restore replayed service or reused candidate");
+  }
+  if(fault) {
+    const auto expected=int32_t(raw)>>1;
+    require(tsi.exit_code()!=expected,"ineffective semantic stopped-status fault");
+    std::cout<<"STOPPED_FIRST_DIVERGENCE boundary=0 signal=exit_code expected="<<expected
+             <<" actual="<<tsi.exit_code()<<" acknowledged=0 stop_services=0 target_edges=0 context_entries=0\n";
+  }else {
+    require(tsi.exit_code()==(int32_t(raw)>>1),"restored stopped status mismatch");
+    save(out/"final",group.inspect_completed_exit());
+    std::cout<<"STOPPED_READBACK owners=14 reentry_guards=6 code="<<tsi.exit_code()
+             <<" target_edges=0 target_services=0 stop_services=0 startup_replays=0 context_entries=0\n";
+  }
 }
 static void late_guard(firesim_tsi_t &tsi,const images_t &good,const std::string &which,const fs::path &out) {
   group_t group(tsi);auto next=group.prepare(good);
@@ -235,6 +285,23 @@ static int aggregate_run(const char *mode,const char *elf,const char *input,cons
     tsi.prepare_startup_metadata(bytes(metadata));auto good=load_group(source);
     if(action=="atomic"){atomic_cases(tsi,good,out);return 0;}
     if(action.rfind("guard-",0)==0){late_guard(tsi,good,action.substr(6),out);return 0;}
+    if(action=="stopped-atomic"){atomic_cases(tsi,good,out);return 0;}
+    if(action.rfind("stopped-guard-",0)==0){late_guard(tsi,good,action.substr(14),out);return 0;}
+    if(action=="stopped-cross-reject") {
+      const auto before=destination_peers(tsi);
+      const auto state=firesim_tsi_htif_lifecycle_t(tsi).save_checkpoint();
+      save(out/"before",before);save(out/"before.lifecycle",state);
+      bool rejected=false;try{auto next=group.prepare(good);}
+      catch(const std::runtime_error &){rejected=true;}
+      require(rejected && destination_peers(tsi)==before &&
+              firesim_tsi_htif_lifecycle_t(tsi).save_checkpoint()==state,"stopped cross-owner partial restore");
+      no_caller(tsi);save(out/"unchanged",before);save(out/"unchanged.lifecycle",state);
+      std::cout<<"STOPPED_CROSS_REJECT peers_unchanged=1 target_edges=0 target_services=0 context_entries=0\n";
+      return 0;
+    }
+    if(action=="stopped-restore" || action=="stopped-corrupt-exit") {
+      stopped_restore(tsi,good,out,action=="stopped-corrupt-exit");return 0;
+    }
     auto next=group.prepare(good);next.commit();save(out/"preedge",group.inspect());
     require(group.inspect()==good,"incomplete zero-edge aggregate");
     bool rejected=false;try{tsi.tick();}catch(const std::runtime_error &){rejected=true;}

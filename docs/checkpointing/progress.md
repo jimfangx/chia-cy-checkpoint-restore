@@ -14,6 +14,65 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 140, in progress.
+The guarded fourteen-owner polling/direct-exit/provider group now restores
+completed direct-exit images with complete terminal readback, before any edge
+or service. Public twelve-owner preparation still rejects completed callers.
+The stopped recorder/provider must agree on raw optional status and stopped
+state, and the polling caller must be complete with idle children. No context,
+session, startup or stop is replayed. Complete CPU Level 1 remains disabled.
+Recovery: [tsi-polling-lifecycle.md](tsi-polling-lifecycle.md) and
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md).
+
+Diagnostics: `runs/m11-iteration140/`. Final native ASan/UBSan and VCS suite:
+`polling-lifecycle-final/invocation-rsfaix44/summary.json`. All 96 stopped
+fourteen-owner fresh restores, 112 incompatible owner groups, 5,284 malformed
+cases, 3,000 allocation failures, 24 final guards and 32 actual provider-status
+first divergences pass. Existing running/pending scope passes 3,872 fresh
+readbacks / 1,105,584 host operations / 256 pending-exit continuations. The
+independent oracle audit and ten missing/duplicate evidence rejections pass.
+Another twelve fresh stopped restores preserve two pending BCD commands,
+transcript `5a` and 7/5/0-word serial packet tails without re-emitting output
+(`nonempty-stopped/invocation-_1d_cbzb/summary.json`). The public twelve-owner
+regression passes all 2,976 fresh preparations, including allocation and
+destination-guard sweeps (`twelve-owner-regression/invocation-sucm3irm/summary.json`).
+The initial lifecycle pilot failed a test-only three-byte terminal offset
+assumption; the final test uses an actual terminal read and passes both input
+lengths. The failed pilot remains retained and is not accepted evidence.
+
+Fresh ordinary RTL VCS passes all four retained complete Level-2 windows:
+318,637 words per cut, 256 captured events / 21,760 output comparisons,
+sixteen actual stored CSR first divergences and 44 invalid-image/native-loader
+cases. The source capture remains iteration 139's complete four-hart run.
+All eight preserved native suites pass, including FCFS and 280 Python tests /
+5,276 artifacts / 809 source bindings. All thirty retained independent audits
+pass. Both final exact-recipe 16-GiB four-hart controls pass at the reported
+fastest-clock C=3,329,794; all eight complete hart traces and every workload/store
+label match the uninterrupted reference. Native build audit passes all sixty
+translation units and the selected lifecycle provider. The initial broad
+regression and earlier controls correctly rejected their test-only source
+change; they remain diagnostic pilots. Accepted controls:
+`rocket-controls-final/invocation-ezdigj8q/summary.json`.
+
+Final recovery catalogs: `selected-results.json`, `verification-commands.json`,
+`raw-native-commands.json`, `native-input-archives.json`, `summary.json` and
+`artifact-manifest.json`. Independent audits bind all accepted commands, source
+snapshots, original state/trace words, readbacks, comparisons and negative cases.
+
+The controller's iteration-139 commits were published FireSim first and then
+Chipyard; both remote main tips match the unchanged local HEADs despite
+read-only local tracking-ref update errors. Both plans, root papers and
+environment helpers retain their starting bytes. No staging or local commits.
+
+Next: session/descriptors/signals/syscall-parent/outer-context aggregate
+ownership, coherent simulator/bridge/memory cuts and complete Level-1 fresh
+metasim continuation. Active semantic observation also needs explicit rejection
+or ownership for any future Level-1 profile. Rocket Level 2 remains independent.
+No external dependency is missing. BOOM/Saturn remain pending; standalone
+Shuttle, physical FPGA validation and ASIC power remain outside this task.
+
+Previous iteration 139 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 139, in progress.
 Rocket Level 2 now passes complete captured ChipTop finite replay at four cuts;
 complete Level-1 CPU continuation remains pending. Recovery:

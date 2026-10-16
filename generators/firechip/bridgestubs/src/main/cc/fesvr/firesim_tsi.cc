@@ -496,7 +496,7 @@ struct firesim_tsi_t::prepared_polling_components_t::state_t {
   std::unique_ptr<firesim_tsi_bcd_t::prepared_polling_t> devices;
   bool consumed = false;
 
-  state_t(firesim_tsi_t &tsi, const polling_cut_t &images)
+  state_t(firesim_tsi_t &tsi, const polling_cut_t &images, bool completed_exit)
       : tsi(tsi), program(tsi.program_loader), init(tsi.init_control), host(tsi.host_control),
         reader(tsi.serial_read), transport(tsi.serial), loadread(tsi.loadmem_read),
         identity(writer, transport) {
@@ -519,7 +519,8 @@ struct firesim_tsi_t::prepared_polling_components_t::state_t {
       candidates[i]->load_checkpoint(images[i].second);
     writer.load_checkpoint(images[11].second);
     identity.load_checkpoint(images[10].second);
-    validate_polling_components(*poll, program, init, host, reader, loadread, queues, identity, writer);
+    validate_polling_components(*poll, program, init, host, reader, loadread, queues, identity, writer,
+                                completed_exit);
     // Parse and allocate the remaining three replacements without changing
     // the actual terminal. The temporary ordered image list also precedes
     // publication. Its destruction cannot affect the owned replacements.
@@ -543,7 +544,8 @@ struct firesim_tsi_t::prepared_polling_components_t::state_t {
 };
 
 firesim_tsi_t::prepared_polling_components_t::prepared_polling_components_t(
-    firesim_tsi_t &tsi, const polling_cut_t &images) : state(std::make_unique<state_t>(tsi, images)) {}
+    firesim_tsi_t &tsi, const polling_cut_t &images, bool completed_exit)
+    : state(std::make_unique<state_t>(tsi, images, completed_exit)) {}
 firesim_tsi_t::prepared_polling_components_t::~prepared_polling_components_t() = default;
 void firesim_tsi_t::prepared_polling_components_t::commit() {
   recheck();
@@ -559,7 +561,8 @@ void firesim_tsi_t::prepared_polling_components_t::publish() noexcept {
 void firesim_tsi_t::prepared_polling_components_t::require_exit_boundary(
     firesim_tsi_htif_exit_t::phase_t phase) const {
   using ep = firesim_tsi_htif_exit_t::phase_t;
-  if (phase == ep::stopped || (phase == ep::requested &&
+  if ((phase == ep::stopped &&
+       state->poll->phase() != firesim_tsi_htif_poll_t::phase_t::complete) || (phase == ep::requested &&
       state->poll->phase() != firesim_tsi_htif_poll_t::phase_t::fromhost_read))
     throw std::runtime_error("TSI aggregate lacks this exit/stop parent boundary");
 }

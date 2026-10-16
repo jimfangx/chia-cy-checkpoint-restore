@@ -108,7 +108,8 @@ public:
     friend class firesim_tsi_t;
     friend class firesim_tsi_polling_lifecycle_t;
     struct state_t;
-    explicit prepared_polling_components_t(firesim_tsi_t &tsi, const polling_cut_t &images);
+    explicit prepared_polling_components_t(firesim_tsi_t &tsi, const polling_cut_t &images,
+                                           bool completed_exit = false);
     void recheck();
     void publish() noexcept;
     void require_exit_boundary(firesim_tsi_htif_exit_t::phase_t phase) const;

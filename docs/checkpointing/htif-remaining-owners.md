@@ -1,7 +1,8 @@
-# Remaining HTIF owners after twelve-owner polling preparation
+# Remaining HTIF owners after protocol/lifecycle preparation
 
-The sealed transaction restores twelve protocol/device components.
-It still prohibits complete context entry. The following inventory explains the
+As of iteration 140 the guarded sealed transaction restores fourteen
+protocol/device/direct-exit/provider components, including completed direct-exit
+images. It still prohibits complete context entry. The following inventory explains the
 remaining boundary; it does not grant whole-HTIF or CPU checkpoint support.
 
 The installed `htif.h`, `syscall.h`, `memif.h` and `device.h` are byte-identical
@@ -15,7 +16,7 @@ hashes, native `nm` commands and the current lifetime-test binding are in
 
 | Owner | State and continuation that still need an explicit contract |
 | --- | --- |
-| HTIF termination | Private `std::optional<int> exitcode`, `stopped`, and the caller's progress from exit request through final device/fromhost work, `stop()` and return. `exit_code()` shifts the stored value and cannot distinguish absent exit from a requested zero exit. Getter-only restoration would omit state. |
+| HTIF termination | The fourteen-owner group now owns the actual private optional exit/stopped fields and direct-command caller through no-signature stop, including fresh complete stopped-group readback. The proxied-syscall exit caller, signature stop, session destruction/return and outer context remain unowned. `exit_code()` still cannot substitute for raw optional-state ownership. |
 | Signals | Translation-unit `signal_exit`, registered handlers and the policy for delivery across a cut. The reference constructor installs handlers but does not reset the shared flag. A per-instance POD image cannot silently replace process-wide signal ownership. |
 | Inherited devices | `htif_t` always contains its own syscall proxy, BCD, device table and dynamic-device vector. The supported FireSim caller uses a separate session table/syscall and its owned BCD. Binding one table does not inventory the other. |
 | Active session and descriptors | The session owns `syscall_t` tables, `fds`, `fds_index`, `chroot` and destination HTIF/memif references. Preserve descriptor aliases/shared open-file descriptions, offsets and external input/output policy when affected; raw host descriptor numbers are process-specific. |
@@ -31,12 +32,14 @@ TSI does not construct that session. Lifetime correctness therefore cannot be
 used as evidence that the active syscall session or its descriptor semantics
 have been restored. See [tsi-default-device-lifetime.md](tsi-default-device-lifetime.md).
 
-Iteration 131 adds an opt-in exact-header provider adapter for the actual
+Iteration 131 added an opt-in exact-header provider adapter for the actual
 private exit/stopped fields, with fresh native/VCS component readback and
 atomic rejection checks ([contract](tsi-htif-lifecycle.md)). It distinguishes
 absent/present zero and all raw status bits without executing a restore-time
-service. The default recipe still links installed `htif.o`; integrating this
-adapter with the recipe/aggregate is pending. It does not restore process
+service. Later opt-in exact-recipe builds explicitly link that provider;
+iteration 140 restores complete direct-exit groups through the guarded aggregate
+([contract](tsi-polling-lifecycle.md)). The ordinary recipe does not implicitly
+select the provider or enable a CPU profile. This does not restore process
 signals, the exit caller, sessions/descriptors or any context. The inventory
 above therefore remains the list of owners required for full HTIF acceptance.
 
@@ -49,11 +52,12 @@ perform signature-memory reads/file output before setting `stopped`; current
 metadata preparation rejects signature-mode arguments. Preserve these
 restrictions until the corresponding paths have native continuation checks.
 
-The next implementation should select and validate its supported lifecycle
-explicitly, bind every actual state owner, and test restored exit/stop/signal
-behavior against the actual installed provider. General memif/syscall services
+Next implementation work must own the session, descriptor, syscall-parent,
+process signal and executable outer-context boundary. The restricted direct-exit
+component no longer lacks stopped-image preparation. General memif/syscall services
 must remain rejected whenever their complete caller or external state is not
 owned. The existing eight-owner unsealed inspection and twelve-owner sealed
 component preparation are audits/component interfaces, not CPU admission.
-Coherent simulator-wide CPU cuts and independent Level-2 captured replay remain
-pending. No physical FPGA or ASIC evidence is claimed.
+Coherent simulator-wide Level-1 CPU cuts and fresh continuation remain pending.
+Independent Level-2 captured Rocket replay passes separately at four retained
+cuts. No physical FPGA or ASIC evidence is claimed.
