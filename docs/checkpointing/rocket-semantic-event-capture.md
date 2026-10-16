@@ -10,7 +10,10 @@ previous/upcoming gate vectors, per-window cursor, saved boundary values,
 VPI handles, saved readback values and open diagnostic files are additional
 observation owners. They are outside the original ChipTop semantic boundary
 and are not serialized into a Level-2 image. Active observation has no Level-1
-restore adapter; complete CPU Level-1 admission remains rejected.
+restore adapter; complete CPU Level-1 admission remains rejected. Iteration 141
+adds explicit public-option and compiled-backend exclusions before Level-1
+runtime construction, including the disabled compiled FAME monitor and private
+capability paths. See [level1-observer-exclusion.md](level1-observer-exclusion.md).
 
 The observer samples settled state and boundary values one picosecond after
 host-clock transitions, before the *next* original clock event. It records

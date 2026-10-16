@@ -6,6 +6,13 @@
 #endif
 
 std::string fixture_mode;
+#ifdef FIXTURE_UNOWNED_FAME_OBSERVER
+// Native dispatch checks have no VPI runtime. VCS checks link the actual
+// fame_capture.cc provider instead of this native-only stand-in.
+extern "C" const char *firesim_fame_capture_level1_exclusion() {
+  return "native dispatch observer fixture";
+}
+#endif
 std::unique_ptr<simif_t> create_simif(const TargetConfig &, int, char **) {
   puts("FIXTURE_PLATFORM");
   return std::make_unique<simif_t>();

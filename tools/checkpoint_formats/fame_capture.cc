@@ -10,6 +10,13 @@
 #include <unordered_set>
 #include <vector>
 
+// Link-time exclusion is checked by the production entry before constructing
+// any platform, driver or checkpoint capability. It applies to the disabled
+// compiled monitor too; none of its HDL or host state is a Level-1 owner.
+extern "C" const char *firesim_fame_capture_level1_exclusion() {
+  return "FAME semantic event capture (HDL counters/samples, host plan/readback, trace files)";
+}
+
 namespace {
 struct Word { vpiHandle handle; unsigned width; std::string path, saved; };
 std::vector<Word> words;

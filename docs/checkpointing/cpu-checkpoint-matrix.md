@@ -1,6 +1,6 @@
 # CPU checkpoint matrix
 
-Current milestone: M11 Rocket, iteration 140, **in_progress**. Rocket Level 2
+Current milestone: M11 Rocket, iteration 141, **in_progress**. Rocket Level 2
 passes complete captured ChipTop finite replay at four tested cuts. Complete
 Level-1 CPU continuation remains pending. Physical FPGA validation, standalone
 Shuttle and ASIC power are outside this matrix. The verified FCFS evidence remains in its existing docs.
@@ -32,6 +32,140 @@ The recipe also specifies frequency 140 MHz and TIMING build strategy; these
 are retained in the recipe record, with no FPGA implementation invoked.
 VCS uses Y-2026.03-SP1, `-full64`, `VCS_FLAGS=-Mupdate`, system GCC/G++ 13,
 and the sourced Conda library/include directories. No Conda files are edited.
+
+## Iteration 141: explicit Level-1 observer exclusions
+
+Diagnostic root:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration141/`.
+Complete Rocket Level 1 remains **in_progress**. This increment excludes the
+semantic observer's unowned HDL counters/samples, native VPI plan/readback and
+trace file state from Level-1 admission. The observer remains independent of
+original semantic state. See [level1-observer-exclusion.md](level1-observer-exclusion.md).
+
+Public Level-1 requests with `+fame_capture=` or `+semantic_capture=` reject
+before factory entry, independently of argument ordering. The linked FAME
+backend additionally rejects with no capture option supplied. The checkpoint
+capability base constructor excludes private diagnostic paths before derived
+initialization. Builds without the backend preserve their normal admission
+rules. No CPU Level-1 capability is enabled.
+
+| Executed check | Result |
+| --- | --- |
+| Native ASan/UBSan and actual VCS entry matrix | 572 fresh processes; capability enabled/disabled and observer linked/absent |
+| Runtime observer options | 384 rejections before capability factory entry |
+| Linked observer, disabled at runtime | 24 public rejections before factory entry |
+| Capability base constructor | Eight rejections before derived initialization, including private capture |
+| Entry evidence negative audit | Four missing/duplicate evidence sets rejected |
+| Actual exact-recipe Rocket VCS | 18 pre-runtime public rejections across compiled-disabled/FAME/legacy observer modes |
+| Preserved native suites | All eight pass; 280 Python tests / 5,276 artifacts / 809 source bindings |
+| Retained independent audits | All thirty pass |
+
+Accepted entry evidence is
+`entry-observer-final/invocation-fjy_0l1n/summary.json`; the independent result is
+`entry-observer-independent-audit.json`. The actual Rocket exclusion result is
+`rocket-observer-exclusion-final/invocation-whola2r4/summary.json`. Every rejected
+request preserves the restore sentinel and publishes no image, history or
+capture trace. These are admission checks, not complete CPU checkpoint cuts.
+
+Both exact-recipe native builds and all three complete **16-GiB four-hart
+workload runs pass** at reported fastest-clock **C=3,329,794**. Source capture:
+`rocket-capture-final/invocation-z48jyzzk/summary.json`; ordinary/buffered controls:
+`rocket-controls/invocation-bb9qmkkw/summary.json`. Every full hart trace (twelve
+across the three runs) and all workload/store cycle labels match the uninterrupted
+reference. ELF SHA-256:
+`f3d86f54caf42b9589385e8021dba46777f647134f19595e38a3d452b745f3d4`.
+
+The source observer logs **3,329,793 actual completed mbus rises**, independently
+of the reported fastest-clock count. Its complete original ChipTop inventory
+remains **8,644 owners / 318,637 words / seven clocks / 116 ports**. The source
+build has 62 native units and 11,746 generated entries / 446,120 words; ordinary
+controls have 60 units and 11,464 entries / 445,838 words. The bound observer is
+outside those generated inventories and is explicitly excluded from Level 1.
+
+Fresh ordinary RTL VCS passes all four retained captured windows in
+`native-replay/invocation-gnt43h6w/summary.json`: **318,637 words per zero-edge
+readback**, **256 events / 21,760 output comparisons**, **sixteen actual stored-CSR
+first divergences** before acknowledgement, and **44 invalid cases**. Replay
+consumes the retained iteration-139 source files. The independent source audit
+checks all eight new state/trace files at C=100/700000/900000/3250000 against
+those exact replay inputs byte-for-byte before accepting the current evidence.
+No source or target-cycle label is substituted. C=900000 retains the previously
+audited two pending cached grants and two voluntary writebacks; its external
+AXI window is idle.
+
+`source-independent-audit.json`, `controls-independent-audit.json` and
+`replay-independent-audit.json` bind the native builds, complete executions,
+original captured words, zero-edge readbacks, finite comparisons and negatives.
+`summary.json`, `selected-results.json`, `native-input-archives.json` and
+`artifact-manifest.json` seal accepted results and retained diagnostics.
+`verification-commands.json` records complete exact-recipe build/workload,
+ordinary VCS replay and independent-audit commands. `raw-native-commands.json`
+retains native argv plus environment-sourcing reproduction commands with cwd
+relative to the Chipyard root.
+
+Executable native checks from the Chipyard root, as argv arrays:
+
+```json
+[
+  {
+    "cwd": ".",
+    "argv": [
+      "bash",
+      "-lc",
+      "source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh && python -m tools.checkpoint_formats.tests.verify_checkpoint_entry --out /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration141/entry-observer-final"
+    ]
+  },
+  {
+    "cwd": ".",
+    "argv": [
+      "python",
+      "/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration141/audit-entry-observer.py",
+      "/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration141/entry-observer-final/invocation-fjy_0l1n/summary.json"
+    ]
+  },
+  {
+    "cwd": ".",
+    "argv": [
+      "bash",
+      "-lc",
+      "source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh && python /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration141/verify-rocket-observer-exclusion.py --identity /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration141/rocket-capture-final/invocation-z48jyzzk/native-build-identity.json --out /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration141/rocket-observer-exclusion-final"
+    ]
+  },
+  {
+    "purpose": "Fresh ordinary RTL VCS complete readback/replay, actual semantic faults and invalid images",
+    "cwd": ".",
+    "argv": [
+      "bash",
+      "-lc",
+      "source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh && python -m tools.checkpoint_formats.tests.verify_fame_event_replay_vcs --base /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration138/rocket-semantic-map-sealed/FireSim-generated --capture /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration139/runtime-pilot/capture --cuts 100,700000,900000,3250000 --out /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration141/native-replay"
+    ]
+  },
+  {
+    "purpose": "rocket-vcs-build",
+    "cwd": ".",
+    "argv": [
+      "bash",
+      "-lc",
+      "source env.sh && source sims/firesim/env.sh && export COURSIER_CACHE=/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration141/rocket-capture-final/invocation-z48jyzzk/coursier-cache && export CXXFLAGS=\"${CXXFLAGS} -isystem ${CONDA_PREFIX}/include\" && export LDFLAGS=\"${LDFLAGS} -L${CONDA_PREFIX}/lib\" && source automations/checkpoint_loop/vcs-env.sh && make -C sims/firesim/sim PLATFORM=f2 TARGET_PROJECT=firesim TARGET_PROJECT_MAKEFRAG=/scratch/jfx/chia-cy-checkpoint-restore/generators/firechip/chip/src/main/makefrag/firesim DESIGN=FireSim TARGET_CONFIG=WithDefaultFireSimBridges_WithFireSimTestChipConfigTweaks_chipyard.QuadRocketConfig PLATFORM_CONFIG=WithAutoILA_FRFCFS16GBQuadRankLLC4MB_BaseF2Config BUILD_DIR=/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration141/rocket-capture-final/invocation-z48jyzzk/build SIMULATOR_CHECKPOINT_INVENTORY=FPGATop JAVA_HEAP_SIZE=32G CHECKPOINT_HTIF_SOURCE=/scratch/jfx/chia-cy-checkpoint-restore/toolchains/riscv-tools/riscv-isa-sim/fesvr/htif.cc SEMANTIC_BRIDGE_CHECKPOINT_ROOT=FireSim.chiptop0 'VCS=/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs -full64' VCS_FLAGS=-Mupdate VCS_FORCE_REBUILD=1 vcs SEMANTIC_MULTICLOCK_INVENTORY=1 SEMANTIC_FAME_STATE_MAP=1 'VCS_EXTRA_V=/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration141/rocket-capture-final/invocation-z48jyzzk/monitor/capture.sv /scratch/jfx/chia-cy-checkpoint-restore/tools/checkpoint_formats/fame_capture.cc /scratch/jfx/chia-cy-checkpoint-restore/tools/checkpoint_formats/semantic_restore.cc' 'VCS_FLAGS=-Mupdate -debug_access+all +vpi'"
+    ]
+  },
+  {
+    "purpose": "rocket-capture",
+    "cwd": ".",
+    "argv": [
+      "bash",
+      "-lc",
+      "source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh && cd /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration141/rocket-capture-final/invocation-z48jyzzk/runtime && /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration141/rocket-capture-final/invocation-z48jyzzk/build/f2/f2-firesim-FireSim-WithDefaultFireSimBridges_WithFireSimTestChipConfigTweaks_chipyard.QuadRocketConfig-WithAutoILA_FRFCFS16GBQuadRankLLC4MB_BaseF2Config/FireSim +permissive -no_save +vcs+initreg+0 +vcs+initmem+0 +memsize=17179869184 +max-cycles=5000000 +fesvr-step-size=128 +blkdev-in-mem0=128 +mm_useHardwareDefaultRuntimeSettings_0 +tracefile=/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration141/rocket-capture-final/invocation-z48jyzzk/runtime/TRACEFILE +fame_capture=/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration141/rocket-capture-final/invocation-z48jyzzk/runtime/capture +permissive-off /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration82/workload/rocket-quad.riscv"
+    ]
+  }
+]
+```
+
+Initial source-freeze, incorrect seed-path and test-only error-marker pilots are
+retained separately from accepted final invocations. Session/descriptors,
+process signals, syscall-parent/outer caller, complete simulator/bridge/memory
+aggregation and fresh CPU continuation remain pending. BOOM/Saturn remain
+pending. No external dependency, FPGA validation or ASIC power result is claimed.
 
 ## Iteration 140: completed direct-exit group restoration
 

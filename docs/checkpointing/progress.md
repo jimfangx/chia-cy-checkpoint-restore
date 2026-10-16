@@ -14,6 +14,63 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 141, in progress.
+Semantic capture observers now explicitly exclude Level-1 admission. Public
+FAME/legacy semantic-capture options reject in parsing; the linked FAME backend
+rejects public requests before the capability factory, including when disabled.
+The capability base constructor also excludes private diagnostic paths before
+derived initialization. This does not enable Rocket Level 1 or serialize observer
+state. Recovery: [level1-observer-exclusion.md](level1-observer-exclusion.md).
+
+Diagnostics: `runs/m11-iteration141/`. Final native ASan/UBSan and VCS entry
+checks pass all 572 fresh cases: 384 runtime exclusions, 24 compiled public
+exclusions and eight base-constructor exclusions. Independent audit also rejects
+four missing/duplicate evidence sets. Another eighteen fresh exact-recipe Rocket
+VCS admission cases pass. Accepted invocations: `entry-observer-final/invocation-fjy_0l1n/`
+and `rocket-observer-exclusion-final/invocation-whola2r4/`.
+
+Both complete four-hart controls and the new complete source capture pass at
+reported fastest-clock C=3,329,794. All twelve full hart traces and every
+workload/store label match the uninterrupted reference. The observer separately
+logs 3,329,793 completed mbus rises; checkpoint labels retain actual original
+clock events. All eight current state/trace files at C=100/700000/900000/3250000
+are byte-identical to the retained source files consumed by fresh ordinary RTL
+VCS. The independent audit binds this equivalence rather than relabeling replay
+inputs. The four ordinary runs read back every one of 318,637 words before any
+edge, match 256 captured events / 21,760 output comparisons, and pass sixteen
+actual stored-CSR first divergences and 44 invalid cases. Source capture:
+`rocket-capture-final/invocation-z48jyzzk/`; controls:
+`rocket-controls/invocation-bb9qmkkw/`; replay:
+`native-replay/invocation-gnt43h6w/`.
+
+All eight preserved native regressions pass: 280 Python tests / 5,276 artifacts
+/ 809 source bindings. All thirty retained independent auditors pass. Exact
+build audits distinguish the ordinary recipe's 60 native units / 11,464 generated
+entries / 445,838 words from the semantic-preservation capture's 62 units /
+11,746 entries / 446,120 words. The post-inventory observer remains excluded.
+Original ChipTop ownership stays 8,644 entries / 318,637 words / seven clocks /
+116 ports. Complete CPU Level-1 continuation remains pending.
+
+Final catalogs: `summary.json`, `selected-results.json`, `verification-commands.json`,
+`raw-native-commands.json`, `native-input-archives.json` and `artifact-manifest.json`.
+The initial entry pilot rejected source changes during its test; an incorrect
+source seed path and an incorrect test-only error-marker assertion were corrected.
+These pilots remain separate diagnostics, not accepted results.
+
+The controller's iteration-140 commits were published FireSim first and then
+Chipyard. Remote main tips match local HEADs despite read-only local tracking-ref
+update errors. Both plans, papers and environment helpers retain their starting
+bytes. No staging or local commits.
+
+Next: session/descriptors/signals/syscall-parent/outer-caller ownership, coherent
+simulator/bridge/memory cuts and complete Level-1 fresh metasim continuation.
+Keep the observer exclusion until its complete state is owned. Independent
+Rocket Level 2 remains verified for the four finite captured windows. No external
+dependency is missing. BOOM/Saturn remain pending; standalone Shuttle, physical
+FPGA validation and ASIC power remain outside this task.
+
+Previous iteration 140 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 140, in progress.
 The guarded fourteen-owner polling/direct-exit/provider group now restores
 completed direct-exit images with complete terminal readback, before any edge

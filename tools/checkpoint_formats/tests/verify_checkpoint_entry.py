@@ -8,6 +8,8 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
+import tempfile
 
 from tools.checkpoint_formats.codec import canonical, require
 from tools.checkpoint_formats.tests.verify_semantic_vcs import ROOT, run
@@ -17,13 +19,21 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
-    out = args.out.resolve(); out.mkdir(parents=True, exist_ok=True)
+    args.out.mkdir(parents=True, exist_ok=True)
+    out = Path(tempfile.mkdtemp(prefix='invocation-', dir=args.out.resolve()))
     require(os.environ['VCS_HOME'] == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'source vcs-env.sh LAST')
     require(os.environ['CXX'] == '/usr/bin/g++-13', 'preserve VCS compiler setup')
     cc = ROOT/'sims/firesim/sim/midas/src/main/cc'
     tests = Path(__file__).resolve().parent
     header = tests/'checkpoint_entry_fixture.h'
     source = tests/'checkpoint_entry_fixture.cc'
+    source_inputs = {}
+    snapshots = out/'inputs'; snapshots.mkdir()
+    for index, path in enumerate((Path(__file__), source, header, cc/'entry.cc',
+                                 cc/'core/checkpoint_entry.h', ROOT/'tools/checkpoint_formats/fame_capture.cc')):
+        path = path.resolve(); saved = snapshots/(str(index)+'-'+path.name)
+        shutil.copyfile(path, saved)
+        source_inputs[str(path)] = dict(snapshot=str(saved), sha256=hashlib.sha256(saved.read_bytes()).hexdigest())
     (out/'FireSim-generated.const.h').write_text(
         '#ifdef GET_METASIM_INTERFACE_CONFIG\nstatic TargetConfig conf_target;\n'
         '#undef GET_METASIM_INTERFACE_CONFIG\n#endif\n'
@@ -36,13 +46,14 @@ def main():
     common = ['-std=c++20', f'-I{cc}', f'-I{out}', f'-I{tests}', '-include', str(header)]
     binaries = []
     for backend in ('native', 'vcs'):
-        for enabled in (False, True):
-            directory = out/f'{backend}-{"enabled" if enabled else "default"}'
+        for enabled, observer in ((False, False), (True, False), (False, True), (True, True)):
+            directory = out/f'{backend}-{"enabled" if enabled else "default"}{"-observer" if observer else ""}'
             directory.mkdir(exist_ok=True)
             flags = [*common, *(['-DFS_CHECKPOINT_ENTRY'] if enabled else [])]
             binary = directory/'verify'
             if backend == 'native':
-                run([os.environ['CXX'], *flags, '-g', '-fsanitize=address,undefined',
+                run([os.environ['CXX'], *flags, *(['-DFIXTURE_UNOWNED_FAME_OBSERVER'] if observer else []),
+                     '-g', '-fsanitize=address,undefined',
                      '-fno-omit-frame-pointer', '-no-pie', cc/'entry.cc', source, '-o', binary],
                     directory/'build.log')
                 # entry's documented process-lifetime registry allocation is
@@ -52,9 +63,10 @@ def main():
                 run([Path(os.environ['VCS_HOME'])/'bin/vcs', '-full64', '-sverilog', '+vpi',
                      '-top', 'checkpoint_entry_top', '-cc', os.environ['CC'], '-cpp', os.environ['CXX'],
                      '-CFLAGS', ' '.join([*flags, '-DVCS']), f'-Mdir={directory/"csrc"}',
-                     '-o', binary, sv, cc/'entry.cc', source], directory/'build.log')
+                     '-o', binary, sv, cc/'entry.cc', source,
+                     *([ROOT/'tools/checkpoint_formats/fame_capture.cc'] if observer else [])], directory/'build.log')
                 prefix = [binary, '-no_save']
-            binaries.append((backend, enabled, directory, prefix))
+            binaries.append((backend, enabled, observer, directory, prefix))
     # The capability flag is an explicit link contract, not a weak fallback.
     missing = run([os.environ['CXX'], *common, '-DFS_CHECKPOINT_ENTRY', '-DFIXTURE_MISSING_FACTORY',
                    cc/'entry.cc', source, '-o', out/'missing-factory'], out/'missing-factory.log', expected=None)
@@ -63,10 +75,13 @@ def main():
     results = []
     malformed = ['+fs-checkpoint', '+fs-restore', '+fs-checkpoint=', '+fs-restore=',
                  '+fs-checkpoint-preflight=1', '+fs-checkpoint-typo=x', '+fs-restore-typo=x']
-    for backend, enabled, directory, prefix in binaries:
+    for backend, enabled, observer, directory, prefix in binaries:
         absent = directory/'must stay absent.fsckpt'
         existing = directory/'existing restore.fsckpt'; existing.write_bytes(b'unchanged durable input\n')
         capture = f'+fs-checkpoint={absent}'; restore = f'+fs-restore={existing}'
+        periodic = [f'+fs-checkpoint-directory={directory/"absent-history"}', '+fs-checkpoint-interval=16',
+                    '+fs-checkpoint-retention=2', '+fs-checkpoint-level=1']
+        watchdog = [*periodic, '+fs-checkpoint-target-timeout-cycles=100', '+fs-checkpoint-capture-timeout-ms=100']
         cases = [('normal', [], 0, None, 'run'),
                  ('preflight', ['+fs-checkpoint-preflight'], 1, 'unsupported metasim runtime', 'preflight')]
         for i, option in enumerate(malformed):
@@ -104,6 +119,34 @@ def main():
         else:
             cases += [('capture', [capture], 1, 'no public durable checkpoint capability', 'authorize'),
                       ('restore', [restore], 1, 'no public durable checkpoint capability', 'authorize')]
+        if observer:
+            # The actual compiled backend denies Level 1 with no capture option
+            # at all. Entry must not even call an otherwise accepting factory.
+            cases = [('normal', [], 0, None, 'run')]
+            for label, options in [('preflight', ['+fs-checkpoint-preflight']), ('capture', [capture]),
+                                   ('restore', [restore]), ('periodic', periodic), ('watchdog', watchdog),
+                                   ('restore-periodic', [restore, *periodic])]:
+                cases.append(('compiled-observer-'+label, options, 1, 'unowned compiled observer state', 'parse'))
+        for name in ('fame_capture', 'semantic_capture'):
+            # Runtime plusargs exclude both observer implementations even if
+            # the optional backend was not linked into this executable.
+            cases.append((name+'-alone', ['+'+name+'=unused'], 0, None, 'run'))
+            for value in ('unused', ''):
+                option = '+'+name+'='+value
+                for label, requests in [('preflight', ['+fs-checkpoint-preflight']), ('capture', [capture]),
+                                        ('restore', [restore]), ('periodic', periodic), ('watchdog', watchdog),
+                                        ('restore-periodic', [restore, *periodic])]:
+                    for order, options in [('before', [option, *requests]), ('after', [*requests, option])]:
+                        cases.append((name+'-'+('empty-' if not value else '')+label+'-'+order, options, 1,
+                                      'unowned semantic capture observer state', 'parse'))
+        if observer and enabled:
+            # A linked capability also rejects private diagnostic capture
+            # controls (which need no public request) at base construction.
+            cases = [(label, options, 1, 'unowned compiled observer state', 'authorize')
+                     if phase == 'run' else (label, options, code, error, phase)
+                     for label, options, code, error, phase in cases]
+            cases.append(('private-capture', ['+test-live-capture=unused'], 1,
+                          'unowned compiled observer state', 'authorize'))
         for label, options, code, error, phase in cases:
             log = directory/f'{label}.log'
             text = run([*prefix, *options], log, directory, expected=code)
@@ -126,15 +169,22 @@ def main():
                             'public request validation/construction order changed')
             require(not absent.exists() and existing.read_bytes() == b'unchanged durable input\n',
                     'dispatch fixture published or modified a checkpoint')
+            require(not (directory/'absent-history').exists(), 'rejected observer created periodic history')
             require('AddressSanitizer' not in text and 'runtime error:' not in text, 'sanitizer failure')
-            results.append(dict(backend=backend, enabled=enabled, case=label, exit=code, log=str(log)))
+            results.append(dict(backend=backend, enabled=enabled, compiled_observer=observer,
+                                case=label, argv=[str(a) for a in [*prefix, *options]], exit=code, log=str(log)))
     summary = dict(scope='production entry dispatch with observer platform/driver', cases=results,
                    native_sanitizers='ASan/UBSan (intentional process-lifetime registry excluded from leak checks)',
                    vcs_release=os.environ['VCS_HOME'], missing_factory_link_rejected=True,
                    production_durable_implementation_enabled=False,
+                   level1_verified=False, level2_verified=False, source_inputs=source_inputs,
                    entry_sha256=hashlib.sha256((cc/'entry.cc').read_bytes()).hexdigest())
+    for path, binding in source_inputs.items():
+        require(hashlib.sha256(Path(path).read_bytes()).hexdigest() == binding['sha256'], 'entry source changed during check')
+    summary['artifact_sha256'] = {str(p): hashlib.sha256(p.read_bytes()).hexdigest()
+                                  for p in out.rglob('*') if p.is_file()}
     (out/'summary.json').write_bytes(canonical(summary))
-    print(f'PASS: {len(results)} native/VCS production entry dispatch cases; missing factory link rejection')
+    print(f'PASS: {len(results)} native/VCS production entry dispatch cases; missing factory link rejection; {out/"summary.json"}')
 
 
 if __name__ == '__main__':
