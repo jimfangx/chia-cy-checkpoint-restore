@@ -7,6 +7,7 @@
 #include <iostream>
 #include <sstream>
 #include <csignal>
+#include <pthread.h>
 namespace fs = std::filesystem;
 using owner_t = firesim_tsi_htif_exit_t;
 static void require(bool b, const char *s) { if (!b) throw std::runtime_error(s); }
@@ -153,15 +154,52 @@ static void internal(const fs::path &out) {
   reject([&]{interrupted.save_checkpoint();});reject([&]{interrupted.load_checkpoint(initial);});
   std::ofstream(out/"internal.txt")<<"checks="<<checks<<" cpu_edges=0\n";
 }
+// raise() queues a blocked signal; it does not guarantee handler delivery.
+// The loop controller can pass a blocked mask through exec. Exercise the real
+// installed handler after proving the signal was queued, without replacing it
+// or changing production signal policy. Each case runs in its own process.
+// A pristine installed HTIF reference observes the same process-global latch;
+// production admission is checked separately on the actual final TSI class.
+static void deliver_signal(reference_t &reference, const fs::path &out, int sig) {
+  sigset_t selected, original, pending, restored;
+  require(sigemptyset(&selected)==0 && sigaddset(&selected,sig)==0,"signal set failed");
+  require(pthread_sigmask(SIG_BLOCK,&selected,&original)==0,"signal block failed");
+  const int initially_blocked=sigismember(&original,sig);
+  require(initially_blocked>=0 && !reference.exiting(),"signal lifecycle was not pristine");
+  require(sigpending(&pending)==0 && sigismember(&pending,sig)==0,"signal already pending");
+  struct sigaction action{};
+  require(sigaction(sig,nullptr,&action)==0 && action.sa_handler!=SIG_DFL &&
+          action.sa_handler!=SIG_IGN,"installed signal handler missing");
+  require(std::raise(sig)==0,"signal raise failed");
+  require(sigpending(&pending)==0 && sigismember(&pending,sig)==1 && !reference.exiting(),
+          "blocked signal did not remain queued before delivery");
+  require(pthread_sigmask(SIG_UNBLOCK,&selected,nullptr)==0,"signal unblock failed");
+  require(reference.exiting() && sigpending(&pending)==0 && sigismember(&pending,sig)==0,
+          "installed signal handler did not observe delivery");
+  require(pthread_sigmask(SIG_SETMASK,&original,nullptr)==0 &&
+          pthread_sigmask(SIG_BLOCK,nullptr,&restored)==0 &&
+          sigismember(&restored,sig)==initially_blocked,"signal mask restore failed");
+  std::ofstream(out/"signal-delivery.txt")
+    <<"signal="<<sig<<" initially_blocked="<<initially_blocked
+    <<" before_exiting=0 pending_queued=1 after_exiting=1 pending_after=0 mask_restored=1\n";
+}
 static void unowned(const char *elf,const fs::path &out,const std::string &which) {
+  const int sig=which.rfind("signal-int",0)==0?SIGINT:which.rfind("signal-term",0)==0?SIGTERM:0;
+  if(sig && (which.find("-blocked")!=std::string::npos || which.find("-unblocked")!=std::string::npos)) {
+    sigset_t selected;
+    require(sigemptyset(&selected)==0 && sigaddset(&selected,sig)==0 &&
+            pthread_sigmask(which.find("-unblocked")!=std::string::npos?SIG_UNBLOCK:SIG_BLOCK,
+                            &selected,nullptr)==0,"initial signal mask setup failed");
+  }
   std::vector<std::string> args{"htif-exit", "+permissive", "+signature="+(out/"unused-signature").string(),
     "+permissive-off", elf};
   if(which!="signature")args.erase(args.begin()+2);
   std::vector<char *> argv;for(auto &a:args)argv.push_back(a.data());
+  std::unique_ptr<reference_t> signal_reference;
+  if(sig)signal_reference=std::make_unique<reference_t>();
   firesim_tsi_t tsi(argv.size(),argv.data(),true);
   const auto serial=tsi.serial_queue_owner().save_checkpoint();
-  if(which=="signal-int")std::raise(SIGINT);
-  else if(which=="signal-term")std::raise(SIGTERM);
+  if(sig)deliver_signal(*signal_reference,out,sig);
   else if(which=="exit")tsi.htif_exit(1);
   else if(which=="stop")tsi.stop();
   else require(which=="signature","unknown unsupported case");

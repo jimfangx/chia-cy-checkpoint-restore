@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import shlex
 import shutil
+import signal
 import tempfile
 
 from tools.checkpoint_formats.codec import require
@@ -26,6 +27,9 @@ PAYLOADS = (1, 3, 0x7fffffff, 0x80000001, 0xffffffff, 0x100000001, 0x80000000000
 FLUSHES = (0, 0x1280001000)
 TOHOST, FROMHOST, BCD, RESPONSE = 0x80002000, 0x80002008, 1 << 56, (1 << 56) | 0x141
 OWNERS = ('exit', 'poll', 'read', 'serial', 'terminal')
+LEGACY_UNOWNED = ('signal-int', 'signal-term', 'exit', 'stop', 'signature')
+UNOWNED = (*LEGACY_UNOWNED, 'signal-int-blocked', 'signal-int-unblocked',
+           'signal-term-blocked', 'signal-term-unblocked')
 
 
 def exit_image(phase=0, raw=0):
@@ -104,6 +108,8 @@ def audit(path):
     for b in bindings.values():
         require(file_sha(b['snapshot']) == b['sha256'], 'exit snapshot changed')
         check_native_input(ROOT, b['path'], b['sha256'], bindings)
+    delivery_checked = r.get('signal_delivery_revision') == 1
+    unowned_cases = UNOWNED if delivery_checked else LEGACY_UNOWNED
     source_cuts, readbacks, requested = 0, 0, 0
     for raw in PAYLOADS:
         for flush in FLUSHES:
@@ -131,9 +137,22 @@ def audit(path):
                         readbacks += 1
     for b in ('native', 'vcs-dpi'):
         require((out/f'{b}-internal/internal.txt').read_text() == 'checks=14 cpu_edges=0\n', 'missing exit service guards')
-        for which in ('signal-int', 'signal-term', 'exit', 'stop', 'signature'):
+        for which in unowned_cases:
             require((out/f'{b}-unowned-{which}/unowned.txt').read_text() ==
                     f'{which} rejected=1 serial_unchanged=1 context_entries=0\n', 'unowned lifecycle accepted')
+            if delivery_checked and which.startswith('signal-'):
+                delivery = dict(item.split('=') for item in
+                                (out/f'{b}-unowned-{which}/signal-delivery.txt').read_text().split())
+                expected_signal = signal.SIGINT if which.startswith('signal-int') else signal.SIGTERM
+                blocked = delivery.get('initially_blocked')
+                require(blocked in ('0', '1'), 'missing initial signal mask')
+                if which.endswith('-unblocked'):
+                    require(blocked == '0', 'unblocked signal scenario was not exercised')
+                elif which.endswith('-blocked'):
+                    require(blocked == '1', 'blocked signal scenario was not exercised')
+                require(delivery == dict(signal=str(int(expected_signal)), initially_blocked=blocked,
+                        before_exiting='0', pending_queued='1', after_exiting='1', pending_after='0',
+                        mask_restored='1'), 'signal queue/delivery/installed handler evidence mismatch')
         for i, payload in enumerate(malformed()):
             require((out/f'bad-{i}.exit').read_bytes() == payload and
                     (out/f'{b}-reject-{i}/unchanged.exit').read_bytes() == exit_image(), 'non-atomic malformed exit rejection')
@@ -150,7 +169,8 @@ def audit(path):
         require(not any(e in log for e in ('ERROR: AddressSanitizer', 'runtime error:', 'LeakSanitizer: detected')), 'exit sanitizer failure')
     return dict(status='passed', source_cuts=source_cuts, complete_source_images=source_cuts*5,
                 queued_response_exit_cuts=requested, fresh_component_projections=readbacks,
-                invalid_image_processes=2*len(malformed()), unowned_lifecycle_processes=10,
+                invalid_image_processes=2*len(malformed()), unowned_lifecycle_processes=2*len(unowned_cases),
+                signal_delivery_processes=12 if delivery_checked else 0,
                 first_divergence_cases=16, level1_verified=False, level2_verified=False)
 
 
@@ -194,7 +214,7 @@ def main():
         execute(argv, out/(name+'.log'))
     for b in ('native','vcs-dpi'):
         invoke(b, 'internal', b+'-internal', out/'polling.elf')
-        for which in ('signal-int','signal-term','exit','stop','signature'):
+        for which in UNOWNED:
             invoke(b, 'unowned', b+'-unowned-'+which, out/'polling.elf', which)
         for raw in PAYLOADS:
             for flush in FLUSHES:
@@ -213,6 +233,7 @@ def main():
     for b in bindings:
         require(file_sha(b['path']) == b['sha256'], 'source changed during exit component verification')
     report = dict(status='passed', scope='direct-exit/stop component projection; complete HTIF/CPU restore pending',
+                  signal_delivery_revision=1,
                   source_inputs=bindings, commands=commands, level1_verified=False, level2_verified=False,
                   artifact_sha256={str(p): file_sha(p) for p in sorted(out.rglob('*')) if p.is_file()})
     path = out/'summary.json'; path.write_text(json.dumps(report, indent=2)+'\n')

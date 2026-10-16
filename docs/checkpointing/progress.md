@@ -14,7 +14,44 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 129, in progress. Recovery:
+Current milestone: M11-rocket-level1-level2, iteration 130, in progress. Recovery:
+[tsi-htif-direct-exit.md](tsi-htif-direct-exit.md) and
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Fixed the controller's
+exit-component test failure: inherited blocked SIGINT/SIGTERM masks leave
+`raise()` pending, so the original test never exercises the installed handler.
+Native and VCS reproduce all four original failures under a blocked parent;
+all four fixed processes observe delivery, reject the unowned lifecycle and
+preserve serial state. The suite now covers inherited, blocked and unblocked
+starting masks and independently audits pending/delivered signal evidence.
+Production checkpoint admission and state ownership are unchanged; neither
+CPU checkpoint level is accepted.
+
+Diagnostics: `runs/m11-iteration130/`. All 30 retained audits, the native/VCS
+polling rejection regression and fresh ordinary Rocket RTL diagnostic readback
+pass (318,637 words / seven clocks / zero edges). All eight preserved native
+suites pass, including 267 Python tests, fixture metasim/replay, banked capture,
+FCFS and bridge checks; their independent audit passes. The complete exit suite
+passes 1,216 production cuts / 6,080 complete owner images, 2,432 fresh
+projections, 268 invalid-image processes, eighteen lifecycle rejections,
+twelve signal-delivery proofs and sixteen component first-divergence cases.
+Accepted summaries: `exit/invocation-g8_32sg1/summary.json`,
+`native-regressions/invocation-nlr8j59v/summary.json` and
+`masked-signals/invocation-o8s4roe1/summary.json`. Recovery catalogs:
+`selected-results.json`, `verification-commands.json`, `raw-native-commands.json`,
+`summary.json` and `artifact-manifest.json`. The compile-only final-class pilot
+is excluded. Both plans and environment helpers retain their initial hashes.
+Existing controller iteration-129 commits were published FireSim first, then
+Chipyard, and both GitHub main tips match. Read-only `.git` prevents updating
+local tracking refs, but remote publication succeeded. No staging or local
+commits. No missing external dependency is known. Next: complete installed
+session/descriptor/signal/exit/stop and outer-context ownership, coherent CPU
+cuts, complete fresh Level-1 continuation and independent captured Level-2
+readback/replay. BOOM/Saturn remain pending; physical FPGA and ASIC power
+remain deferred.
+
+Previous iteration 129 recovery follows.
+
+Previous milestone checkpoint: M11-rocket-level1-level2, iteration 129, in progress. Recovery:
 [tsi-htif-direct-exit.md](tsi-htif-direct-exit.md) and
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Added an explicit direct
 HTIF pass/fail status and no-signature stop component around the unchanged

@@ -1,6 +1,6 @@
 # CPU checkpoint matrix
 
-Current milestone: M11 Rocket, iteration 129. Level-1 and Level-2 acceptance
+Current milestone: M11 Rocket, iteration 130. Level-1 and Level-2 acceptance
 remain **in_progress**. No CPU checkpoint continuation or clean CPU RTL replay
 has passed. Physical FPGA validation, standalone Shuttle and ASIC power are
 outside this matrix. The verified FCFS evidence remains in its existing docs.
@@ -32,6 +32,81 @@ The recipe also specifies frequency 140 MHz and TIMING build strategy; these
 are retained in the recipe record, with no FPGA implementation invoked.
 VCS uses Y-2026.03-SP1, `-full64`, `VCS_FLAGS=-Mupdate`, system GCC/G++ 13,
 and the sourced Conda library/include directories. No Conda files are edited.
+
+## Iteration 130: repeatable native/VCS signal rejection validation
+
+Diagnostic root:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration130/`.
+Both Rocket checkpoint levels remain **in_progress**. This iteration repairs
+the exit-component regression's signal delivery assumption; production state
+owners and CPU admission are unchanged. See
+[tsi-htif-direct-exit.md](tsi-htif-direct-exit.md).
+
+The original native and VCS binaries each fail both signal cases when the
+parent blocks SIGINT/SIGTERM. All four fresh fixed processes pass under that
+same inherited mask (`masked-signals/invocation-o8s4roe1/summary.json`). Their
+complete delivery records prove an initially blocked signal, a queued signal
+with the installed FESVR latch clear, handler delivery with the latch set,
+no remaining pending signal, restored mask, rejected production admission
+and unchanged serial state. No context or target edge runs. The full exit
+suite additionally covers explicitly unblocked and inherited starting masks.
+It passes **1,216 production cuts / 6,080 complete source owner images**,
+**2,432 fresh component projections**, **268 malformed/incompatible image
+processes**, **eighteen unowned lifecycle rejections**, **twelve signal-delivery
+proofs** and **sixteen component first-divergence cases**. All 320 requested-exit
+cuts retain their queued response before stop. Accepted summary:
+`exit/invocation-g8_32sg1/summary.json`; separate audit:
+`exit-independent-audit.log`. The image, projection, rejection and corruption
+test scope is retained. These remain host-component cuts and faults.
+
+All **30 retained independent audits** pass (`retained-audits.json`), including
+the historical exit suite, production reader, atomic twelve-owner preparation
+and exact-recipe complete four-hart controls. The current native/VCS polling
+rejection regression passes (`polling-cut.log`). Fresh ordinary Rocket RTL VCS
+reads back all **318,637 diagnostic words / seven clocks before an edge**
+(`ordinary-result.json`). This is pattern readback, not captured CPU replay.
+All **eight preserved native suites** pass, including all **267 Python tests**,
+fixture metasim/replay, banked capture, FCFS and bridge checks. Their independent
+audit binds 5,249 retained artifacts and 791 source inputs
+(`native-regressions/invocation-nlr8j59v/summary.json`,
+`native-independent-audit.log`).
+
+The exact recipe, four-hart workload hash, full 16 GiB memory requirement and
+retained CPU execution evidence remain as recorded below. No new CPU control
+run, full Level-1 continuation or captured Level-2 replay is claimed here.
+The required early, warmed-cache, outstanding-memory and late coherent CPU
+checkpoint cuts, complete state ownership, fresh continuation and semantic
+first-divergence cases remain pending. No external dependency is missing.
+
+Existing controller iteration-129 commits were published FireSim first, then
+Chipyard; both GitHub main tips match (`github-publication.json`). The
+controller owns staging, the next local checkpoint and its publication.
+Both plans and environment helpers remain read-only inputs.
+
+Repeat the focused checks from the Chipyard root:
+
+```sh
+source env.sh && source sims/firesim/env.sh
+source automations/checkpoint_loop/vcs-env.sh
+python -m tools.checkpoint_formats.tests.verify_tsi_htif_exit_vcs \
+  --out automations/checkpoint_loop/runs/m11-iteration130-controller-rechecks/exit
+python -m tools.checkpoint_formats.tests.verify_tsi_htif_exit_vcs --audit \
+  automations/checkpoint_loop/runs/m11-iteration130/exit/invocation-g8_32sg1/summary.json
+python automations/checkpoint_loop/runs/m11-iteration130/repeat-masked-signals.py
+python automations/checkpoint_loop/runs/m11-iteration130/repeat-native-regressions.py
+python -m tools.checkpoint_formats.native_regressions --audit \
+  automations/checkpoint_loop/runs/m11-iteration130/native-regressions/invocation-nlr8j59v/summary.json
+```
+
+Each invocation creates fresh diagnostic paths. The native/VCS exit suite
+archives inputs before compilation and checks them again after all processes;
+its commands source the pinned helper last. The initial compile-only pilot
+that attempted to subclass the final TSI class is excluded. The selected
+test uses a separate installed reference for the shared signal latch.
+`selected-results.json`, `verification-commands.json`, `raw-native-commands.json`,
+`summary.json` and `artifact-manifest.json` retain full paths, exact executable
+commands and source/artifact hashes. Both plans and environment helpers pass
+their unchanged-byte checks (`protected-inputs-check.log`).
 
 ## Iteration 129: direct HTIF exit and no-signature stop component
 

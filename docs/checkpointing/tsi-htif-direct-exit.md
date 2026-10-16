@@ -63,3 +63,25 @@ restoration and coherent simulator/CPU cuts. Level-2 still requires actual
 semantic CPU capture and boundary trace, complete fresh zero-edge readback
 and captured-trace replay. BOOM and Saturn remain pending. No physical FPGA
 or ASIC validation is claimed.
+
+Iteration 130 corrects the signal rejection test's delivery assumption.
+`raise()` queues a signal when the calling thread blocks it; a successful
+return does not mean the installed FESVR handler ran. Passing a blocked
+SIGINT/SIGTERM mask through the parent process reproduces the controller's
+failure with the original native and VCS binaries. The test now checks the
+installed handler, blocks and raises the selected signal, verifies that it
+remains pending with the installed global exit latch clear, unblocks it,
+verifies delivery and the exit latch, and restores the original mask before
+checking production rejection and unchanged serial state. A pristine installed
+HTIF reference observes the shared signal latch; the actual final TSI class
+still performs the admission check. No host context is entered.
+
+Native and VCS cases cover inherited, explicitly blocked and explicitly
+unblocked starting masks for both signals. Revision-1 delivery evidence records
+the initial mask, pending signal, observed latch and restored mask; the
+independent audit checks all twelve records and all eighteen lifecycle
+rejections. Historical summaries retain their original ten-case audit scope.
+This only fixes the validation harness. Pending signals, installed lifecycle
+fields and complete CPU checkpoints still require explicit ownership.
+Iteration-130 diagnostics and commands are under
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration130/`.
