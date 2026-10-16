@@ -1,6 +1,6 @@
 # CPU checkpoint matrix
 
-Current milestone: M11 Rocket, iteration 134. Level-1 and Level-2 acceptance
+Current milestone: M11 Rocket, iteration 135. Level-1 and Level-2 acceptance
 remain **in_progress**. No CPU checkpoint continuation or clean CPU RTL replay
 has passed. Physical FPGA validation, standalone Shuttle and ASIC power are
 outside this matrix. The verified FCFS evidence remains in its existing docs.
@@ -32,6 +32,122 @@ The recipe also specifies frequency 140 MHz and TIMING build strategy; these
 are retained in the recipe record, with no FPGA implementation invoked.
 VCS uses Y-2026.03-SP1, `-full64`, `VCS_FLAGS=-Mupdate`, system GCC/G++ 13,
 and the sourced Conda library/include directories. No Conda files are edited.
+
+## Iteration 135: preserve retained builds across auditor evolution
+
+Diagnostic root:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration135/`.
+Both CPU levels remain **in_progress**. The previous controller's continuation
+sweep failed its final source check because the preparation auditor had evolved
+after the retained native build. Its original hash is
+`a6e9a77a9bed36f0def2510b4c7cdafdc19fe1659e31a604346c71168d1d9619`;
+the current auditor hash is
+`0dd996dca8142af9eb8cfc3d071ae031c20cd554135f05970cb3385ef3b2dfed`.
+All 65 inherited non-Python dispatch build inputs still match. See
+[native-input-provenance.md](native-input-provenance.md) for the validation
+contract. No production state owner or CPU admission changed this iteration.
+
+The new guard audits inherited snapshots, archives each invocation's live
+inputs before native execution, and rejects later source changes. New dispatch
+compilation requires unchanged C++/SV, headers, libraries and environment
+scripts before starting either compiler. Independent audits bind guard
+requirements to the executed checker snapshot and require complete membership
+and unchanged native compilation identities. Historical reports remain
+auditable. Eleven focused tests pass, including auditor evolution, edits during
+execution, changed compiled headers/binaries, missing/duplicate inputs and
+forged or omitted guards. Five separately resealed invocation-evidence mutations
+reject; these are auditor tests, separate from actual semantic corruptions.
+
+All 275 Python tests and all eight preserved native suites pass, retaining
+5,256 artifacts / 796 source bindings. All 30 retained audits pass. The actual
+recipe-linked lifecycle suite passes 1,216 captures, 2,432 fresh provider
+readbacks, 88 optional/raw/stopped restores, 282 malformed images, eighteen
+guards, twenty first divergences, 440 atomic transactions and three compile
+rejections. The bound three-owner suite passes 224 fresh restores, 6,160 host
+operations, 19,824 owner readbacks, 932 malformed images, 32 membership errors,
+four binding errors, sixty allocation failures and eight first divergences.
+Active dispatch passes all eight semantic corruptions at host operation 111 /
+request word 1 without consuming the faulty word. Their independent audits
+pass. Ordinary Rocket RTL diagnostic readback passes 318,637 words / seven
+clocks / zero edges; coherent CPU capture and finite replay remain pending.
+
+The complete native ASan/UBSan and VCS sweeps pass 2,976 preparations and
+2,976 fresh continuations across all 744 cuts. Continuation passes 1,105,584
+host operations and 13,302,720 complete owner readbacks; twenty unowned commands
+and four external exits reject before service. All eight semantic corruptions
+stop at their first divergent request word without consuming it. Preparation
+rejects 4,368 malformed images, 244 membership errors, 44 cross-owner/config
+errors and 2,904 allocation failures before publication. Candidate guards
+additionally pass all twelve late-peer changes, 172 commit-allocation failures
+and eight consumed/competing rejections. Both independent audits pass. The
+continuation command deliberately reuses iteration 134's preparation summary,
+reproducing the controller's formerly failing provenance path.
+
+Both exact-recipe four-hart controls pass at **C=3,329,794**, each with
+**16 GiB** memory. All eight complete hart traces and every workload/store
+cycle label match the uninterrupted reference. All eight active host samples /
+64 known component images match, including the late sample. Requested credits
+are `0,520064,700032,900096,3250048`; active samples retain credit plus one
+clock tokens. Separate control and host audits pass. These are uninterrupted
+controls and partial host inspections, not complete CPU checkpoint restores.
+Workload ELF SHA-256:
+`f3d86f54caf42b9589385e8021dba46777f647134f19595e38a3d452b745f3d4`.
+The generated simulator inventory remains 11,464 entries / 445,838 words;
+complete ownership/admission is pending and the CPU profile remains disabled.
+
+`selected-results.json`, `verification-commands.json`, `raw-native-commands.json`,
+`native-input-archives.json`, `summary.json` and `artifact-manifest.json` catalog
+exact source/workload/build hashes, native commands, images, readbacks, traces
+and negative cases. `source-guard-evolution.json` binds both auditor versions;
+`failure-analysis.json` and `previous-verification.log` preserve the original
+controller failure. Production C++ and all maintained checker sources stayed
+unchanged during these native runs. Plans and environment helpers retain their
+initial hashes. Existing controller iteration-134 commits were published
+FireSim first, then Chipyard; no staging or local commits. No missing external
+dependency is known. Complete fresh Level-1 CPU continuation and independently
+captured Level-2 readback/replay remain pending, along with aggregate lifecycle,
+session, descriptor, signal, context, simulator, bridge and memory ownership.
+
+Accepted component summaries relative to the diagnostic root above:
+
+- `polling-preparation/invocation-wrshg5gy/summary.json`
+- `polling-continuation/invocation-92r4gved/summary.json`
+- `polling-dispatch/invocation-ecf6k0o9/summary.json`
+- `polling-devices/invocation-x3yd_8ce/summary.json`
+- `recipe-lifecycle/invocation-gfp310ng/summary.json`
+- `rocket-controls/invocation-38rhy04q/summary.json` (uninterrupted controls)
+- `native-regressions/invocation-h0tkdoou/summary.json`
+- `ordinary-npdvaijd/summary.json` (diagnostic pattern, no captured replay)
+
+Executable checks from the Chipyard root, with the license/compiler helper
+sourced last. Each native checker allocates new invocation paths:
+
+```bash
+source env.sh
+source sims/firesim/env.sh
+source automations/checkpoint_loop/vcs-env.sh
+python -m tools.checkpoint_formats.tests.verify_tsi_polling_prepare_vcs --identity \
+  --out automations/checkpoint_loop/runs/m11-iteration135/controller-rechecks/polling-preparation
+python -m tools.checkpoint_formats.tests.verify_tsi_polling_continue_vcs --identity \
+  --preparation-summary automations/checkpoint_loop/runs/m11-iteration134/polling-preparation/invocation-2fn8v3ab/summary.json \
+  --out automations/checkpoint_loop/runs/m11-iteration135/controller-rechecks/polling-continuation
+python -m tools.checkpoint_formats.tests.verify_tsi_polling_dispatch_vcs \
+  --preparation-summary automations/checkpoint_loop/runs/m11-iteration134/polling-preparation/invocation-2fn8v3ab/summary.json \
+  --out automations/checkpoint_loop/runs/m11-iteration135/controller-rechecks/polling-dispatch
+python -m tools.checkpoint_formats.tests.verify_rocket_controls_vcs \
+  --out automations/checkpoint_loop/runs/m11-iteration135/controller-rechecks/rocket-controls \
+  --seed-build automations/checkpoint_loop/runs/m11-iteration135/rocket-controls/invocation-38rhy04q/build \
+  --workload automations/checkpoint_loop/runs/m11-iteration82/workload \
+  --reference-runtime automations/checkpoint_loop/runs/m11-iteration85/rocket-runtime \
+  --reference-audit automations/checkpoint_loop/runs/m11-iteration85/rocket-workload-audit.json \
+  --host-audit-cycles 0,520064,700032,900096,3250048 \
+  --htif-source toolchains/riscv-tools/riscv-isa-sim/fesvr/htif.cc
+python -m tools.checkpoint_formats.tests.verify_tsi_htif_lifecycle_vcs \
+  --recipe-build-identity automations/checkpoint_loop/runs/m11-iteration135/rocket-controls/invocation-38rhy04q/rocket-build-identity.json \
+  --out automations/checkpoint_loop/runs/m11-iteration135/controller-rechecks/recipe-lifecycle
+python automations/checkpoint_loop/runs/m11-iteration135/repeat-native-regressions.py
+python automations/checkpoint_loop/runs/m11-iteration135/repeat-ordinary.py
+```
 
 ## Iteration 134: separate polling preparation and publication
 

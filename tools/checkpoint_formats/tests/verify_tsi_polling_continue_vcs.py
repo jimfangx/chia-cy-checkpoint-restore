@@ -16,6 +16,7 @@ import tempfile
 from tools.checkpoint_formats.codec import require
 from tools.checkpoint_formats.evidence import file_sha
 from tools.checkpoint_formats.retained_evidence import check_native_input
+from tools.checkpoint_formats import native_input_guard
 from tools.checkpoint_formats.tests.verify_semantic_vcs import ROOT, run
 from tools.checkpoint_formats.tests.verify_loadmem_read_checkpoint_vcs import ENVIRONMENT
 from tools.checkpoint_formats.tests import verify_tsi_polling_prepare_vcs as preparation
@@ -39,6 +40,7 @@ def audit(path):
     for binding in bindings.values():
         require(file_sha(binding['snapshot']) == binding['sha256'], 'changed continuation source snapshot')
         check_native_input(ROOT, binding['path'], binding['sha256'], bindings)
+    native_input_guard.audit_reused_input_guard(ROOT, report, Path(__file__).resolve())
     base = Path(report['preparation_summary'])
     prepared = preparation.audit(base)
     plan, images = preparation.scenario(report.get('aligned_identity', False))
@@ -149,6 +151,11 @@ def main():
     snapshot = out/'continuation-source.py'
     shutil.copyfile(__file__, snapshot)
     bindings = bindings+[dict(path=str(Path(__file__).resolve()), sha256=file_sha(snapshot), snapshot=str(snapshot))]
+    guard = Path(native_input_guard.__file__).resolve()
+    guard_snapshot = out/'native-input-guard-source.py'
+    shutil.copyfile(guard, guard_snapshot)
+    bindings.append(dict(path=str(guard), sha256=file_sha(guard_snapshot), snapshot=str(guard_snapshot)))
+    invocation_inputs = native_input_guard.pin_reused_inputs(ROOT, bindings, out/'invocation-sources')
     plan, images = preparation.scenario(args.identity)
 
     def invoke(backend, mode, name, producer, cut=0, plan_path=None, **extra):
@@ -181,12 +188,12 @@ def main():
                 cut = next(i for i, line in enumerate(plan) if line.startswith('PACKET 15 0 1684104562 '))
                 identity_corruptions.append(invoke(b, 'identity-corrupt', f'{p}-{b}-identity-corrupt', p, cut=cut))
     commands.extend(unsupported+exit_guards+corruptions+identity_corruptions)
-    for binding in bindings:
-        require(file_sha(binding['path']) == binding['sha256'], 'source changed during continuation checks')
+    native_input_guard.require_live_inputs_unchanged(invocation_inputs)
     report = dict(status='passed', scope='sealed BCD polling components without coroutine; no CPU continuation',
                   preparation_summary=str(bases[0]), continuations=continuations, unsupported=unsupported,
                   exit_guards=exit_guards, corruptions=corruptions, identity_corruptions=identity_corruptions,
                   aligned_identity=args.identity, unsupported_commands=REJECTED, commands=commands, source_inputs=bindings,
+                  invocation_source_inputs=invocation_inputs,
                   level1_verified=False, level2_verified=False,
                   artifact_sha256={str(p): file_sha(p) for p in sorted(out.rglob('*')) if p.is_file()})
     path = out/'summary.json'

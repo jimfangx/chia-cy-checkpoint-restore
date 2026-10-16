@@ -15,6 +15,7 @@ import tempfile
 from tools.checkpoint_formats.codec import require
 from tools.checkpoint_formats.evidence import file_sha
 from tools.checkpoint_formats.retained_evidence import check_native_input
+from tools.checkpoint_formats import native_input_guard
 from tools.checkpoint_formats.tests import verify_tsi_polling_prepare_vcs as base
 from tools.checkpoint_formats.tests.verify_semantic_vcs import ROOT, run
 from tools.checkpoint_formats.tests.verify_loadmem_read_checkpoint_vcs import ENVIRONMENT
@@ -56,6 +57,9 @@ def audit(path):
     for b in bindings.values():
         require(file_sha(b['snapshot']) == b['sha256'], 'changed dispatch source snapshot')
         check_native_input(ROOT, b['path'], b['sha256'], bindings)
+    native_input_guard.audit_reused_input_guard(
+        ROOT, report, Path(__file__).resolve(),
+        compiled=[name for name in bindings if Path(name).suffix != '.py'])
     base.audit(Path(report['preparation_summary']))
     plan, images = base.scenario(True)
     cuts = selected(images)
@@ -115,9 +119,15 @@ def main():
              base.TESTCHIP/'testchip_tsi.cc',base.TESTCHIP/'testchip_htif.cc',base.TESTS/'tsi_terminal_allocations.cc']
     bindings=list(original['source_inputs'])
     snapshots=out/'sources';snapshots.mkdir()
-    for name in [sources[0],Path(__file__)]:
+    for name in [sources[0],Path(__file__).resolve(),Path(native_input_guard.__file__).resolve()]:
         snapshot=snapshots/file_sha(name);shutil.copyfile(name,snapshot)
         bindings.append(dict(path=str(name),sha256=file_sha(name),snapshot=str(snapshot)))
+    # C++/SV, transitive headers, native libraries and environment scripts must
+    # still match the prerequisite build. Only Python harness evolution can be
+    # inherited here: the new native commands compile from these live paths.
+    invocation_inputs=native_input_guard.pin_reused_inputs(
+        ROOT,bindings,out/'invocation-sources',
+        compiled=[b['path'] for b in bindings if Path(b['path']).suffix != '.py'])
     commands=[]
     def execute(argv,log):
         command=['bash','-lc',ENVIRONMENT+shlex.join(map(str,argv))];run(command,log,cwd=out)
@@ -141,9 +151,10 @@ def main():
     jobs += [(p,b,m,cuts[0]) for p in ('native','vcs-dpi') for b in ('native','vcs-dpi') for m in ('merge-corrupt','command-corrupt')]
     with ThreadPoolExecutor(max_workers=4) as pool:results=list(pool.map(lambda j:invoke(*j),jobs))
     commands.extend(results)
-    for b in bindings:require(file_sha(b['path'])==b['sha256'],'source changed during dispatch verification')
+    native_input_guard.require_live_inputs_unchanged(invocation_inputs)
     report=dict(status='passed',scope='active twelve-owner host-component preparation and semantic corruption',preparation_summary=str(summary),
-                invalids=results[:8],corruptions=results[8:],commands=commands,source_inputs=bindings,level1_verified=False,level2_verified=False,
+                invalids=results[:8],corruptions=results[8:],commands=commands,source_inputs=bindings,
+                invocation_source_inputs=invocation_inputs,level1_verified=False,level2_verified=False,
                 artifact_sha256={str(p):file_sha(p) for p in sorted(out.rglob('*')) if p.is_file()})
     path=out/'summary.json';path.write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(dict(summary=str(path),**audit(path)),indent=2))
 

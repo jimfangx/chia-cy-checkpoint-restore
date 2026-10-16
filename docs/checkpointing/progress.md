@@ -14,6 +14,54 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 135, in progress. Recovery:
+[native-input-provenance.md](native-input-provenance.md) and
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Fixed the controller's
+continuation failure: the retained preparation build predates a Python auditor
+change, while all native inputs still match. New invocations audit the original
+build snapshots, separately pin live source bytes and reject edits during
+execution. Fresh dispatch compilation additionally rejects changed native
+inputs before building. Independent audits require complete invocation guards
+when the executed checker has this contract. CPU admission is unchanged;
+neither complete checkpoint level is accepted.
+
+Diagnostics: `runs/m11-iteration135/`. Eleven focused guard tests and all 275
+Python tests pass. All eight preserved native suites pass (5,256 artifacts /
+796 source bindings), as do all 30 retained audits. Actual recipe-linked
+lifecycle, bound three-owner restoration and active-dispatch suites pass with
+their independent audits. Five resealed invocation-guard evidence mutations
+reject. Ordinary Rocket RTL diagnostic readback passes 318,637 words / seven
+clocks / zero edges; this remains a pattern test, not captured CPU replay.
+Full native/VCS sweeps and independent audits pass 2,976 preparations and
+2,976 fresh continuations across 744 cuts, with 1,105,584 host operations /
+13,302,720 complete owner readbacks. All eight continuation semantic faults
+stop at their first divergent word without consuming it. Both full four-hart
+controls pass at C=3,329,794 with 16 GiB memory. Every full hart trace and
+workload/store cycle label matches; eight active host samples / 64 known
+component images match, including the late cut. Separate control and host
+audits pass. These remain uninterrupted controls and partial host inspections,
+not complete CPU checkpoint restores.
+
+Recovery catalogs: `selected-results.json`, `verification-commands.json`,
+`raw-native-commands.json`, `native-input-archives.json`, `summary.json` and
+`artifact-manifest.json`. `failure-analysis.json` preserves the original
+controller failure and exact evolving source hashes. Complete continuation:
+`polling-continuation/invocation-92r4gved/summary.json`; exact-recipe controls:
+`rocket-controls/invocation-38rhy04q/summary.json`. Native preparation and
+continuation guards now survive the previously failing retained-auditor path.
+
+Existing controller iteration-134 commits were published FireSim first, then
+Chipyard. Both GitHub main tips match; local tracking-ref updates encounter
+read-only `.git`, recorded separately from the successful remote publication.
+No staging or local commits. Plans and environment helpers remain unchanged.
+No missing external dependency is known. Next: lifecycle/direct-exit aggregate,
+session/descriptor/signal/syscall-parent/outer-context and simulator/bridge/
+memory ownership; coherent CPU cuts; complete fresh Level-1 continuation and
+independently captured Level-2 replay. BOOM/Saturn remain pending. Standalone
+Shuttle, physical FPGA and ASIC power remain outside this task.
+
+Previous iteration 134 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 134, in progress. Recovery:
 [tsi-polling-preparation.md](tsi-polling-preparation.md) and
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). All twelve known sealed
