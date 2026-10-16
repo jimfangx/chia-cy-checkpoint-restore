@@ -25,6 +25,13 @@ PROVIDER = ROOT/'toolchains/riscv-tools/riscv-isa-sim/fesvr/htif.cc'
 RAW = (0, 1, 2, 3, 0x7ffffffe, 0x7fffffff, 0x80000000, 0x80000001, 0xfffffffe, 0xffffffff)
 GUARDS = ('pending', 'delivered', 'pending-exit', 'delivered-exit', 'mask', 'handler',
           'occupied-exit', 'occupied-stop', 'signature')
+TRANSACTIONS = ('commit', 'abandon', 'peer-invalid', 'pending', 'delivered', 'mask',
+                'handler', 'occupied-exit', 'occupied-stop', 'signature')
+BAD_COMMIT = {
+    'copy': 'auto copy = next;',
+    'move': 'auto moved = std::move(next);',
+    'throwing': 'auto publish = []() {}; next.commit(publish);',
+}
 
 
 def image(present=0, raw=0, stopped=0):
@@ -124,7 +131,9 @@ def audit(path):
                     raw_restores += 1
         for n, payload in enumerate(bad_images()):
             require((out/f'bad-{n}.lifecycle').read_bytes() == payload and
-                    (out/f'{backend}-reject-{n}/unchanged.lifecycle').read_bytes() == image(), 'non-atomic malformed lifecycle rejection')
+                    (out/f'{backend}-reject-{n}/unchanged.lifecycle').read_bytes() == image() and
+                    (out/f'{backend}-reject-{n}/prepare-rejected.txt').read_text() ==
+                    'rejected=1 target_services=0\n', 'non-atomic malformed lifecycle rejection')
         for which in GUARDS:
             target = out/f'{backend}-guard-{which}'
             require((target/'guard.txt').read_text() == f'{which} rejected=1 target_services=0\n', 'missing lifecycle guard')
@@ -138,6 +147,36 @@ def audit(path):
     # Every restore/reject/corrupt invocation must leave the whole serial owner
     # unchanged. Audit bytes against the independent empty-FIFO encoding.
     from tools.checkpoint_formats.tests.verify_tsi_memif_read_vcs import serial
+    before_peer = serial([0, 0x80001234, 0, 1, 0], [0x11223344])
+    replacement_peer = serial([1, 0x87654320, 0x12345678, 1, 0, 0xdeadbeef, 0xfedcba98], [0x5678, 0x99])
+    transactions = 0
+    for backend in ('native', 'vcs-dpi'):
+        for tag, present, raw in [('absent', 0, 0), *[(str(raw), 1, raw) for raw in RAW]]:
+            for phase, stopped in (('requested', 0), ('stopped', 1)):
+                for which in TRANSACTIONS:
+                    target = out/f'{backend}-transaction-{tag}-{phase}-{which}'
+                    committed = which == 'commit'
+                    require((target/'before.serial').read_bytes() == before_peer and
+                            (target/'candidate.serial').read_bytes() == replacement_peer and
+                            (target/'after.serial').read_bytes() == (replacement_peer if committed else before_peer),
+                            'incomplete transaction peer readback')
+                    require((target/'transaction.txt').read_text() ==
+                            f'{which} callbacks={int(committed)} target_services=0\n', 'transaction publication count differs')
+                    if which not in ('delivered', 'signature'):
+                        expected = image(present, raw, stopped) if committed else image(
+                            int(which == 'occupied-exit'), 0, int(which == 'occupied-stop'))
+                        wanted_fields = fields(present, raw, stopped) if committed else fields(
+                            int(which == 'occupied-exit'), 0, int(which == 'occupied-stop'))
+                        require((target/'after.lifecycle').read_bytes() == expected and
+                                (target/'after.fields').read_text() == wanted_fields, 'transaction provider readback differs')
+                    else:
+                        require(not (target/'after.lifecycle').exists(), 'unsupported signal/signature readback claimed')
+                    transactions += 1
+    for name, statement in BAD_COMMIT.items():
+        require((out/f'bad-commit-{name}.cc').read_text() == bad_commit_source(statement), 'changed compile rejection input')
+        log = (out/f'bad-commit-{name}.log').read_text()
+        require('error:' in log and ('deleted' in log if name != 'throwing' else
+                'lifecycle peer publication must be noexcept' in log), 'missing commit type rejection')
     for p in out.rglob('unchanged.serial'):
         require(p.read_bytes() == serial([], []), 'lifecycle touched target queues')
     require(r['commands'] and all(Path(c['log']).read_text().rstrip().endswith('exit='+str(c['returncode']))
@@ -145,7 +184,14 @@ def audit(path):
     return dict(status='passed', source_cuts=captures, fresh_provider_restores=restores,
                 optional_raw_restores=raw_restores, malformed_processes=2*len(bad_images()),
                 guard_rejections=2*len(GUARDS), first_divergences=2*len(RAW),
+                atomic_transactions=transactions, compile_rejections=len(BAD_COMMIT),
                 level1_verified=False, level2_verified=False)
+
+
+def bad_commit_source(statement):
+    return ('#include "fesvr/tsi_htif_lifecycle.h"\n'
+            'void check(firesim_tsi_htif_lifecycle_t &owner, const std::vector<uint8_t> &image) {\n'
+            '  auto next = owner.prepare_checkpoint(image);\n  '+statement+'\n}\n')
 
 
 def main():
@@ -210,6 +256,10 @@ def main():
     include = f'-std=c++17 -I{CC} -I{STUBS} -I{TESTCHIP} -I{FESVR/"include"}'
     execute([os.environ['CXX'], *shlex.split(include), '-g', '-no-pie', '-fsanitize=address,undefined', '-fno-omit-frame-pointer',
              *sources, library, '-lpthread', '-o', native], out/'native-build.log')
+    for name, statement in BAD_COMMIT.items():
+        bad = out/f'bad-commit-{name}.cc'; bad.write_text(bad_commit_source(statement))
+        execute([os.environ['CXX'], *shlex.split(include), '-fsyntax-only', bad],
+                out/f'bad-commit-{name}.log', expected=1)
     execute([Path(os.environ['VCS_HOME'])/'bin/vcs', '-full64', '-sverilog', '-timescale=1ns/1ps', '-top', 'tsi_htif_lifecycle_fesvr_tb',
              '-cc', os.environ['CC'], '-cpp', os.environ['CXX'], '-Mdir='+str(out/'csrc'), '-CFLAGS', include+' -DTSI_HTIF_LIFECYCLE_DPI',
              '-LDFLAGS', '-Wl,--whole-archive '+str(library)+' -Wl,--no-whole-archive -lpthread', '-o', simv, sv, *sources], out/'vcs-build.log')
@@ -239,6 +289,11 @@ def main():
         jobs += [(b, 'corrupt', f'{b}-corrupt-{r}', out/f'corrupt-{r}.lifecycle', r, 0) for b in ('native','vcs-dpi')]
     jobs += [(b, 'guard', f'{b}-guard-{g}', out/'native-raw-3/requested.lifecycle', g, 0)
              for b in ('native', 'vcs-dpi') for g in GUARDS]
+    jobs += [(b, 'transaction', f'{b}-transaction-{tag}-{phase}-{which}',
+              out/f'native-raw-{tag}/{phase}.lifecycle', which, 0)
+             for b in ('native', 'vcs-dpi')
+             for tag in ('absent', *map(str, RAW)) for phase in ('requested', 'stopped')
+             for which in TRANSACTIONS]
     with ThreadPoolExecutor(max_workers=8) as pool:
         list(pool.map(lambda j: invoke(*j), jobs))
     for b in bindings:

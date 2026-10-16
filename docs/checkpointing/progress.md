@@ -14,6 +14,50 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 133, in progress. Recovery:
+[tsi-htif-lifecycle-preparation.md](tsi-htif-lifecycle-preparation.md) and
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Added destination-aware,
+single-use lifecycle preparation and final provider guards before nonthrowing
+peer publication. The component loader uses this path. The existing twelve-owner
+polling aggregate and complete CPU admission remain unchanged.
+
+Diagnostics: `runs/m11-iteration133/`. Both standalone and actual recipe-linked
+lifecycle suites pass, each with 440 paired lifecycle/serial transactions,
+three compile rejections and the full prior lifecycle suite (1,216 captures,
+2,432 fresh final-class TSI restores, 88 raw/optional/stopped restores,
+282 malformed-image processes, eighteen guards and twenty first divergences).
+Both independent audits pass. Five resealed auditor-evidence mutations reject.
+Production Make provider selection/header rejection and eight read-only
+incompatible-build rejections pass. All eight preserved native suites pass
+(268 Python tests, FCFS included; 5,254 artifacts / 794 source bindings), with
+a passing completed-suite independent audit. All 30 retained audits pass.
+Fresh ordinary Rocket RTL VCS passes 318,637 diagnostic words / seven clocks /
+zero edges; captured CPU replay remains pending.
+
+Both complete exact-recipe four-hart controls pass at C=3,329,794 in
+`rocket-controls/invocation-tbfiwdyq/`, with full 16 GiB memory. All eight full
+hart traces and every workload/store cycle label match the uninterrupted
+reference. All eight active host samples / 64 known component images match,
+including the late cut. Separate control/host audits pass; these are not
+complete CPU checkpoints. Five incompatible provider metadata flags reject;
+all four lifecycle APIs are independently bound to the actual linked object.
+Recovery catalogs: `selected-results.json`, `verification-commands.json`,
+`raw-native-commands.json`, `native-input-archives.json`, `summary.json` and
+`artifact-manifest.json`.
+Accepted lifecycle: `recipe-lifecycle/invocation-nu6bqm1v/summary.json`;
+standalone: `lifecycle/invocation-arsi0u2h/summary.json`.
+Both plans and environment helpers retain their initial hashes. Existing
+controller iteration-132 commits were published FireSim first, then Chipyard;
+both GitHub main tips match. No staging or local commits. No missing external
+dependency is known. Next: complete aggregate/session/descriptor/signal/
+syscall-parent/outer-context and simulator/bridge/memory ownership, coherent
+CPU cuts, fresh Level-1 continuation and independent captured Level-2 replay.
+Neither CPU level is accepted. BOOM/Saturn remain pending; physical FPGA and
+ASIC power remain deferred. An initial native audit observed the final native
+check still running and is excluded; the completed suite and final audit pass.
+
+Previous iteration 132 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 132, in progress. Recovery:
 [tsi-htif-recipe-integration.md](tsi-htif-recipe-integration.md) and
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Added explicit production

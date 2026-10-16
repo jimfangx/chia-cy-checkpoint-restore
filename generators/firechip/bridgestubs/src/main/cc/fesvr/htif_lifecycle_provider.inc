@@ -30,21 +30,35 @@ struct firesim_htif_lifecycle_access_t {
     if (htif.exitcode) std::memcpy(&raw, &*htif.exitcode, sizeof(raw));
     return {htif.exitcode.has_value(), raw, htif.stopped};
   }
-  static void restore(htif_t &htif, firesim_htif_lifecycle_state_t state) {
+  static void validate_restore(const htif_t &htif, firesim_htif_lifecycle_state_t state) {
     guard(htif);
     if (htif.exitcode.has_value() || htif.stopped || (!state.has_exit && state.raw_exit))
       throw std::runtime_error("HTIF lifecycle restore requires valid state and pristine destination");
+  }
+  static void publish(htif_t &htif, firesim_htif_lifecycle_state_t state,
+                      void (*publish_peers)(void *) noexcept, void *peers) {
+    validate_restore(htif, state);
     int raw;
     std::memcpy(&raw, &state.raw_exit, sizeof(raw));
+    // No guard or allocation may follow peer publication. The external caller
+    // owns suspension, exclusion and the supported thread/signal policy.
+    if (publish_peers) publish_peers(peers);
     // All checks precede these nonthrowing assignments. Do not reissue an exit
     // command or call stop(): both would be services at the restored boundary.
     if (state.has_exit) htif.exitcode = raw;
     htif.stopped = state.stopped;
   }
 };
+void firesim_htif_lifecycle_validate_restore(const htif_t &htif, firesim_htif_lifecycle_state_t state) {
+  firesim_htif_lifecycle_access_t::validate_restore(htif, state);
+}
+void firesim_htif_lifecycle_publish(htif_t &htif, firesim_htif_lifecycle_state_t state,
+                                  void (*publish_peers)(void *) noexcept, void *peers) {
+  firesim_htif_lifecycle_access_t::publish(htif, state, publish_peers, peers);
+}
 firesim_htif_lifecycle_state_t firesim_htif_lifecycle_read(const htif_t &htif) {
   return firesim_htif_lifecycle_access_t::read(htif);
 }
 void firesim_htif_lifecycle_restore(htif_t &htif, firesim_htif_lifecycle_state_t state) {
-  firesim_htif_lifecycle_access_t::restore(htif, state);
+  firesim_htif_lifecycle_access_t::publish(htif, state, nullptr, nullptr);
 }

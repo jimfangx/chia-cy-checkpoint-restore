@@ -27,13 +27,93 @@ static void fields(htif_t &htif,const fs::path &path) {
   std::ofstream(path)<<s.has_exit<<' '<<s.raw_exit<<' '<<s.stopped<<' '
                      <<htif.done()<<' '<<htif.exit_code()<<'\n';
 }
+// Real FIFO peers exercise the publication primitive without claiming a
+// complete HTIF aggregate. No provider/target service occurs in the callback.
+static void transaction(std::vector<uint8_t> image,const fs::path &out,const std::string &which) {
+  reference_t ref(which=="signature" ?
+    std::vector<std::string>{"+signature="+(out/"unused-signature").string(),"none"} :
+    std::vector<std::string>{"none"});
+  firesim_tsi_htif_lifecycle_t owner(ref);
+  firesim_tsi_serial_state_t peer,candidate;
+  peer.issue_read(0x80001234,8);peer.push_response(0x11223344);
+  const uint32_t payload[]{0xdeadbeef,0xfedcba98};
+  candidate.issue_write(0x1234567887654320,8,payload);
+  candidate.push_response(0x5678);candidate.push_response(0x99);
+  const auto before=peer.save_checkpoint(),replacement=candidate.save_checkpoint();
+  save(out/"before.serial",before);save(out/"candidate.serial",replacement);
+  unsigned callbacks=0;
+  auto publish=[&]() noexcept {peer.swap_state(candidate);++callbacks;};
+  if(which=="signature") {
+    bool rejected=false;try{auto next=owner.prepare_checkpoint(image);}
+    catch(const std::runtime_error &){rejected=true;}
+    require(rejected && !ref.done() && ref.exit_code()==0,"signature preparation changed lifecycle");
+  } else {
+    const auto initial=owner.save_checkpoint();
+    auto next=owner.prepare_checkpoint(image);
+    require(owner.save_checkpoint()==initial && peer.save_checkpoint()==before,"preparation published state");
+    const auto wanted=image;image.clear(); // candidate owns parsed fields, not image storage
+    if(which=="commit") {
+      next.commit(publish);
+      require(callbacks==1 && owner.save_checkpoint()==wanted && peer.save_checkpoint()==replacement,
+              "incomplete lifecycle/peer publication");
+      bool rejected=false;try{next.commit(publish);}catch(const std::runtime_error &){rejected=true;}
+      require(rejected && callbacks==1 && owner.save_checkpoint()==wanted && peer.save_checkpoint()==replacement,
+              "consumed lifecycle candidate published twice");
+      save(out/"after.lifecycle",owner.save_checkpoint());fields(ref,out/"after.fields");
+    } else if(which=="abandon" || which=="peer-invalid") {
+      if(which=="peer-invalid") {
+        bool rejected=false;try{candidate.load_checkpoint({});}catch(const std::runtime_error &){rejected=true;}
+        require(rejected,"invalid peer candidate accepted");
+      }
+      require(owner.save_checkpoint()==initial,"unpublished candidate changed provider");
+      save(out/"after.lifecycle",owner.save_checkpoint());fields(ref,out/"after.fields");
+    } else {
+      sigset_t set;sigemptyset(&set);sigaddset(&set,SIGTERM);
+      struct sigaction original{},changed{};
+      if(which=="pending" || which=="delivered") {
+        require(std::raise(SIGTERM)==0,"queue late signal");
+        if(which=="delivered") {
+          require(pthread_sigmask(SIG_UNBLOCK,&set,nullptr)==0,"deliver late signal");
+          require(pthread_sigmask(SIG_BLOCK,&set,nullptr)==0,"block late signal");
+        }
+      } else if(which=="mask")require(pthread_sigmask(SIG_UNBLOCK,&set,nullptr)==0,"late unblock");
+      else if(which=="handler") {
+        changed.sa_handler=SIG_IGN;sigemptyset(&changed.sa_mask);
+        require(sigaction(SIGTERM,&changed,&original)==0,"late handler");
+      } else if(which=="occupied-exit")ref.htif_exit(0);
+      else if(which=="occupied-stop")ref.stop();
+      else throw std::runtime_error("unknown lifecycle transaction");
+      bool rejected=false;try{auto other=owner.prepare_checkpoint(wanted);}
+      catch(const std::runtime_error &){rejected=true;}
+      require(rejected,"late destination guard missing during preparation");
+      rejected=false;try{next.commit(publish);}catch(const std::runtime_error &){rejected=true;}
+      require(rejected && !callbacks && peer.save_checkpoint()==before,"late guard partially published peers");
+      if(which=="pending") {
+        int signal=0;require(sigwait(&set,&signal)==0 && signal==SIGTERM,"drain late signal");
+      } else if(which=="mask")require(pthread_sigmask(SIG_BLOCK,&set,nullptr)==0,"reblock late signal");
+      else if(which=="handler")require(sigaction(SIGTERM,&original,nullptr)==0,"restore late handler");
+      require(ref.done()==(which=="occupied-stop") && ref.exit_code()==0,"late guard changed lifecycle fields");
+      if(which!="delivered") {
+        save(out/"after.lifecycle",owner.save_checkpoint());fields(ref,out/"after.fields");
+        if(which!="occupied-stop" && which!="occupied-exit")
+          require(owner.save_checkpoint()==initial,"late guard changed provider");
+      }
+    }
+  }
+  require(callbacks==(which=="commit"),"wrong transaction callback count");
+  require(peer.save_checkpoint()==(which=="commit"?replacement:before),"transaction changed peer on rejection");
+  save(out/"after.serial",peer.save_checkpoint());
+  std::ofstream(out/"transaction.txt")<<which<<" callbacks="<<callbacks<<" target_services=0\n";
+}
 static int lifecycle_run(const char *mode,const char *source,const char *destination_path,
                          const char *raw,const char *flush) {
   try {
     fs::path out(destination_path);fs::create_directories(out);
     const std::string op(mode);
     masked_t mask;
-    if(op=="capture") {
+    if(op=="transaction") {
+      transaction(bytes(source),out,raw);
+    } else if(op=="capture") {
       capture(source,out,std::stoull(raw),std::stoull(flush),[](htif_t &htif,const fs::path &prefix){
         firesim_tsi_htif_lifecycle_t owner(htif);
         save(prefix.string()+".lifecycle",owner.save_checkpoint());
@@ -90,6 +170,10 @@ static int lifecycle_run(const char *mode,const char *source,const char *destina
       const auto before=owner.save_checkpoint(),serial=tsi->serial_queue_owner().save_checkpoint();
       const auto image=bytes(source);
       if(op=="reject") {
+        bool prepare_rejected=false;
+        try{auto next=owner.prepare_checkpoint(image);}catch(const std::runtime_error &){prepare_rejected=true;}
+        require(prepare_rejected && owner.save_checkpoint()==before,"malformed preparation changed lifecycle");
+        std::ofstream(out/"prepare-rejected.txt")<<"rejected=1 target_services=0\n";
         bool rejected=false;try{owner.load_checkpoint(image);}catch(const std::runtime_error &){rejected=true;}
         require(rejected && owner.save_checkpoint()==before,"malformed lifecycle partially restored");
         save(out/"unchanged.lifecycle",owner.save_checkpoint());

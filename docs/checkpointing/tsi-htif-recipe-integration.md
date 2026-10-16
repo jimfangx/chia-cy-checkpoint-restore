@@ -79,7 +79,10 @@ of those other gaps automatically.
 
 For aggregate preparation, the current lifecycle adapter's
 `validate_checkpoint()` parses the image only; destination/provider guards run
-in `firesim_htif_lifecycle_restore()`. A future aggregate must preflight those
+in `firesim_htif_lifecycle_restore()`. Iteration 133 adds a destination-bound
+candidate with preparation and final-publication guards; see
+[tsi-htif-lifecycle-preparation.md](tsi-htif-lifecycle-preparation.md).
+A future aggregate must preflight those
 guards and the pristine actual destination before publishing any other owner,
 then commit the parsed fields under its supported thread/signal policy.
 Appending `load_checkpoint()` after the existing twelve-owner publication would
