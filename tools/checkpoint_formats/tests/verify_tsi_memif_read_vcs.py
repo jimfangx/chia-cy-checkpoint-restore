@@ -41,7 +41,7 @@ def initial(address):
     return ((address*37) ^ (address >> 8) ^ 0xa5) & 255
 
 
-def scenario():
+def scenario(flush=0):
     """Independent installed memif.cc ordering and byte-level state oracle."""
     plan, expected, states, events, cases = [], [], [], [], []
     phase, address, cursor, data, pending = 0, 0, 0, b'', child()
@@ -59,10 +59,19 @@ def scenario():
         nonlocal pending
         original = bytes(initial(a+i) for i in range(n))
         values = [int.from_bytes(original[i:i+4], 'little') for i in range(0, n, 4)]
-        requests.extend([0, a & 0xffffffff, a >> 32, n//4-1, 0])
+        prefixes = []
+        if flush:
+            for base in range(a & ~63, a+n, 64):
+                prefixes.append([1, flush & 0xffffffff, flush >> 32, 1, 0, base & 0xffffffff, base >> 32])
+        requests.extend([v for packet in prefixes for v in packet]+[0, a & 0xffffffff, a >> 32, n//4-1, 0])
         events.append(f'READ {a} {n} {original.hex()}')
         pending = child(2, a, n)
         step('ADVANCE', 'ADVANCE BLOCKED')
+        for packet in prefixes:
+            for take in (3, 4):
+                sent = requests[:take]
+                del requests[:take]
+                step('PACKET '+' '.join(map(str, sent)))
         # Preserve a partially drained request as a distinct boundary.
         for take in (2, 3):
             sent = requests[:take]
@@ -132,7 +141,7 @@ def audit(path):
     for binding in bindings.values():
         require(file_sha(binding['snapshot']) == binding['sha256'], 'changed memif source snapshot')
         check_native_input(ROOT, binding['path'], binding['sha256'], bindings)
-    plan, expected, states, events, cases = scenario()
+    plan, expected, states, events, cases = scenario(report.get('flush', 0))
     require(report['cases'] == cases and (out/'plan.txt').read_text().splitlines() == plan and
             (out/'expected.txt').read_text().splitlines() == expected, 'changed memif oracle')
     for backend in ('native', 'vcs-dpi'):
@@ -171,8 +180,10 @@ def audit(path):
     for case in report['invalids']:
         require('REJECTED_BEFORE_MUTATION zero_edges=1' in Path(case['log']).read_text(),
                 'invalid memif image partially restored')
+        flush = report.get('flush', 0)
+        prefix = [1, flush & 0xffffffff, flush >> 32, 1, 0, 0, 0] if flush else []
         require((Path(case['destination'])/'unchanged.read').read_bytes() == reader(1, 7, 0, bytes(3), child(2, 0, 8, [42])) and
-                (Path(case['destination'])/'unchanged.serial').read_bytes() == serial([0, 0, 0, 1, 0]),
+                (Path(case['destination'])/'unchanged.serial').read_bytes() == serial(prefix+[0, 0, 0, 1, 0]),
                 'invalid image changed a pristine peer')
     require(len(report['corruptions']) == 12, 'missing semantic corruption pairings')
     for case in report['corruptions']:
@@ -199,11 +210,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', type=Path)
     parser.add_argument('--audit', type=Path)
+    parser.add_argument('--flush', type=lambda v: int(v, 0), default=0)
     args = parser.parse_args()
     if args.audit:
         print(json.dumps(audit(args.audit), indent=2))
         return
     require(args.out and args.out.resolve().is_relative_to(ROOT/'automations/checkpoint_loop/runs'), 'need runs output')
+    require(0 <= args.flush < 2**64, 'invalid flush address')
     require(os.environ.get('VCS_HOME') == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1' and
             os.environ.get('CXX') == '/usr/bin/g++-13', 'source vcs-env LAST')
     args.out.resolve().mkdir(parents=True, exist_ok=True)
@@ -243,7 +256,7 @@ def main():
                              '-Mdir='+str(out/'csrc'), '-CFLAGS', include+' -DTSI_MEMIF_READ_DPI',
                              '-LDFLAGS', '-Wl,--whole-archive '+str(library)+' -Wl,--no-whole-archive -lpthread',
                              '-o', simv, sv, source, allocations], out/'vcs-build.log'))
-    plan, expected, states, events, cases = scenario()
+    plan, expected, states, events, cases = scenario(args.flush)
     (out/'plan.txt').write_text('\n'.join(plan)+'\n')
     (out/'expected.txt').write_text('\n'.join(expected)+'\n')
     (out/'installed-expected.txt').write_text('\n'.join(events)+'\n')
@@ -252,9 +265,9 @@ def main():
         dest = out/name
         values = list(map(str, [mode, dest, out/'plan.txt', out/'expected.txt',
                                image or out/(producer+f'-capture/cut-{cut}.read'),
-                               queue or out/(producer+f'-capture/cut-{cut}.serial'), cut]))
+                               queue or out/(producer+f'-capture/cut-{cut}.serial'), cut, args.flush]))
         argv = [native, *values] if backend == 'native' else [
-            simv, '-no_save', *['+'+k+'='+v for k, v in zip(('mode', 'out', 'plan', 'expected', 'image', 'queue', 'cut'), values)]]
+            simv, '-no_save', *['+'+k+'='+v for k, v in zip(('mode', 'out', 'plan', 'expected', 'image', 'queue', 'cut', 'flush'), values)]]
         return dict(execute(argv, out/(name+'.log'), code), backend=backend, producer=producer, cut=cut,
                     destination=str(dest), **extra)
 
@@ -325,7 +338,7 @@ def main():
     commands.extend(corruptions)
     for binding in bindings:
         require(file_sha(binding['path']) == binding['sha256'], 'source changed during memif verification')
-    report = dict(status='passed', scope='explicit memif read caller and serial FIFOs; production syscall/HTIF/CPU integration pending',
+    report = dict(status='passed', scope='explicit memif read caller and serial FIFOs; complete syscall/HTIF/CPU restore pending', flush=args.flush,
                   source_inputs=bindings, commands=commands, continuations=continuations, cases=cases,
                   invalids=invalids, corruptions=corruptions, level1_verified=False, level2_verified=False,
                   artifact_sha256={str(p): file_sha(p) for p in sorted(out.rglob('*')) if p.is_file()})

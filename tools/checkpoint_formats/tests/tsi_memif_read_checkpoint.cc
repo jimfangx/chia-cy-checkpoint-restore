@@ -28,8 +28,8 @@ static std::string hex(const uint8_t *p,size_t n) {
 }
 static uint8_t initial(uint64_t a) {return uint8_t((a*37)^(a>>8)^0xa5);}
 struct services_t final : reader_t::services_t {
-  firesim_tsi_serial_read_services_t production;size_t calls=0;
-  explicit services_t(firesim_tsi_serial_state_t &q):production(q){}
+  firesim_tsi_memif_read_services_t production;size_t calls=0;
+  explicit services_t(firesim_tsi_serial_state_t &q,uint64_t flush=0):production(q,flush){}
   void issue(uint64_t a,uint64_t n) override {++calls;production.issue(a,n);}
   bool receive(uint32_t &w) override {++calls;return production.receive(w);}
 };
@@ -67,6 +67,16 @@ static size_t checks() {
   auto reject=[&](auto f){bool bad=false;try{f();}catch(const std::exception &){bad=true;}require(bad,"missing rejection");++count;};
   auto atomic=[&](auto f){const auto a=r.save_checkpoint(),b=q.save_checkpoint();reject(f);
     require(r.save_checkpoint()==a && q.save_checkpoint()==b,"partial invalid restore");};
+  firesim_tsi_memif_read_services_t policy(q,0x1280001000);
+  for(auto spec:std::vector<std::pair<uint64_t,uint64_t>>{{0,0},{0,4},{1,8},{0,1032},{~uint64_t(0)-7,16}})
+    atomic([&]{policy.issue(spec.first,spec.second);});
+  {
+    firesim_tsi_serial_state_t peer;firesim_tsi_memif_read_services_t end(peer,0x1280001000);
+    end.issue(~uint64_t(0)-7,8);
+    for(auto v:std::vector<uint32_t>{1,0x80001000,0x12,1,0,0xffffffc0,0xffffffff,0,0xfffffff8,0xffffffff,1,0})
+      require(peer.pop_request()==v,"final-address policy packet differs");
+    require(!peer.request_available(),"final-address flush loop repeated");++count;
+  }
   atomic([&]{r.begin(~uint64_t(0),2);});atomic([&]{r.begin(0,reader_t::maximum+1);});
   atomic([&]{r.finish();});atomic([&]{r.result();});
   r.begin(0x1280003009,9);r.advance(s);q.push_response(0xaabbccdd);r.advance(s);auto image=r.save_checkpoint();
@@ -134,12 +144,12 @@ static size_t checks() {
   return count;
 }
 static int run(const char *mode,const char *destination,const char *plan,const char *expected,
-               const char *image,const char *queue,const char *cut) {
+               const char *image,const char *queue,const char *cut,const char *flush) {
   try {
     fs::path out(destination);fs::create_directories(out);
     if(std::string(mode)=="installed"){installed(plan,out);return 0;}
     if(std::string(mode)=="check"){const auto count=checks();std::cout<<"ATOMIC_CHECKS "<<count<<'\n';return 0;}
-    reader_t r;firesim_tsi_serial_state_t q;services_t s(q);
+    reader_t r;firesim_tsi_serial_state_t q;services_t s(q,std::stoull(flush));
     if(std::string(mode)=="invalid") {
       r.begin(7,3);r.advance(s);q.push_response(42);r.advance(s);
       const auto before=r.save_checkpoint(),peer=q.save_checkpoint();bool failed=false;
@@ -194,8 +204,8 @@ static int run(const char *mode,const char *destination,const char *plan,const c
   }catch(const std::exception &e){std::cerr<<"FAIL "<<e.what()<<'\n';return 2;}
 }
 #ifdef TSI_MEMIF_READ_DPI
-extern "C" int tsi_memif_read_checkpoint(const char *m,const char *o,const char *p,const char *e,const char *i,const char *q,const char *c){return run(m,o,p,e,i,q,c);}
+extern "C" int tsi_memif_read_checkpoint(const char *m,const char *o,const char *p,const char *e,const char *i,const char *q,const char *c,const char *f){return run(m,o,p,e,i,q,c,f);}
 extern "C" void tsi_memif_read_exit(int status){std::exit(status);}
 #else
-int main(int argc,char **argv){if(argc!=8)return 2;return run(argv[1],argv[2],argv[3],argv[4],argv[5],argv[6],argv[7]);}
+int main(int argc,char **argv){if(argc!=8 && argc!=9)return 2;return run(argv[1],argv[2],argv[3],argv[4],argv[5],argv[6],argv[7],argc==9?argv[8]:"0");}
 #endif

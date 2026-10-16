@@ -88,6 +88,7 @@ owned_accesses(const std::vector<init_access_t> &accesses) {
 
 firesim_tsi_t::firesim_tsi_t(int argc, char **argv, bool can_have_loadmem)
     : testchip_tsi_t(argc, argv, can_have_loadmem),
+      runtime_memif(*this),
       owned_default_devices(default_htif_devices(argc, argv)),
       terminal(make_terminal_owner(argc, argv)),
       program_loader(can_have_loadmem, cache_flush_address(argc, argv)),
@@ -209,6 +210,7 @@ std::map<std::string, uint64_t> firesim_tsi_t::load_payload(
 }
 
 firesim_tsi_t::polling_cut_t firesim_tsi_t::metadata_components() const {
+  if (!memif_read.idle()) throw std::runtime_error("TSI metadata has an active generic memif reader");
   if (!bcd_identity.idle()) throw std::runtime_error("TSI metadata has an active BCD identity caller");
   if (!memif_write.idle()) throw std::runtime_error("TSI metadata has an active memif write child");
   polling_cut_t result;
@@ -312,6 +314,9 @@ void firesim_tsi_t::prepare_startup_metadata(const std::vector<uint8_t> &image) 
 }
 
 firesim_tsi_t::polling_cut_t firesim_tsi_t::inspect_polling_cut() const {
+  // The generic syscall parent is still on the installed stack. Its reader
+  // is inspectable separately, never part of the sealed polling aggregate.
+  if (!memif_read.idle()) throw std::runtime_error("TSI polling audit lacks the generic memif caller");
   // Unsealed inspection still exposes only its historical eight owners. It
   // must never admit an active identity whose two owners it does not return.
   if (terminal->checkpoint_schema().empty() && (!bcd_identity.idle() || !memif_write.idle()))
@@ -544,6 +549,32 @@ void firesim_tsi_t::read_chunk(addr_t address, size_t bytes, void *destination) 
     flush_program_cache_lines(address, bytes);
     tsi_t::read_chunk(address, bytes, destination);
   }
+}
+
+void firesim_tsi_t::runtime_memif_t::read(addr_t address, size_t bytes, void *destination) {
+  // ELF/startup loadmem is a different transport with independent owners.
+  // Its installed head/tail/body caller must not issue serial/cache packets.
+  if (tsi.program_loader.loadmem_mode()) memif_t::read(address, bytes, destination);
+  else tsi.read_runtime_memif(address, bytes, destination);
+}
+
+void firesim_tsi_t::read_runtime_memif(addr_t address, size_t bytes, void *destination) {
+  if (preparing_metadata || metadata_prepared || metadata_poisoned)
+    throw std::runtime_error("runtime memif read during metadata preparation/restore");
+  if (bytes && !destination) throw std::runtime_error("missing memif read destination");
+  firesim_tsi_memif_read_services_t services(serial, program_loader.cache_flush_address());
+  memif_read.begin(address, bytes);
+  try {
+    for (;;) {
+      const auto result = memif_read.advance(services);
+      if (result == firesim_tsi_memif_read_t::result_t::complete) break;
+      // advance has left every component guard before a host context yield.
+      if (result == firesim_tsi_memif_read_t::result_t::blocked) switch_to_target();
+    }
+    const auto &data = memif_read.result();
+    if (bytes) std::copy(data.begin(), data.end(), static_cast<uint8_t *>(destination));
+    memif_read.finish();
+  } catch (...) { memif_read.interrupt(); throw; }
 }
 
 void firesim_tsi_t::write_chunk(addr_t address, size_t bytes, const void *source) {

@@ -14,7 +14,63 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 127, in progress. Recovery:
+Current milestone: M11-rocket-level1-level2, iteration 128, in progress. Recovery:
+[tsi-runtime-memif-read.md](tsi-runtime-memif-read.md) and
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Production default-session
+syscall reads now use the explicit generic reader through the virtual memif
+interface, with per-chunk serial cache flushing and separate startup loadmem.
+Active generic readers reject twelve-owner polling admission because the
+syscall parent, destination, descriptors and context remain unowned. Neither
+complete CPU checkpoint level is accepted.
+
+Diagnostics: `runs/m11-iteration128/`. Both stable native/VCS reader suites
+pass all 4,336 fresh continuations at 1,084 component cuts, 2,467,736 complete
+owner readbacks, 60 invalid-image processes, 156 allocation failures and
+24 first-divergence cases. Actual installed syscall output, packet ordering,
+host-operation labels and all 3,424 sampled source cuts match the independent
+oracle; all 4,048 fresh native/VCS production reader/FIFO readbacks pass.
+Native/VCS omission controls detect bypassed ownership at cut 7 / host tick 2
+and missing cache flush at packet 4 / host tick 2. Installed syscall/memif
+archive members remain byte-identical. All eight preserved native suites,
+267 Python tests, 24 retained audits and the iteration-127 reader audit pass.
+Fresh ordinary Rocket RTL VCS reads back all 318,637 diagnostic words / seven
+clocks before an edge; captured CPU replay is still pending.
+
+Exact-recipe default/buffered/sealed four-hart controls pass at C=3,329,794
+with full 16 GiB backing memory; every hart trace and workload/store label
+matches the uninterrupted reference. All twelve active host samples / 112
+known component images pass independent audit. This iteration's sealed CPU
+control used empty input rather than the historical `4100ff`: its four terminal
+images match that exact empty configuration; all other images match reference.
+The nonempty terminal native/VCS integration regression also passes all 52
+fresh pair readbacks, 16,148 malformed metadata rejections and 44 transaction
+allocation failures. No nonempty-input CPU rerun is claimed.
+
+Accepted summaries: `read-default-final/invocation-6j7i6oni/summary.json`,
+`read-policy/invocation-m9tpw5by/summary.json`,
+`read-production/invocation-_0kcp4ci/summary.json`,
+`native-regressions/invocation-jozfoaj3/summary.json`,
+`rocket-controls/invocation-hzekq4xd/summary.json`,
+`rocket-sealed-terminal/summary.json` and
+`terminal-nonempty/invocation-kto0n13o/summary.json`. Aggregate recovery:
+`summary.json`, `selected-results.json`, `verification-commands.json`,
+`raw-native-commands.json`, `native-input-archives.json` and
+`artifact-manifest.json`. Independent audits check every accepted family.
+Changed-source, wrapper-formatting and sealed-metadata/configuration setup
+failures remain diagnostic-only; final audits determine accepted results.
+Existing controller iteration-127 commits were published FireSim first, then
+Chipyard, with both GitHub tips confirmed. Pushes could not update local
+tracking refs because `.git` is read-only; remote publication succeeded.
+The controller owns the upcoming iteration-128 commit/publication. No local
+staging or commits. No missing external dependency is known. Next: explicit
+syscall/session, descriptor, signal, stop/exit and outer-context ownership,
+coherent CPU cuts, full fresh Level-1 continuation and independent captured
+Level-2 readback/replay. BOOM/Saturn remain pending; standalone Shuttle,
+physical FPGA validation and ASIC power remain excluded.
+
+Previous iteration 127 recovery follows.
+
+Previous milestone checkpoint: M11-rocket-level1-level2, iteration 127, in progress. Recovery:
 [tsi-memif-read.md](tsi-memif-read.md) and
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Added an explicit generic
 memif read owner with head/tail/body state, copied output and pending serial

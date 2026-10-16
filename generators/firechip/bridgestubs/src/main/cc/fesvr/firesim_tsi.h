@@ -16,6 +16,7 @@
 #include "tsi_startup_metadata.h"
 #include "tsi_bcd.h"
 #include "tsi_memif_write.h"
+#include "tsi_memif_read.h"
 #include "tsi_bcd_identity.h"
 #include <memory>
 
@@ -48,6 +49,7 @@ public:
   void load_program() override;
   void read_chunk(addr_t address, size_t bytes, void *destination) override;
   void write_chunk(addr_t address, size_t bytes, const void *source) override;
+  memif_t &memif() override { return runtime_memif; }
 
   // Component owner only. HTIF/context and all request/response queues must
   // also be reconstructed before complete TSI checkpointing can be enabled.
@@ -67,6 +69,7 @@ public:
   const checkpoint_owner_t &terminal_owner() const { return *terminal; }
   // Independent write child only; its device/HTIF caller is not restored.
   const checkpoint_owner_t &memif_write_owner() const { return memif_write; }
+  const checkpoint_owner_t &memif_read_owner() const { return memif_read; }
   const checkpoint_owner_t &bcd_identity_owner() const { return bcd_identity; }
 
   // Reset/initialization component dispatcher only. These calls never resume
@@ -116,6 +119,16 @@ protected:
   size_t chunk_align() override { return 8; }
 
 private:
+  // Installed syscall_t retains the virtual memif() result when the default
+  // session is constructed. Its caller/descriptor state remains unowned.
+  class runtime_memif_t final : public memif_t {
+  public:
+    explicit runtime_memif_t(firesim_tsi_t &tsi) : memif_t(&tsi), tsi(tsi) {}
+    void read(addr_t address, size_t bytes, void *destination) override;
+  private:
+    firesim_tsi_t &tsi;
+  } runtime_memif;
+  void read_runtime_memif(addr_t address, size_t bytes, void *destination);
   // These upstream objects allocate tables/handlers and duplicate host file
   // descriptors. A coroutine stack may be discarded without unwinding, so
   // their process-local lifetime must belong to the TSI object. This is not
@@ -137,6 +150,7 @@ private:
   std::unique_ptr<default_devices_t> default_devices;
   firesim_tsi_program_loader_t program_loader;
   firesim_tsi_memif_write_t memif_write;
+  firesim_tsi_memif_read_t memif_read;
   firesim_tsi_bcd_identity_t bcd_identity;
   firesim_loadmem_read_t loadmem_read;
   firesim_loadmem_queues_t loadmem_queues;

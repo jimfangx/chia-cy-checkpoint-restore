@@ -159,4 +159,38 @@ private:
     return next;
   }
 };
+
+// Normal runtime serial policy. No state is hidden in this adapter: the
+// immutable flush address belongs to program/startup metadata, and the FIFO
+// and pending child retain every issued packet. issue() never yields, so a
+// blocked continuation cannot repeat a flush or read. Startup loadmem must
+// select its separate caller before constructing this service.
+class firesim_tsi_memif_read_services_t final : public firesim_tsi_memif_read_t::services_t {
+public:
+  firesim_tsi_memif_read_services_t(firesim_tsi_serial_state_t &serial, uint64_t flush)
+      : serial(serial), flush(flush) {}
+  void issue(uint64_t address, uint64_t bytes) override {
+    if (!bytes || bytes > 1024 || bytes % 8 || address % 8 || bytes-1 > ~uint64_t(0)-address)
+      throw std::runtime_error("unsupported runtime memif serial chunk");
+    if (flush) {
+      // Avoid address+bytes and final-line overflow at the end of the address
+      // space. The reader has already validated its complete byte range.
+      const auto last = address + bytes - 1;
+      for (uint64_t base = address & ~uint64_t(63);;) {
+        const uint32_t words[2] = {uint32_t(base), uint32_t(base >> 32)};
+        serial.issue_write(flush, sizeof(words), words);
+        if (last - base < 64) break;
+        base += 64;
+      }
+    }
+    serial.issue_read(address, bytes);
+  }
+  bool receive(uint32_t &word) override {
+    if (!serial.response_available()) return false;
+    word = serial.pop_response(); return true;
+  }
+private:
+  firesim_tsi_serial_state_t &serial;
+  uint64_t flush;
+};
 #endif

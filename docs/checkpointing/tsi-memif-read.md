@@ -3,7 +3,9 @@
 Iteration 127 adds `firesim_tsi_memif_read_t` in
 `generators/firechip/bridgestubs/src/main/cc/fesvr/tsi_memif_read.h`.
 This is a component prerequisite for the remaining HTIF/syscall callers.
-It is not yet dispatched by production `firesim_tsi_t`; the existing sealed
+Iteration 128 subsequently connects production runtime reads through the
+default syscall session's virtual interface; see
+[tsi-runtime-memif-read.md](tsi-runtime-memif-read.md). The sealed
 polling transaction retains twelve owners and continues to reject general
 syscalls, exits and context entry. Neither Rocket checkpoint level is accepted.
 
@@ -52,11 +54,11 @@ remaining body chunks to check that the native/VCS oracle detects both errors.
 Exact evidence and runnable native VCS commands are recorded in
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Diagnostics are under
 `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration127/`.
-Next, bind this caller into an explicit production HTIF/syscall service whose
+Next, bind this child into an explicit production HTIF/syscall parent whose
 parent returns blocked before any target yield, inventory its complete session
 and external state, and retain rejection until that aggregate is complete.
-The production adapter must also preserve `firesim_tsi_t::read_chunk` policy:
+The production adapter must preserve `firesim_tsi_t::read_chunk` policy:
 startup loadmem dispatch is a different transport, and normal serial reads
 flush each chunk's program-cache lines before issuing that chunk. The current
-component services do not supply either policy. Reusing them directly as the
+iteration-127 component services do not supply either policy. Reusing them directly as the
 production adapter would omit required behavior when those modes are enabled.
