@@ -331,6 +331,10 @@ firesim_tsi_t::polling_cut_t firesim_tsi_t::inspect_polling_cut() const {
   if (htif_exit_component.phase() != firesim_tsi_htif_exit_t::phase_t::running ||
       should_exit() || const_cast<firesim_tsi_t &>(*this).done())
     throw std::runtime_error("TSI polling audit lacks HTIF exit/signal/stop owners");
+  return inspect_live_polling_protocol();
+}
+
+firesim_tsi_t::polling_cut_t firesim_tsi_t::inspect_live_polling_protocol() const {
   // The generic syscall parent is still on the installed stack. Its reader
   // is inspectable separately, never part of the sealed polling aggregate.
   if (!memif_read.idle()) throw std::runtime_error("TSI polling audit lacks the generic memif caller");
@@ -536,9 +540,22 @@ firesim_tsi_t::prepared_polling_components_t::prepared_polling_components_t(
     firesim_tsi_t &tsi, const polling_cut_t &images) : state(std::make_unique<state_t>(tsi, images)) {}
 firesim_tsi_t::prepared_polling_components_t::~prepared_polling_components_t() = default;
 void firesim_tsi_t::prepared_polling_components_t::commit() {
+  recheck();
+  publish();
+}
+void firesim_tsi_t::prepared_polling_components_t::recheck() {
   if (state->consumed) throw std::runtime_error("TSI polling candidate already committed");
   state->tsi.require_pristine_polling_destination();
+}
+void firesim_tsi_t::prepared_polling_components_t::publish() noexcept {
   state->publish();
+}
+void firesim_tsi_t::prepared_polling_components_t::require_exit_boundary(
+    firesim_tsi_htif_exit_t::phase_t phase) const {
+  using ep = firesim_tsi_htif_exit_t::phase_t;
+  if (phase == ep::stopped || (phase == ep::requested &&
+      state->poll->phase() != firesim_tsi_htif_poll_t::phase_t::fromhost_read))
+    throw std::runtime_error("TSI aggregate lacks this exit/stop parent boundary");
 }
 firesim_tsi_t::prepared_polling_components_t firesim_tsi_t::prepare_polling_components_candidate(
     const polling_cut_t &images) {
@@ -553,6 +570,10 @@ firesim_tsi_t::polling_cut_t firesim_tsi_t::inspect_prepared_polling_components(
   if (htif_exit_component.phase() != firesim_tsi_htif_exit_t::phase_t::running ||
       should_exit() || const_cast<firesim_tsi_t &>(*this).done())
     throw std::runtime_error("prepared polling audit lacks HTIF exit/signal/stop owners");
+  return inspect_fresh_polling_protocol();
+}
+
+firesim_tsi_t::polling_cut_t firesim_tsi_t::inspect_fresh_polling_protocol() const {
   if (!polling_components_prepared || !metadata_prepared || metadata_poisoned ||
       host_context_initialized() || polling_active || !htif_poll || !bcd || default_devices ||
       prepared_polling_service_active || prepared_polling_service_poisoned)

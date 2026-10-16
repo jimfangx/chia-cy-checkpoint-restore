@@ -106,8 +106,12 @@ public:
     void commit();
   private:
     friend class firesim_tsi_t;
+    friend class firesim_tsi_polling_lifecycle_t;
     struct state_t;
     explicit prepared_polling_components_t(firesim_tsi_t &tsi, const polling_cut_t &images);
+    void recheck();
+    void publish() noexcept;
+    void require_exit_boundary(firesim_tsi_htif_exit_t::phase_t phase) const;
     std::unique_ptr<state_t> state;
   };
   prepared_polling_components_t prepare_polling_components_candidate(const polling_cut_t &images);
@@ -141,6 +145,9 @@ protected:
   size_t chunk_align() override { return 8; }
 
 private:
+  friend class firesim_tsi_polling_lifecycle_t;
+  polling_cut_t inspect_live_polling_protocol() const;
+  polling_cut_t inspect_fresh_polling_protocol() const;
   // Installed syscall_t retains the virtual memif() result when the default
   // session is constructed. Its caller/descriptor state remains unowned.
   class runtime_memif_t final : public memif_t {

@@ -51,6 +51,10 @@ public:
   void load_checkpoint(const std::vector<uint8_t> &image) override { current = parse(image); }
 
 private:
+  friend class firesim_tsi_polling_lifecycle_t;
+  void swap_state(firesim_tsi_htif_exit_t &other) noexcept {
+    std::swap(current, other.current);
+  }
   struct state_t { phase_t phase = phase_t::running; uint32_t raw = 0; } current;
   widget_checkpoint_config_t config{31, {1, 32, 0}}; // revision, installed int bits, no signature
   widget_checkpoint_state_t boundary;

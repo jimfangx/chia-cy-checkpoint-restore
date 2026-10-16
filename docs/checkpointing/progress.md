@@ -14,6 +14,61 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 136, in progress. Recovery:
+[tsi-polling-lifecycle.md](tsi-polling-lifecycle.md) and
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Added an opt-in fourteen-owner
+polling/direct-exit/actual-provider lifecycle group. It prepares every owner
+before publication, compares full optional presence/raw status/stopped fields,
+rechecks the actual destination and publishes all peers only after the final
+provider guard. Requested exits at the real queued-response read yield permit
+complete fresh readback; exit/stop continuation and stopped-parent restoration
+remain explicitly unsupported. Complete CPU admission is unchanged.
+
+Diagnostics: `runs/m11-iteration136/`. The complete new native ASan/UBSan and VCS
+matrix passes 1,936 captured host cuts, 3,872 fresh fourteen-owner readbacks
+(including 256 requested-exit readbacks), 1,105,584 continued host operations and
+15,532,384 complete owner readbacks. All 5,132 invalid-image/membership/cross-owner
+rejections, 3,012 allocation failures and 24 final provider guards pass without
+partial publication. Candidate abandonment, late peers, consumed/competing
+candidates and released input storage pass. Native copy/move/private-publication
+compile negatives reject; C++17 construction passes. The separate aggregate
+audit passes. An additional native/VCS build linked to the actual exact-recipe
+provider archive passes 32 fresh fourteen-owner restores and 96 atomic cross-owner
+rejections. All 32 real post-restore raw-bit faults preserve the projected exit
+code and stop at their first host boundary before serial acknowledgement;
+`raw-fault-rj61ff0w/summary.json` and its separate audit pass. Accepted full invocation:
+`aggregate-pilot/invocation-9a5cvr7q/summary.json`.
+
+All eight preserved native suites pass (275 Python tests / FCFS included;
+5,258 artifacts / 798 original source bindings). Actual recipe-linked lifecycle
+checks pass, including 440 atomic transactions and twenty first divergences.
+Ordinary Rocket RTL diagnostic readback passes 318,637 words / seven clocks /
+zero edges; captured CPU replay remains pending. Complete twelve-owner
+preparation and continuation pass all 2,976 fresh cases across 744 cuts, with
+all eight continuation first divergences detected before acknowledgement.
+Active dispatch and bound three-owner tests pass too. Both full 16-GiB
+four-hart controls pass at C=3,329,794 in
+`rocket-controls/invocation-5xd7i_is/summary.json`. All full traces and workload
+labels match the uninterrupted reference. Separate control/host audits and all
+30 retained audits pass. Eight active host samples / 64 known component images
+match, including the late cut; these remain partial inspections, not complete
+CPU checkpoints. Recovery catalogs: `selected-results.json`,
+`verification-commands.json`, `raw-native-commands.json`,
+`native-input-archives.json`, `summary.json` and `artifact-manifest.json`.
+
+The controller's iteration-135 commits were published FireSim first, then
+Chipyard. Remote main tips match; `.git` tracking-ref update errors are recorded
+separately from successful remote publication. No staging or local commits.
+Both plans and environment helpers preserve their starting bytes. No missing
+external dependency is known. Next: exit/stop outer caller and complete
+session/descriptor/signal/syscall-parent/context ownership; complete
+configuration-specific simulator/bridge/memory ownership; coherent CPU cuts;
+fresh complete Level-1 continuation and independently captured Level-2 replay.
+Neither CPU checkpoint level is accepted. BOOM/Saturn remain pending.
+Standalone Shuttle, physical FPGA and ASIC power remain outside this task.
+
+Previous iteration 135 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 135, in progress. Recovery:
 [native-input-provenance.md](native-input-provenance.md) and
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Fixed the controller's

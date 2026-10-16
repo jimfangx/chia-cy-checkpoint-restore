@@ -27,6 +27,7 @@ public:
     prepared_t &operator=(const prepared_t &) = delete;
     prepared_t(prepared_t &&) = delete;
     prepared_t &operator=(prepared_t &&) = delete;
+    firesim_htif_lifecycle_state_t restored_state() const { return state; }
     template <typename Publish> void commit(Publish &publish_peers) {
       static_assert(std::is_nothrow_invocable<Publish &>::value,
                     "lifecycle peer publication must be noexcept");
