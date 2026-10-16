@@ -63,15 +63,20 @@ def audit(path):
         require(file_sha(b['snapshot'])==b['sha256'],'changed audit source snapshot')
         check_native_input(ROOT,b['path'],b['sha256'],bindings)
     require((out/'polling.elf').read_bytes()==polling_elf(),'changed actual ELF')
+    exit_rejection = r.get('unowned_exit_cut_rejection', False)
     for backend in ('native','vcs-dpi'):
         base=out/backend;text=(out/(backend+'.log')).read_text()
         require('ACTUAL_ACTIVE_SYSCALL_REJECTIONS count=2 returned_components=8 terminal_exit=0 cpu_edges=0' in text,'actual nested service did not complete')
-        for cut in REJECTED:
+        if exit_rejection:
+            require('ACTUAL_UNOWNED_SYS_EXIT_REJECTION count=1 retained_unadmitted_components=8 cpu_edges=0' in text,
+                    'missing production unowned exit rejection')
+        for cut in (*REJECTED, *(['syscall-returned'] if exit_rejection else [])):
             require('POLLING_CUT_ADMISSION cut='+cut+' supported=0 complete_components=0 inspection_services=0' in text,
                     'unsupported cut admitted '+cut)
             require(not list(base.glob(cut+'.audit-*')),'partially published rejected component cut')
         for cut,phase in (('first-poll',1),('syscall-returned',6)):
-            images={kind:(base/(cut+'.audit-'+kind)).read_bytes() for kind in OWNERS}
+            prefix = '.component-' if exit_rejection and cut=='syscall-returned' else '.audit-'
+            images={kind:(base/(cut+prefix+kind)).read_bytes() for kind in OWNERS}
             actual=audit_components(images,msip=False)
             require(actual==dict(poll_phase=phase,partial_words=0,serial_requests=0,serial_responses=0),'wrong actual returned caller')
             require(images['host']==config(18,10)+words(0,0,6),'wrong actual host state')
@@ -81,6 +86,8 @@ def audit(path):
         require(c['argv'][:2]==['bash','-lc'] and c['argv'][2].startswith(ENVIRONMENT) and
                 Path(c['log']).read_text().rstrip().endswith('exit=0'),'unbound native command/result/environment')
     return dict(status='passed',actual_active_syscall_rejections=4,actual_startup_termination_rejections=10,
+                actual_unowned_exit_rejections=2 if exit_rejection else 0,
+                retained_unadmitted_component_images=16 if exit_rejection else 0,
                 complete_returned_component_images=32,level1_verified=False,level2_verified=False)
 
 
@@ -117,7 +124,8 @@ def main():
     execute([native,elf,out/'native'],out/'native.log')
     execute([simv,'-no_save','+source='+str(elf),'+destination='+str(out/'vcs-dpi')],out/'vcs-dpi.log')
     for b in bindings:require(file_sha(b['path'])==b['sha256'],'audit source changed during execution')
-    report=dict(status='passed',scope='actual suspended syscall rejection and returned polling component inspection only',commands=commands,
+    report=dict(status='passed',scope='actual suspended syscall and unowned exit rejection; retained independent component readback',commands=commands,
+                unowned_exit_cut_rejection=True,
                 source_inputs=bindings,level1_verified=False,level2_verified=False,
                 artifact_sha256={str(p):file_sha(p) for p in sorted(out.rglob('*')) if p.is_file()})
     path=out/'summary.json';path.write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(audit(path),indent=2))

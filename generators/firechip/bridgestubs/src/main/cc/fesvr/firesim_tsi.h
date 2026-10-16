@@ -13,6 +13,7 @@
 #include "tsi_init_accesses.h"
 #include "tsi_program_loader.h"
 #include "tsi_htif_poll.h"
+#include "tsi_htif_exit.h"
 #include "tsi_startup_metadata.h"
 #include "tsi_bcd.h"
 #include "tsi_memif_write.h"
@@ -71,6 +72,9 @@ public:
   const checkpoint_owner_t &memif_write_owner() const { return memif_write; }
   const checkpoint_owner_t &memif_read_owner() const { return memif_read; }
   const checkpoint_owner_t &bcd_identity_owner() const { return bcd_identity; }
+  // Direct pass/fail and no-signature stop only. This never restores the
+  // installed session/signal/exit fields or certifies a complete HTIF cut.
+  std::vector<uint8_t> save_htif_exit_component() const;
 
   // Reset/initialization component dispatcher only. These calls never resume
   // HTIF or its context. A complete CPU profile still requires their owners.
@@ -148,6 +152,7 @@ private:
   std::unique_ptr<firesim_tsi_bcd_t> bcd;
   // Destroy the table/syscall before the devices and polling callback owner.
   std::unique_ptr<default_devices_t> default_devices;
+  firesim_tsi_htif_exit_t htif_exit_component;
   firesim_tsi_program_loader_t program_loader;
   firesim_tsi_memif_write_t memif_write;
   firesim_tsi_memif_read_t memif_read;

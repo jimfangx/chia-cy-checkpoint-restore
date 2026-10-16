@@ -151,7 +151,11 @@ class firesim_tsi_t::polling_services_t final : public firesim_tsi_htif_poll_t::
       }
       command_t command(tsi.memif(), value, [owner = tsi.htif_poll.get()](uint64_t response) { owner->respond(response); });
       validate_command(value);
-      if (devices) devices->handle_command(command);
+      if (devices && tsi.metadata_supported && !(value >> 48) && (value & 1)) {
+        tsi.htif_exit_component.request(value, [&] { devices->handle_command(command); });
+        tsi.htif_exit_component.validate_observed(tsi.should_exit(), tsi.done(), tsi.exit_code());
+      }
+      else if (devices) devices->handle_command(command);
       else tsi.bcd->handle_command(command);
       return true;
     }
@@ -186,10 +190,20 @@ int firesim_tsi_t::run_host() {
     if (result == firesim_tsi_htif_poll_t::result_t::blocked) switch_to_target();
   }
   polling_active = false;
-  stop();
+  if (metadata_supported && htif_exit_component.phase() == firesim_tsi_htif_exit_t::phase_t::requested)
+    htif_exit_component.stop([this] { stop(); });
+  else stop();
   // Preserve the upstream return-time release as well as suspended teardown.
   default_devices.reset();
   return exit_code();
+}
+
+std::vector<uint8_t> firesim_tsi_t::save_htif_exit_component() const {
+  if (!owned_default_devices || !metadata_supported)
+    throw std::runtime_error("HTIF direct exit component requires default devices and no signature");
+  auto &self = const_cast<firesim_tsi_t &>(*this);
+  htif_exit_component.validate_observed(should_exit(), self.done(), self.exit_code());
+  return htif_exit_component.save_checkpoint();
 }
 
 std::map<std::string, uint64_t> firesim_tsi_t::load_payload(
@@ -314,6 +328,9 @@ void firesim_tsi_t::prepare_startup_metadata(const std::vector<uint8_t> &image) 
 }
 
 firesim_tsi_t::polling_cut_t firesim_tsi_t::inspect_polling_cut() const {
+  if (htif_exit_component.phase() != firesim_tsi_htif_exit_t::phase_t::running ||
+      should_exit() || const_cast<firesim_tsi_t &>(*this).done())
+    throw std::runtime_error("TSI polling audit lacks HTIF exit/signal/stop owners");
   // The generic syscall parent is still on the installed stack. Its reader
   // is inspectable separately, never part of the sealed polling aggregate.
   if (!memif_read.idle()) throw std::runtime_error("TSI polling audit lacks the generic memif caller");
@@ -493,6 +510,9 @@ void firesim_tsi_t::prepare_polling_components(const polling_cut_t &images) {
 }
 
 firesim_tsi_t::polling_cut_t firesim_tsi_t::inspect_prepared_polling_components() const {
+  if (htif_exit_component.phase() != firesim_tsi_htif_exit_t::phase_t::running ||
+      should_exit() || const_cast<firesim_tsi_t &>(*this).done())
+    throw std::runtime_error("prepared polling audit lacks HTIF exit/signal/stop owners");
   if (!polling_components_prepared || !metadata_prepared || metadata_poisoned ||
       host_context_initialized() || polling_active || !htif_poll || !bcd || default_devices ||
       prepared_polling_service_active || prepared_polling_service_poisoned)

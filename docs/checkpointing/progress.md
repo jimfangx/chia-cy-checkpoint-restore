@@ -14,7 +14,66 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 128, in progress. Recovery:
+Current milestone: M11-rocket-level1-level2, iteration 129, in progress. Recovery:
+[tsi-htif-direct-exit.md](tsi-htif-direct-exit.md) and
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Added an explicit direct
+HTIF pass/fail status and no-signature stop component around the unchanged
+installed handler. Active exit/signal/stop state now rejects historical polling
+aggregate inspection. This component does not own the installed session,
+descriptors, signal latch, optional exit field, stopped field or outer context;
+complete CPU admission remains disabled. Neither CPU level is accepted.
+
+Diagnostics: `runs/m11-iteration129/`. All eight preserved native suites pass,
+including 267 Python tests and FCFS. All 26 retained independent audits pass.
+Fresh ordinary Rocket RTL VCS again reads back all 318,637 diagnostic words /
+seven clocks before an edge. Native/VCS production omission controls detect
+missing exit recording at cut 20 / host tick 6 and missing stop recording at
+cut 28 / host tick 8; all 480 preceding complete component images match the
+independent oracle. The final direct-exit suite passes 1,216 production cuts /
+6,080 complete owner images, 2,432 fresh component projections, 268 malformed
+images, ten unowned lifecycle cases and sixteen first-divergence corruptions.
+Its independent audit passes. The polling-cut regression now rejects the
+unowned exit after proxied `sys_exit`, while preserving all eight independent
+component readbacks; native/VCS execution and all 267 Python tests pass.
+The production reader regression passes all 4,048 fresh reader/FIFO pairs,
+68 installed syscall outputs and 3,424 complete source cuts. Atomic twelve-owner
+polling preparation passes all 2,976 fresh preparations, 35,760 complete
+readbacks, 4,368 malformed rejections and 2,708 allocation failures. All three
+exact-recipe default/buffered/sealed four-hart controls pass at C=3,329,794,
+each with the full 16 GiB memory. Every full trace and workload/store cycle
+label matches the uninterrupted reference. All twelve active host samples /
+112 complete known component images match reference; sealed input is `4100ff`.
+No complete CPU checkpoint continuation or captured CPU replay is claimed.
+
+Accepted summaries: `exit-final/invocation-iqc63m8o/summary.json`,
+`reader-production/invocation-lpys96ka/summary.json`,
+`polling-cut-final/invocation-omo0zrnb/summary.json`,
+`polling-prepare/invocation-0bd3_lzo/summary.json`,
+`native-regressions-final/invocation-mflxh2ih/summary.json`,
+`rocket-controls-final/invocation-m4dnr1vl/summary.json` and
+`rocket-sealed-terminal/summary.json`. Aggregate recovery: `summary.json`,
+`selected-results.json`, `verification-commands.json`, `raw-native-commands.json`,
+`native-input-archives.json` and `artifact-manifest.json`. Independent audits
+verify every accepted family. Source-changing pilots, the initial polling-test
+expectation and diagnostic setup/path failures remain excluded. The early CPU
+pilot's wrapper reported pass despite a stale object; `build-stability-audit.json`
+rejects it and verifies the new guard in the selected final executable.
+Follow-up: snapshot build inputs before compilation, rather than only afterward.
+
+Existing controller iteration-128 commits were published FireSim first and
+then Chipyard, with both remote main tips confirmed. Remote publication
+succeeded; read-only `.git` prevented local tracking-ref updates. No staging
+or local commits. The controller owns the upcoming iteration-129 checkpoint.
+Both plans and environment helpers retain their iteration-128 hashes.
+No missing external dependency is known. Next: complete explicit installed
+session/descriptor/signal/exit/stop and outer-context ownership, coherent CPU
+cuts, complete fresh Level-1 continuation and independent captured Level-2
+readback/replay. BOOM/Saturn remain pending; standalone Shuttle, physical FPGA
+validation and ASIC power remain excluded.
+
+Previous iteration 128 recovery follows.
+
+Previous milestone checkpoint: M11-rocket-level1-level2, iteration 128, in progress. Recovery:
 [tsi-runtime-memif-read.md](tsi-runtime-memif-read.md) and
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Production default-session
 syscall reads now use the explicit generic reader through the virtual memif

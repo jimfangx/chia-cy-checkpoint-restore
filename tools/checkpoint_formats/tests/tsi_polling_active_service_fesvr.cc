@@ -35,11 +35,26 @@ static int run(const char *source,const char *destination) {
     tsi.tick();
     std::vector<uint32_t> expected{1,0x80003000,0,15,0};expected.resize(21,0);
     expected.insert(expected.end(),{0,0x80002008,0,1,0});packet(tsi,expected);
-    polling_cut_check(tsi,out,"syscall-returned",true);
+    // sys_exit has already set the inherited optional exit field. The serial
+    // child returned, but its unowned exit must reject aggregate inspection.
+    polling_cut_check(tsi,out,"syscall-returned",false);
+    // Preserve all historical component readback checks independently of that
+    // admission decision; these eight images cannot restore the exit parent.
+    for (const auto &[name, owner] : std::vector<std::pair<const char *,const checkpoint_owner_t *>>{
+        {"poll",&tsi.htif_poll_owner()}, {"program",&tsi.program_loader_owner()},
+        {"init",&tsi.init_accesses_owner()}, {"host",&tsi.host_control_owner()},
+        {"read",&tsi.serial_read_owner()}, {"serial",&tsi.serial_queue_owner()},
+        {"loadmem-read",&tsi.loadmem_read_owner()}, {"loadmem-queues",&tsi.loadmem_queue_owner()}}) {
+      const auto image=owner->save_checkpoint();
+      std::ofstream file(out/(std::string("syscall-returned.component-")+name),std::ios::binary);
+      file.write(reinterpret_cast<const char *>(image.data()),image.size());
+      require(bool(file),"cannot retain unadmitted syscall-returned component");
+    }
     tsi.send_word(0);tsi.send_word(0);tsi.tick();packet(tsi,{1,0x80002008,0,1,0,1,0});
     polling_cut_check(tsi,out,"complete",false);
     require(tsi.done() && tsi.exit_code()==0,"installed sys_exit did not complete");
     std::cout << "ACTUAL_ACTIVE_SYSCALL_REJECTIONS count=2 returned_components=8 terminal_exit=0 cpu_edges=0\n";
+    std::cout << "ACTUAL_UNOWNED_SYS_EXIT_REJECTION count=1 retained_unadmitted_components=8 cpu_edges=0\n";
     return 0;
   } catch(const std::exception &error) {std::cerr<<"FAIL "<<error.what()<<'\n';return 2;}
 }
