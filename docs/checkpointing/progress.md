@@ -14,6 +14,65 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 138, in progress. Recovery:
+[semantic-fame-state-map.md](semantic-fame-state-map.md) and
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Added opt-in compiler-carried
+original StateIDs through path resolution, inlining, FAME and actual emitter
+renames, preserving constant-driven registers, logical memories, memory pipelines
+and exact initialized external owners. The raw emitted RTL has a separate
+hash-bound sidecar before Make appends blackbox sources. Capture/profile
+admission remains disabled; complete Level 1 and captured Level 2 remain pending.
+
+Diagnostics: `runs/m11-iteration138/`. Exact-recipe discovery maps all 8,644
+original entries / 318,637 words against 11,746 generated entries. Twelve fresh
+VCS processes pass complete zero-edge transformed/ordinary diagnostic readback,
+eight atomic invalid-loader cases and two actual stored-bit corruptions. The
+separate native audit passes. Both layouts use the same original-word oracle;
+these values are diagnostic patterns, not captured CPU checkpoints. All five
+map/raw-RTL/semantic/generated-manifest/reference artifacts match the actual
+preservation-enabled recipe metasim build byte-for-byte.
+
+All 33 Scala tests and all eight preserved native suites pass (277 Python tests,
+5,270 artifacts / 803 source bindings; FCFS included). All 30 retained audits
+pass. The retained ordinary Rocket probe again passes all 318,637 words / seven
+clocks / zero edges. Independent static checks cover every owner's clock and
+all 116 original ChipTop boundary ports. Six original clock domains reach
+target clock buffer 1; uncore reaches buffer 0. Dynamic event-phase/cut binding
+and captured boundary replay remain pending.
+
+All four complete 16-GiB default/buffered four-hart controls pass at
+C=3,329,794 in `rocket-controls-final/invocation-vd1ngrsc/` and
+`rocket-mapped-controls/invocation-h497o2iy/`. The latter enables all three
+semantic-discovery/preservation flags in the exact recipe Make command. All
+sixteen full hart traces and workload/store-cycle labels match the uninterrupted
+reference. Both independent control audits pass; the mapped audit retains every
+original check and additionally binds the complete native mapping artifacts.
+The freshly rebuilt ordinary profile has 11,464 entries / 445,838 generated
+words; preservation retains exactly 282 additional register words, with no
+removed or reshaped existing owner. The mapped profile has 11,746 / 446,120.
+Accepted native mapping: `native-map-sealed/invocation-ovekdx0g/summary.json`.
+Accepted regressions: `native-regressions-final/invocation-a_9td1k6/summary.json`.
+Earlier compiler/root-binding diagnostics and source-change guard rejections
+are retained separately. Sources are now stable; plans and environment helpers
+retain their starting bytes. No staging or local commits were performed.
+The controller's iteration-137 commits were published FireSim first, then
+Chipyard; both remote tips match despite read-only local tracking-ref errors.
+
+Recovery catalogs: `selected-results.json`, `verification-commands.json`,
+`raw-native-commands.json`, `native-input-archives.json`, `summary.json` and
+`artifact-manifest.json`. The new archive passes the independent retained-input
+audit; protected plans, papers, helpers and local HEADs retain their bytes/values.
+
+Next: bind actual FAME event phases and
+all original boundary values, then capture real four-hart cuts and demonstrate
+complete zero-edge ordinary RTL restore plus finite captured-trace replay.
+Complete configuration-specific simulator/bridge/host/runtime ownership and
+fresh Level-1 CPU continuation also remain pending. Neither CPU checkpoint
+level is accepted. No missing external dependency is known. BOOM/Saturn remain
+pending; standalone Shuttle, physical FPGA and ASIC power remain outside this task.
+
+Previous iteration 137 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 137, in progress. Recovery:
 [tsi-polling-lifecycle.md](tsi-polling-lifecycle.md) and
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md). Added guarded explicit
