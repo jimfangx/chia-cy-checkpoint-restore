@@ -76,18 +76,39 @@ struct bridge_creator_session_t final : emul_driver_thread_t::resource_t {
   loadmem_t memory;
   tsibridge_t bridge;
   emul_driver_thread_t::task_t continuation;
+  emul_driver_thread_t::task_t readback;
+  std::unique_ptr<tsibridge_t::prepared_context_t> candidate, competitor;
   tsibridge_t::context_image_t expected;
   bool published=false;
+  bool guard_live=false;
+  std::mutex publication_mutex;
   fs::path out;
   bridge_creator_session_t(const std::vector<std::string> &args,bool &destroyed,const fs::path &path)
       : lifetime{std::this_thread::get_id(),destroyed},
         memory(mmio,{64,68,72,76,80,84,88,92,96},0,{},bridge_fixture_config.mem,2),
         bridge(mmio,memory,{0,4,8,12,16,20,24,28,32},0,args,true,0),out(path) {}
 };
+// Component exclusion only: the full simulator process policy is still pending.
+struct bridge_publication_guard_t final : emul_driver_thread_t::resource_t {
+  bridge_creator_session_t &session;
+  std::thread::id creator=std::this_thread::get_id();
+  std::unique_lock<std::mutex> lock;
+  explicit bridge_publication_guard_t(bridge_creator_session_t &s)
+      : session(s),lock(s.publication_mutex) { session.guard_live=true; }
+  ~bridge_publication_guard_t() override {
+    if(std::this_thread::get_id()!=creator || !session.guard_live) std::abort();
+    session.guard_live=false;
+    std::cout<<"BRIDGE_PUBLICATION_GUARD_RELEASED same_thread=1\n";
+  }
+};
 static int bridge_context_run(const char *mode,const char *elf,const char *input,const char *metadata,
     const char *source,const char *plan,const char *destination,const char *image_path,const char *build_path) {
   try {
     const std::string action(mode); const auto context=bytes(image_path), build_bytes=bytes(build_path);
+    if(action.rfind("fatal-",0)==0) std::set_terminate([] {
+      std::cout<<"BRIDGE_PUBLICATION_FATAL before_acknowledgment=1\n"<<std::flush;
+      std::_Exit(73);
+    });
     require(build_bytes.size()==32,"need build SHA-256"); tsibridge_t::context_build_t build;
     std::copy(build_bytes.begin(),build_bytes.end(),build.begin());
     std::exception_ptr failure;
@@ -164,8 +185,12 @@ static int bridge_context_run(const char *mode,const char *elf,const char *input
           std::cout<<"BRIDGE_CONTEXT_ATOMIC truncations="<<truncations<<" cross="<<invalids
                    <<" allocations="<<allocations<<" unpublished_on_failure=1 mmio=0 target_edges=0\n"; return;
         }
-        auto candidate=bridge.prepare_restricted_context(image,build);
-        auto competitor=bridge.prepare_restricted_context(image,build);
+        session->candidate=bridge.prepare_restricted_context(image,build);
+        session->competitor=bridge.prepare_restricted_context(image,build);
+        auto &candidate=session->candidate;
+        auto &competitor=session->competitor;
+        const bool staged=action=="restore" || action=="corrupt" || action=="cancel" ||
+                          action=="cancel-prepared" || action=="cancel-sealed" || action.rfind("fatal-",0)==0;
         bridge_parked_thread_t parked_foreign;
         unchanged();
         if(action=="guard-control") {
@@ -186,7 +211,24 @@ static int bridge_context_run(const char *mode,const char *elf,const char *input
           require(rejected,"late bridge mask admitted"); unchanged();
           std::cout<<"BRIDGE_CONTEXT_LATE_GUARD unpublished=1 creator_retry=1\n";
         }
-        if(action=="foreign") {
+        if(action=="fatal-unsealed") candidate->publish_sealed();
+        if(action=="seal-retry") {
+          long allocations=0;
+          for(;;++allocations) {
+            bool failed=false; tsi_terminal_fail_allocation_after(allocations);
+            try { candidate->seal_publication(); }
+            catch(const std::bad_alloc &) { failed=true; }
+            catch(...) { tsi_terminal_fail_allocation_after(-1); throw; }
+            tsi_terminal_fail_allocation_after(-1);
+            unchanged();
+            if(!failed) break;
+          }
+          bool rejected=false;
+          try { candidate->seal_publication(); } catch(const std::runtime_error &) { rejected=true; }
+          require(rejected,"candidate sealed twice"); unchanged();
+          tsi_terminal_fail_allocation_after(0); candidate->publish_sealed(); tsi_terminal_fail_allocation_after(-1);
+          std::cout<<"BRIDGE_SEAL_RETRY allocations="<<allocations<<" unpublished_on_failure=1 duplicate_seal_rejected=1 allocation_free_publish=1\n";
+        } else if(action=="foreign") {
           bool rejected=false;
           parked_foreign.worker=std::thread([&] {
             try { candidate->commit(); } catch(const std::runtime_error &e) {
@@ -197,9 +239,12 @@ static int bridge_context_run(const char *mode,const char *elf,const char *input
           parked_foreign.ready.get_future().wait();
           require(rejected,"foreign bridge publication admitted"); unchanged(); candidate->commit();
           std::cout<<"BRIDGE_CONTEXT_FOREIGN rejected=1 creator_retry=1\n";
-        } else candidate->commit();
+        } else if(!staged) candidate->commit();
+        session->expected=image;
+        session->readback=[&,image,out,staged] {
+        if(staged) require(session->guard_live,"TSI readback outside retained publication guard");
         const auto restored=bridge.capture_restricted_context(build);
-        session->expected=image; session->published=true;
+        session->published=true;
         require(restored.context==image.context && restored.control==image.control && restored.metadata==image.metadata && !mmio.calls,
                 "bridge complete zero-edge readback differs");
         save(out/"readback.context",restored.context); save(out/"readback.control",restored.control);
@@ -207,14 +252,16 @@ static int bridge_context_run(const char *mode,const char *elf,const char *input
         for(unsigned call=0;call<3;++call) {
           bool rejected=false;
           try {
-            if(call==2) competitor->commit();
+            if(call==2) session->competitor->commit();
             else if(call) { auto c=bridge.prepare_restricted_context(image,build); }
-            else candidate->commit();
+            else session->candidate->commit();
           }
           catch(const std::runtime_error &) { rejected=true; }
           require(rejected && bridge.capture_restricted_context(build).context==context && !mmio.calls,"bridge republished"); ++rejections;
         }
         std::cout<<"BRIDGE_CONTEXT_READBACK owners=17 context_entries=0 mmio=0 republish_rejections="<<rejections<<" target_edges=0\n";
+        };
+        if(!staged) session->readback();
         if(action=="foreign") {
           bridge_parked_thread_t parked_restored; size_t denied=0;
           parked_restored.worker=std::thread([&] {
@@ -236,7 +283,8 @@ static int bridge_context_run(const char *mode,const char *elf,const char *input
           std::cout<<"BRIDGE_CONTEXT_FOREIGN_RESTORED rejected=4 mmio=0 creator_retry=1\n";
           return;
         }
-        if(action=="guard-mask" || action=="guard-control" || action=="cancel") return;
+        if(action=="guard-mask" || action=="guard-control" || action=="cancel" ||
+           action=="cancel-prepared" || action=="cancel-sealed" || action=="seal-retry") return;
         session->continuation=[&,out,action,source=std::string(source),plan=std::string(plan)] {
         const auto cut=std::stoul(fs::path(source).filename().string().substr(4));
         std::ifstream steps(plan); std::string line; size_t op=0,operations=0,comparisons=0;
@@ -261,16 +309,11 @@ static int bridge_context_run(const char *mode,const char *elf,const char *input
         };
       } catch(...) { tsi_terminal_fail_allocation_after(-1); failure=std::current_exception(); }
     });
-    if(action=="cancel" && !failure) {
-      creator.cancel_reserved();
-      require(destroyed,"cancel did not destroy live provider");
-      std::cout<<"BRIDGE_RESERVED_CREATOR_CANCEL same_thread=1 service_calls=0 target_edges=0\n";
-      return 0;
-    }
-    creator.launch([&] {
+    auto continuation=[&] {
       require(std::this_thread::get_id()==creator_id,"creator reservation changed thread");
       try {
         require(!destroyed && session,"creator lost prepared resource");
+        require(!session->guard_live,"publication guard survived launch");
         if(session->published) {
           const auto restored=session->bridge.capture_restricted_context(build);
           require(restored.context==session->expected.context && restored.control==session->expected.control &&
@@ -282,7 +325,50 @@ static int bridge_context_run(const char *mode,const char *elf,const char *input
         }
         if(!failure && session->continuation) session->continuation();
       } catch(...) { failure=std::current_exception(); }
-    });
+    };
+    const bool staged=!failure && (action=="restore" || action=="corrupt" || action=="cancel" ||
+                                  action=="cancel-prepared" || action=="cancel-sealed" || action.rfind("fatal-",0)==0);
+    if(staged) {
+      require(session && !session->published && !session->mmio.calls,"TSI published during preparation");
+      creator.prepare_launch(continuation);
+      creator.prepare_publication([&] {
+        require(session->guard_live && !session->published,"unguarded/early TSI publication");
+        if(action=="fatal-foreign") {
+          std::thread foreign([&] { session->candidate->publish_sealed(); }); foreign.join();
+        }
+        if(action=="fatal-destination")
+          const_cast<checkpoint_owner_t &>(session->bridge.control_owner()).load_checkpoint(session->expected.control);
+        // The actual pointer/control publication must succeed with no allocation.
+        tsi_terminal_fail_allocation_after(0);
+        session->candidate->publish_sealed();
+        if(action=="fatal-repeat") session->candidate->publish_sealed();
+        tsi_terminal_fail_allocation_after(-1);
+        session->readback();
+        std::cout<<"BRIDGE_SEALED_PUBLICATION owners=17 same_thread=1 allocation_free=1 guarded=1 target_edges=0\n";
+      });
+      if(action!="cancel-prepared") {
+        creator.seal_launch([&] {
+          auto guard=std::make_unique<bridge_publication_guard_t>(*session);
+          session->candidate->seal_publication();
+          require(!session->published && !session->mmio.calls,"sealing published TSI");
+          std::cout<<"BRIDGE_CANDIDATE_SEALED unpublished=1 mmio=0 same_thread=1 target_edges=0\n";
+          return guard;
+        });
+        if(action!="cancel-sealed") creator.publish_prepared();
+      }
+      const bool cancelled=action=="cancel" || action=="cancel-prepared" || action=="cancel-sealed";
+      if(cancelled) {
+        const bool published=session->published;
+        creator.cancel_reserved();
+        require(destroyed,"cancel did not destroy live provider/candidate");
+        std::cout<<"BRIDGE_RESERVED_CREATOR_CANCEL same_thread=1 service_calls=0 target_edges=0\n";
+        std::cout<<"BRIDGE_STAGED_CANCEL published="<<published<<" provider_destroyed=1 target_edges=0\n";
+        return 0;
+      }
+      require(session->guard_live && session->published,"TSI guard released before controller readback");
+      std::cout<<"BRIDGE_CONTROLLER_READBACK guarded=1 owners=17 target_edges=0\n";
+      creator.launch_prepared();
+    } else creator.launch(continuation);
     creator.join();
     require(destroyed,"provider not destroyed before join");
     if(failure) std::rethrow_exception(failure);

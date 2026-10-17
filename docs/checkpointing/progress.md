@@ -14,6 +14,52 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 163, in progress.
+The actual restricted production TSI candidate now stays on its reserved creator
+until sealing, then publishes without allocation under the retained guard.
+Complete seventeen-owner readback precedes publication acknowledgment and
+continuation. Cancellation passes before sealing, after sealing before commit,
+and after commit, with creator-side provider/candidate destruction. Recovery:
+[tsi-sealed-publication.md](tsi-sealed-publication.md).
+
+The final-source native ASan/UBSan and VCS component matrix passes 64 fresh
+restores, 192 cancellations, 336 invalid images, eight fatal publication misuse
+processes and eight semantic first divergences. All eight preserved native scopes
+(280 Python tests) and the independent native audit pass. Four fresh ordinary
+RTL VCS windows and the independent full-source audit pass 318,637 pre-edge
+words per cut, 256 events, sixteen semantic faults and 44 invalid cases.
+All six final-source exact-recipe 16-GiB four-hart controls and their independent
+audits pass: direct-exit controls terminate at C=3,329,794 and all four syscall
+protocols at C=3,330,050. Complete hart traces and decoded workload labels match
+within each protocol. The independent creator audit passes all four harness
+modes (20 fresh continuations); dispatcher guards and all 30 retained auditors
+also pass. The independent TSI audit verifies 52,088 owner comparisons, 3,000
+serial boundaries and 136 sealed publications. An additional audit verifies
+all 336 invalid images reject before sealing and 128 cancellations remain
+unpublished. The same candidate retries 1,373 seal allocation failures across
+native and VCS without publication.
+
+Selected receipts, exact workload hashes, build settings, source archives and
+executable native commands are in `summary.json`, `selected-results.json`,
+`workloads.json`, `native-input-archives.json`, `raw-native-commands.json`,
+`verification-commands.json` and `artifact-manifest.json` under
+`runs/m11-iteration163/`. Accepted evidence is under `verified/`; the earlier
+`bridge/` invocation overlapped edits and correctly rejected source drift.
+Both plans, environment helpers, heads and indices retain their starting bytes.
+
+Complete Rocket Level 1 remains disabled. Next: join the complete
+simulator/FAME/channel/CPU-managed-stream/other-bridge/functional-memory/runtime
+transaction with this sealed TSI publication, and establish production
+thread/signal/descriptor/parser exclusion. The component mutex does not provide
+that policy; the fresh simulator still rejects CPU-managed streams and
+unsupported widgets. Level 2 stays independent. BOOM/Saturn remain pending;
+standalone Shuttle, physical FPGA validation and ASIC power remain outside scope.
+No external dependency is missing. Existing controller commits reached GitHub,
+FireSim first then Chipyard, with independently checked remote heads; tracking
+ref writes warned. No staging or local commits occurred.
+
+Previous iteration 162 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 162, in progress.
 The optional pre-edge mailbox now stages creator-affine owner publication before
 sealing, runs commit/readback on that same creator under retained guards, and

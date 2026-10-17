@@ -70,11 +70,11 @@ def main():
     build = bytes.fromhex(file_sha(out/'build-binding.json')); (out/'build.sha256').write_bytes(build)
     shutil.copyfile(archive, out/'libfesvr-checkpoint.a'); library = out/'libfesvr-checkpoint.a'
     commands = []; command_lock = threading.Lock()
-    def execute(argv, log):
+    def execute(argv, log, expected=0):
         log.parent.mkdir(parents=True, exist_ok=True)
         command = ['bash', '-lc', ENVIRONMENT+shlex.join(map(str, argv))]
-        run(command, log, cwd=out)
-        result = dict(argv=command, cwd=str(out.relative_to(ROOT)), log=str(log), expected_exit=0)
+        run(command, log, cwd=out, expected=expected)
+        result = dict(argv=command, cwd=str(out.relative_to(ROOT)), log=str(log), expected_exit=expected)
         with command_lock:
             commands.append(result); (out/'commands.json').write_text(json.dumps(commands, indent=2)+'\n')
         return result
@@ -93,7 +93,7 @@ def main():
                       scenario/'plan', dest, image, out/'build.sha256']))
         argv = [out/'native', *values] if backend == 'native' else [out/'simv', '-no_save',
                 *['+'+k+'='+v for k,v in zip(('mode','elf','terminal','metadata','source','plan','destination','image_path','build_path'),values)]]
-        return dict(execute(argv, Path(str(dest)+'.log')), scenario=i, backend=backend, mode=mode,
+        return dict(execute(argv, Path(str(dest)+'.log'), expected=73 if mode.startswith('fatal-') else 0), scenario=i, backend=backend, mode=mode,
                     cut=cut, destination=str(dest), image=str(image))
     cuts = {}; restore_jobs = []
     for i in range(8):
@@ -109,8 +109,9 @@ def main():
                 restore_jobs.append((i, backend, 'restore', cut, image, out/f'restore-{i}-{cut}-{backend}'))
     with ThreadPoolExecutor(max_workers=4) as pool:
         restores = list(pool.map(lambda job: invoke(*job), restore_jobs))
-    cancel_jobs = [(i,b,'cancel',cut,image,out/f'cancel-{i}-{cut}-{b}')
-                   for i,b,_,cut,image,_ in restore_jobs]
+    cancel_jobs = [(i,b,mode,cut,image,out/f'{mode}-{i}-{cut}-{b}')
+                   for i,b,_,cut,image,_ in restore_jobs
+                   for mode in ('cancel','cancel-prepared','cancel-sealed')]
     with ThreadPoolExecutor(max_workers=4) as pool:
         cancellations = list(pool.map(lambda job: invoke(*job), cancel_jobs))
     chosen = cuts[1][2]; source_image = out/f'source-1-{chosen}.context'
@@ -128,7 +129,9 @@ def main():
     with ThreadPoolExecutor(max_workers=4) as pool:
         invalids = list(pool.map(invalid, invalid_jobs))
     specials = [invoke(1,b,m,chosen,source_image,out/(m+'-'+b))
-                for b in BACKENDS for m in ('atomic','foreign','guard-mask','guard-control')]
+                for b in BACKENDS for m in ('atomic','foreign','guard-mask','guard-control','seal-retry')]
+    fatal = [invoke(1,b,m,chosen,source_image,out/(m+'-'+b))
+             for b in BACKENDS for m in ('fatal-unsealed','fatal-foreign','fatal-repeat','fatal-destination')]
     faults = []
     for f in r['faults']:
         i, cut = f['scenario'], f['cut']
@@ -144,9 +147,10 @@ def main():
     report = dict(status='passed', scope='restricted production bridge candidate and serial-MMIO continuation only',
                   context_summary=str(parent), context_sha256=file_sha(parent), recipe_build_identity=str(identity_path),
                   source_inputs=bindings, cuts=cuts, restores=restores, invalids=invalids, specials=specials,
-                  faults=faults, cancellations=cancellations, commands=commands, build_sha256=build.hex(), level1_verified=False, level2_verified=False,
+                  faults=faults, cancellations=cancellations, fatal=fatal, commands=commands, build_sha256=build.hex(), level1_verified=False, level2_verified=False,
                   creator_worker_reserved=True,
                   creator_resource_retained=True,
+                  creator_sealed_publication=True,
                   artifact_sha256={str(f):file_sha(f) for f in out.rglob('*') if f.is_file()})
     path = out/'summary.json'; path.write_text(json.dumps(report, indent=2)+'\n')
     from tools.checkpoint_formats.tests.audit_tsi_bridge_context import audit

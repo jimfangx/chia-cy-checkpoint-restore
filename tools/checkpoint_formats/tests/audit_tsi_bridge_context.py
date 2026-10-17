@@ -45,28 +45,29 @@ def audit(path, report=None):
     require(set(r['artifact_sha256']) == {str(p) for p in out.rglob('*') if p.is_file() and p != path}, 'bridge artifact membership')
     for p, h in r['artifact_sha256'].items(): require(file_sha(p) == h, 'bridge artifact drift '+p)
     cancellations=r.get('cancellations',[])
-    commands = {c['log']:c for c in r['commands']}; results = r['restores']+r['invalids']+r['specials']+r['faults']+cancellations
+    commands = {c['log']:c for c in r['commands']}; results = r['restores']+r['invalids']+r['specials']+r['faults']+cancellations+r.get('fatal',[])
     require(len(commands) == len(r['commands']) == len(results)+2 and len({c['log'] for c in results}) == len(results), 'bridge result membership')
     require(set(commands) == {c['log'] for c in results} | {str(out/'native-build.log'),str(out/'vcs-build.log')}, 'missing bridge results')
     used = set()
     def command(c):
         require(c['log'] in commands and all(c[k] == commands[c['log']][k] for k in ('argv','cwd','expected_exit')) and c['log'] not in used, 'bridge command binding')
         used.add(c['log']); text = Path(c['log']).read_text(); lines = text.splitlines()
+        expected=73 if c.get('mode','').startswith('fatal-') else 0
         require(lines[0] == 'cwd='+str(out) and json.loads(lines[1][5:]) == c['argv'] and
-                lines[2].startswith('fresh_process_pid=') and lines[-1] == 'exit=0' and c['expected_exit'] == 0, 'bridge native process')
+                lines[2].startswith('fresh_process_pid=') and lines[-1] == f'exit={expected}' and c['expected_exit'] == expected, 'bridge native process')
         require(c['argv'][:2] == ['bash','-lc'] and 'source /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/vcs-env.sh && ' in c['argv'][2], 'bridge native environment')
         require(not any(s in text for s in ('ERROR: AddressSanitizer','runtime error:','LeakSanitizer: detected')), 'bridge sanitizer')
-        if c.get('backend') == 'vcs-dpi': require('BRIDGE_CONTEXT_VCS_ZERO_EDGES time=0 edges=0' in text, 'bridge VCS edge check')
-        if r.get('creator_worker_reserved') and 'scenario' in c:
-            marker=('BRIDGE_RESERVED_CREATOR_CANCEL same_thread=1 service_calls=0 target_edges=0' if c['mode']=='cancel' else
+        if c.get('backend') == 'vcs-dpi' and expected==0: require('BRIDGE_CONTEXT_VCS_ZERO_EDGES time=0 edges=0' in text, 'bridge VCS edge check')
+        if r.get('creator_worker_reserved') and 'scenario' in c and expected==0:
+            marker=('BRIDGE_RESERVED_CREATOR_CANCEL same_thread=1 service_calls=0 target_edges=0' if c['mode'].startswith('cancel') else
                     'BRIDGE_RESERVED_CREATOR same_thread=1 preparation_complete=1 target_edges=0')
             require(marker in text,
                     'missing reserved creator continuation')
-        if r.get('creator_resource_retained') and 'scenario' in c:
+        if r.get('creator_resource_retained') and 'scenario' in c and expected==0:
             require(text.count('BRIDGE_CREATOR_DESTROYED same_thread=1 provider_destroyed=1')==1,
                     'missing creator-side provider destruction')
             require(text.index('BRIDGE_CREATOR_DESTROYED') < text.index(marker), 'provider survived join/cancel')
-            if c['mode'] not in ('invalid','cancel'):
+            if c['mode'] != 'invalid' and not c['mode'].startswith('cancel'):
                 require(text.count('BRIDGE_CREATOR_LIVE_READBACK owners=17 mmio=0 same_thread=1 target_edges=0')==1,
                         'missing live provider across launch')
                 dest=Path(c['destination'])
@@ -76,6 +77,23 @@ def audit(path, report=None):
                 if 'BRIDGE_CONTEXT_CONTINUED' in text:
                     require(text.index('BRIDGE_CREATOR_LIVE_READBACK') < text.index('BRIDGE_CONTEXT_CONTINUED') <
                             text.index('BRIDGE_CREATOR_DESTROYED'), 'provider continuation lifetime/order')
+        if r.get('creator_sealed_publication') and c.get('mode') in ('restore','corrupt','cancel','cancel-prepared','cancel-sealed'):
+            prepared = c['mode']=='cancel-prepared'; unpublished = c['mode'] in ('cancel-prepared','cancel-sealed')
+            sealed='BRIDGE_CANDIDATE_SEALED unpublished=1 mmio=0 same_thread=1 target_edges=0'
+            published='BRIDGE_SEALED_PUBLICATION owners=17 same_thread=1 allocation_free=1 guarded=1 target_edges=0'
+            released='BRIDGE_PUBLICATION_GUARD_RELEASED same_thread=1'
+            require(text.count(sealed)==int(not prepared) and text.count(published)==int(not unpublished) and
+                    text.count(released)==int(not prepared), 'missing staged TSI lifecycle')
+            if not unpublished:
+                require(text.index(sealed)<text.index('BRIDGE_CONTEXT_READBACK')<text.index(published)<text.index(released),
+                        'TSI publication/readback escaped guards')
+            if c['mode'].startswith('cancel'):
+                require(f'BRIDGE_STAGED_CANCEL published={int(not unpublished)} provider_destroyed=1 target_edges=0' in text,
+                        'missing staged cancellation receipt')
+            else:
+                require(text.count('BRIDGE_CONTROLLER_READBACK guarded=1 owners=17 target_edges=0')==1 and
+                        text.index(published)<text.index('BRIDGE_CONTROLLER_READBACK')<text.index(released)<
+                        text.index('BRIDGE_CREATOR_LIVE_READBACK'), 'TSI controller publication/launch order')
         if 'scenario' in c:
             args = shlex.split(c['argv'][2]); native = c['backend'] == 'native'
             require(str(out/('native' if native else 'simv')) in args and all(
@@ -92,15 +110,20 @@ def audit(path, report=None):
     wanted = {(i,c,b) for i,cs in cuts.items() for c in cs for b in BACKENDS}
     require(len(r['restores']) == len(wanted) and {(c['scenario'],c['cut'],c['backend']) for c in r['restores']} == wanted, 'bridge restores')
     if r.get('creator_resource_retained'):
-        require(len(cancellations)==len(wanted) and {(c['scenario'],c['cut'],c['backend']) for c in cancellations}==wanted,
+        modes=('cancel','cancel-prepared','cancel-sealed') if r.get('creator_sealed_publication') else ('cancel',)
+        require(len(cancellations)==len(wanted)*len(modes) and
+                {(c['scenario'],c['cut'],c['backend'],c['mode']) for c in cancellations}==
+                {(*w,m) for w in wanted for m in modes},
                 'bridge cancellation membership')
         for c in cancellations:
             text=command(c); dest=Path(c['destination']); i,cut=c['scenario'],c['cut']
-            require(c['mode']=='cancel' and 'BRIDGE_CONTEXT_CONTINUED' not in text and
+            require(c['mode'] in modes and 'BRIDGE_CONTEXT_CONTINUED' not in text and
                     'BRIDGE_CREATOR_LIVE_READBACK' not in text and
-                    {p.name for p in dest.iterdir()}=={'readback.context','readback.control'}, 'bridge cancellation serviced provider')
-            require(Path(c['image']).read_bytes()==(dest/'readback.context').read_bytes()==canonical(build,metadata[i],states[i][cut]),
-                    'bridge cancelled provider complete readback')
+                    {p.name for p in dest.iterdir()}==({'readback.context','readback.control'} if c['mode']=='cancel' else set()),
+                    'bridge cancellation serviced/published provider')
+            if c['mode']=='cancel':
+                require(Path(c['image']).read_bytes()==(dest/'readback.context').read_bytes()==canonical(build,metadata[i],states[i][cut]),
+                        'bridge cancelled provider complete readback')
     boundaries = comparisons = words = 0
     for c in r['restores']:
         text = command(c); i,cut = c['scenario'],c['cut']; dest = Path(c['destination'])
@@ -134,7 +157,8 @@ def audit(path, report=None):
         text = command(c)
         require(c['image'] == str(out/'invalid-images'/c['case']) and
                 'BRIDGE_CONTEXT_REJECT unpublished=1 mmio=0 target_edges=0' in text and not list(Path(c['destination']).iterdir()), 'bridge invalid publication')
-    require(len(r['specials']) == 8 and {(c['mode'],c['backend']) for c in r['specials']} == {(m,b) for m in ('atomic','foreign','guard-mask','guard-control') for b in BACKENDS}, 'bridge special membership')
+    special_modes=('atomic','foreign','guard-mask','guard-control','seal-retry') if r.get('creator_sealed_publication') else ('atomic','foreign','guard-mask','guard-control')
+    require(len(r['specials']) == 2*len(special_modes) and {(c['mode'],c['backend']) for c in r['specials']} == {(m,b) for m in special_modes for b in BACKENDS}, 'bridge special membership')
     allocations = truncations = 0
     for c in r['specials']:
         text = command(c); dest = Path(c['destination'])
@@ -147,7 +171,20 @@ def audit(path, report=None):
             require('BRIDGE_CONTEXT_FOREIGN rejected=1 creator_retry=1' in text and
                     'BRIDGE_CONTEXT_FOREIGN_RESTORED rejected=4 mmio=0 creator_retry=1' in text, 'bridge foreign guard')
         elif c['mode'] == 'guard-control': require('BRIDGE_CONTEXT_CONTROL_GUARD unpublished=1 creator_retry=1' in text, 'bridge control guard')
-        else: require('BRIDGE_CONTEXT_LATE_GUARD unpublished=1 creator_retry=1' in text, 'bridge mask guard')
+        elif c['mode']=='guard-mask': require('BRIDGE_CONTEXT_LATE_GUARD unpublished=1 creator_retry=1' in text, 'bridge mask guard')
+        else:
+            m=re.search(r'BRIDGE_SEAL_RETRY allocations=(\d+) unpublished_on_failure=1 duplicate_seal_rejected=1 allocation_free_publish=1',text)
+            require(m and int(m[1])>0,'bridge same-candidate seal allocation retry')
+    if r.get('creator_sealed_publication'):
+        modes=('fatal-unsealed','fatal-foreign','fatal-repeat','fatal-destination')
+        require(len(r['fatal'])==8 and {(c['mode'],c['backend']) for c in r['fatal']}==
+                {(m,b) for m in modes for b in BACKENDS}, 'bridge fatal membership')
+        for c in r['fatal']:
+            text=command(c)
+            require(text.count('BRIDGE_PUBLICATION_FATAL before_acknowledgment=1')==1 and
+                    not any(s in text for s in ('BRIDGE_SEALED_PUBLICATION','BRIDGE_CONTROLLER_READBACK',
+                                                'BRIDGE_CONTEXT_READBACK','BRIDGE_CREATOR_LIVE_READBACK','BRIDGE_CONTEXT_CONTINUED')) and
+                    not list(Path(c['destination']).iterdir()), 'bridge fatal publication acknowledged')
     expected_faults = json.loads(parent.read_text())['faults']
     require(len(r['faults']) == len(expected_faults) and
             {(c['scenario'],c['backend']) for c in r['faults']} ==
@@ -169,13 +206,15 @@ def audit(path, report=None):
                 control_truncations=truncations,allocation_failures=allocations,foreign_rejections=10,late_guards=4,
                 first_divergences=len(r['faults']),
                 creator_cancellations=len(cancellations),
+                sealed_publications=(len(r['restores'])+len(r['faults'])+sum(c['mode']=='cancel' for c in cancellations)) if r.get('creator_sealed_publication') else 0,
+                fatal_publications=len(r.get('fatal',[])),
                 level1_verified=False,level2_verified=False)
 
 
 def main():
     p = argparse.ArgumentParser(description=__doc__); p.add_argument('--summary',type=Path,required=True); a=p.parse_args()
     result = audit(a.summary); r=json.loads(a.summary.read_text()); rejected=[]
-    for field in ('restores','invalids','specials','faults','commands','source_inputs', *(['cancellations'] if r.get('creator_resource_retained') else [])):
+    for field in ('restores','invalids','specials','faults','commands','source_inputs', *(['cancellations'] if r.get('creator_resource_retained') else []), *(['fatal'] if r.get('creator_sealed_publication') else [])):
         for kind in ('missing','duplicate'):
             bad=copy.deepcopy(r)
             if kind=='missing': bad[field].pop()

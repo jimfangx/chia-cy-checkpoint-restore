@@ -7,6 +7,7 @@
 #include "tsi_bridge_state.h"
 #include <memory>
 #include <array>
+#include <thread>
 
 class loadmem_t;
 class firesim_tsi_t;
@@ -65,6 +66,12 @@ public:
     prepared_context_t(const prepared_context_t &) = delete;
     prepared_context_t &operator=(const prepared_context_t &) = delete;
     void commit();
+    // The coordinator holds its creator/process exclusion guards from sealing
+    // through publication and readback. Sealing may allocate/throw but never
+    // publishes. Publishing is single-use, allocation-free and cannot unwind a
+    // partly published aggregate. These APIs do not acquire process exclusion.
+    void seal_publication();
+    void publish_sealed() noexcept;
   private:
     friend class tsibridge_t;
     prepared_context_t(tsibridge_t &, const context_image_t &, context_build_t);
@@ -72,6 +79,8 @@ public:
     std::vector<uint8_t> pristine_control;
     std::unique_ptr<tsi_bridge_state_t> control;
     std::unique_ptr<firesim_tsi_t> tsi;
+    const std::thread::id creator = std::this_thread::get_id();
+    bool sealed = false;
     bool consumed = false;
   };
   std::unique_ptr<prepared_context_t>

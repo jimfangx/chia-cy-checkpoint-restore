@@ -337,7 +337,15 @@ tsibridge_t::prepared_context_t::prepared_context_t(
 tsibridge_t::prepared_context_t::~prepared_context_t() = default;
 
 void tsibridge_t::prepared_context_t::commit() {
+  seal_publication();
+  publish_sealed();
+}
+
+void tsibridge_t::prepared_context_t::seal_publication() {
+  if (std::this_thread::get_id() != creator)
+    throw std::runtime_error("TSI access requires its live original thread");
   if (consumed) throw std::runtime_error("TSI bridge context candidate already committed");
+  if (sealed) throw std::runtime_error("TSI bridge context candidate already sealed");
   // Recheck the creator, complete private aggregate and process signal policy
   // before reading the destination. Every allocation and throwing check precedes
   // publication. No native context has been entered in the private provider.
@@ -349,6 +357,18 @@ void tsibridge_t::prepared_context_t::commit() {
       bridge.control->save_checkpoint() != pristine_control)
     throw std::runtime_error("TSI bridge context destination changed");
   bridge.control->require_fresh_context_destination();
+  sealed = true;
+}
+
+void tsibridge_t::prepared_context_t::publish_sealed() noexcept {
+  // Exclusion acquired by the coordinator before sealing must still be held.
+  // Never allocate/reinspect owners here: a failure after another owner's
+  // publication must be fatal, not a retryable partially restored process.
+  if (std::this_thread::get_id() != creator || !sealed || consumed ||
+      bridge.fesvr || bridge.restored_context)
+    std::terminate();
+  try { bridge.control->require_fresh_context_destination(); }
+  catch (...) { std::terminate(); }
   bridge.control.swap(control);
   bridge.fesvr = tsi.release();
   bridge.restored_context = true;
