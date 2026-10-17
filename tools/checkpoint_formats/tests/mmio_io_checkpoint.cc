@@ -45,7 +45,7 @@ struct platform_t : simif_emul_t {
   checkpoint_owner_t &owner() { auto p=checkpoint_mmio_io_owner(); check(p.first=="runtime/mmio-io"); return *p.second; }
   std::vector<std::pair<std::string,checkpoint_owner_t *>> owners() {
     return {{"io",&owner()},{"axi",master.get()},{"timing",checkpoint_host_timing_owner().second},
-            {"stream",checkpoint_stream_io_owners().at(0).second}};
+            {"stream",checkpoint_stream_io_owners().at(0).second},{"dma",get_cpu_managed_axi4()}};
   }
   void snapshot(const fs::path &out,const std::string &prefix) {
     for(auto &[name,p] : owners()) save(out/(prefix+"."+name),p->save_checkpoint());
@@ -75,6 +75,8 @@ static int execute(const char *mode,const char *source,const char *dest,unsigned
     platform_t p(delay); auto &owner=p.owner();
     check(owner.checkpoint_schema()=="firesim.emul.mmio-io.returned.v1");
     const auto good=owner.save_checkpoint(),axi=p.master->save_checkpoint();
+    const auto good_group=p.save_checkpoint_io();
+    auto pending_group=p.prepare_checkpoint_io(good_group);
     const fs::path out(dest); fs::create_directories(out);
     if(std::string(mode)=="negative") {
       for(size_t n=0;n<good.size();++n) reject([&] { owner.load_checkpoint({good.begin(),good.begin()+n}); });
@@ -95,15 +97,19 @@ static int execute(const char *mode,const char *source,const char *dest,unsigned
       std::cout<<"MMIO_IO_NEGATIVE rejected="<<rejects<<" partial_publication=0 target_edges=0\n"; return 0;
     }
     if(std::string(mode)=="restore") {
-      // Validate the complete tested component group before any load. This
-      // fixture does not provide the full simulator transaction/freeze policy.
-      for(auto &[name,pointer] : p.owners()) pointer->validate_checkpoint(load(fs::path(source)/("cut-"+std::to_string(cut)+"."+name)));
-      for(auto &[name,pointer] : p.owners()) pointer->load_checkpoint(load(fs::path(source)/("cut-"+std::to_string(cut)+"."+name)));
+      auto image=p.save_checkpoint_io();
+      // The production transaction owns all five runtime I/O components.
+      const std::vector<std::string> names{"io","axi","stream","dma","timing"};
+      check(image.owners.size()==names.size());
+      for(size_t i=0;i<names.size();++i)
+        image.owners[i].payload=load(fs::path(source)/("cut-"+std::to_string(cut)+"."+names[i]));
+      auto prepared=p.prepare_checkpoint_io(image);
+      p.publish_checkpoint_io(*prepared);
       std::ifstream(fs::path(source)/("cut-"+std::to_string(cut)+".ticks"))>>p.ticks;
       p.snapshot(out,"readback");
       for(auto &[name,pointer] : p.owners()) check(pointer->save_checkpoint()==load(fs::path(source)/("cut-"+std::to_string(cut)+"."+name)));
       check(p.ticks>0); --p.ticks; // Fixture startup's single do_tick, no AXI or PRNG use.
-      std::cout<<"MMIO_IO_PREEDGE_READBACK owners=4 target_edges=0\n";
+      std::cout<<"MMIO_IO_PREEDGE_READBACK owners=5 target_edges=0\n";
     }
     widget_registry_t registry;
     registry.add_widget(new master_t(p,{0,4,8},0,{}));
@@ -122,6 +128,9 @@ static int execute(const char *mode,const char *source,const char *dest,unsigned
         const auto before=m.save_checkpoint();
         reject([&] { owner.save_checkpoint(); }); reject([&] { owner.validate_checkpoint(good); });
         reject([&] { owner.load_checkpoint(good); });
+        reject([&] { p.save_checkpoint_io(); });
+        reject([&] { p.prepare_checkpoint_io(good_group); });
+        reject([&] { p.publish_checkpoint_io(*pending_group); });
         reject([&] { p.simif_emul_t::read(0x100); }); reject([&] { p.simif_emul_t::write(0x100,0); });
         check(m.save_checkpoint()==before); ++active;
         if(m.ar_valid() || m.aw_valid()) ++queued;

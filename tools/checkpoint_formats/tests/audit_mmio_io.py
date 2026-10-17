@@ -14,8 +14,8 @@ def pack(*words):
     return struct.pack('<'+'Q'*len(words),*words)
 
 class Engine:
-    def __init__(self):
-        self.s=[165]
+    def __init__(self,seed=165):
+        self.s=[seed]
         for i in range(1,312): self.s.append((6364136223846793005*(self.s[-1]^(self.s[-1]>>62))+i)&MASK)
         self.index=312
     def draw(self):
@@ -29,8 +29,8 @@ class Engine:
         y^=(y<<17)&0x71d67fffeda60000
         y^=(y<<37)&0xfff7eee000000000
         return (y^(y>>43))&MASK
-    def payload(self,maximum,total):
-        return pack(0x3154504b434d5448,1,maximum,165,total,0,312,*self.s,self.index)
+    def payload(self,maximum,total,remaining=0,seed=165):
+        return pack(0x3154504b434d5448,1,maximum,seed,total,remaining,312,*self.s,self.index)
 
 
 def oracle(maximum):
@@ -78,6 +78,8 @@ def audit(path):
             {(b,d,m,c) for b in ('native','vcs-dpi') for d in (1,7)
              for m,c in [('reference',0),*[('restore',c) for c in range(12)],('negative',0)]},'MMIO case membership')
     comparisons=active=nested=negative=queued=inflight=0
+    joint=r.get('runtime_io_transaction',False)
+    guards=8 if joint else 5
     for c in r['cases']:
         log=Path(c['log']).read_text(); lines=log.splitlines()
         require(lines[0]=='cwd='+str(out) and json.loads(lines[1][5:])==c['argv'] and
@@ -93,7 +95,7 @@ def audit(path):
         rows,states=oracle(c['delay']); start=rows.index(f'OP {cut} {states[cut][0]}')
         require((dest/'trace').read_text().splitlines()==rows[start:],'MMIO AXI timing and PRNG oracle')
         m=re.search(r'MMIO_IO_PASS operations=(\d+) active=(\d+) stream_active=(\d+) queued=(\d+) inflight=(\d+) rejections=(\d+) target_edges=0',log)
-        require(m and int(m[1])==12-cut and int(m[6])==5*int(m[2])+3*int(m[3]),'MMIO suspension guards')
+        require(m and int(m[1])==12-cut and int(m[6])==guards*int(m[2])+3*int(m[3]),'MMIO suspension guards')
         require(int(m[2])>0 and int(m[4])>0 and int(m[5])>0,'MMIO queued and in-flight coverage')
         active+=int(m[2]); nested+=int(m[3]); queued+=int(m[4]); inflight+=int(m[5])
         for op in range(cut,13):
@@ -101,17 +103,19 @@ def audit(path):
             require((dest/(prefix+'.io')).read_bytes()==pack(0x3154504B43474457,1,25,3,12,32,32,0),'MMIO owner schema')
             require((dest/(prefix+'.axi')).read_bytes()==pack(0x3154504b434f494d,1,12,32,32,0,0)+bytes(44),'MMIO returned AXI state')
             require((dest/(prefix+'.stream')).read_bytes()==pack(0x3154504B43474457,1,24,3,16,64,512,0),'MMIO nested stream owner schema')
+            if joint:
+                require((dest/(prefix+'.dma')).read_bytes()==pack(0x3154504b434f494d,1,16,64,512,0,0)+bytes(104),'MMIO DMA AXI state')
             require((dest/(prefix+'.timing')).read_bytes()==states[op][1],'MMIO complete timing owner')
             require(int((dest/(prefix+'.ticks')).read_text())==states[op][0],'MMIO host peer label')
         if c['mode']=='restore':
-            require('MMIO_IO_PREEDGE_READBACK owners=4 target_edges=0' in log,'MMIO missing preedge readback')
+            require(f'MMIO_IO_PREEDGE_READBACK owners={5 if joint else 4} target_edges=0' in log,'MMIO missing preedge readback')
             ref=Path(c['reference'])
-            for kind in ('io','axi','timing','stream'):
+            for kind in (('io','axi','timing','stream','dma') if joint else ('io','axi','timing','stream')):
                 require((dest/f'readback.{kind}').read_bytes()==(ref/f'cut-{cut}.{kind}').read_bytes(),'MMIO preedge mismatch')
                 require((dest/f'final.{kind}').read_bytes()==(ref/f'final.{kind}').read_bytes(),'MMIO continuation mismatch')
                 comparisons+=2
     return dict(status='passed',fresh_component_restores=48,owner_comparisons=comparisons,
-                suspended_boundaries=active,suspended_rejections=5*active+3*nested,
+                suspended_boundaries=active,suspended_rejections=guards*active+3*nested,
                 nested_stream_boundaries=nested,queued_boundaries=queued,inflight_boundaries=inflight,
                 invalid_rejections=negative,level1_verified=False,level2_verified=False)
 

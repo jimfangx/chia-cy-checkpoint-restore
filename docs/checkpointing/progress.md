@@ -14,6 +14,50 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 166, in progress.
+Production `simif_emul_t` now prepares and publishes the returned MMIO/stream
+callers, control/DMA AXI and host timing jointly. Exact owner membership,
+complete destination recheck and lifetime/thread/single-use binding precede
+nonthrowing swaps. CPU aggregate admission stays disabled. Recovery:
+[runtime-io-transaction.md](runtime-io-transaction.md).
+
+Final-source native ASan/UBSan and time-zero VCS DPI pass 12 fresh component
+restores, 240 complete owner comparisons, 474 invalid/configuration/stale/
+lifetime rejections and 3,714 exhaustive allocation failures without partial
+publication. The independent complete byte/queue/MT19937-64 oracle passes.
+All eight preserved native scopes (280 Python tests), creator/harness matrix,
+stream-widget and CPU-managed I/O suites, dispatcher guards, retained auditors
+and production TSI component matrix pass. Four fresh ordinary RTL windows and
+the full-source audit pass 318,637 pre-edge words per cut, 256 events, sixteen
+first semantic divergences and 44 invalid cases. Both exact-recipe 16-GiB
+four-hart direct-exit controls and their audits pass at C=3,329,794 with complete
+traces and workload labels matching. All four final-source syscall variants and their independent audits pass at
+C=3,330,050. Complete hart traces and decoded labels match within each protocol.
+All twelve final checks and nine independent audits pass. The final selected
+receipts, workload/source hashes, executable native commands and full-path
+artifact index are `summary.json`, `selected-results.json`, `workloads.json`,
+`native-input-archives.json`, `raw-native-commands.json`,
+`verification-commands.json` and `artifact-manifest.json` under
+`runs/m11-iteration166/`.
+The structural integration audit binds 15 host widgets and 11,464 generated
+entries / 445,838 words. Three fresh native denials and an independent audit
+confirm CPU admission remains unsupported; this is not CPU-image validation.
+The recovery document identifies concrete remaining coordinator entry points
+and corrects the historical iteration-82 assumption that the concrete FireSim
+driver/run-loop adapters are still missing.
+Earlier fixture corrections and broader checks that overlapped the final test
+correction remain diagnostic; the complete final suite supersedes them. No
+check was cancelled. Both existing controller heads reached GitHub, FireSim
+first then Chipyard, with independently checked remote heads; local tracking-ref
+writes warned. Both plans, environment helpers, heads and indices retain their
+starting bytes. No staging or local commits occurred. No external dependency
+is missing. Complete simulator coordination and production thread/signal/
+descriptor/parser exclusion remain pending. Level 2 stays independent;
+BOOM/Saturn remain pending. Standalone Shuttle, physical FPGA validation and
+ASIC power remain outside scope.
+
+Previous iteration 165 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 165, in progress.
 Production `simif_emul_t::read/write` now have a distinct returned-call owner,
 `runtime/mmio-io`, in the driver diagnostic inventory. All three checkpoint
