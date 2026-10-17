@@ -1,13 +1,13 @@
 # CPU checkpoint matrix
 
-Current milestone: M11 Rocket, iteration 155, **in_progress**. Rocket Level 2
+Current milestone: M11 Rocket, iteration 156, **in_progress**. Rocket Level 2
 passes complete captured ChipTop finite replay at four tested cuts. Complete
 Level-1 CPU continuation remains pending. Physical FPGA validation, standalone
 Shuttle and ASIC power are outside this matrix. The verified FCFS evidence remains in its existing docs.
 
 | Family / existing recipe | Level 1 | Level 2 | Workload evidence |
 | --- | --- | --- | --- |
-| Rocket / `firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3` | in_progress: generated RTL inventory audited; TracerV and FireSim driver/termination-loop continuations pass; production TSI read, all four load-memory queues, bridge host control and FireSim idle/reset control pass fresh component restores; source-integrated FESVR serial FIFOs pass fresh component restores; serial-read progress passes complete fresh component restores; production TestChip initialization caller/serial-child dispatch and atomic four-owner component restores pass; program-load transport/entry/return ownership passes fresh component readbacks; production HTIF poll caller passes nine-phase fresh component continuations; suspended eight-owner inspection passes actual Rocket workload samples; exact-ELF startup metadata passes fresh host-component preparation/readback; default BCD pending commands pass fresh component continuation; metadata revision-3 transport and exact installed-XLEN policy reject atomically; build-local ELF-loader overlay closes tested descriptor/mapping exception leaks; context overlay owns inactive/thread-exit stack storage and rejects invalid lifetimes; opt-in sealed BCD terminal input/cursor/transcript passes fresh component restores; revision-4 sealed startup metadata binds all eight pristine peers, sealed polling audits include BCD/terminal, and paired terminal/BCD restoration and bound poll/terminal/BCD restoration reject allocation failures atomically; all twelve known sealed polling components prepare atomically in a fresh metadata-bound TSI, and a restricted sealed BCD caller passes fresh component continuations without startup/reset or context entry, including identity writes at every address residue with complete parent/caller/write/FIFO ownership; ordinary identity dispatch additionally owns its command and write/response/return cursor with atomic caller/write/FIFO component preparation, with twelve-owner atomic sealed polling preparation and fresh continuation through active identity merge cuts; generic memif read caller/FIFO passes fresh native/VCS continuations with and without cache flushing; the installed default syscall session now dispatches runtime reads through the owned virtual memif interface, with full syscall/session/context restoration pending; direct pass/fail/stop component projections pass and active unowned exit cuts reject; opt-in exact-header provider is linked and audited in the exact-recipe metasim build and passes actual private exit/stopped restores using that linked archive; destination-aware single-use lifecycle preparation and guarded nonthrowing peer publication pass native/VCS component checks; all twelve known polling owners now prepare without publication and commit after a fresh destination check; the fourteen-owner polling/direct-exit/lifecycle group now prepares and publishes atomically, including pending-exit readback and guarded direct-exit continuation through no-signature stop; completed direct-exit group restoration and terminal readback pass; an independent exact-provider delivered-signal/lifecycle component passes fresh readback, real handler delivery and atomic peer publication, with actual all-thread mask/pending audits and atomic rejection now passing, while the production thread coordinator and signal-caused caller ownership remain pending; an independent executable syscall-93 parent now restores all eight request words, nested memif progress, writeback and response order with actual lifecycle/serial peers, with explicit restricted live polling and atomic fourteen-owner group integration passing fresh native/VCS continuations and independent ownership audits; restricted polling now omits the unused default syscall session, audits actual descriptor lifetimes and extends fresh component coverage through zero-mailbox idle yields; restricted mode now retires inherited proxy descriptors/table and rejects repopulated resources at group boundaries; production run_host now owns its five outer phases and signed return value with fresh component restores and actual coroutine checks; the restricted fifteen-owner outer/polling/syscall/provider aggregate now passes atomic fresh native/VCS restoration through stop and signed return; the restricted sixteen-owner wrapper/outer/polling/provider aggregate now passes fresh native/VCS coroutine continuation without startup replay, with exact creator/stack/signal guards; the actual lifecycle provider now enforces all-thread blocked/pending and exact-action admission for the aggregate at capture, preparation, commit and resume; the supported aggregate, serial/load-memory entries and retained owner references now enforce lifetime-bound creator-thread access; ordinary-session, production signal coordination and full simulator aggregate integration remain pending; complete HTIF/memif/device/context/TestChip-loader/cross-owner ownership and fresh CPU continuation pending | verified for complete retained ChipTop: four actual cuts; all 318,637 words read back before any ordinary RTL edge; 256 captured events / 21,760 output comparisons; 16 real first-boundary corruptions and 44 atomic invalid cases | Complete 16-GiB four-hart capture control passes at C=3,329,794; every full hart trace and workload/store label matches. Prior default/buffered/sealed controls retained. Level-1 CPU continuation remains pending |
+| Rocket / `firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3` | in_progress: generated RTL inventory audited; TracerV and FireSim driver/termination-loop continuations pass; production TSI read, all four load-memory queues, bridge host control and FireSim idle/reset control pass fresh component restores; source-integrated FESVR serial FIFOs pass fresh component restores; serial-read progress passes complete fresh component restores; production TestChip initialization caller/serial-child dispatch and atomic four-owner component restores pass; program-load transport/entry/return ownership passes fresh component readbacks; production HTIF poll caller passes nine-phase fresh component continuations; suspended eight-owner inspection passes actual Rocket workload samples; exact-ELF startup metadata passes fresh host-component preparation/readback; default BCD pending commands pass fresh component continuation; metadata revision-3 transport and exact installed-XLEN policy reject atomically; build-local ELF-loader overlay closes tested descriptor/mapping exception leaks; context overlay owns inactive/thread-exit stack storage and rejects invalid lifetimes; opt-in sealed BCD terminal input/cursor/transcript passes fresh component restores; revision-4 sealed startup metadata binds all eight pristine peers, sealed polling audits include BCD/terminal, and paired terminal/BCD restoration and bound poll/terminal/BCD restoration reject allocation failures atomically; all twelve known sealed polling components prepare atomically in a fresh metadata-bound TSI, and a restricted sealed BCD caller passes fresh component continuations without startup/reset or context entry, including identity writes at every address residue with complete parent/caller/write/FIFO ownership; ordinary identity dispatch additionally owns its command and write/response/return cursor with atomic caller/write/FIFO component preparation, with twelve-owner atomic sealed polling preparation and fresh continuation through active identity merge cuts; generic memif read caller/FIFO passes fresh native/VCS continuations with and without cache flushing; the installed default syscall session now dispatches runtime reads through the owned virtual memif interface, with full syscall/session/context restoration pending; direct pass/fail/stop component projections pass and active unowned exit cuts reject; opt-in exact-header provider is linked and audited in the exact-recipe metasim build and passes actual private exit/stopped restores using that linked archive; destination-aware single-use lifecycle preparation and guarded nonthrowing peer publication pass native/VCS component checks; all twelve known polling owners now prepare without publication and commit after a fresh destination check; the fourteen-owner polling/direct-exit/lifecycle group now prepares and publishes atomically, including pending-exit readback and guarded direct-exit continuation through no-signature stop; completed direct-exit group restoration and terminal readback pass; an independent exact-provider delivered-signal/lifecycle component passes fresh readback, real handler delivery and atomic peer publication, with actual all-thread mask/pending audits and atomic rejection now passing, while the production thread coordinator and signal-caused caller ownership remain pending; an independent executable syscall-93 parent now restores all eight request words, nested memif progress, writeback and response order with actual lifecycle/serial peers, with explicit restricted live polling and atomic fourteen-owner group integration passing fresh native/VCS continuations and independent ownership audits; restricted polling now omits the unused default syscall session, audits actual descriptor lifetimes and extends fresh component coverage through zero-mailbox idle yields; restricted mode now retires inherited proxy descriptors/table and rejects repopulated resources at group boundaries; production run_host now owns its five outer phases and signed return value with fresh component restores and actual coroutine checks; the restricted fifteen-owner outer/polling/syscall/provider aggregate now passes atomic fresh native/VCS restoration through stop and signed return; the restricted sixteen-owner wrapper/outer/polling/provider aggregate now passes fresh native/VCS coroutine continuation without startup replay, with exact creator/stack/signal guards; the actual lifecycle provider now enforces all-thread blocked/pending and exact-action admission for the aggregate at capture, preparation, commit and resume; the supported aggregate, serial/load-memory entries and retained owner references now enforce lifetime-bound creator-thread access; a build/metadata-bound sixteen-owner image now passes actual live creator capture and fresh creator-side candidate preparation/publication with complete component continuation; ordinary-session, production signal coordination and full simulator aggregate integration remain pending; complete HTIF/memif/device/context/TestChip-loader/cross-owner ownership and fresh CPU continuation pending | verified for complete retained ChipTop: four actual cuts; all 318,637 words read back before any ordinary RTL edge; 256 captured events / 21,760 output comparisons; 16 real first-boundary corruptions and 44 atomic invalid cases | Complete 16-GiB four-hart capture control passes at C=3,329,794; every full hart trace and workload/store label matches. Prior default/buffered/sealed controls retained. Level-1 CPU continuation remains pending |
 | BOOM / `firesim_boom_singlecore_no_nic_l2_llc4mb_ddr3` | pending | pending | No execution claimed |
 | Shuttle + Saturn / `firesim_saturn_GENV256D128_shuttle_singlecore_no_nic_l2_llc4mb_ddr3` | pending | pending | No vector execution claimed |
 
@@ -32,6 +32,134 @@ The recipe also specifies frequency 140 MHz and TIMING build strategy; these
 are retained in the recipe record, with no FPGA implementation invoked.
 VCS uses Y-2026.03-SP1, `-full64`, `VCS_FLAGS=-Mupdate`, system GCC/G++ 13,
 and the sourced Conda library/include directories. No Conda files are edited.
+
+## Iteration 156: bound context images and fresh creator-side candidates
+
+Complete Rocket Level 1 remains **in_progress**. The restricted TSI context
+aggregate now exports canonical owned bytes and prepares a destination-bound
+publication candidate on the fresh TSI creator. The envelope binds the supplied
+exact build SHA-256, complete canonical startup metadata and all sixteen ordered
+owners, including the private lifecycle projection. It rejects malformed lengths,
+headers, incompatible builds/metadata, missing/duplicate/unknown/reordered owners
+and trailing bytes before publication. Existing payloads retain their schemas.
+A complete-context metadata observation supports actual live returned sources;
+ordinary polling metadata admission stays unchanged. The adapter does not grant
+complete TSI or simulator admission. Recovery:
+[tsi-context-images.md](tsi-context-images.md).
+
+The native ASan/UBSan and VCS matrix and primary independent audit pass:
+**64 live captures / 128 fresh cross-backend restores**, **136,320 complete-owner
+comparisons / 8,388 host operations**, **336 invalid processes**, **8,912 byte
+truncations**, and **2,284 successive allocation failures**. Every failing
+preparation/publication preserves the metadata-prepared destination without
+context entry; successful candidates own their input bytes, reject consumed and
+competing publications, read back every owner, and recapture canonical bytes.
+Eight foreign-thread calls reject before owner access. Two late mask guards reject
+without publication and allow creator retries. All eight actual semantic
+corruptions stop at their independently expected first output boundary without
+acknowledging that output. VCS asserts time zero and zero RTL edges.
+
+Source processes execute the actual coroutine to each selected host-operation
+cut and exit before image imports. All eight retained protocol scenarios cover
+startup polling, active serial/syscall requests, cache-flush variants and returned
+tails; each selects four cuts. These component cuts are distinct from the Rocket
+CPU target-cycle cuts below. The source oracle and every subsequent owner byte
+come from the retained independently audited context suite. The component links
+the exact recipe's retained iteration-155 lifecycle provider; its complete source
+catalog and build-binding digest include the current image/group implementation.
+No FCFS whitelist is used to admit CPU state.
+
+Accepted component receipt:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration156/context-image/invocation-uifjvkhy/summary.json`.
+The separate independent auditor also rejects all **fourteen** missing/duplicate
+receipt variants and all **99** individual source omissions:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration156/context-image-independent-audit.json`.
+All eight stable native scopes (280 Python tests) and their independent archive
+audit pass, preserving 5,317 artifacts and 850 source bindings. Thirty retained
+auditors pass. The complete prior context matrix and its independent audit pass
+**887 cuts / 3,548 fresh restores / 3,277,056 owner comparisons / 201,268 host
+operations**, plus 102 invalid processes, twelve late guards, eight resource
+cases, eight first divergences and fourteen evidence rejections. Both backends
+reject 1,960 malformed images, 64 membership cases, two cross-owner cases and
+927 allocations without publication. Receipts:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration156/context-regression/invocation-8xj33jgy/summary.json` and
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration156/context-independent-audit.json`.
+All **six full 16-GiB four-hart controls and their independent audits pass**:
+both direct-exit controls finish at **C=3,329,794**, and all four ordinary/
+restricted syscall modes finish at **C=3,330,050**. Every complete hart trace and
+decoded workload label matches within its protocol. These remain uninterrupted
+CPU controls, independent of component restoration. Exact receipts:
+
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration156/rocket-controls-stable/invocation-tqd5r683/summary.json`.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration156/rocket-independent-audit.json`.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration156/syscall-controls/invocation-3jiqx_49/summary.json`.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration156/syscall-independent-audit.json`.
+
+The first native invocation ran all eight scopes but rejected source drift during
+fixture revision; its accepted stable repeat is
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration156/native-regressions/invocation-v8tzubze/summary.json`.
+Initial cut-selection/log-directory, live-return metadata admission and CPU
+build source-epoch failures stay diagnostic. Accepted executions use stable
+sources and fresh artifacts. Both plans, environment helpers, heads and indices
+retain their starting bytes. Existing controller commits reached GitHub FireSim
+first and then Chipyard; local tracking-ref writes warned about read-only
+metadata after remote success. No staging or local commits occurred.
+
+All exact executed build/runtime argv, source snapshots, selected receipts and
+created artifact paths/hashes are cataloged under
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration156/`
+in `summary.json`, `selected-results.json`, `verification-commands.json`,
+`raw-native-commands.json`, `native-input-archives.json` and
+`artifact-manifest.json`. The catalog retains diagnostic failures separately
+from passing selections.
+
+Fresh independent Level-2 replay and its complete-source audit pass at original
+Rocket target cuts **C=100/700000/900000/3250000**: **318,637 words / seven clocks
+before any edge per cut**, **256 events / 21,760 output comparisons**, **sixteen
+actual semantic first divergences** and **44 invalid cases**. Receipts:
+
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration156/native-replay/invocation-lh1s0sup/summary.json`.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration156/replay-full-source-audit.json`.
+
+The exact Rocket recipe settings remain those listed above. Native checks use
+VCS Y-2026.03-SP1, `-full64`, GCC/G++ 13 and both repository environments with
+`vcs-env.sh` last; cached Make builds use `VCS_FLAGS=-Mupdate`. No FPGA bitstream
+is built. Workload ELF SHA-256 values remain:
+
+- Direct exit: `f3d86f54caf42b9589385e8021dba46777f647134f19595e38a3d452b745f3d4`,
+  `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration82/workload/rocket-quad.riscv`.
+- Syscall 93: `1c5ebf741af82848ebfcba5194e4c813dce3cdc8aadc7ecae2ba454280604958`,
+  `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration151/workload/rocket-quad.riscv`.
+
+Executable native checks from the Chipyard root, each using fresh outputs:
+
+```json
+[
+  {
+    "purpose": "Bound context image capture, fresh import, continuation and rejection matrix",
+    "cwd": ".",
+    "argv": ["bash", "-lc", "source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh && python -m tools.checkpoint_formats.tests.verify_tsi_context_image_vcs --context-summary /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration151/context-regression/invocation-93o7agr0/summary.json --recipe-build-identity /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration155/rocket-controls/invocation-53d1qw51/rocket-build-identity.json --out /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration156-repeat/context-image"]
+  },
+  {
+    "purpose": "Independent complete image/evidence audit",
+    "cwd": ".",
+    "argv": ["python", "-m", "tools.checkpoint_formats.tests.audit_tsi_context_image", "--summary", "/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration156/context-image/invocation-uifjvkhy/summary.json"]
+  },
+  {
+    "purpose": "Four-cut fresh ordinary RTL VCS replay",
+    "cwd": ".",
+    "argv": ["bash", "-lc", "source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh && python -m tools.checkpoint_formats.tests.verify_fame_event_replay_vcs --base /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration138/rocket-semantic-map-sealed/FireSim-generated --capture /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration139/runtime-pilot/capture --cuts 100,700000,900000,3250000 --out /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration156-repeat/native-replay"]
+  }
+]
+```
+
+Next: integrate creator-side image preparation/publication into the complete
+simulator restore coordinator, establish production process-wide thread/mask/
+action/signal exclusion, and validate one coherent simulator/FAME/bridge/
+functional-memory/host CPU cut followed by fresh full Level-1 continuation.
+Startup metadata preparation is still a separate operation. Level 2 stays
+independent; BOOM/Saturn remain pending. Standalone Shuttle, physical FPGA
+validation and ASIC power stay outside scope. No external dependency is missing.
 
 ## Iteration 155: freeze software owners before the settled VCS handoff
 

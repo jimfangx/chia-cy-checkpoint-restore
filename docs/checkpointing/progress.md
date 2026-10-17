@@ -14,6 +14,59 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 156, in progress.
+The restricted context group now exports a build- and metadata-bound byte image
+and prepares a fresh creator-side publication candidate. All sixteen ordered
+owners include the private lifecycle projection. A complete-context metadata
+observation admits live returned sources while ordinary polling metadata
+admission stays unchanged. Recovery: [tsi-context-images.md](tsi-context-images.md).
+Complete Rocket Level 1 remains disabled; simulator integration and production
+process-wide exclusion remain pending.
+
+Diagnostics: `runs/m11-iteration156/`. The native ASan/UBSan and VCS image matrix
+and its primary independent audit pass: 64 actual live captures, 128 fresh
+cross-backend restores, 136,320 complete-owner comparisons / 8,388 host
+operations, 336 invalid processes, 8,912 byte truncations and 2,284 successive
+allocation failures with no publication. Eight actual semantic first divergences,
+eight foreign-thread rejections and two late mask guards with creator retry pass.
+Accepted: `context-image/invocation-uifjvkhy/summary.json`. The separate independent
+auditor rejects all fourteen missing/duplicate receipt variants and all 99
+individual source omissions. These are component host-operation cuts, not complete CPU target-cycle restores. Fresh four-cut
+ordinary RTL VCS replay and its complete-source audit pass all 318,637 semantic
+words before any edge per cut, 256 events, sixteen first divergences and 44
+invalid cases.
+
+All eight stable native scopes (280 Python tests), their independent archive
+audit and thirty retained auditors pass. The complete prior context matrix and
+independent audit pass 887 cuts / 3,548 fresh restores / 3,277,056 owner
+comparisons / 201,268 host operations; 102 invalid processes, twelve late guards,
+eight resource cases, eight first divergences and fourteen evidence rejections.
+Both backends reject 1,960 malformed images, 64 membership variants, two cross-
+owner inconsistencies and 927 allocations without publication. Accepted:
+`context-regression/invocation-8xj33jgy/summary.json`.
+All six full 16-GiB four-hart controls and independent audits pass: both direct
+controls at C=3,329,794; all four syscall modes at C=3,330,050. Complete hart
+traces and decoded workload labels match within each protocol. Level 2 uses
+the retained direct ELF. Exact receipts, native argv, source catalogs and all
+created artifact paths/hashes are in `summary.json`, `selected-results.json`,
+`verification-commands.json`, `raw-native-commands.json`,
+`native-input-archives.json` and `artifact-manifest.json` under this iteration.
+Initial cut-selection/log-directory and live-return metadata failures, plus
+initial native/CPU source-epoch rejections, remain diagnostic. Selected checks
+use stable sources and fresh outputs; no incomplete invocation is selected.
+
+Existing controller commits are confirmed on GitHub, FireSim first and then
+Chipyard; read-only local tracking-ref updates warned after remote success.
+Both plans, environment helpers, local heads and indices retain starting bytes.
+No staging or local commits occurred. Next: connect creator-side image/metadata
+preparation and publication to coherent simulator/FAME/bridge/functional-memory
+restoration, establish production process-wide exclusion, and validate full
+Rocket Level-1 target-cycle continuation. BOOM/Saturn remain pending. Standalone
+Shuttle, physical FPGA validation and ASIC power stay outside scope. No external
+dependency is missing.
+
+Previous iteration 155 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 155, in progress.
 The settled driver diagnostic now freezes supported software owners on the
 driver creator while VCS is parked in DPI, then transfers only names, schemas

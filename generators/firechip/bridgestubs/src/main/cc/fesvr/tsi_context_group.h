@@ -55,6 +55,16 @@ public:
     result.emplace_back("wrapper", tsi.host_wrapper.save_checkpoint());
     return result;
   }
+  // A full context audit owns exit/stop/return state that a polling-only
+  // metadata observation cannot admit. Keep the ordinary metadata API's
+  // narrower admission unchanged, including for live returned sources.
+  std::vector<uint8_t> inspect_startup_metadata() const {
+    inspect();
+    tsi.check_startup_metadata();
+    const auto xlen = tsi.preflight_startup_metadata(tsi.startup_metadata);
+    return tsi.startup_metadata.image(tsi.metadata_arguments,
+        tsi.metadata_configuration(xlen), tsi.metadata_revision());
+  }
   bool native_context_initialized() const { tsi.require_target_thread(); return tsi.host_context_initialized(); }
   // Recreate only the audited wrapper/run_host frames. The first entry starts
   // at the restored semantic outer phase, never HTIF start/reset/program load.
