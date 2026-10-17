@@ -20,6 +20,7 @@ public:
     prepared_t(prepared_t &&) = delete;
     prepared_t &operator=(prepared_t &&) = delete;
     void commit() {
+      tsi.require_target_thread();
       if (consumed) throw std::runtime_error("TSI polling/lifecycle candidate already committed");
       // Every allocating destination/peer check precedes the provider's final
       // signal/optional-exit/stopped guard. Publication never calls commit()
@@ -49,7 +50,10 @@ public:
     firesim_tsi_htif_lifecycle_t::prepared_t lifecycle;
     bool consumed = false;
   };
-  prepared_t prepare(const images_t &images) const { return prepared_t(tsi, images); }
+  prepared_t prepare(const images_t &images) const {
+    tsi.require_target_thread();
+    return prepared_t(tsi, images);
+  }
   void load(const images_t &images) const { auto next = prepare(images); next.commit(); }
 
   // Explicit pending direct-exit caller continuation. Returns false at the
@@ -67,6 +71,7 @@ public:
     return stopped;
   }
   images_t inspect_completed_exit() const {
+    tsi.require_target_thread();
     const auto state = firesim_htif_lifecycle_read(tsi);
     validate_exit(tsi.htif_exit_component, state);
     if (tsi.htif_exit_component.phase() != firesim_tsi_htif_exit_t::phase_t::stopped ||
@@ -86,6 +91,7 @@ public:
   // only at the actual queued-response read yield. The ordinary polling and
   // tick interfaces still reject exit/stop; use advance_pending_exit explicitly.
   images_t inspect() const {
+    tsi.require_target_thread();
     if (tsi.terminal->checkpoint_schema().empty() || !tsi.memif_read.idle())
       throw std::runtime_error("TSI polling/lifecycle requires sealed protocol and no syscall parent");
     auto state = firesim_htif_lifecycle_read(tsi);

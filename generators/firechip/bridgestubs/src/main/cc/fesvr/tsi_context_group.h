@@ -17,6 +17,7 @@ public:
     prepared_t &operator=(const prepared_t &) = delete;
     prepared_t &operator=(prepared_t &&) = delete;
     void commit() {
+      tsi.require_target_thread();
       if (consumed) throw std::runtime_error("TSI context candidate already committed");
       require_pristine(tsi);
       parent.commit_with([&]() noexcept {
@@ -39,9 +40,13 @@ public:
     firesim_tsi_host_group_t::prepared_t parent;
     bool consumed = false;
   };
-  prepared_t prepare(const images_t &images) const { return prepared_t(tsi, images); }
+  prepared_t prepare(const images_t &images) const {
+    tsi.require_target_thread();
+    return prepared_t(tsi, images);
+  }
   void load(const images_t &images) const { auto next = prepare(images); next.commit(); }
   images_t inspect() const {
+    tsi.require_target_thread();
     auto result = host.inspect();
     if (tsi.context_resume_active ||
         (!tsi.host_context_initialized() && !tsi.restored_host_context))
@@ -50,7 +55,7 @@ public:
     result.emplace_back("wrapper", tsi.host_wrapper.save_checkpoint());
     return result;
   }
-  bool native_context_initialized() const { return tsi.host_context_initialized(); }
+  bool native_context_initialized() const { tsi.require_target_thread(); return tsi.host_context_initialized(); }
   // Recreate only the audited wrapper/run_host frames. The first entry starts
   // at the restored semantic outer phase, never HTIF start/reset/program load.
   // Ordinary tick() remains disabled for metadata/component restores.

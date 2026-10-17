@@ -46,6 +46,7 @@ void firesim_fesvr_tsi_t::write_chunk(addr_t address, size_t bytes, const void *
 }
 
 void firesim_fesvr_tsi_t::switch_to_host() {
+  require_target_thread();
   // Check the original creator before allocating a child or entering any
   // service. A fresh coroutine must not accidentally bind a foreign thread.
   if (context_t::current() != target)

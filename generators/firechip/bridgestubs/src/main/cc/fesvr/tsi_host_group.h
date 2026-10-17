@@ -22,6 +22,7 @@ public:
   private:
     friend class firesim_tsi_context_group_t;
     template <class Publish> void commit_with(Publish &&extra) {
+      tsi.require_target_thread();
       static_assert(noexcept(extra()), "TSI peer publication must not throw");
       if (consumed) throw std::runtime_error("TSI host candidate already committed");
       require_mode(tsi); polling.recheck(); require_pristine_outer(tsi);
@@ -52,9 +53,13 @@ public:
     firesim_tsi_htif_lifecycle_t::prepared_t lifecycle;
     bool consumed = false;
   };
-  prepared_t prepare(const images_t &images) const { return prepared_t(tsi, images); }
+  prepared_t prepare(const images_t &images) const {
+    tsi.require_target_thread();
+    return prepared_t(tsi, images);
+  }
   void load(const images_t &images) const { auto next = prepare(images); next.commit(); }
   images_t inspect() const {
+    tsi.require_target_thread();
     require_mode(tsi);
     if (!tsi.htif_poll || !tsi.bcd || !tsi.memif_read.idle() ||
         tsi.prepared_polling_service_active || tsi.prepared_polling_service_poisoned)
@@ -99,6 +104,7 @@ public:
 private:
   firesim_tsi_t &tsi;
   static void require_mode(const firesim_tsi_t &tsi) {
+    tsi.require_target_thread();
     firesim_tsi_polling_syscall_t::require_mode(tsi);
   }
   static void require_pristine_outer(const firesim_tsi_t &tsi) {

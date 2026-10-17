@@ -18,6 +18,7 @@ public:
     prepared_t(prepared_t &&) = delete;
     prepared_t &operator=(prepared_t &&) = delete;
     void commit() {
+      tsi.require_target_thread();
       if (consumed) throw std::runtime_error("syscall polling candidate already committed");
       require_mode(tsi); polling.recheck(); require_pristine_caller(tsi);
       auto publish = [&]() noexcept {
@@ -43,9 +44,13 @@ public:
     firesim_tsi_htif_lifecycle_t::prepared_t lifecycle;
     bool consumed = false;
   };
-  prepared_t prepare(const images_t &images) const { return prepared_t(tsi, images); }
+  prepared_t prepare(const images_t &images) const {
+    tsi.require_target_thread();
+    return prepared_t(tsi, images);
+  }
   void load(const images_t &images) const { auto next = prepare(images); next.commit(); }
   images_t inspect() const {
+    tsi.require_target_thread();
     require_mode(tsi);
     if (!tsi.htif_poll || !tsi.bcd || !tsi.memif_read.idle() ||
         tsi.prepared_polling_service_active || tsi.prepared_polling_service_poisoned)
@@ -86,6 +91,7 @@ private:
   friend class firesim_tsi_host_group_t;
   firesim_tsi_t &tsi;
   static void require_mode(const firesim_tsi_t &tsi) {
+    tsi.require_target_thread();
     if (!tsi.syscall_exit || !tsi.metadata_supported || !tsi.owned_default_devices || tsi.default_devices ||
         tsi.terminal->checkpoint_schema().empty() ||
         tsi.htif_exit_component.phase() != firesim_tsi_htif_exit_t::phase_t::running ||

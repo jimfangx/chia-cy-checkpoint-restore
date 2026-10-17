@@ -11,6 +11,7 @@
 #include "tsi_serial_state.h"
 #include "tsi_serial_read.h"
 #include "tsi_host_wrapper.h"
+#include "tsi_thread_owner.h"
 
 #define SAI_CMD_READ 0
 #define SAI_CMD_WRITE 1
@@ -21,17 +22,18 @@ class firesim_fesvr_tsi_t : public htif_t {
 public:
   firesim_fesvr_tsi_t(int argc, char **argv);
   virtual ~firesim_fesvr_tsi_t() = default;
-  bool data_available() { return serial.request_available(); }
-  void send_word(uint32_t word) { serial.push_response(word); }
-  uint32_t recv_word() { return serial.pop_request(); }
+  void require_target_thread() const { thread_owner.require(); }
+  bool data_available() { require_target_thread(); return serial.request_available(); }
+  void send_word(uint32_t word) { require_target_thread(); serial.push_response(word); }
+  uint32_t recv_word() { require_target_thread(); return serial.pop_request(); }
   void switch_to_host();
-  uint32_t in_bits() { return serial.request_front(); }
-  bool in_valid() { return serial.request_available(); }
-  bool out_ready() { return true; }
-  void tick(bool out_valid, uint32_t out_bits, bool in_ready) { serial.tick(out_valid, out_bits, in_ready); }
-  const checkpoint_owner_t &serial_queue_owner() const { return serial; }
-  const checkpoint_owner_t &serial_read_owner() const { return serial_read; }
-  const checkpoint_owner_t &host_wrapper_owner() const { return host_wrapper; }
+  uint32_t in_bits() { require_target_thread(); return serial.request_front(); }
+  bool in_valid() { require_target_thread(); return serial.request_available(); }
+  bool out_ready() { require_target_thread(); return true; }
+  void tick(bool out_valid, uint32_t out_bits, bool in_ready) { require_target_thread(); serial.tick(out_valid, out_bits, in_ready); }
+  const checkpoint_owner_t &serial_queue_owner() const { require_target_thread(); return serial; }
+  const checkpoint_owner_t &serial_read_owner() const { require_target_thread(); return serial_read; }
+  const checkpoint_owner_t &host_wrapper_owner() const { require_target_thread(); return host_wrapper; }
 protected:
   virtual int run_host() { return htif_t::run(); }
   virtual void validate_host_entry() const {}
@@ -44,6 +46,7 @@ protected:
   firesim_tsi_serial_state_t serial;
   firesim_tsi_serial_read_t serial_read;
 private:
+  const firesim_tsi_thread_owner_t thread_owner;
   friend class firesim_tsi_context_group_t;
   firesim_tsi_host_wrapper_t host_wrapper;
   context_t host;

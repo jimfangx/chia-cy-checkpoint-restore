@@ -262,6 +262,7 @@ int firesim_tsi_t::run_host() {
 }
 
 std::vector<uint8_t> firesim_tsi_t::save_htif_exit_component() const {
+  require_target_thread();
   if (!owned_default_devices || !metadata_supported)
     throw std::runtime_error("HTIF direct exit component requires default devices and no signature");
   auto &self = const_cast<firesim_tsi_t &>(*this);
@@ -357,6 +358,7 @@ void firesim_tsi_t::check_startup_metadata() const {
 }
 
 std::vector<uint8_t> firesim_tsi_t::save_startup_metadata() const {
+  require_target_thread();
   if (syscall_exit && (polling_active || polling_components_prepared))
     firesim_tsi_polling_syscall_t(const_cast<firesim_tsi_t &>(*this)).inspect();
   else if (!metadata_prepared) inspect_polling_cut();
@@ -369,6 +371,7 @@ std::vector<uint8_t> firesim_tsi_t::save_startup_metadata() const {
 }
 
 void firesim_tsi_t::prepare_startup_metadata(const std::vector<uint8_t> &image) {
+  require_target_thread();
   if (!metadata_supported || metadata_prepared || metadata_poisoned || host_context_initialized() ||
       !startup_metadata.elf.empty() || metadata_components() != metadata_pristine_components ||
       should_exit() || done())
@@ -395,6 +398,7 @@ void firesim_tsi_t::prepare_startup_metadata(const std::vector<uint8_t> &image) 
 }
 
 firesim_tsi_t::polling_cut_t firesim_tsi_t::inspect_polling_cut() const {
+  require_target_thread();
   if (htif_exit_component.phase() != firesim_tsi_htif_exit_t::phase_t::running ||
       should_exit() || const_cast<firesim_tsi_t &>(*this).done())
     throw std::runtime_error("TSI polling audit lacks HTIF exit/signal/stop owners");
@@ -641,13 +645,14 @@ struct firesim_tsi_t::prepared_polling_components_t::state_t {
 
 firesim_tsi_t::prepared_polling_components_t::prepared_polling_components_t(
     firesim_tsi_t &tsi, const polling_cut_t &images, bool completed_exit, bool syscall)
-    : state(std::make_unique<state_t>(tsi, images, completed_exit, syscall)) {}
+    : state((tsi.require_target_thread(), std::make_unique<state_t>(tsi, images, completed_exit, syscall))) {}
 firesim_tsi_t::prepared_polling_components_t::~prepared_polling_components_t() = default;
 void firesim_tsi_t::prepared_polling_components_t::commit() {
   recheck();
   publish();
 }
 void firesim_tsi_t::prepared_polling_components_t::recheck() {
+  state->tsi.require_target_thread();
   if (state->consumed) throw std::runtime_error("TSI polling candidate already committed");
   state->tsi.require_pristine_polling_destination();
 }
@@ -731,15 +736,18 @@ void firesim_tsi_t::advance_prepared_host_components() {
 }
 firesim_tsi_t::prepared_polling_components_t firesim_tsi_t::prepare_polling_components_candidate(
     const polling_cut_t &images) {
+  require_target_thread();
   if (syscall_exit) throw std::runtime_error("twelve-owner preparation excludes restricted syscall mode");
   return prepared_polling_components_t(*this, images);
 }
 void firesim_tsi_t::prepare_polling_components(const polling_cut_t &images) {
+  require_target_thread();
   auto next = prepare_polling_components_candidate(images);
   next.commit();
 }
 
 firesim_tsi_t::polling_cut_t firesim_tsi_t::inspect_prepared_polling_components() const {
+  require_target_thread();
   if (syscall_exit) throw std::runtime_error("twelve-owner inspection excludes restricted syscall mode");
   if (htif_exit_component.phase() != firesim_tsi_htif_exit_t::phase_t::running ||
       should_exit() || const_cast<firesim_tsi_t &>(*this).done())
@@ -809,6 +817,7 @@ bool firesim_tsi_t::advance_prepared_exit_components() {
 }
 
 void firesim_tsi_t::advance_prepared_polling_components() {
+  require_target_thread();
   // Reconstruct the executable polling caller from explicit child phases;
   // never initialize a coroutine or call start/load_program/reset/stop.
   inspect_prepared_polling_components();
@@ -845,10 +854,12 @@ void firesim_tsi_t::idle() {
 }
 
 void firesim_tsi_t::send_loadmem_word(uint32_t word) {
+  require_target_thread();
   loadmem_queues.push_response(word);
 }
 
 void firesim_tsi_t::read_chunk(addr_t address, size_t bytes, void *destination) {
+  require_target_thread();
   if (preparing_metadata) throw std::runtime_error("metadata preparation attempted a target read");
   if (program_loader.loadmem_mode()) load_mem_read(address, bytes, destination);
   else {
@@ -884,6 +895,7 @@ void firesim_tsi_t::read_runtime_memif(addr_t address, size_t bytes, void *desti
 }
 
 void firesim_tsi_t::write_chunk(addr_t address, size_t bytes, const void *source) {
+  require_target_thread();
   if (preparing_metadata) throw std::runtime_error("metadata preparation attempted a target write");
   if (program_loader.loadmem_mode()) load_mem_write(address, bytes, source);
   else {
@@ -953,6 +965,7 @@ void firesim_tsi_t::load_mem_read(addr_t addr, size_t nbytes, void *dst) {
 }
 
 void firesim_tsi_t::tick() {
+  require_target_thread();
   if (metadata_prepared || metadata_poisoned)
     throw std::runtime_error("HTIF/context continuation after metadata component preparation is unsupported");
   if (initialization_component_restored)
@@ -976,6 +989,7 @@ void firesim_tsi_t::reset() {
 }
 
 bool firesim_tsi_t::advance_initialization() {
+  require_target_thread();
   // Re-entry is selected entirely by owned state, including a suspended read.
   // No local return address, destination pointer or repeated flush/issue is
   // needed in a fresh object. The caller alone performs context switches.
@@ -1044,6 +1058,7 @@ void firesim_tsi_t::validate_initialization(const firesim_tsi_host_control_t &ho
 }
 
 std::vector<uint8_t> firesim_tsi_t::save_initialization_checkpoint() const {
+  require_target_thread();
   validate_initialization(host_control, init_control, serial_read);
   auto result = initialization_config;
   for (const checkpoint_owner_t *owner : std::array<const checkpoint_owner_t *, 4>{
@@ -1055,6 +1070,7 @@ std::vector<uint8_t> firesim_tsi_t::save_initialization_checkpoint() const {
 }
 
 void firesim_tsi_t::load_initialization_checkpoint(const std::vector<uint8_t> &image) {
+  require_target_thread();
   // Check current usability before constructing candidates; poisoned owners
   // cannot be rehabilitated by a restore. All candidate allocations and
   // cross-owner checks finish before four noexcept state swaps commit.
@@ -1085,10 +1101,12 @@ void firesim_tsi_t::load_initialization_checkpoint(const std::vector<uint8_t> &i
 }
 
 bool firesim_tsi_t::has_loadmem_reqs() {
+  require_target_thread();
   return loadmem_queues.requests_pending();
 }
 
 bool firesim_tsi_t::recv_loadmem_write_req(firesim_loadmem_t &loadmem) {
+  require_target_thread();
   firesim_loadmem_queues_t::request_t request;
   if (!loadmem_queues.pop_write(request))
     return false;
@@ -1098,6 +1116,7 @@ bool firesim_tsi_t::recv_loadmem_write_req(firesim_loadmem_t &loadmem) {
 }
 
 bool firesim_tsi_t::recv_loadmem_read_req(firesim_loadmem_t &loadmem) {
+  require_target_thread();
   firesim_loadmem_queues_t::request_t request;
   if (!loadmem_queues.pop_read(request))
     return false;
@@ -1107,6 +1126,7 @@ bool firesim_tsi_t::recv_loadmem_read_req(firesim_loadmem_t &loadmem) {
 }
 
 void firesim_tsi_t::recv_loadmem_data(void *buf, size_t len) {
+  require_target_thread();
   loadmem_queues.pop_write_data(buf, len);
 }
 
@@ -1118,6 +1138,7 @@ void firesim_tsi_t::recv_loadmem_data(void *buf, size_t len) {
 // TODO: ideally you override the htif_t::run function but currently
 // un-overrideable
 void firesim_tsi_t::load_program() {
+  require_target_thread();
   try {
     // Preserve TestChip's initial yield and its exact loading interval. The
     // routing decision is now owned instead of the base's private is_loadmem.

@@ -35,9 +35,9 @@ public:
   firesim_tsi_t(int argc, char **argv, bool has_loadmem);
   ~firesim_tsi_t() {}
 
-  bool busy() { return host_control.busy(); };
-  bool loaded_in_host() { return host_control.loaded_in_host(); };
-  void set_loaded_in_target(bool loaded) { host_control.set_loaded_in_target(loaded); };
+  bool busy() { require_target_thread(); return host_control.busy(); };
+  bool loaded_in_host() { require_target_thread(); return host_control.loaded_in_host(); };
+  void set_loaded_in_target(bool loaded) { require_target_thread(); host_control.set_loaded_in_target(loaded); };
 
   void tick();
   void tick(bool out_valid, uint32_t out_bits, bool in_ready) { tick(); };
@@ -52,31 +52,34 @@ public:
   void load_program() override;
   void read_chunk(addr_t address, size_t bytes, void *destination) override;
   void write_chunk(addr_t address, size_t bytes, const void *source) override;
-  memif_t &memif() override { return runtime_memif; }
+  memif_t &memif() override { require_target_thread(); return runtime_memif; }
 
   // Component owner only. HTIF/context and all request/response queues must
   // also be reconstructed before complete TSI checkpointing can be enabled.
-  const checkpoint_owner_t &loadmem_read_owner() const { return loadmem_read; }
-  const checkpoint_owner_t &loadmem_queue_owner() const { return loadmem_queues; }
-  const checkpoint_owner_t &host_control_owner() const { return host_control; }
-  const checkpoint_owner_t &init_accesses_owner() const { return init_control; }
-  const checkpoint_owner_t &program_loader_owner() const { return program_loader; }
+  const checkpoint_owner_t &loadmem_read_owner() const { require_target_thread(); return loadmem_read; }
+  const checkpoint_owner_t &loadmem_queue_owner() const { require_target_thread(); return loadmem_queues; }
+  const checkpoint_owner_t &host_control_owner() const { require_target_thread(); return host_control; }
+  const checkpoint_owner_t &init_accesses_owner() const { require_target_thread(); return init_control; }
+  const checkpoint_owner_t &program_loader_owner() const { require_target_thread(); return program_loader; }
   // Component observation only; no coroutine or complete HTIF admission.
-  const checkpoint_owner_t &host_execution_owner() const { return host_execution; }
+  const checkpoint_owner_t &host_execution_owner() const { require_target_thread(); return host_execution; }
   const checkpoint_owner_t &htif_poll_owner() const {
+    require_target_thread();
     if (!htif_poll) throw std::runtime_error("HTIF polling has not started or uses unsupported devices");
     return *htif_poll;
   }
   const checkpoint_owner_t &bcd_owner() const {
+    require_target_thread();
     if (!bcd) throw std::runtime_error("default HTIF BCD has not started");
     return *bcd;
   }
-  const checkpoint_owner_t &terminal_owner() const { return *terminal; }
+  const checkpoint_owner_t &terminal_owner() const { require_target_thread(); return *terminal; }
   // Independent write child only; its device/HTIF caller is not restored.
-  const checkpoint_owner_t &memif_write_owner() const { return memif_write; }
-  const checkpoint_owner_t &memif_read_owner() const { return memif_read; }
-  const checkpoint_owner_t &bcd_identity_owner() const { return bcd_identity; }
+  const checkpoint_owner_t &memif_write_owner() const { require_target_thread(); return memif_write; }
+  const checkpoint_owner_t &memif_read_owner() const { require_target_thread(); return memif_read; }
+  const checkpoint_owner_t &bcd_identity_owner() const { require_target_thread(); return bcd_identity; }
   const checkpoint_owner_t &syscall_exit_owner() const {
+    require_target_thread();
     if (!syscall_exit) throw std::runtime_error("restricted syscall mode is disabled");
     return *syscall_exit;
   }

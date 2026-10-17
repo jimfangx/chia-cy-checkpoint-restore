@@ -14,6 +14,55 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 153, in progress.
+Supported TSI aggregate and production serial/load-memory entries now reject
+foreign threads before mutable owner access. A weak thread-local lifetime token
+also rejects recycled creator IDs. Recovery: [tsi-thread-access.md](tsi-thread-access.md).
+Owner image schemas stay unchanged; complete Rocket Level 1 stays disabled.
+
+Diagnostics: `runs/m11-iteration153/`. The final native ASan/UBSan + VCS access
+matrix and independent audit pass 180 processes / 45 entries at execution and
+returned-tail outer boundaries, exact candidate retries and all six missing/
+duplicate evidence rejections. Receipt:
+`thread-access-final/invocation-otnosc2h/summary.json`.
+The separate native/VCS lifetime check rejects all 128 actual recycled-ID cases.
+
+The full context matrix and independent audit pass 887 cuts / 3,548 restores /
+3,277,056 owner comparisons / 201,268 operations; 102 invalid processes, twelve
+late guards, eight resource cases, eight first divergences and fourteen evidence
+rejections. Both backends reject 1,960 malformed images, 64 membership variants,
+two cross-owner inconsistencies and 927 allocation failures without publication.
+Receipt: `context-stable/invocation-mrl1ypcu/summary.json`.
+The 720-process aggregate admission matrix, 686-process signal/thread suite,
+eight native core scopes (280 Python tests) and thirty retained auditors pass.
+
+All six full 16-GiB four-hart CPU controls and independent audits pass: both
+direct controls at C=3,329,794, all four ordinary/restricted syscall controls at
+C=3,330,050. Complete hart traces and workload labels match within each protocol.
+Fresh ordinary RTL VCS plus complete-source audit pass four retained cuts:
+318,637 words before any edge per cut, 256 events, sixteen actual semantic first
+divergences and 44 invalid cases. Level 2 uses the retained direct-exit ELF.
+
+Catalogs: `summary.json`, `selected-results.json`, `verification-commands.json`,
+`raw-native-commands.json`, `native-input-archives.json` and
+`artifact-manifest.json`. Initial fixture compilation/mode/boundary mistakes,
+evidence-checker KeyError and changed-source receipts remain diagnostic. The
+final test-only declaration reorder ensures auxiliary destinations outlive their
+candidates; its own complete native/VCS matrix passes. Source catalogs retain
+separate execution epochs; production/native/context bytes stay frozen. The
+post-fixture native artifact audit also passes.
+
+Both plans, environment helpers, heads and indices retain starting bytes.
+Existing controller heads reached GitHub FireSim first and Chipyard second;
+local tracking-ref updates warned about read-only metadata. No staging/commits.
+Next: coordinate production signal/thread/mask/action access and publish one
+coherent simulator/FAME/bridge/functional-memory cut, then validate fresh complete
+Rocket target-cycle Level-1 continuation. Entry confinement and procfs admission
+do not supply process-wide exclusion. BOOM/Saturn remain pending. Standalone
+Shuttle, physical FPGA and ASIC power are outside scope. No dependency is missing.
+
+Previous iteration 152 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 152, in progress.
 The actual lifecycle provider now enforces the existing all-thread and exact-action
 guard for restricted polling/host/context capture, preparation, publication and
