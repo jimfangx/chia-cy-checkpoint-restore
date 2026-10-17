@@ -4,11 +4,49 @@
 #include "htif_lifecycle.h"
 #include "htif_signal.h"
 #include "htif_signal_threads.h"
+#include "htif_dormant_proxy.h"
+#include <fcntl.h>
 #include <cstring>
 #include <pthread.h>
 #include <stdexcept>
 
 struct firesim_htif_lifecycle_access_t {
+  static void proxy_links(const htif_t &htif) {
+    const auto &proxy = htif.syscall_proxy;
+    if (proxy.htif != &htif || proxy.memif != &htif.mem ||
+        !proxy.chroot.empty() || !htif.dynamic_devices.empty())
+      throw std::runtime_error("unsupported inherited HTIF proxy links/session");
+  }
+  static void validate_proxy(const htif_t &htif) {
+    proxy_links(htif);
+    const auto &proxy = htif.syscall_proxy;
+    if (!proxy.fds.fds.empty() || !proxy.fds_index.empty() || !proxy.table.empty())
+      throw std::runtime_error("inherited HTIF proxy resources are not retired");
+  }
+  static void retire_proxy(htif_t &htif) {
+    proxy_links(htif);
+    auto &proxy = htif.syscall_proxy;
+    if (proxy.fds_index != std::vector<reg_t>{0, 1, 2} ||
+        proxy.fds.fds.size() != 3 || proxy.table.size() != 2048)
+      throw std::runtime_error("inherited HTIF proxy is not pristine");
+    const auto &fds = proxy.fds.fds;
+    for (size_t i = 0; i < 3; ++i) {
+      if (fds[i] <= 2 || fcntl(fds[i], F_GETFD) < 0)
+        throw std::runtime_error("invalid inherited HTIF proxy descriptor");
+      for (size_t j = 0; j < i; ++j)
+        if (fds[i] == fds[j]) throw std::runtime_error("aliased inherited proxy descriptors");
+    }
+    // Linux close releases the descriptor even on EINTR. Never retry it or
+    // leave a stale number for the installed destructor to close again.
+    bool failed = false;
+    for (auto &fd : proxy.fds.fds) {
+      const auto owned = fd; fd = -1;
+      if (close(owned) && errno != EINTR) failed = true;
+    }
+    proxy.fds_index.clear(); proxy.fds.fds.clear(); proxy.table.clear();
+    if (failed) throw std::runtime_error("cannot retire inherited HTIF proxy descriptors");
+    validate_proxy(htif);
+  }
   static void signal_guard(const htif_t &htif) {
     if (!htif.sig_file.empty())
       throw std::runtime_error("HTIF signal signature state is unsupported");
@@ -128,5 +166,11 @@ void firesim_htif_lifecycle_restore(htif_t &htif, firesim_htif_lifecycle_state_t
 extern "C" const firesim_htif_lifecycle_api_t *firesim_htif_lifecycle_api() {
   static const firesim_htif_lifecycle_api_t api{
       &firesim_htif_lifecycle_read, &firesim_htif_lifecycle_validate_restore, &firesim_htif_lifecycle_publish};
+  return &api;
+}
+extern "C" const firesim_htif_dormant_proxy_api_t *firesim_htif_dormant_proxy_api() {
+  static const firesim_htif_dormant_proxy_api_t api{
+      &firesim_htif_lifecycle_access_t::retire_proxy,
+      &firesim_htif_lifecycle_access_t::validate_proxy};
   return &api;
 }

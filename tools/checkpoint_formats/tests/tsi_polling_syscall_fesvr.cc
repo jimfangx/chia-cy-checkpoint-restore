@@ -66,8 +66,20 @@ static void descriptor_lifetime(std::vector<char *> &argv,bool ordinary,const fs
   const auto before=descriptors();save_descriptors(out/"before.fds",before);
   {
     firesim_tsi_t tsi(argv.size(),argv.data(),true);
-    const auto constructed=descriptors();require_additions(before,constructed,3);
+    const auto constructed=descriptors();require_additions(before,constructed,ordinary?3:0);
     save_descriptors(out/"constructed.fds",constructed);
+    const auto &proxy=firesim_htif_require_dormant_proxy_api();
+    bool rejected=false;
+    if(ordinary) {
+      try{proxy.validate(tsi);}catch(const std::runtime_error &){rejected=true;}
+      require(rejected,"ordinary live proxy admitted as retired");
+    } else {
+      proxy.validate(tsi);
+      try{proxy.retire(tsi);}catch(const std::runtime_error &){rejected=true;}
+      require(rejected,"proxy retirement repeated");
+      proxy.validate(tsi);
+    }
+    require(descriptors()==constructed,"proxy guard changed descriptor table");
     syscall_startup(tsi);
     const auto polling=descriptors();require_additions(constructed,polling,ordinary?3:0);
     save_descriptors(out/"polling.fds",polling);
@@ -85,8 +97,9 @@ static void descriptor_lifetime(std::vector<char *> &argv,bool ordinary,const fs
   } // Destruction must release the inherited and optional suspended session.
   const auto destroyed=descriptors();require(destroyed==before,"suspended teardown leaked/closed descriptors");
   save_descriptors(out/"destroyed.fds",destroyed);
-  std::cout<<"DESCRIPTOR_LIFETIME inherited=3 polling_added="<<(ordinary?3:0)
+  std::cout<<"DESCRIPTOR_LIFETIME inherited="<<(ordinary?3:0)<<" polling_added="<<(ordinary?3:0)
     <<" idle_cuts=4 teardown_equal=1 ordinary="<<ordinary<<" target_edges=0\n";
+  std::cout<<"PROXY_GUARD retired="<<!ordinary<<" rejection=1 descriptors_unchanged=1\n";
 }
 static auto unprepared(const firesim_tsi_t &tsi) {
   auto result=peers(tsi);

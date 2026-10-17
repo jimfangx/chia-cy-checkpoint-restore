@@ -171,6 +171,7 @@ def fault_case(i, idle_rounds=0):
 def audit(path):
     path = Path(path).resolve(); out = path.parent; r = json.loads(path.read_text())
     idle_rounds = r.get('idle_rounds', 0)
+    proxy_retired = r.get('inherited_proxy_retired', False)
     require(idle_rounds in (0, 2), 'unsupported polling idle schedule')
     case = lambda spec: scenario(*spec, idle_rounds)
     require(r['status'] == 'passed' and not r['level1_verified'] and not r['level2_verified'], 'wrong polling scope')
@@ -190,6 +191,8 @@ def audit(path):
                 str(TESTCHIP/'testchip_tsi.cc'), str(TESTCHIP/'testchip_htif.cc'),
                 str(CC/'core/checkpoint.h'), str(CC/'core/widget_checkpoint.h')}
     require(required <= bindings.keys(), 'missing actual polling implementation/source binding')
+    if proxy_retired:
+        require(str(STUBS/'fesvr/htif_dormant_proxy.h') in bindings, 'missing dormant proxy interface binding')
     for b in bindings.values():
         require(file_sha(b['snapshot']) == b['sha256'], 'changed polling input snapshot')
         check_native_input(ROOT, b['path'], b['sha256'], bindings)
@@ -198,6 +201,15 @@ def audit(path):
     require(overlay['members']['syscall.o']['installed'] == overlay['members']['syscall.o']['overlay'], 'changed installed syscall')
     for name, digest in overlay['lifecycle_inputs'].items():
         if not name.endswith('_sha256'): require(bindings[name]['sha256'] == digest, 'missing provider source binding')
+    if proxy_retired:
+        import hashlib
+        header = str(FESVR/'include/fesvr/syscall.h')
+        require(header in bindings, 'missing installed syscall declarations')
+        original = Path(bindings[header]['snapshot']).read_bytes()
+        require(original.count(b' private:\n') == 2, 'wrong syscall owner inventory')
+        adapted = original.replace(b' private:\n', b' private:\n  friend struct firesim_htif_lifecycle_access_t;\n')
+        require(hashlib.sha256(adapted).hexdigest() == overlay['lifecycle_inputs']['adapted_syscall_header_sha256'],
+                'syscall declarations changed beyond friends')
     if r['recipe_build_identity']:
         identity_path = Path(r['recipe_build_identity']); require(str(identity_path) in bindings, 'missing recipe binding')
         identity = json.loads(identity_path.read_text())
@@ -278,13 +290,17 @@ def audit(path):
                             len(new) == len(old)+count, 'existing descriptors changed or wrong session count')
                     require(sorted(v for fd, v in new.items() if fd not in old) ==
                             sorted([old[0], old[1], old[1]]*(count//3)), 'wrong installed duplicate identities')
-                additions(before, constructed, 3)
                 count = 3 if mode == 'descriptors-ordinary' else 0
+                inherited = count if proxy_retired else 3
+                additions(before, constructed, inherited)
                 additions(constructed, polling_fds, count)
                 require(all(fdmap('idle-'+str(i)) == polling_fds for i in range(4)) and
                         fdmap('destroyed') == before, 'idle/suspended teardown changed descriptors')
-                marker = f'DESCRIPTOR_LIFETIME inherited=3 polling_added={count} idle_cuts=4 teardown_equal=1 ordinary={int(bool(count))} target_edges=0'
+                marker = f'DESCRIPTOR_LIFETIME inherited={inherited} polling_added={count} idle_cuts=4 teardown_equal=1 ordinary={int(bool(count))} target_edges=0'
                 require(marker in dest.with_suffix('.log').read_text(), 'missing actual descriptor lifetime checks')
+                if proxy_retired:
+                    require(f'PROXY_GUARD retired={int(not count)} rejection=1 descriptors_unchanged=1' in
+                            dest.with_suffix('.log').read_text(), 'missing dormant proxy rejection checks')
     for c in r['restores']:
         command = process(c['scenario'], c['backend'], 'restore', Path(c['destination']).name,
                           producer=c['producer'], cut=c['cut'])
@@ -428,7 +444,8 @@ def main():
         for b in BACKENDS: faults.append(dict(invoke(i, b, 'corrupt', b+'-corrupt', cut=cut), divergence=divergence))
     for b in bindings: require(file_sha(b['path']) == b['sha256'], 'polling source changed during execution')
     report = dict(status='passed', scope='restricted syscall polling components; complete CPU Level 1 disabled',
-                  idle_rounds=idle_rounds, commands=commands, source_inputs=bindings, restores=restores, invalids=invalids, faults=faults,
+                  idle_rounds=idle_rounds, inherited_proxy_retired=True,
+                  commands=commands, source_inputs=bindings, restores=restores, invalids=invalids, faults=faults,
                   recipe_build_identity=str(a.recipe_build_identity.resolve()) if a.recipe_build_identity else None,
                   level1_verified=False, level2_verified=False,
                   artifact_sha256={str(p): file_sha(p) for p in sorted(out.rglob('*')) if p.is_file()})

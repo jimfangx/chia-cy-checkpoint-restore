@@ -1,6 +1,7 @@
 // See LICENSE for license details
 #include "firesim_tsi.h"
 #include "tsi_polling_syscall.h"
+#include "htif_dormant_proxy.h"
 #include <inttypes.h>
 #include <stdio.h>
 #include <array>
@@ -116,6 +117,7 @@ firesim_tsi_t::firesim_tsi_t(int argc, char **argv, bool can_have_loadmem)
       throw std::runtime_error("restricted syscall requires sealed default metadata");
     firesim_htif_require_lifecycle_api();
     syscall_exit = std::make_unique<firesim_tsi_syscall_exit_t>(*this, serial);
+    firesim_htif_require_dormant_proxy_api().retire(*this);
   }
   metadata_pristine_components = metadata_components();
 }

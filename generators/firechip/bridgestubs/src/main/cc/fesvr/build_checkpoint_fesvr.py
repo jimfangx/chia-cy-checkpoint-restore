@@ -41,18 +41,29 @@ def build(library, include, output, cxx, flags=(), htif_source=None):
             (shadow / 'fesvr').mkdir(parents=True)
             (shadow / 'riscv').symlink_to(include / 'riscv', target_is_directory=True)
             for path in (include / 'fesvr').glob('*.h'):
-                if path.name != 'htif.h':
+                if path.name not in ('htif.h', 'syscall.h'):
                     (shadow / 'fesvr' / path.name).symlink_to(path)
             adapted = original.replace(marker, marker + b'\n  friend struct firesim_htif_lifecycle_access_t;')
             (shadow / 'fesvr/htif.h').write_bytes(adapted)
+            # Access both syscall_t and its descriptor container using the
+            # installed declarations. Add friends only; syscall.o stays exact.
+            syscall_header = include / 'fesvr/syscall.h'
+            syscall_original = syscall_header.read_bytes()
+            if syscall_original.count(b' private:\n') != 2:
+                raise ValueError('unsupported syscall private owner inventory')
+            syscall_adapted = syscall_original.replace(b' private:\n',
+                b' private:\n  friend struct firesim_htif_lifecycle_access_t;\n')
+            (shadow / 'fesvr/syscall.h').write_bytes(syscall_adapted)
             provider = source.with_name('htif_lifecycle_provider.inc')
             generated = shadow / 'fesvr/htif.cc'
             generated.write_bytes(htif_source.read_bytes() + b'\n' + provider.read_bytes())
             sources['htif.o'] = generated
             lifecycle_inputs = {str(p): sha(p.read_bytes()) for p in
                                 (htif_source, header, provider, source.with_name('htif_lifecycle.h'),
-                                 source.with_name('htif_signal.h'), source.with_name('htif_signal_threads.h'))}
+                                 source.with_name('htif_signal.h'), source.with_name('htif_signal_threads.h'),
+                                 syscall_header, source.with_name('htif_dormant_proxy.h'))}
             lifecycle_inputs['adapted_header_sha256'] = sha(adapted)
+            lifecycle_inputs['adapted_syscall_header_sha256'] = sha(syscall_adapted)
             lifecycle_inputs['generated_provider_sha256'] = sha(generated.read_bytes())
             if members.count('htif.o') != 1:
                 raise ValueError('unsupported HTIF archive member inventory')

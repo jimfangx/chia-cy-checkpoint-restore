@@ -1,5 +1,9 @@
 # Restricted polling session lifetime
 
+Follow-up: iteration 147 retires the unused inherited proxy resources in
+restricted mode; see [tsi-dormant-proxy.md](tsi-dormant-proxy.md). The evidence
+below records the earlier two-object lifetime audit.
+
 Iteration 146 makes production `+checkpoint-syscall-exit` polling construct its
 services directly, without allocating `default_devices_t`. Its explicit syscall
 parent already supplies dispatch, exit, writeback and response ownership;

@@ -2,6 +2,7 @@
 #ifndef FIRESIM_TSI_POLLING_SYSCALL_H
 #define FIRESIM_TSI_POLLING_SYSCALL_H
 #include "firesim_tsi.h"
+#include "htif_dormant_proxy.h"
 
 // Restricted syscall-93 polling components. This owns no session/descriptors,
 // process signal coordinator, startup/return stack or simulator state. Requires
@@ -89,6 +90,7 @@ private:
         tsi.htif_exit_component.phase() != firesim_tsi_htif_exit_t::phase_t::running ||
         tsi.htif_exit_component.raw_exit())
       throw std::runtime_error("syscall polling requires restricted sealed default mode");
+    firesim_htif_require_dormant_proxy_api().validate(tsi);
   }
   static void require_pristine_caller(const firesim_tsi_t &tsi) {
     tsi.syscall_exit->boundary.require_idle();

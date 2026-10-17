@@ -14,6 +14,55 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 147, in progress.
+Restricted mode now retires the unused inherited HTIF proxy descriptors and
+dispatch table. Every restricted group boundary requires its resources to remain
+absent with correct owner links. Ordinary sessions keep their original lifetime.
+The exact-header provider adds friends only; installed syscall/device members
+remain byte-exact. Recovery: [tsi-dormant-proxy.md](tsi-dormant-proxy.md).
+
+Diagnostics: `runs/m11-iteration147/`. Native ASan/UBSan and VCS descriptor
+checks preserve all existing identities/flags and reproduce baseline tables at
+suspended destruction. All 36 actual private-proxy fault cases reject before
+preparation/publication/service. Missing/incomplete APIs and an unsupported
+syscall header reject; the prior constructor fails the new descriptor check.
+The independently audited recipe provider contains no test mutator.
+
+The exact-recipe group passes eight scenarios / 863 host-operation cuts /
+3,452 fresh native/VCS restores / 2,768,080 complete owner comparisons /
+190,816 operations. All malformed, membership, allocator, late-guard,
+admission, idle-cross-owner and eight first-divergence cases pass. The independent
+auditor rejects fourteen incomplete evidence sets and five altered descriptor
+tables. Accepted: `recipe-polling-syscall/invocation-jcm6k_dr/summary.json`.
+
+The recipe-bound syscall parent and 686-process signal/thread suites, full
+legacy polling/direct-exit scope, all eight native core suites, thirty retained
+auditors and the prior iteration-146 polling audit pass. Core evidence:
+5,286 artifacts / 819 source bindings. Fresh ordinary RTL VCS plus its
+independent audit pass four retained cuts: 318,637 words before edges per cut,
+256 events / 21,760 comparisons, sixteen actual semantic faults and 44 invalid
+cases. Both exact-recipe default/buffered 16-GiB four-hart controls pass at
+C=3,329,794; all eight complete hart traces and workload/store labels match.
+Controls: `rocket-controls/invocation-d8873709/summary.json`.
+
+Final catalogs: `summary.json`, `selected-results.json`,
+`verification-commands.json`, `raw-native-commands.json`,
+`native-input-archives.json`, `artifact-manifest.json`. All selected scopes
+pass independent auditing; the full standalone polling suite passes too.
+Initial private-fault test-wrapper compile errors remain separate diagnostics;
+only its corrected full native/VCS run is accepted. Plans, papers and environment
+helpers preserve starting bytes. Existing controller checkpoints reached both
+remote main branches, FireSim first; local read-only tracking-ref errors followed
+remote success. No staging or local commits.
+
+Next: explicit outer startup/stop/return/context, production signal coordination,
+complete inherited-session policy and coherent simulator/bridge/memory publication,
+then complete fresh Rocket CPU Level-1 continuation. Complete CPU Level 1 stays
+disabled. No external dependency is missing. BOOM/Saturn remain pending;
+standalone Shuttle, physical FPGA validation and ASIC power remain outside scope.
+
+Previous iteration 146 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 146, in progress.
 Restricted polling now skips its unused default syscall session; group admission
 requires that session to be absent. Actual native ASan/UBSan and VCS descriptor
