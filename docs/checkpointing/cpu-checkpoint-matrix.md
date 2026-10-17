@@ -1,6 +1,6 @@
 # CPU checkpoint matrix
 
-Current milestone: M11 Rocket, iteration 163, **in_progress**. Rocket Level 2
+Current milestone: M11 Rocket, iteration 164, **in_progress**. Rocket Level 2
 passes complete captured ChipTop finite replay at four tested cuts. Complete
 Level-1 CPU continuation remains pending. Physical FPGA validation, standalone
 Shuttle and ASIC power are outside this matrix. The verified FCFS evidence remains in its existing docs.
@@ -32,6 +32,87 @@ The recipe also specifies frequency 140 MHz and TIMING build strategy; these
 are retained in the recipe record, with no FPGA implementation invoked.
 VCS uses Y-2026.03-SP1, `-full64`, `VCS_FLAGS=-Mupdate`, system GCC/G++ 13,
 and the sourced Conda library/include directories. No Conda files are edited.
+
+## Iteration 164: production CPU-managed stream I/O owner
+
+Complete Rocket Level 1 remains **in_progress**. `simif_emul_t` now enumerates
+`runtime/cpu-managed-stream-io` as a concrete returned-call owner instead of an
+unsupported diagnostic placeholder. The image binds the complete DMA geometry;
+AXI queues, initialized stream-widget state, generated stream hardware and
+harness latches remain separate owners. Suspended MMIO/DMA and interrupted
+calls explicitly reject capture/validation/loading and nested I/O. Zero-byte
+transfers issue no requests; non-beat-aligned transfers reject before submitting
+requests. Recovery: [cpu-managed-runtime-io.md](cpu-managed-runtime-io.md).
+
+Native ASan/UBSan and VCS DPI pass **84** fresh component restores with **168**
+complete pre-edge owner comparisons and **168** final owner comparisons, **187,296** suspended boundaries /
+**1,123,776** checkpoint/nested-call rejections, and **1,230** malformed,
+incompatible-geometry and poisoned-lifetime rejections. All three tested bus
+widths (64/128/512 bits) retain complete byte/strobe/response checks and the
+independent burst-order oracle. Transfers cover **0 / 1 / 255 / 256 / 257 / 513**
+beats in both directions, plus suspended MMIO. The operation labels belong to
+a synthetic AXI peer; they are not Rocket target cycles. Accepted receipt:
+
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration164/verified/cpu-io/invocation-803gnv0j/summary.json`.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration164/cpu-io-independent-audit.json`.
+
+The exact Rocket stream census records four TracerV output streams, no input
+streams, and the generated engine's **32** entries / **24,604** words in
+`runs/m11-iteration164/rocket-stream-owner-inventory.json`. This structural census
+does not establish generated-state restore. CPU-managed aggregate admission
+remains disabled pending complete coordination and production process exclusion.
+
+All **eight** preserved native regression scopes (**280** Python tests) and the
+independent native audit pass. The existing stream-widget suite separately
+passes **144** fresh continuations and **42** malformed processes. All four
+creator/harness modes pass **20** fresh continuations. Dispatcher guards and
+all **30** retained auditors pass. The sealed production TSI component matrix
+passes **64** fresh restores, **192** cancellations, **336** invalid images,
+**eight** fatal publication cases and **eight** semantic first divergences.
+An additional independent audit checks all 336 invalid images reject before
+publication and 128 cancellations remain unpublished.
+
+Four fresh ordinary RTL VCS windows pass **318,637** words before any edge at
+each cut, **256** captured events, **16** first-boundary semantic corruptions and
+**44** invalid cases. Original target-cycle labels remain **100 / 700,000 /
+900,000 / 3,250,000**. The Level-2 ELF remains SHA-256
+`f3d86f54caf42b9589385e8021dba46777f647134f19595e38a3d452b745f3d4`.
+All **six** final-source exact-recipe **16-GiB** four-hart controls and their
+independent audits pass. Direct-exit runs terminate at **C=3,329,794**; all four
+syscall protocols terminate at **C=3,330,050**. Complete hart traces and decoded
+workload labels match within each protocol. The syscall ELF SHA-256 is
+`1c5ebf741af82848ebfcba5194e4c813dce3cdc8aadc7ecae2ba454280604958`.
+The independent full-source Level-2 audit also passes. Level 2 remains independent.
+BOOM/Saturn remain pending. No external dependency is missing. Standalone Shuttle, FPGA validation and ASIC power remain outside
+scope.
+
+Executable checks from the Chipyard root (`vcs-env.sh` sourced last):
+
+```sh
+bash -lc 'source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh && python -m tools.checkpoint_formats.tests.verify_cpu_managed_io_vcs --rocket-header automations/checkpoint_loop/runs/m11-iteration163/verified/rocket/invocation-r3oduduh/build/f2/f2-firesim-FireSim-WithDefaultFireSimBridges_WithFireSimTestChipConfigTweaks_chipyard.QuadRocketConfig-WithAutoILA_FRFCFS16GBQuadRankLLC4MB_BaseF2Config/FireSim-generated.const.h --out automations/checkpoint_loop/runs/m11-iteration164/verified/cpu-io'
+bash -lc 'source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh && python -m tools.checkpoint_formats.tests.audit_cpu_managed_io --summary automations/checkpoint_loop/runs/m11-iteration164/verified/cpu-io/invocation-803gnv0j/summary.json'
+bash -lc 'source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh && python -m tools.checkpoint_formats.tests.verify_fame_event_replay_vcs --base automations/checkpoint_loop/runs/m11-iteration138/rocket-semantic-map-sealed/FireSim-generated --capture automations/checkpoint_loop/runs/m11-iteration139/runtime-pilot/capture --cuts 100,700000,900000,3250000 --out automations/checkpoint_loop/runs/m11-iteration164/regressions/native-replay'
+```
+
+The initial component/native runs were cancelled after correcting a configuration
+reference lifetime in the new test fixture. Initial creator/guard catalogs and
+the first Rocket control attempt include the older fixture snapshot. These
+remain diagnostic. Affected checks were rerun under `verified/`; unaffected
+replay, TSI and retained checks remain under `regressions/`. `selected-results.json`
+identifies every accepted receipt. Implementation sources stayed fixed after that correction. Existing controller heads reached
+GitHub, FireSim before Chipyard; local tracking-reference writes warned and
+remote heads were independently checked. Both plans, environment helpers, heads
+and indices retain their starting bytes. No staging or local commits occurred.
+
+Final receipts, exact source archives, workload hashes and executable commands:
+
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration164/summary.json`.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration164/selected-results.json`.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration164/workloads.json`.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration164/native-input-archives.json`.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration164/raw-native-commands.json`.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration164/verification-commands.json`.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration164/artifact-manifest.json`.
 
 ## Iteration 163: publish the actual TSI candidate from its sealed creator
 

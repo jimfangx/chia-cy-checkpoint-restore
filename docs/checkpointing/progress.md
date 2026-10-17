@@ -14,6 +14,52 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 164, in progress.
+The production metasim CPU-managed stream wrapper now has an explicit
+returned-call owner, separate from AXI queues and stream hardware. Capture,
+validation, loading and nested I/O reject suspended or interrupted calls. Zero
+transfers submit no requests; partial beats reject explicitly. CPU aggregate
+admission stays disabled. Recovery:
+[cpu-managed-runtime-io.md](cpu-managed-runtime-io.md).
+
+Final-source native ASan/UBSan and VCS DPI pass 84 fresh component restores,
+168 complete pre-edge and 168 final owner comparisons, 187,296 suspended
+boundaries /
+1,123,776 guard rejections and 1,230 invalid/poisoned-state rejections. The
+independent auditor passes. The exact Rocket stream census records four
+TracerV streams and 32 generated entries / 24,604 words, all separate from the
+new host owner. These component/structural results are not CPU continuation.
+
+All eight preserved native scopes (280 Python tests), the creator/harness matrix,
+dispatcher guards, thirty retained auditors, production TSI component matrix and
+independent audits pass. Existing stream-widget checks pass 144 continuations
+and 42 malformed processes. Four fresh ordinary RTL VCS windows and independent
+full-source audit pass 318,637 pre-edge words per cut, 256 events, sixteen first
+semantic divergences and 44 invalid cases. All six final-source exact-recipe
+16-GiB four-hart controls and independent
+audits pass: both direct-exit controls terminate at C=3,329,794 and all four
+syscall protocols at C=3,330,050. Complete hart traces and decoded workload
+labels match within each protocol. Initial fixture/native/control attempts
+were superseded after correcting a reference lifetime in the new test fixture.
+Affected checks were rerun under verified/; unaffected replay/TSI/retained checks
+remain under regressions/. Exact selected receipts, source archives, workload
+hashes and native commands are in summary.json, selected-results.json,
+workloads.json, native-input-archives.json, raw-native-commands.json,
+verification-commands.json and artifact-manifest.json under runs/m11-iteration164/.
+
+Complete simulator coordination and production thread/signal/descriptor/parser
+exclusion remain pending; Level 2 stays independent. No external dependency is
+missing. BOOM/Saturn remain pending; standalone Shuttle, FPGA validation and ASIC
+power remain outside scope. Existing controller commits reached GitHub,
+FireSim first then Chipyard; remote heads match despite local tracking-ref write
+warnings. Both plans, environment helpers, heads and indices retain their
+starting bytes. No staging or local commits occurred. Next: join the returned
+stream I/O, stream widget/TracerV, AXI/generated/harness, other bridge, memory
+and runtime owners with sealed TSI publication at one complete CPU cut, and
+establish production process exclusion before admitting CPU restore.
+
+Previous iteration 163 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 163, in progress.
 The actual restricted production TSI candidate now stays on its reserved creator
 until sealing, then publishes without allocation under the retained guard.
