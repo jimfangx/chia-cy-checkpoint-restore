@@ -98,18 +98,11 @@ struct firesim_htif_lifecycle_access_t {
     signal_exit = state.delivered;
   }
   static void guard(const htif_t &htif) {
-    if (!htif.sig_file.empty())
-      throw std::runtime_error("HTIF lifecycle signature state is unsupported");
-    sigset_t mask, pending;
-    if (pthread_sigmask(SIG_BLOCK, nullptr, &mask) != 0 || sigpending(&pending) != 0)
-      throw std::runtime_error("cannot inspect HTIF signal state");
-    for (int sig : {SIGINT, SIGTERM, SIGABRT}) {
-      struct sigaction action{};
-      if (sigismember(&mask, sig) != 1 || sigismember(&pending, sig) != 0 ||
-          sigaction(sig, nullptr, &action) != 0 || (action.sa_flags & SA_SIGINFO) ||
-          action.sa_handler != &handle_signal)
-        throw std::runtime_error("unowned HTIF signal mask/pending/handler state");
-    }
+    // Polling/host/context groups use this API, rather than the delivered-signal
+    // owner. They must enforce the same all-thread and exact-action admission
+    // at capture, preparation, publication and each fresh-context resume.
+    // This audit still requires the caller's exclusive suspension contract.
+    signal_guard(htif);
     if (signal_exit)
       throw std::runtime_error("delivered HTIF signal is unsupported");
   }

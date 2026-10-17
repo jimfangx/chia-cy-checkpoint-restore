@@ -3,6 +3,7 @@
 #include "tsi_host_group_fesvr.cc"
 #include "fesvr/tsi_context_group.h"
 #include <thread>
+#include <future>
 using context_group_t = firesim_tsi_context_group_t;
 void tsi_terminal_fail_allocation_size(std::size_t);
 static images_t load_context(const fs::path &p) {
@@ -82,8 +83,16 @@ static int context_run(const char *mode,const char *elf,const char *input,const 
         catch(const std::runtime_error &){failed=true;}
         require(failed && group.inspect()==good && !group.native_context_initialized(),"context admission guard failed");}
       if(action=="thread"){
-        bool rejected=false;std::thread worker([&]{try{group.resume();}catch(const std::runtime_error &){rejected=true;}});worker.join();
-        require(rejected && group.inspect()==good && !group.native_context_initialized(),"foreign creator entered context");
+        // Keep the foreign creator parked through the all-thread audit. A
+        // completed join need not immediately remove its /proc task entry.
+        bool rejected=false;std::promise<void> parked,release;auto resumed=release.get_future();
+        std::thread worker([&]{try{group.resume();}catch(const std::runtime_error &){rejected=true;}
+          parked.set_value();resumed.wait();});
+        parked.get_future().wait();bool unchanged=false;
+        try{unchanged=group.inspect()==good && !group.native_context_initialized();}
+        catch(...){release.set_value();worker.join();throw;}
+        release.set_value();worker.join();
+        require(rejected && unchanged,"foreign creator entered context");
         std::cout<<"FOREIGN_CREATOR rejected=1 unpublished=1 context_entries=0 target_edges=0\n";return 0;
       }
       if(action=="allocation"){

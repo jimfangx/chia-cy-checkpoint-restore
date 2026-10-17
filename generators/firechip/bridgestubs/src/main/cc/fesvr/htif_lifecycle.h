@@ -16,8 +16,12 @@ struct firesim_htif_lifecycle_state_t {
 };
 
 // Caller must externally suspend HTIF and serialize provider access. INT, TERM
-// and ABRT must be blocked in this thread. Pending/delivered signals, changed
-// handlers and signature mode are rejected; process signal state is not loaded.
+// and ABRT must be blocked in every thread, with no thread-local/shared pending
+// instances. The Linux provider audits stable /proc/self/task membership and
+// exact installed signal actions; unavailable/incomplete procfs rejects. Caller
+// must exclude thread/mask/action/delivery changes throughout access: this audit
+// does not suspend workers. Delivered signals and signature mode reject;
+// process signal state is not loaded.
 firesim_htif_lifecycle_state_t firesim_htif_lifecycle_read(const htif_t &);
 // Read-only destination preflight. Repeat immediately before publication;
 // preparing a candidate does not reserve signal or destination state.

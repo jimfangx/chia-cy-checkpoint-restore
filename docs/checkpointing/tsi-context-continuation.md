@@ -6,7 +6,12 @@ component continuation API, `firesim_tsi_context_group_t::resume()`. Complete
 Rocket CPU Level 1 remains disabled; ordinary `tick()` still rejects restored
 metadata/components.
 
-Iteration 151 audit correction: the aggregate uses the lifecycle API, whose
+Iteration 152 connects the lifecycle provider to the all-thread and exact-action
+guard. See [tsi-context-signal-admission.md](tsi-context-signal-admission.md).
+Production exclusion and coherent simulator/bridge/memory publication remain
+pending; this strengthens component admission without enabling CPU Level 1.
+
+Historical iteration 151 audit correction: the aggregate uses the lifecycle API, whose
 guard checks the calling thread mask, pending signals and handlers. The
 separate signal-owner API audits all threads, but this aggregate does not call
 that API. All-thread exclusion remains a required external policy,
@@ -57,9 +62,9 @@ callers cannot bypass admission through the base `switch_to_host()` API. Fresh
 stack-allocation failure leaves all semantic images and context initialization
 unchanged and can be retried.
 
-The current lifecycle provider's calling-thread blocked/pending/delivered-signal
-policy is checked before each component resume, including after a native
-coroutine has been initialized. Exclusive access and an external policy preventing concurrent
+The lifecycle provider's signal policy is checked before each component resume,
+including after a native coroutine has been initialized. Since iteration 152
+this includes all-thread blocked/pending audits and exact signal actions. Exclusive access and an external policy preventing concurrent
 signal/thread changes are still mandatory. This change does not supply the
 production signal coordinator or restore signal-caused exit callers.
 
