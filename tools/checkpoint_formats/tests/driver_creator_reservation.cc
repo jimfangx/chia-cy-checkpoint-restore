@@ -4,6 +4,8 @@
 #include <iostream>
 #include <memory>
 #include <csignal>
+#include <cstdio>
+#include <cstdlib>
 #include <pthread.h>
 
 void tsi_terminal_fail_allocation_after(long count);
@@ -228,8 +230,87 @@ static void test_publication_seal() {
   check(launches==16 && allocation_failures==64 && rejected-before==416);
   std::cout<<"DRIVER_PUBLICATION_SEAL_PASS guards=64 launches=16 cancellations=16 allocation_failures=64 rejections=416 creator_lock=1 creator_mask=1 allocation_free_commit=1 cleanup_order=1\n";
 }
+// Staged owner publication runs on its creator under the retained guards.
+static void test_owner_publication() {
+  unsigned guards=0, destroyed=0, commits=0, launches=0, cancelled=0, failures=0;
+  const auto before=rejected;
+  for (unsigned trial=0;trial<32;++trial) {
+    emul_driver_thread_t worker;
+    std::mutex gate;
+    bool live=false, capture_gone=true, publication_gone=false;
+    unsigned owner=0;
+    rejects([&] { worker.prepare_publication([] {}); });
+    rejects([&] { worker.publish_prepared(); });
+    worker.reserve();
+    rejects([&] { worker.prepare_publication([] {}); });
+    worker.invoke([&] { worker.retain(std::make_unique<resident_t>(worker,destroyed,capture_gone)); });
+    worker.prepare_launch([&] {
+      check(!live && owner==trial+1 && publication_gone); ++launches;
+    });
+    rejects([&] { worker.prepare_publication({}); });
+    auto capture=std::shared_ptr<int>(new int, [&](int *p) {
+      check(std::this_thread::get_id()==worker.get_id() && live && destroyed==trial);
+      publication_gone=true; delete p;
+    });
+    auto task=[&,capture=std::move(capture)] {
+      check(std::this_thread::get_id()==worker.get_id() && live && worker.publication_sealed());
+      check(owner==0 && !publication_gone && destroyed==trial);
+      // Fail all creator allocations throughout the actual commit/readback.
+      tsi_terminal_fail_allocation_after(0);
+      owner=trial+1; ++commits;
+      check(owner==trial+1);
+      tsi_terminal_fail_allocation_after(-1);
+    };
+    tsi_terminal_fail_allocation_after(0);
+    try { worker.prepare_publication(task); } catch(const std::bad_alloc &) { ++failures; }
+    tsi_terminal_fail_allocation_after(-1);
+    check(owner==0 && !publication_gone && !live);
+    worker.prepare_publication(std::move(task));
+    rejects([&] { worker.prepare_publication([] {}); });
+    rejects([&] { worker.publish_prepared(); });
+    std::thread foreign([&] {
+      rejects([&] { worker.prepare_publication([] {}); });
+      rejects([&] { worker.publish_prepared(); });
+    }); foreign.join();
+    worker.invoke([&] {
+      rejects([&] { worker.prepare_publication([] {}); });
+      rejects([&] { worker.publish_prepared(); });
+    });
+    worker.seal_launch([&] { return std::make_unique<publication_guard_t>(worker,gate,live,guards); });
+    rejects([&] { worker.prepare_publication([] {}); });
+    check(!publication_gone && owner==0 && live && !gate.try_lock());
+    // Half the cancellations abandon a prepared but unpublished owner.
+    if(trial%4==1) {
+      worker.cancel_reserved(); ++cancelled;
+      check(owner==0);
+    } else {
+      tsi_terminal_fail_allocation_after(0);
+      worker.publish_prepared();
+      tsi_terminal_fail_allocation_after(-1);
+      check(owner==trial+1 && publication_gone && live && !gate.try_lock());
+      rejects([&] { worker.publish_prepared(); });
+      if(trial%2) { worker.cancel_reserved(); ++cancelled; }
+      else { worker.launch_prepared(); worker.join(); }
+    }
+    check(publication_gone && !live && destroyed==trial+1 && guards==trial+1);
+  }
+  check(commits==24 && launches==16 && cancelled==16 && failures==32 && rejected-before==376);
+  std::cout<<"DRIVER_OWNER_PUBLICATION_PASS commits=24 launches=16 cancellations=16 allocation_failures=32 rejections=376 creator_commit=1 guarded_readback=1 capture_order=1\n";
+}
+static void test_publication_death(const std::string &mode) {
+  std::set_terminate([] { std::fputs("DRIVER_PUBLICATION_FATAL before_acknowledgment=1\n",stderr); std::fflush(nullptr); std::_Exit(73); });
+  emul_driver_thread_t worker;
+  worker.reserve(); worker.prepare_launch([] { std::abort(); });
+  worker.prepare_publication([] { throw std::runtime_error("publication failed after mutation"); });
+  worker.seal_launch([] { return std::make_unique<emul_driver_thread_t::resource_t>(); });
+  if(mode=="throw") worker.publish_prepared();
+  else if(mode=="skip") worker.launch_prepared();
+  else std::abort();
+  std::abort();
+}
 static int test_creator() {
   try {
+    if(const char *mode=std::getenv("DRIVER_PUBLICATION_DEATH")) test_publication_death(mode);
     unsigned tasks = 0, failures = 0, launches = 0, cancellations = 0;
     const auto controller = std::this_thread::get_id();
     for (unsigned trial=0; trial<32; ++trial) {
@@ -289,6 +370,7 @@ static int test_creator() {
     test_residents();
     test_prepared_launch();
     test_publication_seal();
+    test_owner_publication();
     return 0;
   } catch (const std::exception &e) {
     std::cerr << "DRIVER_CREATOR_ERROR " << e.what() << '\n'; return 1;

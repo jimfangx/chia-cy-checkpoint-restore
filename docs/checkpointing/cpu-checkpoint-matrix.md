@@ -1,6 +1,6 @@
 # CPU checkpoint matrix
 
-Current milestone: M11 Rocket, iteration 161, **in_progress**. Rocket Level 2
+Current milestone: M11 Rocket, iteration 162, **in_progress**. Rocket Level 2
 passes complete captured ChipTop finite replay at four tested cuts. Complete
 Level-1 CPU continuation remains pending. Physical FPGA validation, standalone
 Shuttle and ASIC power are outside this matrix. The verified FCFS evidence remains in its existing docs.
@@ -32,6 +32,94 @@ The recipe also specifies frequency 140 MHz and TIMING build strategy; these
 are retained in the recipe record, with no FPGA implementation invoked.
 VCS uses Y-2026.03-SP1, `-full64`, `VCS_FLAGS=-Mupdate`, system GCC/G++ 13,
 and the sourced Conda library/include directories. No Conda files are edited.
+
+## Iteration 162: publish creator-affine owners while retaining guards
+
+Complete Rocket Level 1 remains **in_progress**. The reserved mailbox can now
+stage an owner commit/readback before sealing and execute it on its creator
+while keeping the final guards held. The controller can then publish/read back
+its remaining owners and RTL under the same loading hold. Publication capture
+destruction precedes acknowledgment; cancellation destroys staged captures
+before guards and resident owners. Duplicate, unsealed, foreign, recursive and
+late calls reject. Skipped publication or throwing commit is fatal before
+continuation. The complete coordinator and production process exclusion still
+require implementation. Recovery: [driver-owner-publication.md](driver-owner-publication.md).
+
+Native ASan/UBSan and VCS each pass **24** guarded creator commits, **16**
+launches, **16** cancellations (eight before commit), **32** allocation failures
+and **376** lifecycle rejections, in addition to the retained creator tests.
+Both backends pass fatal throwing-commit and skipped-publication cases with
+exit **73** before acknowledgment. The VCS component asserts time zero and zero
+edges. All four harness modes pass **20** fresh continuations at cuts **13, 14,
+16, 31, 32**; the ten reserved cases publish and read back on the creator, retain
+the guard through complete pre-edge readback, and release it before execution.
+The separate publication audit verifies **110** invalid processes never enter
+creator publication. These operation cuts are component tests, not Rocket
+Level-1 target-cycle restores.
+
+Accepted creator receipts:
+
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration162/creator-verified/invocation-s3rdevgj/summary.json`.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration162/verified/creator-independent-audit.json`.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration162/publication-negative-audit.json`.
+
+Final-source regressions and audits pass: **eight** preserved native scopes
+(**280** Python tests), **30** retained auditors, all dispatcher guards and
+complete archive audits. Production TSI bridge component tests pass **64** fresh
+restores and **64** cancellations, **52,088** owner comparisons, **3,000** serial
+boundaries, **336** invalid processes and **eight** first divergences. That
+component still publishes during initial preparation and does not yet exercise
+the new sealed publication callback with a real TSI candidate.
+
+Fresh ordinary RTL VCS and the independent full-source audit pass cuts
+**100, 700,000, 900,000, 3,250,000**, with **318,637** words read back before any
+edge per cut, **256** captured events, **16** semantic first divergences and
+**44** invalid cases. All six exact-recipe 16-GiB four-hart controls and independent
+audits pass: both direct controls at **C=3,329,794**, and ordinary,
+ordinary-buffered, restricted and restricted-buffered syscall controls at
+**C=3,330,050**. All full hart traces and decoded labels match within each
+protocol. These are uninterrupted CPU controls, not Level-1 CPU restores.
+
+Workload bytes and SHA-256:
+
+- Direct exit / retained Level 2: **6,712** bytes,
+  `f3d86f54caf42b9589385e8021dba46777f647134f19595e38a3d452b745f3d4`.
+- Syscall 93: **6,760** bytes,
+  `1c5ebf741af82848ebfcba5194e4c813dce3cdc8aadc7ecae2ba454280604958`.
+
+Exact receipts and full artifact paths:
+
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration162/summary.json`.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration162/selected-results.json`.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration162/workloads.json`.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration162/native-input-archives.json`.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration162/raw-native-commands.json`.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration162/verification-commands.json`.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration162/artifact-manifest.json`.
+
+Executable checks (Chipyard root; each VCS shell sources `vcs-env.sh` last):
+
+```bash
+bash -lc 'source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh && python -m tools.checkpoint_formats.tests.verify_driver_creator_vcs --build automations/checkpoint_loop/runs/m3-metasim --out automations/checkpoint_loop/runs/m11-iteration162/creator-verified'
+bash -lc 'source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh && python -m tools.checkpoint_formats.tests.audit_driver_creator --summary automations/checkpoint_loop/runs/m11-iteration162/creator-verified/invocation-s3rdevgj/summary.json'
+bash -lc 'source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh && python automations/checkpoint_loop/runs/m11-iteration162/audit-publication-negatives.py'
+```
+
+Additional executed native VCS checks:
+
+```bash
+bash -lc 'source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh && python -m tools.checkpoint_formats.tests.verify_fame_event_replay_vcs --base automations/checkpoint_loop/runs/m11-iteration138/rocket-semantic-map-sealed/FireSim-generated --capture automations/checkpoint_loop/runs/m11-iteration139/runtime-pilot/capture --cuts 100,700000,900000,3250000 --out /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration162/verified/native-replay'
+bash -lc 'source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh && python /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration162/verified/repeat-native.py'
+bash -lc 'source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh && python -m tools.checkpoint_formats.tests.verify_rocket_controls_vcs --seed-build /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration160/rocket-final/invocation-ex54qx6f/build --workload automations/checkpoint_loop/runs/m11-iteration82/workload --reference-runtime automations/checkpoint_loop/runs/m11-iteration85/rocket-runtime --reference-audit automations/checkpoint_loop/runs/m11-iteration85/rocket-workload-audit.json --htif-source toolchains/riscv-tools/riscv-isa-sim/fesvr/htif.cc --out /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration162/verified/rocket'
+bash -lc 'source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh && python -m tools.checkpoint_formats.tests.verify_tsi_bridge_context_vcs --context-summary /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration151/context-regression/invocation-93o7agr0/summary.json --recipe-build-identity /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration155/rocket-controls/invocation-53d1qw51/rocket-build-identity.json --out /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration162/verified/bridge'
+```
+
+Broader final-source checks pass under `runs/m11-iteration162/verified/`.
+Earlier harness probes exposed a fixture override bypassing the MMIO guard,
+then an aggregate guard check asserting publication too early; both test errors
+were corrected. Earlier source epochs remain diagnostic and cannot certify the
+final source. Complete Rocket Level 1 remains disabled; independent Level 2,
+BOOM/Saturn, hardware and power scope are unchanged.
 
 ## Iteration 161: retain creator guards through publication and readback
 

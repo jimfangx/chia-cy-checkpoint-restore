@@ -21,8 +21,10 @@ def audit(path, report=None):
                  'driver_creator_reservation_tb.sv', 'harness_dispatcher_checkpoint.cc',
                  'verify_harness_dispatcher_vcs.py', 'verify_driver_creator_vcs.py', 'audit_driver_creator.py'):
         require(any(p.endswith('/'+name) for p in bindings), 'missing creator source '+name)
-    require(len(r['commands']) == 8 and len({c['log'] for c in r['commands']}) == 8, 'creator commands membership')
-    require({Path(c['log']).name for c in r['commands']} == {
+    command_count = 12 if r.get('creator_owners_published') else 8
+    require(len(r['commands']) == command_count and len({c['log'] for c in r['commands']}) == command_count, 'creator commands membership')
+    fatal_logs = {backend+'-fatal-'+mode+'.log' for backend in ('native','vcs') for mode in ('throw','skip')} if r.get('creator_owners_published') else set()
+    require({Path(c['log']).name for c in r['commands']} == fatal_logs | {
         'native-build.log','vcs-build.log','native.log','vcs.log',
         'harness-legacy.log','harness-reserved.log','harness-aggregate-legacy.log','harness-aggregate-reserved.log'},
         'missing creator native/harness mode')
@@ -34,14 +36,20 @@ def audit(path, report=None):
     for c in r['commands']:
         text = Path(c['log']).read_text(); lines = text.splitlines()
         require(lines[0].startswith('cwd=') and json.loads(lines[1][5:]) == c['argv'] and
-                lines[2].startswith('fresh_process_pid=') and lines[-1]=='exit=0', 'creator command/result binding')
+                lines[2].startswith('fresh_process_pid=') and lines[-1]=='exit='+str(c.get('expected_exit',0)), 'creator command/result binding')
         require(c['argv'][:2] == ['bash','-lc'] and
                 'source /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/vcs-env.sh && ' in c['argv'][2],
                 'creator native environment')
         require(not any(s in text for s in ('ERROR: AddressSanitizer','runtime error:','LeakSanitizer: detected')),
                 'creator sanitizer')
         name = Path(c['log']).name
+        if name in fatal_logs:
+            require(c['expected_exit']==73 and 'DRIVER_PUBLICATION_FATAL before_acknowledgment=1' in text,
+                    'missing fatal publication receipt')
         if name in ('native.log', 'vcs.log'):
+            if r.get('creator_owners_published'):
+                require('DRIVER_OWNER_PUBLICATION_PASS commits=24 launches=16 cancellations=16 allocation_failures=32 rejections=376 creator_commit=1 guarded_readback=1 capture_order=1' in text,
+                        'creator owner publication receipt')
             require('DRIVER_CREATOR_PASS tasks=512 exceptions=512 launches=17 cancellations=16 rejections=1296' in text,
                     'creator lifecycle receipt')
             if r.get('creator_resource_retained'):
@@ -88,6 +96,10 @@ def audit(path, report=None):
                     require(all(trace.count(m)==1 for m in markers) and
                             [trace.index(m) for m in markers]==sorted(trace.index(m) for m in markers),
                             'creator publication guard missing or released before preedge readback')
+                if r.get('creator_owners_published'):
+                    marker='HARNESS_CREATOR_OWNERS_PUBLISHED same_thread=1 readback=1 mmio=0 native_ticks=0'
+                    require(trace.count(marker)==1 and trace.index('HARNESS_PUBLICATION_SEALED') < trace.index(marker) < trace.index('HARNESS_PUBLICATION_HELD stage=2'),
+                            'creator commit/readback did not retain publication guards')
                 reserved += 1; guards += 13
             require((ref/'rows.jsonl').read_bytes() == (dst/'rows.jsonl').read_bytes(), 'creator generated/harness continuation')
             require(json.loads((ref/'cut.jsonl').read_text()) == json.loads((dst/'loaded.jsonl').read_text()),

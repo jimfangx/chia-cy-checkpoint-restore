@@ -64,9 +64,21 @@ def main():
                 'creator launch preparation missing')
         require('DRIVER_PUBLICATION_SEAL_PASS guards=64 launches=16 cancellations=16 allocation_failures=64 rejections=416 creator_lock=1 creator_mask=1 allocation_free_commit=1 cleanup_order=1' in text,
                 'creator publication scope missing')
+        require('DRIVER_OWNER_PUBLICATION_PASS commits=24 launches=16 cancellations=16 allocation_failures=32 rejections=376 creator_commit=1 guarded_readback=1 capture_order=1' in text,
+                'creator owner publication missing')
         require(not any(s in text for s in ('ERROR: AddressSanitizer', 'runtime error:', 'LeakSanitizer: detected')),
                 'creator sanitizer failure')
         if name == 'vcs': require('DRIVER_CREATOR_ZERO_EDGES time=0 edges=0' in text, 'VCS preparation edge')
+    for name, binary in [('native', out/'native'), ('vcs', out/'simv')]:
+        for mode in ('throw', 'skip'):
+            argv = ['env', 'DRIVER_PUBLICATION_DEATH='+mode, binary]
+            if name == 'vcs': argv.append('-no_save')
+            command = ['bash', '-lc', ENVIRONMENT+shlex.join(map(str, argv))]
+            log = out/(name+'-fatal-'+mode+'.log')
+            run(command, log, expected=73)
+            require('DRIVER_PUBLICATION_FATAL before_acknowledgment=1' in log.read_text(),
+                    'missing fatal publication rejection')
+            commands.append(dict(argv=command, cwd='.', log=str(log), expected_exit=73))
     def harness(options):
         name = 'harness'+('-aggregate' if options[0] else '')+('-reserved' if options[1] else '-legacy')
         dest = out/name
@@ -97,6 +109,7 @@ def main():
                   creator_resource_retained=True,
                   creator_launch_prepared=True,
                   creator_publication_sealed=True,
+                  creator_owners_published=True,
                   artifact_sha256={str(p):file_sha(p) for p in out.rglob('*') if p.is_file()})
     path = out/'summary.json'; path.write_text(json.dumps(report, indent=2)+'\n')
     from tools.checkpoint_formats.tests.audit_driver_creator import audit

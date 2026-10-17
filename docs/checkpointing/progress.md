@@ -14,6 +14,52 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 162, in progress.
+The optional pre-edge mailbox now stages creator-affine owner publication before
+sealing, runs commit/readback on that same creator under retained guards, and
+parks it under those guards for controller publication/readback. Cancellation
+and capture destruction stay on the creator. Skipped publication or a throwing
+commit terminates before acknowledgment/continuation. Native ASan/UBSan, VCS
+time-zero checks, all four harness modes and the independent creator audit pass.
+An additional audit passes ten successful creator publications and 110 invalid
+processes rejected before creator publication. Recovery:
+[driver-owner-publication.md](driver-owner-publication.md).
+
+Diagnostics: `runs/m11-iteration162/`. Accepted creator evidence is
+`creator-verified/invocation-s3rdevgj/summary.json`; final broader checks run
+under `verified/`. Earlier fixture failures and superseded source snapshots
+remain diagnostic only. Complete Rocket Level 1 remains disabled. Next: join
+creator-side publication with the complete simulator/FAME/channel/CPU-managed-
+stream/other-bridge/functional-memory/runtime transaction, and establish the
+production thread/signal/descriptor/parser exclusion policy. The actual TSI
+component still commits during initial preparation; move its retained candidate
+into the new sealed phase before claiming that integration. BOOM/Saturn remain
+pending; standalone Shuttle, physical FPGA validation and ASIC power remain
+outside scope. No external dependency is missing.
+
+Final-source results: all eight preserved native scopes (280 Python tests),
+thirty retained auditors, dispatcher/poison/loading/capture guards and independent
+archive audits pass. Four fresh ordinary RTL VCS cuts pass 318,637 pre-edge words
+per cut, 256 captured events, sixteen semantic first divergences and 44 invalid
+cases, including the independent full-source audit. The production TSI bridge
+component matrix and audit pass 64 fresh restores/cancellations, 52,088 owner
+comparisons, 3,000 serial boundaries, 336 invalid processes and eight first
+divergences. All six exact-recipe final-source 16-GiB four-hart controls and
+independent audits pass: direct controls at C=3,329,794 and all four syscall
+protocols at C=3,330,050. Complete hart traces and decoded labels match within
+each protocol. Level 2 retains the direct ELF.
+
+Exact selected receipts, workload hashes, source archives and native commands
+are in `summary.json`, `selected-results.json`, `workloads.json`,
+`native-input-archives.json`, `raw-native-commands.json`, `verification-commands.json`
+and `artifact-manifest.json` under this iteration. Both plans, environment
+helpers, heads and indices retain their starting bytes. Existing controller
+heads reached GitHub, FireSim first then Chipyard; local tracking-ref writes
+warned and remote heads were independently checked. No staging or local commits
+occurred. The milestone remains in progress; no external dependency is missing.
+
+Previous iteration 161 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 161, in progress.
 The optional pre-edge mailbox now retains a creator-owned publication guard
 between final validation and controller publication/readback, rejects later

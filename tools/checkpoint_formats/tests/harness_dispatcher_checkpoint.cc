@@ -42,6 +42,8 @@ bool reserved_creator=false;
 std::thread::id creator_id;
 bool resident_alive=false, resident_finished=false, resident_destroyed=false;
 bool publication_live=false;
+bool creator_publication_gone=false;
+unsigned creator_word=0;
 unsigned publication_destroyed=0, publication_readbacks=0;
 std::mutex publication_gate;
 struct harness_publication_t final : emul_driver_thread_t::resource_t {
@@ -194,6 +196,17 @@ void reserve_creator(platform_t &p) {
         p.checkpoint_host_timing_owner().second->save_checkpoint()==timing && !p.calls);
   rejections=before;
   puts("HARNESS_PREPARED_LAUNCH guards=6 allocation_failures=1 mmio=0 native_ticks=0");
+  auto publication_capture=std::shared_ptr<int>(new int,[](int *v) {
+    check(std::this_thread::get_id()==creator_id && publication_live && resident_alive);
+    creator_publication_gone=true; delete v;
+  });
+  p.prepare_restored_publication(*driver,[&p,capture=std::move(publication_capture)] {
+    check(std::this_thread::get_id()==creator_id && publication_live && resident_alive && !creator_word);
+    creator_word=0x1234;
+    bool held=false; try { p.simif_emul_t::read(0); } catch(const std::runtime_error &) { held=true; }
+    check(held && !p.calls && creator_word==0x1234);
+    puts("HARNESS_CREATOR_OWNERS_PUBLISHED same_thread=1 readback=1 mmio=0 native_ticks=0");
+  });
   auto factory=[]() -> std::unique_ptr<emul_driver_thread_t::resource_t> {
     return std::make_unique<harness_publication_t>();
   };
@@ -218,6 +231,16 @@ void reserve_creator(platform_t &p) {
         p.checkpoint_host_timing_owner().second->save_checkpoint()==timing && !p.calls);
   rejections=before;
   puts("HARNESS_PUBLICATION_SEALED guards=9 exceptions=1 creator_lock=1 mmio=0 native_ticks=0");
+}
+void publish_creator(platform_t &p) {
+  if(!reserved_creator) return;
+  check(!creator_word && !creator_publication_gone && publication_live);
+  p.publish_restored_owners(*driver);
+  check(creator_word==0x1234 && creator_publication_gone && publication_live && !p.calls &&
+        !publication_gate.try_lock());
+  bool rejected=false;
+  try { p.publish_restored_owners(*driver); } catch(const std::runtime_error &) { rejected=true; }
+  check(rejected);
 }
 std::vector<std::pair<std::string,checkpoint_owner_t *>> owners() {
   auto list=emulator->checkpoint_axi_owners();
@@ -279,6 +302,7 @@ int entry(int argc,char **argv) {
         list[i].second->validate_checkpoint(b); payloads.push_back(std::move(b));
       }
       if(reserved_creator) check(publication_live && publication_destroyed==1);
+      publish_creator(*p);
       for(size_t i=0;i<list.size();++i) list[i].second->load_checkpoint(payloads[i]);
       if(negative=="unsupported") driver->supported=false;
       p->arm_restored_driver(*driver);
@@ -328,6 +352,7 @@ extern "C" int harness_dispatcher_prepare_aggregate() {
     }
     check(!generated_restore_deposit_count() && !harness_restore_deposit_count());
     if(reserved_creator) check(publication_live && publication_destroyed==1);
+    publish_creator(*p);
     aggregate.commit_native();
     puts("AGGREGATE_ALL_OWNERS_PREVALIDATED_BEFORE_LOAD");
     p->arm_restored_driver(*driver);
@@ -354,6 +379,7 @@ extern "C" int harness_dispatcher_commit_aggregate() {
 extern "C" void harness_dispatcher_check_publication() {
   if(!reserved_creator) return;
   check(publication_live && publication_destroyed==1 && !publication_gate.try_lock());
+  if(publication_readbacks==1) check(creator_word==0x1234 && creator_publication_gone);
   check(publication_readbacks<2); ++publication_readbacks;
   printf("HARNESS_PUBLICATION_HELD stage=%u creator_lock=1 zero_edges=1\n",publication_readbacks);
 }
