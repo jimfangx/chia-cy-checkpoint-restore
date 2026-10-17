@@ -49,6 +49,9 @@ supply that exclusion or jointly publish simulator peers with the TSI candidate.
 Preparing/launching a `std::function` can allocate. A complete coordinator must
 prepare its launch resources before joint publication; a later bootstrap failure
 must remain process-fatal under the clock hold, never release a partial restore.
+Iteration 160 adds an optional [prepared dispatcher continuation](driver-prepared-launch.md)
+to move its callable allocation before publication. Joint simulator publication
+and production process exclusion remain pending.
 
 Next: connect creator-side bridge preparation and immutable observations to the
 complete simulator/FAME/channel/other-bridge/functional-memory/runtime cut,

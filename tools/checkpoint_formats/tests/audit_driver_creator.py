@@ -47,6 +47,9 @@ def audit(path, report=None):
             if r.get('creator_resource_retained'):
                 require('DRIVER_RESIDENT_PASS destroyed=32 launches=16 cancellations=16 exceptions=32 rejections=176 capture_order=1' in text,
                         'creator retained lifetime receipt')
+            if r.get('creator_launch_prepared'):
+                require('DRIVER_PREPARED_LAUNCH_PASS destroyed=32 launches=16 cancellations=16 allocation_failures=32 rejections=208 allocation_free_commit=1 capture_order=1' in text,
+                        'creator prepared launch receipt')
             if name == 'vcs.log': require('DRIVER_CREATOR_ZERO_EDGES time=0 edges=0' in text, 'creator VCS edges')
         if 'summary' not in c: continue
         folder = Path(c['summary']).parent; h = json.loads(Path(c['summary']).read_text())
@@ -65,6 +68,10 @@ def audit(path, report=None):
                         'creator thread identity/preparation checks')
                 require(trace.index('HARNESS_RESERVED_CREATOR_PREPARED') < trace.index('HARNESS_DISPATCHER_BOOTSTRAP'),
                         'creator preparation after bootstrap')
+                if r.get('creator_launch_prepared'):
+                    require(trace.count('HARNESS_PREPARED_LAUNCH guards=6 allocation_failures=1 mmio=0 native_ticks=0')==1 and
+                            trace.index('HARNESS_PREPARED_LAUNCH') < trace.index('HARNESS_DISPATCHER_BOOTSTRAP'),
+                            'dispatcher launch was not prepared under the clock hold')
                 if r.get('creator_resource_retained'):
                     require(trace.count('HARNESS_CREATOR_RESOURCE_LIVE same_thread=1 finalized=1')==1 and
                             trace.count('HARNESS_CREATOR_RESOURCE_DESTROYED same_thread=1 finalized=1')==1 and

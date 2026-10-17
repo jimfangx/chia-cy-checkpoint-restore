@@ -4,6 +4,8 @@
 #include <iostream>
 #include <memory>
 
+void tsi_terminal_fail_allocation_after(long count);
+
 static void check(bool b) {
   if (!b) throw std::runtime_error("driver creator assertion");
 }
@@ -69,6 +71,63 @@ static void test_residents() {
   check(destroyed==32 && launched==16 && exceptions==32 && rejected-before==176);
   std::cout<<"DRIVER_RESIDENT_PASS destroyed=32 launches=16 cancellations=16 exceptions=32 rejections=176 capture_order=1\n";
 }
+
+static void test_prepared_launch() {
+  static_assert(noexcept(std::declval<emul_driver_thread_t &>().launch_prepared()));
+  unsigned destroyed=0, launched=0, allocation_failures=0;
+  const auto before=rejected;
+  for (unsigned trial=0;trial<32;++trial) {
+    emul_driver_thread_t worker;
+    bool capture_gone=true;
+    rejects([&] { worker.prepare_launch([] {}); });
+    worker.reserve();
+    rejects([&] { worker.prepare_launch({}); });
+    worker.invoke([&] {
+      worker.retain(std::make_unique<resident_t>(worker,destroyed,capture_gone));
+      rejects([&] { worker.prepare_launch([] {}); });
+    });
+    capture_gone=false;
+    auto capture=std::shared_ptr<int>(new int, [&](int *p) {
+      check(std::this_thread::get_id()==worker.get_id() && destroyed==trial);
+      capture_gone=true; delete p;
+    });
+    // The allocating std::function conversion must fail before installation.
+    auto task=[&,capture=std::move(capture)] {
+      check(!capture_gone && destroyed==trial && !worker.launch_prepared_pending());
+      ++launched;
+    };
+    tsi_terminal_fail_allocation_after(0);
+    try { worker.prepare_launch(task); }
+    catch(const std::bad_alloc &) { ++allocation_failures; }
+    tsi_terminal_fail_allocation_after(-1);
+    check(allocation_failures==trial+1 && !worker.launch_prepared_pending() && launched==(trial+1)/2);
+    worker.prepare_launch(std::move(task));
+    check(worker.launch_prepared_pending());
+    rejects([&] { worker.prepare_launch([] {}); });
+    rejects([&] { worker.launch([] {}); });
+    std::thread foreign([&] { rejects([&] { worker.prepare_launch([] {}); }); });
+    foreign.join();
+    try {
+      worker.invoke([&] {
+        check(worker.launch_prepared_pending() && destroyed==trial && !capture_gone);
+        throw std::bad_alloc();
+      });
+    } catch(const std::bad_alloc &) {}
+    check(worker.launch_prepared_pending() && destroyed==trial && !capture_gone);
+    if (trial%2) worker.cancel_reserved();
+    else {
+      // No allocation or callable copy is permitted after publication.
+      tsi_terminal_fail_allocation_after(0);
+      worker.launch_prepared();
+      tsi_terminal_fail_allocation_after(-1);
+      worker.join();
+      rejects([&] { worker.prepare_launch([] {}); });
+    }
+    check(destroyed==trial+1 && capture_gone && !worker.launch_prepared_pending());
+  }
+  check(launched==16 && destroyed==32 && allocation_failures==32 && rejected-before==208);
+  std::cout<<"DRIVER_PREPARED_LAUNCH_PASS destroyed=32 launches=16 cancellations=16 allocation_failures=32 rejections=208 allocation_free_commit=1 capture_order=1\n";
+}
 static int test_creator() {
   try {
     unsigned tasks = 0, failures = 0, launches = 0, cancellations = 0;
@@ -128,6 +187,7 @@ static int test_creator() {
               << " launches=" << launches << " cancellations=" << cancellations
               << " rejections=" << rejected << "\n";
     test_residents();
+    test_prepared_launch();
     return 0;
   } catch (const std::exception &e) {
     std::cerr << "DRIVER_CREATOR_ERROR " << e.what() << '\n'; return 1;

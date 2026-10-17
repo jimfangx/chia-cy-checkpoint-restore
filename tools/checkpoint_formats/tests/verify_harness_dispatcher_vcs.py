@@ -101,7 +101,7 @@ def main():
     (out/'monitor.sv').write_text('\n'.join(monitor)+'\n')
     (out/'harness.sv').write_text(''.join(f'`include "{p}"\n' for p in (generated/'FireSim-generated.const.vh',generated/'FireSim-generated.defines.vh',verilog/'top.sv')))
     tests=Path(__file__).resolve().parent
-    sources=[tests/'harness_dispatcher_checkpoint.cc',*[cc/p for p in (
+    sources=[tests/'harness_dispatcher_checkpoint.cc',tests/'tsi_terminal_allocations.cc',*[cc/p for p in (
         'core/simif.cc','core/simulation.cc','core/widget_registry.cc','core/widget.cc','core/stream_engine.cc',
         'core/bridge_driver.cc','core/driver_boundary_diagnostic.cc','emul/simif_emul.cc','emul/dpi.cc',
         'emul/mm.cc','emul/mmio.cc','emul/qsfp.cc','emul/host_timing.cc','bridges/master.cc','bridges/clock.cc','bridges/loadmem.cc')],

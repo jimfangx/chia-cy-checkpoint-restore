@@ -1,6 +1,6 @@
 # CPU checkpoint matrix
 
-Current milestone: M11 Rocket, iteration 159, **in_progress**. Rocket Level 2
+Current milestone: M11 Rocket, iteration 160, **in_progress**. Rocket Level 2
 passes complete captured ChipTop finite replay at four tested cuts. Complete
 Level-1 CPU continuation remains pending. Physical FPGA validation, standalone
 Shuttle and ASIC power are outside this matrix. The verified FCFS evidence remains in its existing docs.
@@ -32,6 +32,95 @@ The recipe also specifies frequency 140 MHz and TIMING build strategy; these
 are retained in the recipe record, with no FPGA implementation invoked.
 VCS uses Y-2026.03-SP1, `-full64`, `VCS_FLAGS=-Mupdate`, system GCC/G++ 13,
 and the sourced Conda library/include directories. No Conda files are edited.
+
+## Iteration 160: stage the driver continuation before owner publication
+
+Complete Rocket Level 1 remains **in_progress**. The optional creator mailbox
+can stage its dispatcher continuation under the loading hold and commit it
+without thread creation or callable allocation. Cancellation destroys its
+captures on the creator before the retained owner bundle. The staged policy
+rejects later checkpoint scheduling changes. CPU stream and empty-schema
+admission remain unchanged. Recovery:
+[driver-prepared-launch.md](driver-prepared-launch.md).
+
+Final-source ASan/UBSan and VCS each pass thirty-two staged lifetimes: sixteen
+launches, sixteen cancellations, thirty-two allocation failures before staging,
+preparation exceptions after staging and **208** lifecycle rejections. Commit
+runs with controller-side allocation failure enabled. All four actual harness
+modes and independent audit pass **20** fresh continuations, **140** malformed
+processes, **80** lifecycle cases and **140** aggregate prevalidation cases
+(overlapping malformed counts). Ten reserved continuations additionally test
+allocation-failure retry and six launch-policy guards each, then compare every
+generated/native owner before any edge and the continued trace at original
+labels. Terminal cuts retain zero edges. Accepted receipts:
+
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration160/creator-final/invocation-9c4qbbdg/summary.json`.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration160/creator-final-independent-audit.json`.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration160/dispatcher-guards/invocation-_p49im9_/summary.json` and
+  `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration160/dispatcher-final-guard-audit.json`.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration160/native-replay/invocation-wuvevknt/summary.json` and
+  `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration160/replay-final-independent-audit.json`:
+  four fresh ordinary RTL VCS cuts at **100, 700,000, 900,000 and 3,250,000**;
+  **318,637** semantic words before any edge per cut, **256** captured events,
+  sixteen actual first divergences and **44** invalid cases. The direct ELF
+  SHA-256 remains `f3d86f54caf42b9589385e8021dba46777f647134f19595e38a3d452b745f3d4`.
+
+The final production TSI bridge component matrix and independent audit pass
+**64** fresh restores and **64** cancellations, **52,088** complete-owner
+comparisons, **3,000** serial boundaries / **4,652** words, **336** malformed
+processes, **1,326** control truncations, **7,555** allocation failures, ten
+foreign calls, four late guards and eight first divergences. Fourteen incomplete
+receipt variants and all **125** individual source omissions reject. The serial
+MMIO fixture labels remain host operations, not Rocket target cycles.
+
+All eight preserved native scopes (**280** Python tests) and independent archive
+audit pass. All thirty retained auditors, the legacy dispatcher matrix and
+final sanitizer poison/loading/capture guards pass. Additional receipts:
+
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration160/bridge/invocation-tlkwhav8/summary.json` and
+  `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration160/bridge-independent-audit.json`.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration160/native-final/invocation-c8e92cwn/summary.json` and
+  `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration160/native-final-independent-audit.json`.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration160/retained-auditor-rechecks/invocation-70j1vmse/summary.json`.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration160/dispatcher-final/summary.json`.
+
+All six final-source **16-GiB** four-hart workload controls pass: both direct
+controls complete at **C=3,329,794** and all four ordinary/restricted syscall
+controls at **C=3,330,050**. Complete hart traces and decoded workload/store
+labels match within each protocol. The syscall-93 ELF SHA-256 remains
+`1c5ebf741af82848ebfcba5194e4c813dce3cdc8aadc7ecae2ba454280604958`.
+Exact recipe/build and complete workload receipts:
+
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration160/rocket-final/invocation-ex54qx6f/rocket-build-identity.json` and
+  `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration160/rocket-final/invocation-ex54qx6f/summary.json`.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration160/rocket-final-independent-audit.json`.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration160/syscall-final/invocation-fkvgbq09/summary.json` and
+  `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration160/syscall-final-independent-audit.json`.
+
+These uninterrupted workloads and component results do not establish complete
+CPU Level 1. Earlier import/unsupported-auditor-option failures and source epochs
+superseded by the late scheduling guard remain diagnostic only. Selected final
+receipts bind the completed final sources. Full artifact paths/hashes, source
+archives and raw executable native argv are under this iteration in
+`summary.json`, `selected-results.json`, `artifact-manifest.json`,
+`native-input-archives.json`, `raw-native-commands.json` and
+`verification-commands.json`. Both plans, environment helpers, local heads and
+indices retain their starting bytes. Existing controller heads reached GitHub,
+FireSim first then Chipyard; only local tracking-ref writes warned. No staging
+or local commits occurred.
+No external dependency is missing. Full simulator coordination, jointly guarded
+publication and production process exclusion remain pending.
+
+Native executable checks (Chipyard root; VCS environment sourced last):
+
+```bash
+bash -lc 'source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh && python -m tools.checkpoint_formats.tests.verify_driver_creator_vcs --build automations/checkpoint_loop/runs/m3-metasim --out automations/checkpoint_loop/runs/m11-iteration160/creator-final'
+bash -lc 'source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh && python -m tools.checkpoint_formats.tests.verify_rocket_controls_vcs --seed-build automations/checkpoint_loop/runs/m11-iteration159/rocket-verified/invocation-4jds5tta/build --workload automations/checkpoint_loop/runs/m11-iteration82/workload --reference-runtime automations/checkpoint_loop/runs/m11-iteration85/rocket-runtime --reference-audit automations/checkpoint_loop/runs/m11-iteration85/rocket-workload-audit.json --htif-source toolchains/riscv-tools/riscv-isa-sim/fesvr/htif.cc --out automations/checkpoint_loop/runs/m11-iteration160/rocket-final'
+bash -lc 'source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh && python -m tools.checkpoint_formats.tests.verify_tsi_bridge_context_vcs --context-summary automations/checkpoint_loop/runs/m11-iteration151/context-regression/invocation-93o7agr0/summary.json --recipe-build-identity automations/checkpoint_loop/runs/m11-iteration155/rocket-controls/invocation-53d1qw51/rocket-build-identity.json --out automations/checkpoint_loop/runs/m11-iteration160/bridge'
+bash -lc 'source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh && python -m tools.checkpoint_formats.tests.verify_rocket_syscall_vcs --build-identity automations/checkpoint_loop/runs/m11-iteration160/rocket-final/invocation-ex54qx6f/rocket-build-identity.json --workload automations/checkpoint_loop/runs/m11-iteration151/workload --out automations/checkpoint_loop/runs/m11-iteration160/syscall-final'
+bash -lc 'source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh && python -m tools.checkpoint_formats.tests.verify_fame_event_replay_vcs --base automations/checkpoint_loop/runs/m11-iteration138/rocket-semantic-map-sealed/FireSim-generated --capture automations/checkpoint_loop/runs/m11-iteration139/runtime-pilot/capture --cuts 100,700000,900000,3250000 --out automations/checkpoint_loop/runs/m11-iteration160/native-replay'
+bash -lc 'source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh && python automations/checkpoint_loop/runs/m11-iteration160/repeat-native-final.py'
+```
 
 ## Iteration 159: creator-owned provider lifetime through launch and cancellation
 

@@ -43,15 +43,16 @@ def main():
         log = out/(name+'.log'); run(command, log)
         return dict(argv=command, cwd='.', log=str(log))
     source = tests/'driver_creator_reservation.cc'
+    allocations = tests/'tsi_terminal_allocations.cc'
     commands = [execute([os.environ['CXX'], '-std=c++17', '-Wall', '-Wextra', '-Werror', '-g',
                         '-no-pie', '-fsanitize=address,undefined', '-fno-omit-frame-pointer',
-                        '-I'+str(cc), source, '-pthread', '-o', out/'native'], 'native-build')]
+                        '-I'+str(cc), source, allocations, '-pthread', '-o', out/'native'], 'native-build')]
     commands += [execute([Path(os.environ['VCS_HOME'])/'bin/vcs', '-full64', '-sverilog',
                           '-timescale=1ns/1ps', '-top', 'driver_creator_reservation_tb',
                           '-cc', os.environ['CC'], '-cpp', os.environ['CXX'],
                           '-Mdir='+str(out/'csrc'), '-CFLAGS', '-std=c++17 -DDRIVER_CREATOR_DPI -I'+str(cc),
                           '-LDFLAGS', '-pthread', '-o', out/'simv',
-                          tests/'driver_creator_reservation_tb.sv', source], 'vcs-build')]
+                          tests/'driver_creator_reservation_tb.sv', source, allocations], 'vcs-build')]
     for name, argv in [('native', [out/'native']), ('vcs', [out/'simv', '-no_save'])]:
         receipt = execute(argv, name); commands.append(receipt)
         text = Path(receipt['log']).read_text()
@@ -59,6 +60,8 @@ def main():
                 'creator lifecycle cases missing')
         require('DRIVER_RESIDENT_PASS destroyed=32 launches=16 cancellations=16 exceptions=32 rejections=176 capture_order=1' in text,
                 'creator retained lifetime cases missing')
+        require('DRIVER_PREPARED_LAUNCH_PASS destroyed=32 launches=16 cancellations=16 allocation_failures=32 rejections=208 allocation_free_commit=1 capture_order=1' in text,
+                'creator launch preparation missing')
         require(not any(s in text for s in ('ERROR: AddressSanitizer', 'runtime error:', 'LeakSanitizer: detected')),
                 'creator sanitizer failure')
         if name == 'vcs': require('DRIVER_CREATOR_ZERO_EDGES time=0 edges=0' in text, 'VCS preparation edge')
@@ -90,6 +93,7 @@ def main():
                   lifecycle_negative_processes=80, aggregate_prevalidation_rejections=140,
                   creator_preparation_guards=130, level1_verified=False, level2_verified=False,
                   creator_resource_retained=True,
+                  creator_launch_prepared=True,
                   artifact_sha256={str(p):file_sha(p) for p in out.rglob('*') if p.is_file()})
     path = out/'summary.json'; path.write_text(json.dumps(report, indent=2)+'\n')
     from tools.checkpoint_formats.tests.audit_driver_creator import audit

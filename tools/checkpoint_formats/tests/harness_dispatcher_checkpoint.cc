@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <fstream>
 #include <functional>
+void tsi_terminal_fail_allocation_after(long count);
 #ifdef AGGREGATE_RESTORE
 #include "../aggregate_restore.h"
 extern "C" int harness_restore_initialize();
@@ -154,6 +155,28 @@ void reserve_creator(platform_t &p) {
   rejects([&] { p.retain_on_restored_creator(*driver,{}); }); --rejections;
   check(rejections==before+13); rejections=before;
   puts("HARNESS_RESERVED_CREATOR_PREPARED guards=13 exceptions=1 mmio=0 native_ticks=0");
+  p.prepare_on_restored_creator(*driver,[&] {
+    rejects([&] { p.prepare_restored_launch(*driver); });
+  });
+  std::thread launch_foreign([&] { rejects([&] { p.prepare_restored_launch(*driver); }); });
+  launch_foreign.join();
+  bool allocation_failed=false;
+  tsi_terminal_fail_allocation_after(0);
+  try { p.prepare_restored_launch(*driver); }
+  catch(const std::bad_alloc &) { allocation_failed=true; }
+  tsi_terminal_fail_allocation_after(-1);
+  check(allocation_failed && p.restored_driver_pending() && !p.calls);
+  driver->require_fresh_dispatcher();
+  p.prepare_restored_launch(*driver);
+  rejects([&] { p.prepare_restored_launch(*driver); });
+  rejects([&] { p.start_driver(*driver); });
+  rejects([&] { p.schedule_checkpoint_operation(1); });
+  rejects([&] { p.schedule_checkpoint_polling(); });
+  check(rejections==before+6 && !p.checkpoint_lowclock() && p.master->save_checkpoint()==mmio &&
+        p.slave.at(0)->save_checkpoint()==memory &&
+        p.checkpoint_host_timing_owner().second->save_checkpoint()==timing && !p.calls);
+  rejections=before;
+  puts("HARNESS_PREPARED_LAUNCH guards=6 allocation_failures=1 mmio=0 native_ticks=0");
 }
 std::vector<std::pair<std::string,checkpoint_owner_t *>> owners() {
   auto list=emulator->checkpoint_axi_owners();
