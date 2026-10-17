@@ -83,6 +83,7 @@ public:
     inspect();
   }
 private:
+  friend class firesim_tsi_host_group_t;
   firesim_tsi_t &tsi;
   static void require_mode(const firesim_tsi_t &tsi) {
     if (!tsi.syscall_exit || !tsi.metadata_supported || !tsi.owned_default_devices || tsi.default_devices ||

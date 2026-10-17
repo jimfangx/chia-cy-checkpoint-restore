@@ -78,7 +78,7 @@ public:
   // and the enclosing HTIF stop/return caller require independent ownership.
   std::string checkpoint_schema() const override { return "firesim.tsi.syscall-exit.v1"; }
   std::vector<uint8_t> save_checkpoint() const override {
-    boundary.require_idle(); validate(current, provider_state());
+    boundary.require_idle(); validate(current, provider_state(), true);
     auto out = config; out.word(uint64_t(current.phase)); out.word(current.command);
     for (auto arg : current.args) out.word(arg);
     for (const auto &image : {current.read.save_checkpoint(), current.write.save_checkpoint()}) {
@@ -88,7 +88,7 @@ public:
   }
   void validate_checkpoint(const std::vector<uint8_t> &image) const override { parse(image); }
   void load_checkpoint(const std::vector<uint8_t> &image) override {
-    auto next = parse(image); validate(next, provider_state());
+    auto next = parse(image); validate(next, provider_state(), true);
     current = std::move(next);
   }
   images_t save_components() const {
@@ -111,6 +111,7 @@ public:
   }
 private:
   friend class firesim_tsi_polling_syscall_t;
+  friend class firesim_tsi_host_group_t;
   friend class firesim_tsi_t;
   struct state_t {
     phase_t phase = phase_t::idle;
@@ -145,7 +146,8 @@ private:
       for (unsigned j = 0; j < 8; ++j) bytes[8*i+j] = uint8_t(args[i] >> (8*j));
     return bytes;
   }
-  static void validate(const state_t &s, firesim_htif_lifecycle_state_t provider) {
+  static void validate(const state_t &s, firesim_htif_lifecycle_state_t provider,
+                       bool completed_stop = false) {
     if (s.phase != phase_t::idle) check_command(s.command);
     const bool decoded = s.phase >= phase_t::invoking;
     if ((!decoded && s.args != std::array<uint64_t, 8>{}) ||
@@ -156,7 +158,8 @@ private:
     if (s.phase == phase_t::writing ? !s.write.pending_write(s.command, payload(s.args)) : !s.write.idle())
       throw std::runtime_error("incoherent syscall write child");
     const bool executed = s.phase >= phase_t::writing;
-    if (provider.has_exit != executed || provider.stopped ||
+    if (provider.has_exit != executed ||
+        (provider.stopped && !(completed_stop && s.phase == phase_t::complete)) ||
         provider.raw_exit != (executed ? uint32_t((s.args[1] << 1) | 1) : 0))
       throw std::runtime_error("incoherent syscall provider exit/writeback boundary");
   }

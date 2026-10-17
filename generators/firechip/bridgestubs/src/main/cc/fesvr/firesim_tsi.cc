@@ -647,9 +647,10 @@ void firesim_tsi_t::prepared_polling_components_t::require_exit_boundary(
     throw std::runtime_error("TSI aggregate lacks this exit/stop parent boundary");
 }
 void firesim_tsi_t::validate_syscall_boundary(const firesim_tsi_htif_poll_t &poll,
-    const firesim_tsi_syscall_exit_t &caller, firesim_htif_lifecycle_state_t provider) {
+    const firesim_tsi_syscall_exit_t &caller, firesim_htif_lifecycle_state_t provider,
+    bool completed_stop) {
   caller.boundary.require_idle();
-  firesim_tsi_syscall_exit_t::validate(caller.current, provider);
+  firesim_tsi_syscall_exit_t::validate(caller.current, provider, completed_stop);
   using sp = firesim_tsi_syscall_exit_t::phase_t;
   using pp = firesim_tsi_htif_poll_t::phase_t;
   const auto phase = poll.phase();
@@ -665,8 +666,51 @@ void firesim_tsi_t::validate_syscall_boundary(const firesim_tsi_htif_poll_t &pol
     throw std::runtime_error("TSI polling/syscall parent/response boundary mismatch");
 }
 void firesim_tsi_t::prepared_polling_components_t::require_syscall_boundary(
-    const firesim_tsi_syscall_exit_t &caller, firesim_htif_lifecycle_state_t provider) const {
-  firesim_tsi_t::validate_syscall_boundary(*state->poll, caller, provider);
+    const firesim_tsi_syscall_exit_t &caller, firesim_htif_lifecycle_state_t provider,
+    bool completed_stop) const {
+  firesim_tsi_t::validate_syscall_boundary(*state->poll, caller, provider, completed_stop);
+}
+void firesim_tsi_t::validate_host_boundary(const firesim_tsi_host_execution_t &outer,
+    const firesim_tsi_htif_poll_t &poll, firesim_htif_lifecycle_state_t provider) {
+  using op = firesim_tsi_host_execution_t::phase_t;
+  const auto phase = outer.phase();
+  const bool complete = poll.phase() == firesim_tsi_htif_poll_t::phase_t::complete;
+  const bool stopped = phase == op::return_code || phase == op::returned;
+  if (phase == op::startup || complete != (phase != op::polling) ||
+      provider.stopped != stopped || (complete && !provider.has_exit))
+    throw std::runtime_error("TSI outer/polling/provider boundary mismatch");
+  if (phase == op::returned) {
+    // Installed HTIF returns optional<int> >> 1, including negative values.
+    const auto raw = provider.raw_exit;
+    const int64_t value = raw < 0x80000000u ? int64_t(raw) : int64_t(raw)-0x100000000LL;
+    const int expected = int(value < 0 ? (value-1)/2 : value/2);
+    if (outer.exit_code() != expected)
+      throw std::runtime_error("TSI outer/provider signed return mismatch");
+  }
+}
+void firesim_tsi_t::prepared_polling_components_t::require_host_boundary(
+    const firesim_tsi_host_execution_t &outer, firesim_htif_lifecycle_state_t provider) const {
+  firesim_tsi_t::validate_host_boundary(outer, *state->poll, provider);
+}
+
+void firesim_tsi_t::advance_prepared_host_components() {
+  // The aggregate admits only a sealed restricted caller after startup. Use
+  // the actual production polling, stop and signed-return services. No start,
+  // session construction or coroutine/context entry is reconstructed here.
+  host_execution_services_t services(*this);
+  prepared_polling_service_active = true;
+  try {
+    for (;;) {
+      const auto result = host_execution.advance(services);
+      if (result != firesim_tsi_host_execution_t::result_t::progress ||
+          host_execution.phase() != firesim_tsi_host_execution_t::phase_t::polling) break;
+    }
+    prepared_polling_service_active = false;
+  } catch (...) {
+    prepared_polling_service_active = false;
+    prepared_polling_service_poisoned = true;
+    throw;
+  }
 }
 firesim_tsi_t::prepared_polling_components_t firesim_tsi_t::prepare_polling_components_candidate(
     const polling_cut_t &images) {

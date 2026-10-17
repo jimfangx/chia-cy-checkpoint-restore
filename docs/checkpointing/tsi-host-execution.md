@@ -42,11 +42,13 @@ tested component cuts; normal execution has no target yield between them.
 Complete Rocket Level 1 stays disabled. The independent Rocket Level-2 finite
 captured replay remains separate.
 
-Next, include this owner in a coherent restricted aggregate with explicit
-cross-owner validation: polling requires a started child and an unstopped
-provider; stop requires completed polling; return-code collection requires a
-stopped provider; returned must bind the actual provider's signed exit result.
-Reconstruct the wrapper's entered/returned meaning and its fresh process-local
+Iteration 149 adds that restricted aggregate and its explicit cross-owner
+validation; see [tsi-host-aggregate.md](tsi-host-aggregate.md). Polling requires
+a started child and an unstopped provider; stop requires completed polling;
+return-code collection requires a stopped provider; returned binds the actual
+provider's signed exit result. The aggregate still cannot enter `tick()`.
+
+Next, reconstruct the wrapper's entered/returned meaning and its fresh process-local
 context handshake without serializing stacks or replaying startup. Production
 signal coordination, complete parsed-session/registration policy and atomic
 simulator/bridge/functional-memory publication remain required before CPU

@@ -116,6 +116,7 @@ public:
     friend class firesim_tsi_t;
     friend class firesim_tsi_polling_lifecycle_t;
     friend class firesim_tsi_polling_syscall_t;
+    friend class firesim_tsi_host_group_t;
     struct state_t;
     explicit prepared_polling_components_t(firesim_tsi_t &tsi, const polling_cut_t &images,
                                            bool completed_exit = false, bool syscall = false);
@@ -123,7 +124,10 @@ public:
     void publish() noexcept;
     void require_exit_boundary(firesim_tsi_htif_exit_t::phase_t phase) const;
     void require_syscall_boundary(const firesim_tsi_syscall_exit_t &caller,
-                                 firesim_htif_lifecycle_state_t provider) const;
+                                 firesim_htif_lifecycle_state_t provider,
+                                 bool completed_stop = false) const;
+    void require_host_boundary(const firesim_tsi_host_execution_t &outer,
+                               firesim_htif_lifecycle_state_t provider) const;
     std::unique_ptr<state_t> state;
   };
   prepared_polling_components_t prepare_polling_components_candidate(const polling_cut_t &images);
@@ -159,6 +163,10 @@ protected:
 private:
   friend class firesim_tsi_polling_lifecycle_t;
   friend class firesim_tsi_polling_syscall_t;
+  friend class firesim_tsi_host_group_t;
+  static void validate_host_boundary(const firesim_tsi_host_execution_t &outer,
+      const firesim_tsi_htif_poll_t &poll, firesim_htif_lifecycle_state_t provider);
+  void advance_prepared_host_components();
   polling_cut_t inspect_live_polling_protocol() const;
   polling_cut_t inspect_fresh_polling_protocol(bool completed_exit = false) const;
   // Only the guarded lifecycle group may finish an already requested exit.
@@ -242,6 +250,7 @@ private:
   bool dispatch_syscall_exit(uint64_t command);
   void advance_prepared_syscall_components();
   static void validate_syscall_boundary(const firesim_tsi_htif_poll_t &poll,
-      const firesim_tsi_syscall_exit_t &caller, firesim_htif_lifecycle_state_t provider);
+      const firesim_tsi_syscall_exit_t &caller, firesim_htif_lifecycle_state_t provider,
+      bool completed_stop = false);
 };
 #endif // __FIRESIM_TSI_H

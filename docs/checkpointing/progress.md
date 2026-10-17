@@ -14,6 +14,53 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 149, in progress.
+The restricted TSI transaction now atomically restores all fifteen outer,
+polling, syscall and provider owners. It binds stop/return phases to completed
+polling and the actual provider's signed exit result. Fresh continuation uses
+production poll/stop/return services; `tick()` still rejects. Recovery:
+[tsi-host-aggregate.md](tsi-host-aggregate.md). Complete Rocket CPU Level 1
+remains disabled.
+
+Diagnostics: `runs/m11-iteration149/`. The accepted current-recipe aggregate
+passes eight scenarios / 895 host-operation cuts / 3,580
+fresh native/VCS restores / 3,125,940 complete owner
+comparisons / 204,816 operations. All 102 fresh invalid images,
+twelve late guards, exhaustive malformed/membership/allocation checks and eight
+first divergent outgoing words pass. Sixteen real source coroutines match the
+independent polling parent and final returned aggregate. The independent auditor
+rejects twelve incomplete/duplicate evidence variants. Accepted:
+`frozen/host-final/invocation-2uwuywgo/summary.json`.
+
+The full fourteen-owner polling parent, 1,200-restore syscall parent,
+686-process signal/thread suite, 160-restore outer component regression,
+full legacy polling/direct-exit suite, all eight native core suites and thirty
+retained auditors pass, together with their independent evidence audits.
+Fresh ordinary RTL VCS passes four retained cuts: 318,637 words before any edge
+per cut, 256 events / 21,760 output comparisons, sixteen semantic faults and
+44 invalid cases. Both exact-recipe default/buffered 16-GiB four-hart controls
+pass at C=3,329,794; all eight complete hart traces and workload/store labels
+match. Stop/return-code cuts are explicit component boundaries; production does
+not yield there. These host cuts are not CPU target-cycle checkpoints.
+
+Catalogs: `summary.json`, `selected-results.json`, `verification-commands.json`,
+`raw-native-commands.json`, `native-input-archives.json`, `artifact-manifest.json`.
+The initial aggregate/polling source guards reject the changed inputs. The
+initial controls and waiting coordinators were stopped after supersession;
+only the full replacement scopes under `frozen/` are selected. Both
+plans and environment helpers retain starting bytes. Existing controller heads
+reached both GitHub main branches, FireSim first; local tracking-ref warnings
+followed remote success. No staging or local commits.
+
+Next: reconstruct and validate the wrapper/context handshake without replaying
+startup; coordinate production signals and complete inherited-session policy;
+publish one coherent simulator/bridge/functional-memory cut and validate fresh
+complete Rocket CPU Level-1 continuation. No external dependency is missing.
+BOOM/Saturn remain pending; standalone Shuttle, physical FPGA validation and
+ASIC power remain outside scope.
+
+Previous iteration 148 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 148, in progress.
 Production `run_host()` now uses an explicit five-phase outer caller with
 pointer-free signed return state. Active startup/nested-service captures reject;

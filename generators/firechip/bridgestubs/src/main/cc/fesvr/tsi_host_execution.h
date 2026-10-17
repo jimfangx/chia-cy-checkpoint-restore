@@ -56,6 +56,11 @@ public:
   void validate_checkpoint(const std::vector<uint8_t> &image) const override { parse(image); }
   void load_checkpoint(const std::vector<uint8_t> &image) override { current = parse(image); }
 private:
+  friend class firesim_tsi_host_group_t;
+  // Publish only a fully parsed candidate after all aggregate guards pass.
+  void swap_state(firesim_tsi_host_execution_t &other) noexcept {
+    std::swap(current, other.current);
+  }
   static_assert(sizeof(int) == 4, "TSI outer exit ABI requires 32-bit int");
   struct state_t { phase_t phase = phase_t::startup; uint32_t raw = 0; } current;
   widget_checkpoint_config_t config{35, {1, 32}};
