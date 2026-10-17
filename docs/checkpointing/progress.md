@@ -14,6 +14,53 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 148, in progress.
+Production `run_host()` now uses an explicit five-phase outer caller with
+pointer-free signed return state. Active startup/nested-service captures reject;
+escaping services poison the owner. Component restoration still rejects context
+entry. Recovery: [tsi-host-execution.md](tsi-host-execution.md).
+Complete Rocket CPU Level 1 remains disabled.
+
+Diagnostics: `runs/m11-iteration148/`. The final current-recipe-bound outer suite
+passes 160 fresh cross-backend component restores / 880 complete owner comparisons /
+sixteen actual production-coroutine runs / eight invalid processes / eight first
+service-boundary corruptions. Its independent auditor rejects twelve incomplete
+or duplicate evidence variants. Accepted: `outer-final/invocation-321c0poi/summary.json`.
+
+The full frozen-input polling matrix passes eight scenarios / 863 host-operation
+cuts / 3,452 fresh native/VCS restores / 2,768,080 owner comparisons / 190,816
+operations, with all malformed, membership, allocator, idle, late/admission and
+eight first-divergence checks. The 1,200-restore syscall parent, 686-process
+signal/thread suite, full legacy polling/direct-exit scope, all eight native
+core suites (5,291 artifacts / 824 source bindings), all thirty retained auditors
+and their selected independent audits pass.
+
+Fresh ordinary RTL VCS plus its independent audit pass all four retained cuts:
+318,637 semantic words before any edge per cut, 256 events / 21,760 comparisons,
+sixteen actual semantic faults and 44 invalid cases. Both exact-recipe default
+and buffered 16-GiB four-hart controls pass at C=3,329,794; all eight complete
+hart traces and workload/store labels match. Controls:
+`rocket-controls/invocation-7w9n3gl4/summary.json`.
+
+Final catalogs: `summary.json`, `selected-results.json`,
+`verification-commands.json`, `raw-native-commands.json`,
+`native-input-archives.json` and `artifact-manifest.json`. Initial polling source
+drift is an explicit rejection, retained separately; only the frozen replacement
+is accepted. The outer pilot uses retained parent evidence and is separate from
+the selected current-parent suite. A diagnostic auditor indentation error was
+corrected before its accepted independent runs. Plans and environment helpers
+retain starting bytes. Existing controller heads reached both remote main
+branches, FireSim first; local tracking-ref updates warned after remote success.
+No staging/local commits.
+
+Next: aggregate outer and wrapper/context reconstruction, production signal
+coordination, complete inherited-session policy and coherent simulator/bridge/
+memory publication, then fresh complete Rocket CPU Level-1 continuation. No
+external dependency is missing. BOOM/Saturn remain pending; standalone Shuttle,
+physical FPGA validation and ASIC power remain outside scope.
+
+Previous iteration 147 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 147, in progress.
 Restricted mode now retires the unused inherited HTIF proxy descriptors and
 dispatch table. Every restricted group boundary requires its resources to remain

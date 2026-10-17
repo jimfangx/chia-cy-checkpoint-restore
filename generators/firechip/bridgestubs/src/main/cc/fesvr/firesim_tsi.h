@@ -20,6 +20,7 @@
 #include "tsi_memif_read.h"
 #include "tsi_bcd_identity.h"
 #include "tsi_syscall_exit.h"
+#include "tsi_host_execution.h"
 #include <memory>
 
 struct firesim_loadmem_t {
@@ -60,6 +61,8 @@ public:
   const checkpoint_owner_t &host_control_owner() const { return host_control; }
   const checkpoint_owner_t &init_accesses_owner() const { return init_control; }
   const checkpoint_owner_t &program_loader_owner() const { return program_loader; }
+  // Component observation only; no coroutine or complete HTIF admission.
+  const checkpoint_owner_t &host_execution_owner() const { return host_execution; }
   const checkpoint_owner_t &htif_poll_owner() const {
     if (!htif_poll) throw std::runtime_error("HTIF polling has not started or uses unsupported devices");
     return *htif_poll;
@@ -186,6 +189,7 @@ private:
   bool owned_default_devices;
   std::unique_ptr<firesim_tsi_terminal_t> terminal;
   bool polling_active = false;
+  firesim_tsi_host_execution_t host_execution;
   std::unique_ptr<firesim_tsi_htif_poll_t> htif_poll;
   std::unique_ptr<firesim_tsi_bcd_t> bcd;
   // Destroy the table/syscall before the devices and polling callback owner.
@@ -213,6 +217,7 @@ private:
   bool prepared_polling_service_active = false;
   bool prepared_polling_service_poisoned = false;
   class polling_services_t;
+  class host_execution_services_t;
   firesim_tsi_startup_metadata_t startup_metadata;
   polling_cut_t metadata_pristine_components;
   polling_cut_t metadata_components() const;

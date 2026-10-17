@@ -200,34 +200,48 @@ class firesim_tsi_t::polling_services_t final : public firesim_tsi_htif_poll_t::
 };
 
 
+class firesim_tsi_t::host_execution_services_t final : public firesim_tsi_host_execution_t::services_t {
+public:
+  explicit host_execution_services_t(firesim_tsi_t &tsi) : tsi(tsi) {}
+  void start() override {
+    tsi.start();
+    tsi.polling_active = true;
+    tsi.htif_poll = std::make_unique<firesim_tsi_htif_poll_t>(tsi.get_tohost_addr(), tsi.get_fromhost_addr());
+    tsi.bcd = std::make_unique<firesim_tsi_bcd_t>(*tsi.htif_poll, 1048576, tsi.terminal.get(),
+        [owner = &tsi](uint64_t address, const firesim_tsi_bcd_t::identity_t &bytes) { owner->write_identity(address, bytes); });
+    // Restricted dispatch never creates the unused ordinary syscall session.
+    if (!tsi.syscall_exit) tsi.default_devices = std::make_unique<default_devices_t>(tsi, *tsi.bcd);
+  }
+  firesim_tsi_host_execution_t::result_t poll() override {
+    polling_services_t services(tsi, tsi.default_devices ? &tsi.default_devices->list : nullptr);
+    const auto result = tsi.htif_poll->advance(services);
+    using result_t = firesim_tsi_host_execution_t::result_t;
+    if (result == firesim_tsi_htif_poll_t::result_t::blocked) return result_t::blocked;
+    if (result == firesim_tsi_htif_poll_t::result_t::complete) return result_t::complete;
+    return result_t::progress;
+  }
+  void stop() override {
+    tsi.polling_active = false;
+    if (tsi.metadata_supported && tsi.htif_exit_component.phase() == firesim_tsi_htif_exit_t::phase_t::requested)
+      tsi.htif_exit_component.stop([this] { tsi.stop(); });
+    else tsi.stop();
+    tsi.default_devices.reset();
+  }
+  int exit_code() override { return tsi.exit_code(); }
+private:
+  firesim_tsi_t &tsi;
+};
+
 int firesim_tsi_t::run_host() {
   if (metadata_prepared || metadata_poisoned)
     throw std::runtime_error("HTIF/context continuation after metadata component preparation is unsupported");
   if (!owned_default_devices) return htif_t::run();
-  // Startup/ELF/symbol and stop/signature state remain upstream, separate from
-  // this resumable poll caller. Do not publish a complete TSI checkpoint.
-  start();
-  polling_active = true;
-  htif_poll = std::make_unique<firesim_tsi_htif_poll_t>(get_tohost_addr(), get_fromhost_addr());
-  bcd = std::make_unique<firesim_tsi_bcd_t>(*htif_poll, 1048576, terminal.get(),
-      [this](uint64_t address, const firesim_tsi_bcd_t::identity_t &bytes) { write_identity(address, bytes); });
-  // Restricted dispatch owns its syscall caller and never uses a device list.
-  // Do not create an unused session (and three duplicated host descriptors)
-  // on the suspended outer stack. The inherited HTIF proxy remains separate.
-  if (!syscall_exit) default_devices = std::make_unique<default_devices_t>(*this, *bcd);
-  polling_services_t services(*this, default_devices ? &default_devices->list : nullptr);
+  host_execution_services_t services(*this);
   for (;;) {
-    const auto result = htif_poll->advance(services);
-    if (result == firesim_tsi_htif_poll_t::result_t::complete) break;
-    if (result == firesim_tsi_htif_poll_t::result_t::blocked) switch_to_target();
+    const auto result = host_execution.advance(services);
+    if (result == firesim_tsi_host_execution_t::result_t::complete) return host_execution.exit_code();
+    if (result == firesim_tsi_host_execution_t::result_t::blocked) switch_to_target();
   }
-  polling_active = false;
-  if (metadata_supported && htif_exit_component.phase() == firesim_tsi_htif_exit_t::phase_t::requested)
-    htif_exit_component.stop([this] { stop(); });
-  else stop();
-  // Preserve the upstream return-time release as well as suspended teardown.
-  default_devices.reset();
-  return exit_code();
 }
 
 std::vector<uint8_t> firesim_tsi_t::save_htif_exit_component() const {
