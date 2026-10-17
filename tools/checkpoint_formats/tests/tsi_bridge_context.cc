@@ -60,6 +60,30 @@ struct context_mmio_t final : simif_t {
     throw std::runtime_error("bridge issued unexpected MMIO read");
   }
 };
+// Own the actual provider and its peers across mailbox preparation and launch.
+// Destruction of the first member happens last, after the provider is gone.
+struct bridge_creator_session_t final : emul_driver_thread_t::resource_t {
+  struct lifetime_t {
+    std::thread::id creator=std::this_thread::get_id();
+    bool &destroyed;
+    ~lifetime_t() {
+      if(std::this_thread::get_id()!=creator) std::abort();
+      destroyed=true;
+      std::cout<<"BRIDGE_CREATOR_DESTROYED same_thread=1 provider_destroyed=1\n";
+    }
+  } lifetime;
+  context_mmio_t mmio;
+  loadmem_t memory;
+  tsibridge_t bridge;
+  emul_driver_thread_t::task_t continuation;
+  tsibridge_t::context_image_t expected;
+  bool published=false;
+  fs::path out;
+  bridge_creator_session_t(const std::vector<std::string> &args,bool &destroyed,const fs::path &path)
+      : lifetime{std::this_thread::get_id(),destroyed},
+        memory(mmio,{64,68,72,76,80,84,88,92,96},0,{},bridge_fixture_config.mem,2),
+        bridge(mmio,memory,{0,4,8,12,16,20,24,28,32},0,args,true,0),out(path) {}
+};
 static int bridge_context_run(const char *mode,const char *elf,const char *input,const char *metadata,
     const char *source,const char *plan,const char *destination,const char *image_path,const char *build_path) {
   try {
@@ -68,18 +92,21 @@ static int bridge_context_run(const char *mode,const char *elf,const char *input
     std::copy(build_bytes.begin(),build_bytes.end(),build.begin());
     std::exception_ptr failure;
     emul_driver_thread_t creator;
+    bridge_creator_session_t *session=nullptr;
+    bool destroyed=false;
     creator.reserve();
     const auto creator_id=creator.get_id();
     creator.invoke([&] {
       try {
         const fs::path out(destination); fs::create_directories(out);
-        context_mmio_t mmio;
-        loadmem_t memory(mmio,{64,68,72,76,80,84,88,92,96},0,{},bridge_fixture_config.mem,2);
         std::vector<std::string> args{"+permissive","+no_hart0_msip","+idle-counts=3",
           "+checkpoint-syscall-exit","+checkpoint-terminal-input="+std::string(input)};
         if(fs::path(input).filename().string().find("flush")!=std::string::npos) args.push_back("+cflush_addr=0x20004000");
         args.insert(args.end(),{"+permissive-off",elf});
-        tsibridge_t bridge(mmio,memory,{0,4,8,12,16,20,24,28,32},0,args,true,0);
+        auto owned=std::make_unique<bridge_creator_session_t>(args,destroyed,out);
+        session=owned.get();
+        auto &bridge=session->bridge; auto &mmio=session->mmio;
+        creator.retain(std::move(owned));
         require(bridge.checkpoint_schema().empty(),"restricted restore granted aggregate admission");
         const auto pristine=bridge.control_owner().save_checkpoint();
         const auto pristine_descriptors=descriptors();
@@ -131,6 +158,7 @@ static int bridge_context_run(const char *mode,const char *elf,const char *input
             if(!failed) break; unchanged();
           }
           const auto restored=bridge.capture_restricted_context(build);
+          session->expected=image; session->published=true;
           require(restored.context==image.context && restored.control==image.control && !mmio.calls,"bridge atomic readback");
           save(out/"readback.context",restored.context); save(out/"readback.control",restored.control);
           std::cout<<"BRIDGE_CONTEXT_ATOMIC truncations="<<truncations<<" cross="<<invalids
@@ -171,6 +199,7 @@ static int bridge_context_run(const char *mode,const char *elf,const char *input
           std::cout<<"BRIDGE_CONTEXT_FOREIGN rejected=1 creator_retry=1\n";
         } else candidate->commit();
         const auto restored=bridge.capture_restricted_context(build);
+        session->expected=image; session->published=true;
         require(restored.context==image.context && restored.control==image.control && restored.metadata==image.metadata && !mmio.calls,
                 "bridge complete zero-edge readback differs");
         save(out/"readback.context",restored.context); save(out/"readback.control",restored.control);
@@ -207,7 +236,8 @@ static int bridge_context_run(const char *mode,const char *elf,const char *input
           std::cout<<"BRIDGE_CONTEXT_FOREIGN_RESTORED rejected=4 mmio=0 creator_retry=1\n";
           return;
         }
-        if(action=="guard-mask" || action=="guard-control") return;
+        if(action=="guard-mask" || action=="guard-control" || action=="cancel") return;
+        session->continuation=[&,out,action,source=std::string(source),plan=std::string(plan)] {
         const auto cut=std::stoul(fs::path(source).filename().string().substr(4));
         std::ifstream steps(plan); std::string line; size_t op=0,operations=0,comparisons=0;
         std::ofstream records(out/"boundaries.txt");
@@ -228,12 +258,33 @@ static int bridge_context_run(const char *mode,const char *elf,const char *input
         require(action!="corrupt" && bridge.terminate(),"bridge did not terminate or missed semantic corruption");
         std::cout<<"BRIDGE_CONTEXT_CONTINUED operations="<<operations<<" comparisons="<<comparisons
                  <<" words="<<mmio.words<<" exit="<<bridge.exit_code()<<" startup_replays=0 target_edges=0\n";
+        };
       } catch(...) { tsi_terminal_fail_allocation_after(-1); failure=std::current_exception(); }
     });
+    if(action=="cancel" && !failure) {
+      creator.cancel_reserved();
+      require(destroyed,"cancel did not destroy live provider");
+      std::cout<<"BRIDGE_RESERVED_CREATOR_CANCEL same_thread=1 service_calls=0 target_edges=0\n";
+      return 0;
+    }
     creator.launch([&] {
       require(std::this_thread::get_id()==creator_id,"creator reservation changed thread");
+      try {
+        require(!destroyed && session,"creator lost prepared resource");
+        if(session->published) {
+          const auto restored=session->bridge.capture_restricted_context(build);
+          require(restored.context==session->expected.context && restored.control==session->expected.control &&
+                  restored.metadata==session->expected.metadata && !session->mmio.calls,
+                  "live provider changed across launch");
+          save(session->out/"launch-readback.context",restored.context);
+          save(session->out/"launch-readback.control",restored.control);
+          std::cout<<"BRIDGE_CREATOR_LIVE_READBACK owners=17 mmio=0 same_thread=1 target_edges=0\n";
+        }
+        if(!failure && session->continuation) session->continuation();
+      } catch(...) { failure=std::current_exception(); }
     });
     creator.join();
+    require(destroyed,"provider not destroyed before join");
     if(failure) std::rethrow_exception(failure);
     std::cout<<"BRIDGE_RESERVED_CREATOR same_thread=1 preparation_complete=1 target_edges=0\n";
     return 0;

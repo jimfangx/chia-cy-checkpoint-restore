@@ -33,9 +33,11 @@ paths run too. The production TSI bridge component matrix also uses this same
 mailbox to prepare, publish, service and destroy its real restricted provider.
 Its serial MMIO peer remains a component fixture, and its operation labels are
 not Rocket target-cycle labels.
-That provider's lifetime finishes inside the mailbox callback; the harness
-separately proves driver launch on the reserved worker. Keeping a live TSI
-provider through that launch and joining it to the CPU cut remain pending.
+In iteration 158 that provider's lifetime finished inside the mailbox callback;
+the harness separately proved driver launch on the reserved worker. Iteration
+159 adds [creator-owned lifetimes](driver-creator-lifetimes.md) and tests the
+live provider through component launch and cancellation. Joining it to the
+complete CPU cut remains pending.
 
 This supplies a worker rendezvous, not complete CPU restore admission. Existing
 CPU-managed-stream and empty-schema-owner rejections remain unchanged; the TSI

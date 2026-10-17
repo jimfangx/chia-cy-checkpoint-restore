@@ -14,6 +14,48 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 159, in progress.
+The optional pre-edge creator now retains one creator-owned resource bundle
+through retryable preparation, driver continuation and creator-side destruction,
+or destroys it on that worker during cancellation. The production TSI bridge
+component keeps its live restored provider through launch, rereads all seventeen
+owners before MMIO, and services it on that same worker. CPU aggregate admission
+stays disabled. Recovery: [driver-creator-lifetimes.md](driver-creator-lifetimes.md).
+
+Diagnostics: `runs/m11-iteration159/`. Final-source native sanitizer/VCS mailbox
+and four-mode actual harness checks pass, including resource lifetime and
+capture-before-resource destruction. The actual bridge matrix and independent
+audit pass 64 fresh restores, 64 fresh cancellations, 52,088 complete-owner
+comparisons, 3,000 serial boundaries, 336 invalid processes, 1,326 control
+truncations, 7,555 allocation failures and eight first divergences. Four fresh
+ordinary RTL VCS cuts and full-source audit pass all 318,637 words before any
+edge per cut, 256 events, sixteen first divergences and 44 invalid cases.
+All thirty retained auditors and dispatcher/poison/loading/capture checks pass.
+All eight preserved native scopes (280 Python tests) and their independent
+archive audit pass. All six complete 16-GiB four-hart controls and independent
+audits pass: both direct controls at C=3,329,794 and all four syscall controls
+at C=3,330,050. Complete hart traces and decoded labels match within each
+protocol. Level 2 retains the direct ELF. Early source-epoch failures and an
+audit attempted before replay completion remain diagnostic only; selected
+receipts bind completed final source epochs.
+
+Exact receipts, source archives, native argv and all created artifact paths and
+hashes are in `summary.json`, `selected-results.json`, `verification-commands.json`,
+`raw-native-commands.json`, `native-input-archives.json` and `artifact-manifest.json`
+under this iteration. Both plans, environment helpers, local heads and indices
+retain their starting bytes. All selected maintained C++ matches current sources.
+
+Existing controller heads reached GitHub, FireSim first and Chipyard second;
+only local tracking-ref writes warned. No staging or local commits occurred.
+Both plans remain read-only. Complete Rocket Level 1 still requires coherent
+simulator/FAME/channel/CPU-managed-stream/other-bridge/functional-memory/runtime
+coordination, jointly prepared publication/launch, and production process-wide
+thread/signal/descriptor/parser exclusion. BOOM/Saturn remain pending; standalone
+Shuttle, physical FPGA validation and ASIC power remain outside scope.
+No external dependency is missing.
+
+Previous iteration 158 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 158, in progress.
 The simulator can now reserve its eventual driver creator under the existing
 pre-edge loading hold, run synchronous retryable preparation callbacks, and

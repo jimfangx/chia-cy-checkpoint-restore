@@ -44,6 +44,9 @@ def audit(path, report=None):
         if name in ('native.log', 'vcs.log'):
             require('DRIVER_CREATOR_PASS tasks=512 exceptions=512 launches=17 cancellations=16 rejections=1296' in text,
                     'creator lifecycle receipt')
+            if r.get('creator_resource_retained'):
+                require('DRIVER_RESIDENT_PASS destroyed=32 launches=16 cancellations=16 exceptions=32 rejections=176 capture_order=1' in text,
+                        'creator retained lifetime receipt')
             if name == 'vcs.log': require('DRIVER_CREATOR_ZERO_EDGES time=0 edges=0' in text, 'creator VCS edges')
         if 'summary' not in c: continue
         folder = Path(c['summary']).parent; h = json.loads(Path(c['summary']).read_text())
@@ -62,6 +65,11 @@ def audit(path, report=None):
                         'creator thread identity/preparation checks')
                 require(trace.index('HARNESS_RESERVED_CREATOR_PREPARED') < trace.index('HARNESS_DISPATCHER_BOOTSTRAP'),
                         'creator preparation after bootstrap')
+                if r.get('creator_resource_retained'):
+                    require(trace.count('HARNESS_CREATOR_RESOURCE_LIVE same_thread=1 finalized=1')==1 and
+                            trace.count('HARNESS_CREATOR_RESOURCE_DESTROYED same_thread=1 finalized=1')==1 and
+                            trace.index('HARNESS_CREATOR_RESOURCE_LIVE') < trace.index('HARNESS_CREATOR_RESOURCE_DESTROYED'),
+                            'actual harness resource lifetime missing')
                 reserved += 1; guards += 13
             require((ref/'rows.jsonl').read_bytes() == (dst/'rows.jsonl').read_bytes(), 'creator generated/harness continuation')
             require(json.loads((ref/'cut.jsonl').read_text()) == json.loads((dst/'loaded.jsonl').read_text()),

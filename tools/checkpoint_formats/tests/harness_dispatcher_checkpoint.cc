@@ -39,6 +39,15 @@ void save_file(const std::filesystem::path &p,const std::vector<uint8_t> &b) {
 unsigned rejections=0;
 bool reserved_creator=false;
 std::thread::id creator_id;
+bool resident_alive=false, resident_finished=false, resident_destroyed=false;
+struct harness_resident_t final : emul_driver_thread_t::resource_t {
+  harness_resident_t() { check(!resident_alive && !resident_destroyed); resident_alive=true; }
+  ~harness_resident_t() override {
+    check(std::this_thread::get_id()==creator_id && resident_alive && resident_finished);
+    resident_alive=false; resident_destroyed=true;
+    puts("HARNESS_CREATOR_RESOURCE_DESTROYED same_thread=1 finalized=1");
+  }
+};
 void rejects(const std::function<void()> &fn) {
   try { fn(); } catch(const std::runtime_error &) { ++rejections; return; }
   throw std::runtime_error("expected bootstrap lifecycle rejection");
@@ -48,6 +57,7 @@ struct platform_t : simif_emul_t {
   unsigned calls = 0;
   platform_t(const std::vector<std::string> &args) : simif_emul_t(cfg,args) {}
   ~platform_t() override {
+    if(reserved_creator && resident_finished) check(resident_destroyed && !resident_alive);
     save_file(output/"final.mmio",master->save_checkpoint());
     save_file(output/"final.memory",slave.at(0)->save_checkpoint());
   }
@@ -78,7 +88,7 @@ struct driver_t : simulation_t {
   bool simulation_supports_steps() const override { return true; }
   int simulation_run() override { throw std::runtime_error("blocking driver"); }
   bool simulation_run_step() override {
-    if (reserved_creator) check(std::this_thread::get_id()==creator_id);
+    if (reserved_creator) check(std::this_thread::get_id()==creator_id && resident_alive && !resident_destroyed);
     if (index==12) {
       // Retain a partial write and two held responses in a real native owner.
       auto &m=*p.slave.at(0); auto *bytes=static_cast<uint8_t *>(m.get_data());
@@ -92,6 +102,9 @@ struct driver_t : simulation_t {
   int simulation_run_finalize() override {
     if (reserved_creator) {
       check(std::this_thread::get_id()==creator_id);
+      check(resident_alive && !resident_destroyed); resident_finished=true;
+      rejects([&] { p.retain_on_restored_creator(*this,{}); }); --rejections;
+      puts("HARNESS_CREATOR_RESOURCE_LIVE same_thread=1 finalized=1");
       puts("HARNESS_RESERVED_CREATOR_CONTINUED same_thread=1");
     }
     p.yield=false; return 0;
@@ -135,7 +148,10 @@ void reserve_creator(platform_t &p) {
     check(std::this_thread::get_id()==creator_id);
     check(p.master->save_checkpoint()==mmio && p.slave.at(0)->save_checkpoint()==memory &&
           p.checkpoint_host_timing_owner().second->save_checkpoint()==timing && !p.calls);
+    p.retain_on_restored_creator(*driver,std::make_unique<harness_resident_t>());
+    rejects([&] { p.retain_on_restored_creator(*driver,std::make_unique<emul_driver_thread_t::resource_t>()); }); --rejections;
   });
+  rejects([&] { p.retain_on_restored_creator(*driver,{}); }); --rejections;
   check(rejections==before+13); rejections=before;
   puts("HARNESS_RESERVED_CREATOR_PREPARED guards=13 exceptions=1 mmio=0 native_ticks=0");
 }

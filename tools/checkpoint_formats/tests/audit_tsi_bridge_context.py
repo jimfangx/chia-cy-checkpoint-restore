@@ -44,7 +44,8 @@ def audit(path, report=None):
     require(str(library) in bindings and file_sha(library) == file_sha(out/'libfesvr-checkpoint.a') == bindings[str(library)]['sha256'], 'bridge provider archive')
     require(set(r['artifact_sha256']) == {str(p) for p in out.rglob('*') if p.is_file() and p != path}, 'bridge artifact membership')
     for p, h in r['artifact_sha256'].items(): require(file_sha(p) == h, 'bridge artifact drift '+p)
-    commands = {c['log']:c for c in r['commands']}; results = r['restores']+r['invalids']+r['specials']+r['faults']
+    cancellations=r.get('cancellations',[])
+    commands = {c['log']:c for c in r['commands']}; results = r['restores']+r['invalids']+r['specials']+r['faults']+cancellations
     require(len(commands) == len(r['commands']) == len(results)+2 and len({c['log'] for c in results}) == len(results), 'bridge result membership')
     require(set(commands) == {c['log'] for c in results} | {str(out/'native-build.log'),str(out/'vcs-build.log')}, 'missing bridge results')
     used = set()
@@ -57,8 +58,24 @@ def audit(path, report=None):
         require(not any(s in text for s in ('ERROR: AddressSanitizer','runtime error:','LeakSanitizer: detected')), 'bridge sanitizer')
         if c.get('backend') == 'vcs-dpi': require('BRIDGE_CONTEXT_VCS_ZERO_EDGES time=0 edges=0' in text, 'bridge VCS edge check')
         if r.get('creator_worker_reserved') and 'scenario' in c:
-            require('BRIDGE_RESERVED_CREATOR same_thread=1 preparation_complete=1 target_edges=0' in text,
+            marker=('BRIDGE_RESERVED_CREATOR_CANCEL same_thread=1 service_calls=0 target_edges=0' if c['mode']=='cancel' else
+                    'BRIDGE_RESERVED_CREATOR same_thread=1 preparation_complete=1 target_edges=0')
+            require(marker in text,
                     'missing reserved creator continuation')
+        if r.get('creator_resource_retained') and 'scenario' in c:
+            require(text.count('BRIDGE_CREATOR_DESTROYED same_thread=1 provider_destroyed=1')==1,
+                    'missing creator-side provider destruction')
+            require(text.index('BRIDGE_CREATOR_DESTROYED') < text.index(marker), 'provider survived join/cancel')
+            if c['mode'] not in ('invalid','cancel'):
+                require(text.count('BRIDGE_CREATOR_LIVE_READBACK owners=17 mmio=0 same_thread=1 target_edges=0')==1,
+                        'missing live provider across launch')
+                dest=Path(c['destination'])
+                for name in ('context','control'):
+                    require((dest/f'launch-readback.{name}').read_bytes()==(dest/f'readback.{name}').read_bytes(),
+                            'provider changed across launch')
+                if 'BRIDGE_CONTEXT_CONTINUED' in text:
+                    require(text.index('BRIDGE_CREATOR_LIVE_READBACK') < text.index('BRIDGE_CONTEXT_CONTINUED') <
+                            text.index('BRIDGE_CREATOR_DESTROYED'), 'provider continuation lifetime/order')
         if 'scenario' in c:
             args = shlex.split(c['argv'][2]); native = c['backend'] == 'native'
             require(str(out/('native' if native else 'simv')) in args and all(
@@ -74,6 +91,16 @@ def audit(path, report=None):
     require(r['cuts'] == {str(i):v for i,v in cuts.items()}, 'bridge cuts')
     wanted = {(i,c,b) for i,cs in cuts.items() for c in cs for b in BACKENDS}
     require(len(r['restores']) == len(wanted) and {(c['scenario'],c['cut'],c['backend']) for c in r['restores']} == wanted, 'bridge restores')
+    if r.get('creator_resource_retained'):
+        require(len(cancellations)==len(wanted) and {(c['scenario'],c['cut'],c['backend']) for c in cancellations}==wanted,
+                'bridge cancellation membership')
+        for c in cancellations:
+            text=command(c); dest=Path(c['destination']); i,cut=c['scenario'],c['cut']
+            require(c['mode']=='cancel' and 'BRIDGE_CONTEXT_CONTINUED' not in text and
+                    'BRIDGE_CREATOR_LIVE_READBACK' not in text and
+                    {p.name for p in dest.iterdir()}=={'readback.context','readback.control'}, 'bridge cancellation serviced provider')
+            require(Path(c['image']).read_bytes()==(dest/'readback.context').read_bytes()==canonical(build,metadata[i],states[i][cut]),
+                    'bridge cancelled provider complete readback')
     boundaries = comparisons = words = 0
     for c in r['restores']:
         text = command(c); i,cut = c['scenario'],c['cut']; dest = Path(c['destination'])
@@ -141,13 +168,14 @@ def audit(path, report=None):
                 serial_boundaries=boundaries,serial_words=words,invalid_processes=len(r['invalids']),
                 control_truncations=truncations,allocation_failures=allocations,foreign_rejections=10,late_guards=4,
                 first_divergences=len(r['faults']),
+                creator_cancellations=len(cancellations),
                 level1_verified=False,level2_verified=False)
 
 
 def main():
     p = argparse.ArgumentParser(description=__doc__); p.add_argument('--summary',type=Path,required=True); a=p.parse_args()
     result = audit(a.summary); r=json.loads(a.summary.read_text()); rejected=[]
-    for field in ('restores','invalids','specials','faults','commands','source_inputs'):
+    for field in ('restores','invalids','specials','faults','commands','source_inputs', *(['cancellations'] if r.get('creator_resource_retained') else [])):
         for kind in ('missing','duplicate'):
             bad=copy.deepcopy(r)
             if kind=='missing': bad[field].pop()

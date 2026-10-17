@@ -109,6 +109,10 @@ def main():
                 restore_jobs.append((i, backend, 'restore', cut, image, out/f'restore-{i}-{cut}-{backend}'))
     with ThreadPoolExecutor(max_workers=4) as pool:
         restores = list(pool.map(lambda job: invoke(*job), restore_jobs))
+    cancel_jobs = [(i,b,'cancel',cut,image,out/f'cancel-{i}-{cut}-{b}')
+                   for i,b,_,cut,image,_ in restore_jobs]
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        cancellations = list(pool.map(lambda job: invoke(*job), cancel_jobs))
     chosen = cuts[1][2]; source_image = out/f'source-1-{chosen}.context'
     invalid_dir = out/'invalid-images'; invalid_dir.mkdir()
     owners = images(parent.parent/'scenario-1/native-capture'/f'cut-{chosen}')
@@ -140,8 +144,9 @@ def main():
     report = dict(status='passed', scope='restricted production bridge candidate and serial-MMIO continuation only',
                   context_summary=str(parent), context_sha256=file_sha(parent), recipe_build_identity=str(identity_path),
                   source_inputs=bindings, cuts=cuts, restores=restores, invalids=invalids, specials=specials,
-                  faults=faults, commands=commands, build_sha256=build.hex(), level1_verified=False, level2_verified=False,
+                  faults=faults, cancellations=cancellations, commands=commands, build_sha256=build.hex(), level1_verified=False, level2_verified=False,
                   creator_worker_reserved=True,
+                  creator_resource_retained=True,
                   artifact_sha256={str(f):file_sha(f) for f in out.rglob('*') if f.is_file()})
     path = out/'summary.json'; path.write_text(json.dumps(report, indent=2)+'\n')
     from tools.checkpoint_formats.tests.audit_tsi_bridge_context import audit

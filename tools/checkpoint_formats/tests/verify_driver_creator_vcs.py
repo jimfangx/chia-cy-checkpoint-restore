@@ -57,6 +57,8 @@ def main():
         text = Path(receipt['log']).read_text()
         require('DRIVER_CREATOR_PASS tasks=512 exceptions=512 launches=17 cancellations=16 rejections=1296' in text,
                 'creator lifecycle cases missing')
+        require('DRIVER_RESIDENT_PASS destroyed=32 launches=16 cancellations=16 exceptions=32 rejections=176 capture_order=1' in text,
+                'creator retained lifetime cases missing')
         require(not any(s in text for s in ('ERROR: AddressSanitizer', 'runtime error:', 'LeakSanitizer: detected')),
                 'creator sanitizer failure')
         if name == 'vcs': require('DRIVER_CREATOR_ZERO_EDGES time=0 edges=0' in text, 'VCS preparation edge')
@@ -70,8 +72,14 @@ def main():
         report = json.loads((dest/'summary.json').read_text())
         require(report['fresh_continuations'] == 5 and report['malformed_native_processes'] == 35 and
                 report['lifecycle_negative_processes'] == 20, 'incomplete harness cases')
-        if options[1]: require(report['reserved_creator_continuations'] == 5 and
-                               report['creator_preparation_guards'] == 65, 'reserved harness missing')
+        if options[1]:
+            require(report['reserved_creator_continuations'] == 5 and
+                    report['creator_preparation_guards'] == 65, 'reserved harness missing')
+            for cut in (13,14,16,31,32):
+                trace=(dest/f'cut-{cut}/restore/run.log').read_text()
+                require('HARNESS_CREATOR_RESOURCE_LIVE same_thread=1 finalized=1' in trace and
+                        'HARNESS_CREATOR_RESOURCE_DESTROYED same_thread=1 finalized=1' in trace,
+                        'missing actual harness resident lifetime')
         return dict(receipt, summary=str(dest/'summary.json'))
     with ThreadPoolExecutor(max_workers=4) as pool:
         commands += list(pool.map(harness, [(False, False), (True, False), (False, True), (True, True)]))
@@ -81,6 +89,7 @@ def main():
                   reserved_creator_continuations=10, malformed_native_processes=140,
                   lifecycle_negative_processes=80, aggregate_prevalidation_rejections=140,
                   creator_preparation_guards=130, level1_verified=False, level2_verified=False,
+                  creator_resource_retained=True,
                   artifact_sha256={str(p):file_sha(p) for p in out.rglob('*') if p.is_file()})
     path = out/'summary.json'; path.write_text(json.dumps(report, indent=2)+'\n')
     from tools.checkpoint_formats.tests.audit_driver_creator import audit
