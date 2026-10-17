@@ -6,6 +6,14 @@ component continuation API, `firesim_tsi_context_group_t::resume()`. Complete
 Rocket CPU Level 1 remains disabled; ordinary `tick()` still rejects restored
 metadata/components.
 
+Iteration 151 audit correction: the aggregate uses the lifecycle API, whose
+guard checks the calling thread mask, pending signals and handlers. The
+separate signal-owner API audits all threads, but this aggregate does not call
+that API. All-thread exclusion remains a required external policy,
+not an aggregate-enforced invariant. Connect that admission check and supply
+production exclusion before claiming coherent CPU restoration. The separately
+tested signal-owner thread matrix does not establish this connection.
+
 `firesim.tsi.host-wrapper.v1` (configuration tag 36, revision 1) stores one
 phase: fresh, execution, or tail. The production wrapper records execution before
 calling `run_host()` and tail after its signed result has been collected into the
@@ -49,17 +57,19 @@ callers cannot bypass admission through the base `switch_to_host()` API. Fresh
 stack-allocation failure leaves all semantic images and context initialization
 unchanged and can be retried.
 
-The current provider's all-thread blocked/pending/delivered-signal policy is
-checked before each component resume, including after a native coroutine has
-been initialized. Exclusive access and an external policy preventing concurrent
+The current lifecycle provider's calling-thread blocked/pending/delivered-signal
+policy is checked before each component resume, including after a native
+coroutine has been initialized. Exclusive access and an external policy preventing concurrent
 signal/thread changes are still mandatory. This change does not supply the
 production signal coordinator or restore signal-caused exit callers.
 
 The restricted mode retains no inherited proxy descriptors/table or ordinary
-syscall session and only dispatches syscall 93. The retained four-hart CPU
-workload uses an odd direct-exit command; its wrapper/outer aggregate integration
-is still required, or a separately hashed self-checking CPU workload using the
-supported syscall protocol. This host fixture is not a CPU workload substitute.
+syscall session and only dispatches syscall 93. The retained direct-exit CPU workload still requires its own wrapper/outer
+integration. Iteration 151 supplies the alternative: a separately hashed real
+four-hart syscall-93 workload passes full exact-recipe native controls on both
+ordinary and restricted HTIF. See [rocket-syscall-workload.md](rocket-syscall-workload.md).
+Those uninterrupted controls and this host fixture do not establish complete
+CPU checkpoint continuation.
 
 Simulator/FAME/bridge/functional-memory atomic publication and fresh complete
 Rocket target-cycle continuation remain pending. Level-2 captured replay remains

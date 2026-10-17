@@ -14,6 +14,58 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 151, in progress.
+The separately hashed syscall-93 variant of the self-checking four-hart workload
+now passes complete native VCS execution on ordinary/restricted HTIF, each with
+ordinary/buffered observers and a full 16-GiB backing memory. All four finish at
+C=3,330,050. All sixteen complete hart traces and decoded phase/completion/failure,
+BSS-zero, request and pointer-store labels match. Spike success and four real
+hart-memory faults pass for both workload protocols; the retained direct images
+and source stay untouched. Fresh direct builds reproduce every loadable byte;
+random compiler FILE symbols account for their ELF hash differences.
+Recovery: [rocket-syscall-workload.md](rocket-syscall-workload.md).
+
+Diagnostics: `runs/m11-iteration151/`. Selected controls:
+`accepted-controls/invocation-36jsobc5/summary.json`; actual native processes/logs:
+`syscall-controls/invocation-a6oe1ba6/`. The selected receipt freezes the original
+native files/source snapshots and runs fresh corrected decoders. The first
+checker omitted eight actual BSS-zero stores, and its input-drift guard rejects
+because it changed during execution. A reuse-audit pilot rejected overlapping
+PID numbers across native and later audit launch namespaces; uniqueness now
+applies within each launch phase, with every argv/log/runtime still bound.
+The initial launch also had a harness NameError before any VCS execution. All
+initial failures remain diagnostic; no original failed summary is rewritten.
+The exact-recipe iteration-150 native executable and all native build inputs
+remain byte-exact. No target execution was skipped or replayed for checker repair.
+
+The independent control audit and all nine incomplete/duplicate evidence
+rejections pass. Catalogs: `summary.json`, `selected-results.json`,
+`verification-commands.json`, `raw-native-commands.json`,
+`native-input-archives.json` and `artifact-manifest.json`. The fresh sixteen-owner context matrix and independent audit
+pass 887 host-operation cuts / 3,548 fresh restores / 3,277,056 comparisons /
+201,268 operations, all 102 invalid processes, twelve late guards, eight resource
+cases, eight first divergences and fourteen evidence rejections. All eight
+native core scopes (280 Python tests), their artifact audit and thirty retained
+auditors pass. Fresh ordinary RTL VCS plus its complete-source independent audit
+passes the four retained cuts: 318,637 words before any edge, 256 events,
+sixteen real semantic faults and 44 invalid cases. This retained Level-2 evidence
+uses the original direct-exit workload; new syscall-workload Level 2 is pending.
+
+Test-only inherited signal masks do not establish production coordination.
+Audit correction: the aggregate's lifecycle guard checks the calling thread;
+the separate signal-owner all-thread audit is not connected to that aggregate.
+Next: connect all-thread admission and production exclusion, publish a coherent
+simulator/FAME/bridge/functional-memory cut and validate fresh complete Rocket
+Level-1 continuation at original target-cycle labels. Complete CPU Level 1 is
+still disabled. BOOM/Saturn remain pending; standalone Shuttle, physical FPGA and
+ASIC power stay outside scope. Both plans/environment helpers retain starting
+bytes. Existing controller heads reached both remote main branches, FireSim
+first, with local tracking-ref warnings after remote success. No staging/commits.
+The corrected decoder also reproduces every original retained direct-exit CPU
+phase/completion/failure/tohost/retirement label in a final independent re-audit.
+
+Previous iteration 150 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 150, in progress.
 The restricted sixteen-owner transaction now includes semantic wrapper phases
 and fresh process-local coroutine continuation. It reconstructs polling or

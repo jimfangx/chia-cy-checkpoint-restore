@@ -1,6 +1,6 @@
 # CPU checkpoint matrix
 
-Current milestone: M11 Rocket, iteration 150, **in_progress**. Rocket Level 2
+Current milestone: M11 Rocket, iteration 151, **in_progress**. Rocket Level 2
 passes complete captured ChipTop finite replay at four tested cuts. Complete
 Level-1 CPU continuation remains pending. Physical FPGA validation, standalone
 Shuttle and ASIC power are outside this matrix. The verified FCFS evidence remains in its existing docs.
@@ -32,6 +32,121 @@ The recipe also specifies frequency 140 MHz and TIMING build strategy; these
 are retained in the recipe record, with no FPGA implementation invoked.
 VCS uses Y-2026.03-SP1, `-full64`, `VCS_FLAGS=-Mupdate`, system GCC/G++ 13,
 and the sourced Conda library/include directories. No Conda files are edited.
+
+## Iteration 151: self-checking CPU workload on the restricted syscall path
+
+Complete Rocket Level 1 remains **in_progress**. A separately generated syscall-93
+variant preserves every four-hart computation in the retained workload and
+replaces its final odd HTIF exit store with eight explicit request words, a
+memory fence, and an aligned request-pointer publication. Each hart still checks
+its own 64 KiB through early initialization, warm sequential validation, permuted
+cache-line read/modify/write rounds and late validation. A compiler-backed Spike
+matrix checks the success image and actual memory faults on all four harts.
+The retained direct-exit source/images remain intact. Fresh direct builds pass
+all five Spike checks and match every loadable byte of the retained images;
+temporary compiler FILE symbols cause ELF-file hash differences.
+
+The new native matrix runs the syscall image through ordinary and restricted
+HTIF, both with ordinary and buffered observers. Each fresh VCS process has a
+full 16-GiB backing memory. The selected exact-recipe Y-2026.03-SP1 build is
+unchanged from iteration 150, with all native inputs rechecked before and after
+execution and the executable/input bytes archived in this invocation. Both
+repository environments and `vcs-env.sh` are sourced in every VCS shell.
+There is no new FPGA build. A test-only launcher blocks SIGINT/SIGTERM/SIGABRT
+before exec and VCS worker creation; it does not provide production signal
+coordination or delivered-signal restoration.
+
+The independent CPU decoder requires actual hart-zero stores of all eight
+request words `[93,0,0,0,0,0,0,0]` before the sole tohost pointer store. It also
+checks all four harts' real phase/completion/failure stores. The independent
+matrix audit compares complete four-hart TracerV files and all decoded CPU
+instruction/store cycle labels across the four modes, validates the native
+build/protocol/argv/process bindings and every archived artifact. These are
+uninterrupted workload controls, not restored CPU checkpoints.
+
+Workload ELF:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration151/workload/rocket-quad.riscv`,
+SHA-256 `1c5ebf741af82848ebfcba5194e4c813dce3cdc8aadc7ecae2ba454280604958`.
+Compiled source SHA-256:
+`3642c1fe901b5fd11791bf7b7ee51db727b8d795bf081803f2352f95f7250697`.
+
+| Executed check | Result |
+| --- | --- |
+| Four complete exact-recipe 16-GiB native VCS controls | Ordinary/restricted HTIF, each with ordinary/buffered observers; all finish at C=3,330,050 |
+| Complete CPU trace/label comparison | All sixteen full hart trace files match; all four harts' computation/phase/completion/failure stores and the request/pointer labels match |
+| Independent CPU evidence audit | Complete native/build/source/protocol bindings and re-decoding pass; nine missing/duplicate/false-acceptance evidence variants reject |
+| Actual request construction | Eight BSS-zero stores before computation, then eight ordered syscall words after every hart completes and before the sole pointer publication; all four executions pass |
+| Spike workload/fault matrix | Success and four real hart-memory corruptions pass for both direct and syscall variants; all five direct load images match retained bytes |
+| Fresh sixteen-owner native/VCS context regression | Eight scenarios / 887 host-operation cuts / 3,548 fresh restores / 3,277,056 comparisons / 201,268 operations; 102 invalid processes, twelve late guards, eight resources and eight first divergences pass |
+| Independent context audit | All current recipe/provider bindings pass; fourteen missing/duplicate evidence variants reject |
+| Eight native core scopes / thirty retained auditors | Pass, including all 280 Python tests and complete artifact/source audits |
+| Fresh ordinary RTL VCS, retained C=100/700000/900000/3250000 | 318,637 semantic words read back before any edge per cut; 256 events / 21,760 output comparisons; sixteen actual semantic faults and 44 invalid cases; complete-source independent audit passes |
+
+Selected controls:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration151/accepted-controls/invocation-36jsobc5/summary.json`.
+Actual four native executions, argv, logs and sixteen full traces:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration151/syscall-controls/invocation-a6oe1ba6/`.
+Context regression:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration151/context-regression/invocation-93o7agr0/summary.json`.
+Ordinary RTL replay:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration151/native-replay/invocation-zcwq63zu/summary.json`.
+The independent CPU evidence audit and all nine incomplete/duplicate evidence
+rejections pass. Exact argv/cwd and native processes are cataloged in
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration151/verification-commands.json`
+and `raw-native-commands.json`; all source archives and created artifact paths
+are in `native-input-archives.json` and `artifact-manifest.json` in that same
+directory. Selected receipts are bound in `selected-results.json`. Recovery:
+[rocket-syscall-workload.md](rocket-syscall-workload.md).
+
+The initial decoder counted BSS initialization as extra runtime request stores.
+The corrected decoder checks both groups explicitly. The original harness's
+input-drift guard rejects because its observer inputs changed during execution;
+its failed summary remains intact. Fresh checker processes re-audit the four
+completed successful native executions, binding all original native artifacts
+and source snapshots plus the corrected checker bytes in a new invocation.
+A first reuse audit falsely required PID numbers to remain distinct across
+native and later checker launch namespaces. The accepted audit checks uniqueness
+within each launch phase and independently binds every argv/log/runtime. An
+initial launch also had a harness NameError before any VCS process ran. These
+attempts are diagnostic; no failed report is rewritten or selected as passing.
+All sixteen full traces match and all four native processes passed at the same
+cycle before this observer repair. No CPU execution was omitted or repeated to
+repair the checker.
+
+The test mask does not connect the separate signal-owner all-thread audit to the
+restricted aggregate's calling-thread lifecycle guard. Both production exclusion
+and that admission connection remain pending. Complete Rocket Level 1 is still
+disabled. The four-cut Level-2 result uses the retained original direct-exit
+workload/capture; the new syscall workload has no Level-2 capture/replay claim.
+Simulator/FAME/bridge/functional-memory coherent capture and fresh complete CPU
+continuation are pending. BOOM/Saturn remain pending.
+
+From Chipyard root, use a fresh output root for a new native matrix (the selected
+artifact's `raw-native-commands.json` catalog retains the exact commands already
+executed):
+
+```sh
+source env.sh && source sims/firesim/env.sh
+source automations/checkpoint_loop/vcs-env.sh
+python -m tools.checkpoint_formats.tests.verify_rocket_workload \
+  --exit-protocol syscall93 \
+  --out /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration151-repeat/workload
+python -m tools.checkpoint_formats.tests.verify_rocket_syscall_vcs \
+  --build-identity /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration150/rocket-controls/invocation-rso6xoh0/rocket-build-identity.json \
+  --workload /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration151-repeat/workload \
+  --out /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration151-repeat/controls
+python -m tools.checkpoint_formats.tests.audit_rocket_syscall \
+  --summary /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration151/accepted-controls/invocation-36jsobc5/summary.json
+```
+
+The actual accepted recovery command adds
+`--completed-controls /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration151/syscall-controls/invocation-a6oe1ba6/summary.json`
+to re-audit all four immutable native executions without advancing a target edge.
+This path accepts only four successful, command-bound native result logs with
+matching recipe/workload/build identities; it preserves the failed original
+aggregate report and records all original bytes separately. The independent
+auditor verifies both native and new checker artifact memberships and hashes,
+then decodes all four real CPU logs again.
 
 ## Iteration 150: semantic wrapper and fresh restricted coroutines
 
