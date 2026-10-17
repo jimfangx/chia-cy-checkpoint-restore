@@ -14,6 +14,45 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 161, in progress.
+The optional pre-edge mailbox now retains a creator-owned publication guard
+between final validation and controller publication/readback, rejects later
+preparation after sealing, and releases the guard on its creator before
+continuation or during cancellation. Native ASan/UBSan, VCS time-zero checks,
+all four actual harness modes and independent creator audit pass. Complete
+Rocket Level 1 remains disabled; production process exclusion and the complete
+simulator owner coordinator are still pending. Recovery:
+[driver-publication-scope.md](driver-publication-scope.md).
+
+Diagnostics: `runs/m11-iteration161/`. All eight preserved native scopes
+(280 Python tests), thirty retained auditors, dispatcher/poison/loading/capture
+guards and independent archive audits pass. Four fresh ordinary RTL VCS cuts
+and the full-source audit pass 318,637 words before any edge per cut, 256 events,
+sixteen first divergences and 44 invalid cases. The production bridge matrix
+and audit pass 64 fresh restores/cancellations, 52,088 owner comparisons,
+3,000 serial boundaries, 336 invalid processes and eight first divergences.
+All six complete final-source 16-GiB four-hart controls and independent audits
+pass: both direct controls at C=3,329,794 and all four syscall protocols at
+C=3,330,050. Full hart traces and decoded labels match within each protocol.
+Level 2 retains the direct ELF. Selected receipts, exact source archives,
+workload bytes/hashes and native commands are in `summary.json`,
+`selected-results.json`, `native-input-archives.json`, `workloads.json`,
+`raw-native-commands.json`, `verification-commands.json` and
+`artifact-manifest.json` under this iteration.
+Both plans, environment helpers, heads and indices retain their starting bytes.
+Existing controller heads
+have reached GitHub, FireSim first then Chipyard; local tracking-ref writes
+warned. No staging or local commits occurred. No external dependency is missing.
+
+Next: use the retained publication scope with a production process exclusion
+policy and join the complete simulator/FAME/channel/CPU-managed-stream/other-
+bridge/functional-memory/runtime cut with creator-side provider publication.
+The test mutex/mask does not establish that policy. Complete Rocket Level 1
+remains disabled; BOOM/Saturn remain pending. Standalone Shuttle, physical FPGA
+validation and ASIC power remain outside scope.
+
+Previous iteration 160 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 160, in progress.
 The pre-edge creator can now stage its dispatcher continuation before owner
 publication, commit it without callable allocation or thread creation, and

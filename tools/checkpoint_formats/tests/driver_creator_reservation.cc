@@ -3,6 +3,8 @@
 #include <atomic>
 #include <iostream>
 #include <memory>
+#include <csignal>
+#include <pthread.h>
 
 void tsi_terminal_fail_allocation_after(long count);
 
@@ -128,6 +130,104 @@ static void test_prepared_launch() {
   check(launched==16 && destroyed==32 && allocation_failures==32 && rejected-before==208);
   std::cout<<"DRIVER_PREPARED_LAUNCH_PASS destroyed=32 launches=16 cancellations=16 allocation_failures=32 rejections=208 allocation_free_commit=1 capture_order=1\n";
 }
+
+// An actual creator-owned lock and signal mask survive controller publication.
+// They model exclusion resources; no claim is made about VCS's other threads.
+struct publication_guard_t final : emul_driver_thread_t::resource_t {
+  emul_driver_thread_t &worker;
+  std::unique_lock<std::mutex> lock;
+  sigset_t previous;
+  bool &live;
+  unsigned &destroyed;
+  publication_guard_t(emul_driver_thread_t &w, std::mutex &m, bool &l, unsigned &d)
+      : worker(w), lock(m), live(l), destroyed(d) {
+    check(std::this_thread::get_id()==worker.get_id() && !live);
+    sigset_t block; sigemptyset(&block); sigaddset(&block,SIGUSR2);
+    check(!pthread_sigmask(SIG_BLOCK,&block,&previous)); live=true;
+  }
+  ~publication_guard_t() override {
+    if (std::this_thread::get_id()!=worker.get_id() || !live || worker.publication_sealed() ||
+        pthread_sigmask(SIG_SETMASK,&previous,nullptr)) std::abort();
+    live=false; ++destroyed;
+  }
+};
+static void test_publication_seal() {
+  unsigned guard_destroyed=0, resident_destroyed=0, launches=0, allocation_failures=0;
+  const auto before=rejected;
+  for (unsigned trial=0;trial<32;++trial) {
+    emul_driver_thread_t worker;
+    std::mutex gate;
+    bool live=false, capture_gone=true;
+    int original_mask=-1;
+    auto factory=[&]() -> std::unique_ptr<emul_driver_thread_t::resource_t> {
+      return std::make_unique<publication_guard_t>(worker,gate,live,guard_destroyed);
+    };
+    rejects([&] { worker.seal_launch(factory); });
+    worker.reserve();
+    rejects([&] { worker.seal_launch(factory); }); // No staged continuation.
+    worker.invoke([&] {
+      sigset_t mask; check(!pthread_sigmask(SIG_SETMASK,nullptr,&mask));
+      original_mask=sigismember(&mask,SIGUSR2);
+      worker.retain(std::make_unique<resident_t>(worker,resident_destroyed,capture_gone));
+    });
+    capture_gone=false;
+    auto capture=std::shared_ptr<int>(new int, [&](int *p) {
+      check(std::this_thread::get_id()==worker.get_id() && resident_destroyed==trial);
+      // Cancellation destroys captures before releasing publication exclusion.
+      check(live==bool(trial%2)); capture_gone=true; delete p;
+    });
+    worker.prepare_launch([&,capture=std::move(capture)] {
+      check(!live && !worker.publication_sealed() && !capture_gone);
+      sigset_t mask; check(!pthread_sigmask(SIG_SETMASK,nullptr,&mask));
+      check(sigismember(&mask,SIGUSR2)==original_mask);
+      check(gate.try_lock()); gate.unlock(); ++launches;
+    });
+    rejects([&] { worker.seal_launch({}); });
+    rejects([&] { worker.seal_launch([] { return std::unique_ptr<emul_driver_thread_t::resource_t>{}; }); });
+    rejects([&] { worker.seal_launch([&]() -> std::unique_ptr<emul_driver_thread_t::resource_t> {
+      auto guard=factory(); throw std::runtime_error("failed final validation");
+    }); });
+    check(!live && guard_destroyed==2*trial+1 && worker.reserved());
+    // Both factory-side guard allocation and controller callable conversion
+    // fail before installation. The same creator can retry either failure.
+    tsi_terminal_fail_allocation_after(0);
+    try { worker.seal_launch(factory); } catch(const std::bad_alloc &) { ++allocation_failures; }
+    tsi_terminal_fail_allocation_after(-1);
+    worker.invoke([&] { tsi_terminal_fail_allocation_after(0); });
+    try { worker.seal_launch(factory); } catch(const std::bad_alloc &) { ++allocation_failures; }
+    worker.invoke([&] { tsi_terminal_fail_allocation_after(-1); });
+    check(worker.reserved() && !live);
+    worker.invoke([&] {
+      sigset_t mask; check(!pthread_sigmask(SIG_SETMASK,nullptr,&mask));
+      check(sigismember(&mask,SIGUSR2)==original_mask);
+    });
+    worker.seal_launch(factory);
+    check(worker.publication_sealed() && !worker.reserved() && live && !gate.try_lock());
+    rejects([&] { worker.invoke([] {}); });
+    rejects([&] { worker.prepare_launch([] {}); });
+    rejects([&] { worker.launch([] {}); });
+    rejects([&] { worker.seal_launch(factory); });
+    rejects([&] { worker.retain({}); });
+    std::thread foreign([&] {
+      check(!gate.try_lock());
+      rejects([&] { worker.invoke([] {}); });
+      rejects([&] { worker.seal_launch(factory); });
+      rejects([&] { worker.prepare_launch([] {}); });
+    }); foreign.join();
+    // The controller's publication/readback occurs with the creator parked,
+    // the native mutex owned, and the staged continuation still dormant.
+    check(launches==(trial+1)/2 && !capture_gone && worker.launch_prepared_pending());
+    if (trial%2) worker.cancel_reserved();
+    else {
+      tsi_terminal_fail_allocation_after(0); worker.launch_prepared();
+      tsi_terminal_fail_allocation_after(-1); worker.join();
+    }
+    check(!live && capture_gone && guard_destroyed==2*trial+2 && resident_destroyed==trial+1);
+    check(gate.try_lock()); gate.unlock();
+  }
+  check(launches==16 && allocation_failures==64 && rejected-before==416);
+  std::cout<<"DRIVER_PUBLICATION_SEAL_PASS guards=64 launches=16 cancellations=16 allocation_failures=64 rejections=416 creator_lock=1 creator_mask=1 allocation_free_commit=1 cleanup_order=1\n";
+}
 static int test_creator() {
   try {
     unsigned tasks = 0, failures = 0, launches = 0, cancellations = 0;
@@ -188,6 +288,7 @@ static int test_creator() {
               << " rejections=" << rejected << "\n";
     test_residents();
     test_prepared_launch();
+    test_publication_seal();
     return 0;
   } catch (const std::exception &e) {
     std::cerr << "DRIVER_CREATOR_ERROR " << e.what() << '\n'; return 1;

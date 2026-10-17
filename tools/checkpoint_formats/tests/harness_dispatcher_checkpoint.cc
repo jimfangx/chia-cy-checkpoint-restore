@@ -41,10 +41,25 @@ unsigned rejections=0;
 bool reserved_creator=false;
 std::thread::id creator_id;
 bool resident_alive=false, resident_finished=false, resident_destroyed=false;
+bool publication_live=false;
+unsigned publication_destroyed=0, publication_readbacks=0;
+std::mutex publication_gate;
+struct harness_publication_t final : emul_driver_thread_t::resource_t {
+  std::unique_lock<std::mutex> lock{publication_gate};
+  harness_publication_t() {
+    check(std::this_thread::get_id()==creator_id && resident_alive && !publication_live);
+    publication_live=true;
+  }
+  ~harness_publication_t() override {
+    check(std::this_thread::get_id()==creator_id && resident_alive && publication_live);
+    publication_live=false; ++publication_destroyed;
+  }
+};
 struct harness_resident_t final : emul_driver_thread_t::resource_t {
   harness_resident_t() { check(!resident_alive && !resident_destroyed); resident_alive=true; }
   ~harness_resident_t() override {
-    check(std::this_thread::get_id()==creator_id && resident_alive && resident_finished);
+    check(std::this_thread::get_id()==creator_id && resident_alive && resident_finished &&
+          !publication_live && publication_destroyed==2 && publication_readbacks==2);
     resident_alive=false; resident_destroyed=true;
     puts("HARNESS_CREATOR_RESOURCE_DESTROYED same_thread=1 finalized=1");
   }
@@ -89,7 +104,8 @@ struct driver_t : simulation_t {
   bool simulation_supports_steps() const override { return true; }
   int simulation_run() override { throw std::runtime_error("blocking driver"); }
   bool simulation_run_step() override {
-    if (reserved_creator) check(std::this_thread::get_id()==creator_id && resident_alive && !resident_destroyed);
+    if (reserved_creator) check(std::this_thread::get_id()==creator_id && resident_alive && !resident_destroyed &&
+                                !publication_live && publication_destroyed==2 && publication_readbacks==2);
     if (index==12) {
       // Retain a partial write and two held responses in a real native owner.
       auto &m=*p.slave.at(0); auto *bytes=static_cast<uint8_t *>(m.get_data());
@@ -104,6 +120,7 @@ struct driver_t : simulation_t {
     if (reserved_creator) {
       check(std::this_thread::get_id()==creator_id);
       check(resident_alive && !resident_destroyed); resident_finished=true;
+      check(!publication_live && publication_destroyed==2 && publication_readbacks==2);
       rejects([&] { p.retain_on_restored_creator(*this,{}); }); --rejections;
       puts("HARNESS_CREATOR_RESOURCE_LIVE same_thread=1 finalized=1");
       puts("HARNESS_RESERVED_CREATOR_CONTINUED same_thread=1");
@@ -177,6 +194,30 @@ void reserve_creator(platform_t &p) {
         p.checkpoint_host_timing_owner().second->save_checkpoint()==timing && !p.calls);
   rejections=before;
   puts("HARNESS_PREPARED_LAUNCH guards=6 allocation_failures=1 mmio=0 native_ticks=0");
+  auto factory=[]() -> std::unique_ptr<emul_driver_thread_t::resource_t> {
+    return std::make_unique<harness_publication_t>();
+  };
+  p.prepare_on_restored_creator(*driver,[&] {
+    rejects([&] { p.seal_restored_launch(*driver,factory); });
+  });
+  std::thread seal_foreign([&] { rejects([&] { p.seal_restored_launch(*driver,factory); }); });
+  seal_foreign.join();
+  rejects([&] { p.seal_restored_launch(*driver,{}); });
+  rejects([&] { p.seal_restored_launch(*driver,[&]() -> std::unique_ptr<emul_driver_thread_t::resource_t> {
+    auto guard=factory(); throw std::runtime_error("failed final owner validation");
+  }); });
+  check(!publication_live && publication_destroyed==1);
+  p.seal_restored_launch(*driver,factory);
+  rejects([&] { p.prepare_on_restored_creator(*driver,[] {}); });
+  rejects([&] { p.seal_restored_launch(*driver,factory); });
+  rejects([&] { p.prepare_restored_launch(*driver); });
+  rejects([&] { p.schedule_checkpoint_operation(1); });
+  rejects([&] { p.schedule_checkpoint_polling(); });
+  check(publication_live && !publication_gate.try_lock() && rejections==before+9 &&
+        p.master->save_checkpoint()==mmio && p.slave.at(0)->save_checkpoint()==memory &&
+        p.checkpoint_host_timing_owner().second->save_checkpoint()==timing && !p.calls);
+  rejections=before;
+  puts("HARNESS_PUBLICATION_SEALED guards=9 exceptions=1 creator_lock=1 mmio=0 native_ticks=0");
 }
 std::vector<std::pair<std::string,checkpoint_owner_t *>> owners() {
   auto list=emulator->checkpoint_axi_owners();
@@ -237,6 +278,7 @@ int entry(int argc,char **argv) {
         auto b=read_file(source/("owner-"+std::to_string(i)));
         list[i].second->validate_checkpoint(b); payloads.push_back(std::move(b));
       }
+      if(reserved_creator) check(publication_live && publication_destroyed==1);
       for(size_t i=0;i<list.size();++i) list[i].second->load_checkpoint(payloads[i]);
       if(negative=="unsupported") driver->supported=false;
       p->arm_restored_driver(*driver);
@@ -285,6 +327,7 @@ extern "C" int harness_dispatcher_prepare_aggregate() {
       throw;
     }
     check(!generated_restore_deposit_count() && !harness_restore_deposit_count());
+    if(reserved_creator) check(publication_live && publication_destroyed==1);
     aggregate.commit_native();
     puts("AGGREGATE_ALL_OWNERS_PREVALIDATED_BEFORE_LOAD");
     p->arm_restored_driver(*driver);
@@ -308,8 +351,15 @@ extern "C" int harness_dispatcher_commit_aggregate() {
   catch(const std::exception &e) { fprintf(stderr,"AGGREGATE_COMMIT_ERROR: %s\n",e.what()); return 1; }
 }
 #endif
+extern "C" void harness_dispatcher_check_publication() {
+  if(!reserved_creator) return;
+  check(publication_live && publication_destroyed==1 && !publication_gate.try_lock());
+  check(publication_readbacks<2); ++publication_readbacks;
+  printf("HARNESS_PUBLICATION_HELD stage=%u creator_lock=1 zero_edges=1\n",publication_readbacks);
+}
 extern "C" void harness_dispatcher_check_native() {
   try {
+    if(reserved_creator) check(!publication_live && publication_destroyed==2 && publication_readbacks==2);
     // A terminal bootstrap has already joined/deleted the native simulator.
     auto mmio=simulator ? emulator->master->save_checkpoint() : read_file(output/"final.mmio");
     auto memory=simulator ? emulator->slave.at(0)->save_checkpoint() : read_file(output/"final.memory");

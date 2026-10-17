@@ -50,6 +50,9 @@ def audit(path, report=None):
             if r.get('creator_launch_prepared'):
                 require('DRIVER_PREPARED_LAUNCH_PASS destroyed=32 launches=16 cancellations=16 allocation_failures=32 rejections=208 allocation_free_commit=1 capture_order=1' in text,
                         'creator prepared launch receipt')
+            if r.get('creator_publication_sealed'):
+                require('DRIVER_PUBLICATION_SEAL_PASS guards=64 launches=16 cancellations=16 allocation_failures=64 rejections=416 creator_lock=1 creator_mask=1 allocation_free_commit=1 cleanup_order=1' in text,
+                        'creator publication seal receipt')
             if name == 'vcs.log': require('DRIVER_CREATOR_ZERO_EDGES time=0 edges=0' in text, 'creator VCS edges')
         if 'summary' not in c: continue
         folder = Path(c['summary']).parent; h = json.loads(Path(c['summary']).read_text())
@@ -77,6 +80,14 @@ def audit(path, report=None):
                             trace.count('HARNESS_CREATOR_RESOURCE_DESTROYED same_thread=1 finalized=1')==1 and
                             trace.index('HARNESS_CREATOR_RESOURCE_LIVE') < trace.index('HARNESS_CREATOR_RESOURCE_DESTROYED'),
                             'actual harness resource lifetime missing')
+                if r.get('creator_publication_sealed'):
+                    markers = ['HARNESS_PUBLICATION_SEALED guards=9 exceptions=1 creator_lock=1 mmio=0 native_ticks=0',
+                               'HARNESS_PUBLICATION_HELD stage=1 creator_lock=1 zero_edges=1',
+                               'HARNESS_PUBLICATION_HELD stage=2 creator_lock=1 zero_edges=1',
+                               'HARNESS_DISPATCHER_BOOTSTRAP']
+                    require(all(trace.count(m)==1 for m in markers) and
+                            [trace.index(m) for m in markers]==sorted(trace.index(m) for m in markers),
+                            'creator publication guard missing or released before preedge readback')
                 reserved += 1; guards += 13
             require((ref/'rows.jsonl').read_bytes() == (dst/'rows.jsonl').read_bytes(), 'creator generated/harness continuation')
             require(json.loads((ref/'cut.jsonl').read_text()) == json.loads((dst/'loaded.jsonl').read_text()),
