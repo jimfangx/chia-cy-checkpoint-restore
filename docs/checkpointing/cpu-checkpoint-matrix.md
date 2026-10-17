@@ -1,6 +1,6 @@
 # CPU checkpoint matrix
 
-Current milestone: M11 Rocket, iteration 154, **in_progress**. Rocket Level 2
+Current milestone: M11 Rocket, iteration 155, **in_progress**. Rocket Level 2
 passes complete captured ChipTop finite replay at four tested cuts. Complete
 Level-1 CPU continuation remains pending. Physical FPGA validation, standalone
 Shuttle and ASIC power are outside this matrix. The verified FCFS evidence remains in its existing docs.
@@ -32,6 +32,97 @@ The recipe also specifies frequency 140 MHz and TIMING build strategy; these
 are retained in the recipe record, with no FPGA implementation invoked.
 VCS uses Y-2026.03-SP1, `-full64`, `VCS_FLAGS=-Mupdate`, system GCC/G++ 13,
 and the sourced Conda library/include directories. No Conda files are edited.
+
+## Iteration 155: freeze software owners before the settled VCS handoff
+
+Complete Rocket Level 1 remains **in_progress**. The production settled driver
+diagnostic now captures and validates software owners on their driver creator
+while VCS is parked in DPI. Only immutable names, schemas and bytes cross the
+settled mutex. The VCS callback adds its harness observation without invoking
+the original software owners. Unsupported records remain explicit; frozen
+observations always reject loading. Diagnostic and owner schemas are unchanged.
+Recovery: [driver-owner-snapshots.md](driver-owner-snapshots.md).
+
+The new actual-TSI native ASan/UBSan and VCS checks pass at execution and
+returned-tail component boundaries: **four processes / 128 complete owner
+readbacks**, **1,544 successive allocation failures** with unchanged creator
+state and successful retry, **64 direct foreign-reference rejections**, and
+**128 each of invalid-image and mutable-load rejections**. All sixteen public
+owners match the independently executed context oracle, including the separate
+pristine ordinary memory reader. Both parked and post-creator-destruction
+readbacks match; VCS asserts time zero and zero edges. This observes public
+components; it does not replace the aggregate's private lifecycle/signal owner.
+The accepted receipt is
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration155/snapshot-final/invocation-7zj4kqy2/summary.json`.
+The source catalog binds the full original list, including auxiliary headers.
+The independent audit rejects all six missing/duplicate receipt variants and
+all **96 individual source-binding omissions**; its result is
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration155/snapshot-final-independent-audit.json`.
+The initial auditor omission failure remains diagnostic; the corrected verifier
+and auditor use a separate source epoch and fresh native/VCS output directory.
+Production C++ bytes stay identical across both epochs.
+
+| Check | Result / artifact under `runs/m11-iteration155/` |
+| --- | --- |
+| Original diagnostic guards and frozen inventory validation | Pass: 96 native ASan/UBSan rejections; `diagnostic-native.log` |
+| Retained creator/view access and independent evidence audit | Pass: 500 processes / 125 operations; six missing/duplicate variants reject; `thread-access/invocation-cpxe6n4_/summary.json` |
+| Production settled FCFS handoff, both clock phases | Pass: five cuts per phase, complete generated-state and target token/AXI trace comparison, outstanding native memory traffic, terminal cut and eleven invalid requests; `settled-high/summary.json`, `settled-low/summary.json` |
+| Preserved complete native scopes and independent archive audit | Pass: eight scopes / 280 Python tests / 5,313 retained artifacts / 846 source bindings; `native-regressions/invocation-mjel1ubo/summary.json` |
+| Retained independent auditors | Pass: all thirty; `retained-auditor-rechecks/` |
+| Exact Rocket recipe / two complete direct-exit CPU controls | Pass: both C=3,329,794, full 16-GiB memory and all four hart traces; `rocket-controls/invocation-53d1qw51/summary.json` |
+| Four complete ordinary/restricted syscall-93 CPU controls | Pass: all C=3,330,050, full 16-GiB memory and sixteen hart traces; `syscall-controls/invocation-j60m2f47/summary.json` |
+| Independent Level-2 ordinary RTL VCS replay and complete-source audit | Pass: four cuts, 318,637 words / seven clocks before any edge per cut, 256 events / 21,760 output comparisons, sixteen real semantic first divergences and 44 invalid cases; `native-replay/invocation-saxubo1c/summary.json`, `replay-full-source-audit.json` |
+
+FCFS diagnostic cuts are completed host operations **3, 11, 699275, 699276**
+and randomized operation **101**. They preserve final target labels **774628**
+and **774632**, respectively. These are separate from the retained Rocket
+Level-2 target cuts **C=100/700000/900000/3250000**. Neither the component
+handoff nor uninterrupted CPU controls establish a restored CPU execution.
+
+Exact recipe settings remain those listed above. VCS uses Y-2026.03-SP1,
+`-full64`, cached-build `-Mupdate`, GCC/G++ 13 and both repository environments
+with `vcs-env.sh` last. No FPGA bitstream is built. Workload ELF SHA-256 values:
+
+- Direct exit: `f3d86f54caf42b9589385e8021dba46777f647134f19595e38a3d452b745f3d4`,
+  `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration82/workload/rocket-quad.riscv`.
+- Syscall 93: `1c5ebf741af82848ebfcba5194e4c813dce3cdc8aadc7ecae2ba454280604958`,
+  `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration151/workload/rocket-quad.riscv`.
+
+Exact executed build/simulation argv, independent audits, source epochs and full
+created artifact paths/hashes are cataloged under
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration155/`
+in `verification-commands.json`, `raw-native-commands.json`,
+`native-input-archives.json`, `selected-results.json`, `artifact-manifest.json`
+and `summary.json`. Both plans, environment helpers, local heads and indices
+retain their starting bytes. Existing controller checkpoints reached GitHub
+FireSim first and then Chipyard, with read-only local tracking-ref warnings.
+No staging or local commits occurred.
+
+Executable native checks from the Chipyard root; repeated executions allocate
+fresh invocation directories:
+
+```json
+[
+  {
+    "purpose": "Actual TSI immutable creator-to-VCS handoff",
+    "cwd": ".",
+    "argv": ["bash", "-lc", "source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh && python -m tools.checkpoint_formats.tests.verify_tsi_snapshot_vcs --context-summary /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration151/context-regression/invocation-93o7agr0/summary.json --recipe-build-identity /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration155/rocket-controls/invocation-53d1qw51/rocket-build-identity.json --out /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration155-repeat/snapshot"]
+  },
+  {
+    "purpose": "Four-cut fresh ordinary RTL VCS replay",
+    "cwd": ".",
+    "argv": ["bash", "-lc", "source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh && python -m tools.checkpoint_formats.tests.verify_fame_event_replay_vcs --base /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration138/rocket-semantic-map-sealed/FireSim-generated --capture /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration139/runtime-pilot/capture --cuts 100,700000,900000,3250000 --out /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration155-repeat/native-replay"]
+  }
+]
+```
+
+Next: connect creator-side TSI capture and fresh creator-side preparation and
+publication to complete simulator restoration, supply production process-wide
+thread/mask/action/signal exclusion, then validate coherent simulator/FAME/
+bridge/functional-memory CPU cuts and fresh full Level-1 target-cycle
+continuation. The TSI bridge's aggregate schema remains unsupported. BOOM and
+Saturn remain pending; standalone Shuttle, physical FPGA validation and ASIC
+power stay outside scope. No external dependency is missing.
 
 ## Iteration 154: guard retained TSI owner references
 

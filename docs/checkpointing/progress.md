@@ -14,6 +14,57 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 155, in progress.
+The settled driver diagnostic now freezes supported software owners on the
+driver creator while VCS is parked in DPI, then transfers only names, schemas
+and immutable bytes through the existing settled mutex. Frozen observations
+retain no live owner references and always reject loading. Unsupported inventory
+records and diagnostic/owner schemas stay unchanged. Recovery:
+[driver-owner-snapshots.md](driver-owner-snapshots.md).
+
+Diagnostics: `runs/m11-iteration155/`. The native ASan/UBSan + VCS actual-TSI
+handoff passes four processes / 128 complete public-owner readbacks, 1,544
+successive allocation failures with creator retries, 64 raw-reference rejections
+and 128 each of invalid-image and mutable-load rejections. Parked and
+post-creator-destruction bytes match the independent retained context oracle;
+VCS asserts zero edges. Accepted receipt:
+`snapshot-final/invocation-7zj4kqy2/summary.json`. The independent audit passes
+all six missing/duplicate evidence variants and all 96 individual source-binding
+omissions. The initial auditor omission failure remains diagnostic. The final
+verifier/auditor have a separate recorded source epoch; production C++ stays
+identical throughout every native execution.
+
+The 500-case retained-view access matrix and independent audit pass. Both
+production settled FCFS phases pass five cuts, complete generated-state and
+target token/AXI comparisons, outstanding memory traffic, terminal cuts and
+eleven invalid requests. All eight native scopes (280 Python tests), their
+independent archive audit and thirty retained auditors pass.
+All six complete 16-GiB four-hart controls and independent audits pass: both
+direct controls at C=3,329,794, all four syscall modes at C=3,330,050; complete
+hart traces and decoded workload labels match within each protocol. Fresh
+four-cut ordinary RTL VCS plus the complete-source audit pass all 318,637 words
+before any edge per cut, 256 events, sixteen semantic first divergences and
+44 invalid cases. Level 2 uses the retained direct ELF.
+
+Exact receipts, executable argv, both source epochs and full created artifact
+paths/hashes are in `summary.json`, `selected-results.json`,
+`verification-commands.json`, `raw-native-commands.json`,
+`native-input-archives.json` and `artifact-manifest.json` under this iteration.
+Existing controller commits reached GitHub FireSim first and then Chipyard;
+only local tracking-ref updates warned about read-only metadata. Both plans,
+environment helpers, local heads and indices retain starting bytes. No staging
+or local commits occurred.
+
+Complete Rocket Level 1 stays disabled. Next: connect creator-side TSI images
+and fresh creator-side preparation/publication to complete simulator restoration,
+establish production process-wide exclusion, and validate coherent full CPU
+continuation. This diagnostic handoff does not add TSI aggregate admission.
+Level 2 stays independent; BOOM/Saturn remain pending. Standalone Shuttle,
+physical FPGA validation and ASIC power stay outside scope. No dependency is
+missing.
+
+Previous iteration 154 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 154, in progress.
 All sixteen public TSI owner getters now return stable views that recheck the
 live creator on schema/save/validate/load, including malformed loads and

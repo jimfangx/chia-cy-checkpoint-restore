@@ -138,6 +138,28 @@ int main(int argc, char **argv) {
     good.observe({});
     good.finish();
     check(owner.saves == 2);
+    // Handoff owns immutable bytes, preserves unsupported inventory entries,
+    // and cannot be used as a mutable destination. A later owner mutation
+    // must not change the captured cut.
+    auto frozen = driver_boundary_diagnostic_t::freeze(
+        {{"a", &owner}, {"unsupported", &unsupported}, {"missing", nullptr}});
+    const auto captured = frozen.owners();
+    check(captured.size() == 3 && captured[0].second != &owner);
+    owner.moving = true;
+    check(captured[0].second->checkpoint_schema() == "test.owner.v1" &&
+          captured[0].second->save_checkpoint() == std::vector<uint8_t>{42});
+    captured[0].second->validate_checkpoint({42});
+    rejects([&] { captured[0].second->validate_checkpoint({43}); });
+    rejects([&] { captured[0].second->load_checkpoint({42}); });
+    for (size_t i : {1U, 2U}) {
+      check(captured[i].second->checkpoint_schema().empty());
+      rejects([&] { captured[i].second->save_checkpoint(); });
+      rejects([&] { captured[i].second->validate_checkpoint({}); });
+      rejects([&] { captured[i].second->load_checkpoint({}); });
+    }
+    auto moved = std::move(frozen);
+    check(moved.owners()[0].second == captured[0].second);
+    owner.moving = false;
     auto late = make("late.diag", 2);
     late.observe({});
     rejects([&] { late.finish(); });
@@ -171,6 +193,9 @@ int main(int argc, char **argv) {
       rejects([&] { d.finish(); });
       check(!std::filesystem::exists(out / path) &&
             !std::filesystem::exists(out / (path + ".tmp")));
+      a.saves = b.saves = 0;
+      if (scenario < 7 || scenario == 8)
+        rejects([&] { driver_boundary_diagnostic_t::freeze(owners); });
     }
     // The serializer must not turn a component's suspended call into a cut.
     host_timing_t timing;
