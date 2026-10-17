@@ -38,6 +38,7 @@ public:
   bool busy() { require_target_thread(); return host_control.busy(); };
   bool loaded_in_host() { require_target_thread(); return host_control.loaded_in_host(); };
   void set_loaded_in_target(bool loaded) { require_target_thread(); host_control.set_loaded_in_target(loaded); };
+  bool loaded_in_target() const { require_target_thread(); return host_control.loaded_in_target(); }
 
   void tick();
   void tick(bool out_valid, uint32_t out_bits, bool in_ready) { tick(); };

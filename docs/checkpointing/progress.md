@@ -14,6 +14,56 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 157, in progress.
+The actual TSI bridge now prepares a private fresh creator-side provider and
+matching bridge control, then publishes both without MMIO, native context entry
+or startup/reset replay. Restored service uses the owned context continuation.
+The aggregate schema stays unsupported. Recovery:
+[tsi-bridge-context.md](tsi-bridge-context.md).
+
+Diagnostics: `runs/m11-iteration157/`. The final native ASan/UBSan + VCS bridge
+matrix and independent audit pass **64 fresh restores / 52,088 complete-owner
+comparisons / 3,000 serial boundaries / 4,652 words**. All **336** invalid
+processes, **1,326** control byte truncations and **7,555** successive allocation
+failures reject without publication. Complete descriptor tables and getopt
+globals remain unchanged after failed attempts. Ten foreign calls, four late
+guards, competing/consumed candidates and eight actual semantic first divergences
+pass. VCS asserts time zero and zero edges. These are component host-operation
+boundaries, not complete CPU target-cycle restores. Accepted receipt:
+`bridge-verified/invocation-kzt3ygo7/summary.json`. The independent auditor rejects
+twelve missing/duplicate receipt variants and all 124 source omissions.
+
+All eight native scopes (280 Python tests), their independent archive audit and
+thirty retained auditors pass. All six complete 16-GiB four-hart controls and
+independent audits pass: both direct controls at C=3,329,794; all four syscall
+modes at C=3,330,050. Full hart traces and decoded labels match within each
+protocol. Fresh four-cut ordinary RTL VCS and the full-source audit pass all
+318,637 words before any edge per cut, 256 events, sixteen first divergences and
+44 invalid cases. Level 2 uses the retained direct ELF.
+
+The first complete bridge runtime receipt remains failed for the auditor's
+32-bit signed-exit interpretation. The corrected fresh bridge invocation has a
+separate source catalog; CPU/native controls retain their completed first catalog.
+Production C++ is identical across both catalogs. Initial path/link/fixture,
+parser and source-epoch failures remain diagnostic. Exact receipts, native argv,
+source snapshots and all artifact paths/hashes are in `summary.json`,
+`selected-results.json`, `verification-commands.json`, `raw-native-commands.json`,
+`native-input-archives.json` and `artifact-manifest.json` under this iteration.
+
+Both plans, environment helpers, local heads and indices retain starting bytes.
+Existing controller heads reached GitHub, FireSim first then Chipyard; local
+tracking-ref writes warned after remote success. No staging or local commits
+occurred. The controller still owns the new checkpoint.
+
+Complete Rocket Level 1 remains disabled. Next: reserve the fresh creator worker
+under the pre-edge hold, coordinate this bridge with the complete simulator/
+FAME/channel/other-bridge/functional-memory/runtime cut, and establish production
+process-wide thread/signal/descriptor/parser exclusion. BOOM/Saturn remain pending.
+Standalone Shuttle, physical FPGA validation and ASIC power stay outside scope.
+No external dependency is missing.
+
+Previous iteration 156 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 156, in progress.
 The restricted context group now exports a build- and metadata-bound byte image
 and prepares a fresh creator-side publication candidate. All sixteen ordered

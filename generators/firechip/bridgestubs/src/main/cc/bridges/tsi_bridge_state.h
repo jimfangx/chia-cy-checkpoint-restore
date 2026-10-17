@@ -106,6 +106,20 @@ public:
     fast = next.fast;
   }
 
+  // The restricted context image starts after initialization/reset, once the
+  // host coroutine reaches polling. Earlier wait/fast-loading calls require a
+  // different caller owner and are deliberately not admitted by this adapter.
+  void require_context_boundary(bool host_loaded, bool target_loaded) const {
+    boundary.require_idle();
+    if (!initialized || wait_remaining || fast || !host_loaded || !target_loaded)
+      throw std::runtime_error("TSI bridge/context boundary mismatch");
+  }
+  void require_fresh_context_destination() const {
+    boundary.require_idle();
+    if (initialized || wait_remaining != initial_wait || fast != initial_fast)
+      throw std::runtime_error("TSI bridge context destination is occupied");
+  }
+
 private:
   widget_checkpoint_config_t config;
   const uint32_t step, loading_step, initial_wait;

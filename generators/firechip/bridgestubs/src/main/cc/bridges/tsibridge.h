@@ -6,6 +6,7 @@
 #include "core/bridge_driver.h"
 #include "tsi_bridge_state.h"
 #include <memory>
+#include <array>
 
 class loadmem_t;
 class firesim_tsi_t;
@@ -47,11 +48,41 @@ public:
   std::string host_component_scope() const override { return "tsi-polling"; }
   host_component_images_t inspect_host_components() const override;
 
+  // Restricted host-component coordination, not checkpoint_owner_t admission.
+  // Caller exclusively suspends the bridge, descriptor operations and other
+  // argument parsers, has no active libc getopt continuation, and owns the
+  // process signal policy. Dynamic HTIF devices remain unsupported.
+  // Capture/prepare/commit run on the FESVR creator; only these bytes may cross
+  // to VCS. The bridge must outlive every candidate.
+  struct context_image_t {
+    std::vector<uint8_t> metadata, control, context;
+  };
+  using context_build_t = std::array<uint8_t, 32>;
+  context_image_t capture_restricted_context(context_build_t build) const;
+  class prepared_context_t {
+  public:
+    ~prepared_context_t();
+    prepared_context_t(const prepared_context_t &) = delete;
+    prepared_context_t &operator=(const prepared_context_t &) = delete;
+    void commit();
+  private:
+    friend class tsibridge_t;
+    prepared_context_t(tsibridge_t &, const context_image_t &, context_build_t);
+    tsibridge_t &bridge;
+    std::vector<uint8_t> pristine_control;
+    std::unique_ptr<tsi_bridge_state_t> control;
+    std::unique_ptr<firesim_tsi_t> tsi;
+    bool consumed = false;
+  };
+  std::unique_ptr<prepared_context_t>
+  prepare_restricted_context(const context_image_t &image, context_build_t build);
+
 private:
   const TSIBRIDGEMODULE_struct mmio_addrs;
   loadmem_t &loadmem_widget;
 
   firesim_tsi_t *fesvr = nullptr;
+  bool restored_context = false;
   bool has_mem;
   // host memory offset based on the number of memory models and their size
   int64_t mem_host_offset;
