@@ -10,6 +10,7 @@
 #include <fesvr/context.h>
 #include "tsi_serial_state.h"
 #include "tsi_serial_read.h"
+#include "tsi_host_wrapper.h"
 
 #define SAI_CMD_READ 0
 #define SAI_CMD_WRITE 1
@@ -30,8 +31,10 @@ public:
   void tick(bool out_valid, uint32_t out_bits, bool in_ready) { serial.tick(out_valid, out_bits, in_ready); }
   const checkpoint_owner_t &serial_queue_owner() const { return serial; }
   const checkpoint_owner_t &serial_read_owner() const { return serial_read; }
+  const checkpoint_owner_t &host_wrapper_owner() const { return host_wrapper; }
 protected:
   virtual int run_host() { return htif_t::run(); }
+  virtual void validate_host_entry() const {}
   void reset() override;
   void read_chunk(addr_t address, size_t bytes, void *destination) override;
   void write_chunk(addr_t address, size_t bytes, const void *source) override;
@@ -41,6 +44,8 @@ protected:
   firesim_tsi_serial_state_t serial;
   firesim_tsi_serial_read_t serial_read;
 private:
+  friend class firesim_tsi_context_group_t;
+  firesim_tsi_host_wrapper_t host_wrapper;
   context_t host;
   context_t *target;
   bool host_initialized = false;

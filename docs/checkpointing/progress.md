@@ -14,6 +14,56 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 150, in progress.
+The restricted sixteen-owner transaction now includes semantic wrapper phases
+and fresh process-local coroutine continuation. It reconstructs polling or
+returned-tail frames without startup replay; ordinary restored `tick()` remains
+disabled. Recovery: [tsi-context-continuation.md](tsi-context-continuation.md).
+Complete Rocket CPU Level 1 remains pending.
+
+Diagnostics: `runs/m11-iteration150/`. The current-recipe-bound context matrix
+passes eight scenarios / 887 host-operation cuts / 3,548 fresh
+native/VCS restores / 3,277,056 complete owner comparisons /
+201,268 operations. All sixteen owners read back before context creation;
+all continued owner bytes and three tail ticks per continuation match. The
+independent auditor rejects fourteen missing/duplicate evidence variants.
+Accepted: `context-final/invocation-kuad914v/summary.json`.
+
+All 102 fresh invalid processes, twelve late guards, exhaustive malformed/
+membership/cross-owner/allocation cases, eight creator/actual 1 MiB stack/
+continuation-signal resource cases and eight first divergent outgoing words
+pass. Sixteen real source coroutines match the independently executed parent.
+The full current-recipe polling, fifteen-owner and outer regressions pass,
+with 3,452 / 3,580 / 160 fresh restores and independent audits. The 1,200-restore
+syscall parent, 686-process signal/thread suite, legacy direct-exit matrix,
+context lifetime and actual bridge transport regressions also pass. All eight
+core native scopes (280 Python tests) and thirty retained auditors pass.
+Fresh ordinary RTL VCS and its independent audit pass all four retained cuts:
+318,637 words before any edge per cut, 256 events / 21,760 comparisons,
+sixteen semantic faults and 44 invalid cases. Both full 16-GiB four-hart controls
+complete at C=3,329,794; all eight traces and workload/store labels match.
+These host cuts are not CPU target-cycle checkpoints.
+
+Catalogs: `summary.json`, `selected-results.json`, `verification-commands.json`,
+`raw-native-commands.json`, `native-input-archives.json`, `artifact-manifest.json`.
+Only the final fixed-input suites are selected; the initial context pilot has
+superseded resource-guard inputs and remains diagnostic. The corrected source
+preflight passes all eight scenarios and eleven negative/resource modes.
+The initial catalog writer expected a hash absent from the legacy descriptor
+receipt; corrected catalogs bind its actual command and verified polling summary.
+Both plans and environment helpers retain starting bytes. Existing controller
+heads reached both remote main branches, FireSim first, with local tracking-ref
+write warnings after remote success. No staging or local commits.
+
+Next: integrate the retained CPU workload's direct-exit wrapper/outer path or
+use a separately hashed self-checking syscall-93 CPU workload; coordinate
+production signals and publish one coherent simulator/FAME/bridge/functional-
+memory cut, then validate complete fresh Rocket CPU Level-1 target-cycle
+continuation. No external dependency is missing. BOOM/Saturn remain pending;
+standalone Shuttle, physical FPGA validation and ASIC power remain outside scope.
+
+Previous iteration 149 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 149, in progress.
 The restricted TSI transaction now atomically restores all fifteen outer,
 polling, syscall and provider owners. It binds stop/return phases to completed

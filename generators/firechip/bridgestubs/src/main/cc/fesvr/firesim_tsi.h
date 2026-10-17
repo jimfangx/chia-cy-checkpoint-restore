@@ -145,6 +145,7 @@ public:
 
 protected:
   int run_host() override;
+  void validate_host_entry() const override;
   void idle() override;
 
   void reset() override;
@@ -164,6 +165,9 @@ private:
   friend class firesim_tsi_polling_lifecycle_t;
   friend class firesim_tsi_polling_syscall_t;
   friend class firesim_tsi_host_group_t;
+  friend class firesim_tsi_context_group_t;
+  bool restored_host_context = false;
+  bool context_resume_active = false;
   static void validate_host_boundary(const firesim_tsi_host_execution_t &outer,
       const firesim_tsi_htif_poll_t &poll, firesim_htif_lifecycle_state_t provider);
   void advance_prepared_host_components();

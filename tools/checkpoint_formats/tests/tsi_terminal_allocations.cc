@@ -4,8 +4,11 @@
 #include <new>
 
 static thread_local long remaining = -1;
+static thread_local std::size_t rejected_size = 0;
 void tsi_terminal_fail_allocation_after(long count) { remaining = count; }
+void tsi_terminal_fail_allocation_size(std::size_t size) { rejected_size = size; }
 void *operator new(std::size_t size) {
+  if (size == rejected_size && rejected_size) { rejected_size = 0; throw std::bad_alloc(); }
   if (remaining == 0) throw std::bad_alloc();
   if (remaining > 0) --remaining;
   if (auto p = std::malloc(size ? size : 1)) return p;

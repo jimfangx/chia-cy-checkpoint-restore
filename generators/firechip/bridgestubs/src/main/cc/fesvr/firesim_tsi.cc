@@ -232,13 +232,30 @@ private:
   firesim_tsi_t &tsi;
 };
 
+void firesim_tsi_t::validate_host_entry() const {
+  if (initialization_component_restored || metadata_poisoned || (metadata_prepared &&
+      (!restored_host_context || !context_resume_active || prepared_polling_service_poisoned)))
+    throw std::runtime_error("TSI host entry lacks restored wrapper/context ownership");
+}
+
 int firesim_tsi_t::run_host() {
-  if (metadata_prepared || metadata_poisoned)
+  if (metadata_poisoned || (metadata_prepared && (!restored_host_context || !context_resume_active)))
     throw std::runtime_error("HTIF/context continuation after metadata component preparation is unsupported");
   if (!owned_default_devices) return htif_t::run();
   host_execution_services_t services(*this);
   for (;;) {
-    const auto result = host_execution.advance(services);
+    // Every caller/child guard must unwind before the coroutine yields. A
+    // restored wrapper enters here at polling, with no startup service replay.
+    if (restored_host_context) prepared_polling_service_active = true;
+    firesim_tsi_host_execution_t::result_t result;
+    try {
+      result = host_execution.advance(services);
+      prepared_polling_service_active = false;
+    } catch (...) {
+      prepared_polling_service_active = false;
+      if (restored_host_context) prepared_polling_service_poisoned = true;
+      throw;
+    }
     if (result == firesim_tsi_host_execution_t::result_t::complete) return host_execution.exit_code();
     if (result == firesim_tsi_host_execution_t::result_t::blocked) switch_to_target();
   }

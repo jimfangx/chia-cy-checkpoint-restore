@@ -17,17 +17,23 @@ public:
     prepared_t(prepared_t &&) = delete;
     prepared_t &operator=(prepared_t &&) = delete;
     void commit() {
+      commit_with([]() noexcept {});
+    }
+  private:
+    friend class firesim_tsi_context_group_t;
+    template <class Publish> void commit_with(Publish &&extra) {
+      static_assert(noexcept(extra()), "TSI peer publication must not throw");
       if (consumed) throw std::runtime_error("TSI host candidate already committed");
       require_mode(tsi); polling.recheck(); require_pristine_outer(tsi);
       auto publish = [&]() noexcept {
         polling.publish();
         tsi.syscall_exit->current = std::move(caller.current);
         tsi.host_execution.swap_state(outer);
+        extra();
       };
       lifecycle.commit(publish);
       consumed = true;
     }
-  private:
     friend class firesim_tsi_host_group_t;
     prepared_t(firesim_tsi_t &tsi, const images_t &images)
         : tsi(tsi), caller(tsi, tsi.serial),
@@ -55,7 +61,8 @@ public:
       throw std::runtime_error("TSI host aggregate requires suspended protocol owners");
     const auto phase = tsi.host_execution.phase();
     if (tsi.polling_components_prepared) {
-      if (!tsi.metadata_prepared || tsi.metadata_poisoned || tsi.host_context_initialized() || tsi.polling_active)
+      if (!tsi.metadata_prepared || tsi.metadata_poisoned || tsi.polling_active ||
+          (tsi.host_context_initialized() && (!tsi.restored_host_context || !tsi.host_context_suspended())))
         throw std::runtime_error("TSI host aggregate requires fresh metadata-only destination");
     } else if (!tsi.host_context_suspended() ||
                tsi.polling_active != (phase == firesim_tsi_host_execution_t::phase_t::polling ||
@@ -83,7 +90,7 @@ public:
   // boundaries separately. These are host operations, not target cycles.
   void advance() const {
     inspect();
-    if (!tsi.polling_components_prepared ||
+    if (!tsi.polling_components_prepared || tsi.restored_host_context ||
         tsi.host_execution.phase() == firesim_tsi_host_execution_t::phase_t::returned)
       throw std::runtime_error("TSI host continuation requires unfinished fresh aggregate");
     tsi.advance_prepared_host_components();
