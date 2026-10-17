@@ -27,6 +27,7 @@ def main():
     parser.add_argument('--build',type=Path,required=True)
     parser.add_argument('--out',type=Path,required=True)
     parser.add_argument('--aggregate', action='store_true', help='bound fixture-profile .fsckpt and all-owner prevalidation')
+    parser.add_argument('--creator-reservation', action='store_true', help='prepare on the reserved eventual driver under the pre-edge hold')
     args=parser.parse_args();out=args.out.resolve();out.mkdir(parents=True,exist_ok=True)
     require(os.environ['VCS_HOME']=='/ecad/tools/synopsys/vcs/Y-2026.03-SP1','source vcs-env.sh LAST')
     generated=args.build.resolve()/'f2/f2-midasexamples-InventoryFixture-NoConfig-DefaultF2Config'
@@ -166,7 +167,12 @@ def main():
             restored_doc=prepare_aggregate_restore(data,aggregate_build,aggregate_manifest,manifest,layout,bundle)
             require(restored_doc['target_cycle']==edge,'target time replaced by driver operation')
             command=[*common,'+restore',f'+cut={cut}',f'+aggregate={bundle}']
+        if args.creator_reservation:
+            command.append('+creator-reservation')
         log=run([*command,f'+outdir={dst}'],dst/'run.log',dst)
+        if args.creator_reservation:
+            require('HARNESS_RESERVED_CREATOR_PREPARED guards=13 exceptions=1 mmio=0 native_ticks=0' in log and
+                    'HARNESS_RESERVED_CREATOR_CONTINUED same_thread=1' in log, 'creator reservation/continuation missing')
         require('HARNESS_DISPATCHER_ARM_GUARDS count=5' in log,'arming lifecycle guards missing')
         if args.aggregate:
             require('AGGREGATE_ALL_OWNERS_PREVALIDATED_BEFORE_LOAD' in log,'aggregate prevalidation did not run')
@@ -246,6 +252,9 @@ def main():
     if args.aggregate:
         summary.update(scope='Bound fixture-profile .fsckpt into fresh actual harness/DPI/native dispatcher; MMIO remains fixture',
             aggregate_containers=len(cases),all_owner_prevalidation_rejections=14*len(cases),production_fcfs_restore_verified=False)
+    if args.creator_reservation:
+        summary.update(reserved_creator_continuations=len(cases), creator_preparation_guards=13*len(cases),
+                       creator_preparation_exceptions=len(cases))
     (out/'summary.json').write_text(json.dumps(summary,indent=2)+'\n');print(json.dumps(summary,indent=2))
 
 

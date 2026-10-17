@@ -37,6 +37,8 @@ void save_file(const std::filesystem::path &p,const std::vector<uint8_t> &b) {
   f.write(reinterpret_cast<const char *>(b.data()),b.size()); check(bool(f));
 }
 unsigned rejections=0;
+bool reserved_creator=false;
+std::thread::id creator_id;
 void rejects(const std::function<void()> &fn) {
   try { fn(); } catch(const std::runtime_error &) { ++rejections; return; }
   throw std::runtime_error("expected bootstrap lifecycle rejection");
@@ -76,6 +78,7 @@ struct driver_t : simulation_t {
   bool simulation_supports_steps() const override { return true; }
   int simulation_run() override { throw std::runtime_error("blocking driver"); }
   bool simulation_run_step() override {
+    if (reserved_creator) check(std::this_thread::get_id()==creator_id);
     if (index==12) {
       // Retain a partial write and two held responses in a real native owner.
       auto &m=*p.slave.at(0); auto *bytes=static_cast<uint8_t *>(m.get_data());
@@ -86,10 +89,56 @@ struct driver_t : simulation_t {
     trace << "OP " << index << '\n';
     p.do_tick(); return ++index==32;
   }
-  int simulation_run_finalize() override { p.yield=false; return 0; }
+  int simulation_run_finalize() override {
+    if (reserved_creator) {
+      check(std::this_thread::get_id()==creator_id);
+      puts("HARNESS_RESERVED_CREATOR_CONTINUED same_thread=1");
+    }
+    p.yield=false; return 0;
+  }
 };
 std::unique_ptr<widget_registry_t> registry;
 std::unique_ptr<driver_t> driver;
+void reserve_creator(platform_t &p) {
+  if (!reserved_creator) return;
+  p.reserve_restored_creator(*driver);
+  const auto mmio=p.master->save_checkpoint(), memory=p.slave.at(0)->save_checkpoint();
+  const auto timing=p.checkpoint_host_timing_owner().second->save_checkpoint();
+  const auto before=rejections;
+  bool failed=false;
+  try { p.prepare_on_restored_creator(*driver,[&] {
+    creator_id=std::this_thread::get_id();
+    // Use production MMIO entries, bypassing the fixture service overrides.
+    rejects([&] { p.simif_emul_t::write(0,1); });
+    rejects([&] { p.simif_emul_t::read(0); });
+    rejects([&] { p.do_tick(); });
+    rejects([&] { p.to_sim(); });
+    rejects([&] { p.arm_restored_driver(*driver); });
+    rejects([&] { p.prepare_on_restored_creator(*driver,[] {}); });
+    throw std::runtime_error("retryable creator preparation");
+  }); } catch(const std::runtime_error &e) {
+    failed=std::string(e.what())=="retryable creator preparation";
+  }
+  check(failed && creator_id!=std::this_thread::get_id());
+  std::thread foreign([&] {
+    rejects([&] { p.arm_restored_driver(*driver); });
+    rejects([&] { p.start_driver(*driver); });
+    rejects([&] { p.begin_restored_load(*driver); });
+    uint32_t banks[3]={0,0,0};
+    rejects([&] { p.resume_restored_driver(67,banks); });
+    rejects([&] { p.prepare_on_restored_creator(*driver,[] {}); });
+  });
+  foreign.join();
+  rejects([&] { p.reserve_restored_creator(*driver); });
+  rejects([&] { p.prepare_on_restored_creator(*driver,{}); });
+  p.prepare_on_restored_creator(*driver,[&] {
+    check(std::this_thread::get_id()==creator_id);
+    check(p.master->save_checkpoint()==mmio && p.slave.at(0)->save_checkpoint()==memory &&
+          p.checkpoint_host_timing_owner().second->save_checkpoint()==timing && !p.calls);
+  });
+  check(rejections==before+13); rejections=before;
+  puts("HARNESS_RESERVED_CREATOR_PREPARED guards=13 exceptions=1 mmio=0 native_ticks=0");
+}
 std::vector<std::pair<std::string,checkpoint_owner_t *>> owners() {
   auto list=emulator->checkpoint_axi_owners();
   list.push_back(emulator->checkpoint_host_timing_owner());
@@ -106,6 +155,7 @@ int entry(int argc,char **argv) {
       if(a.rfind("+outdir=",0)==0) output=a.substr(8);
       if(a.rfind("+cut=",0)==0) cut=std::stoul(a.substr(5));
       if(a=="+restore") restore=true;
+      if(a=="+creator-reservation") reserved_creator=true;
       if(a.rfind("+aggregate=",0)==0) bundle=a.substr(11);
       if(a.rfind("+negative=",0)==0) negative=a.substr(10);
     }
@@ -125,6 +175,7 @@ int entry(int argc,char **argv) {
     if (restore && !bundle.empty()) {
       aggregate_file=bundle; aggregate_negative=negative;
       p->begin_restored_load(*driver);
+      reserve_creator(*p);
       uint32_t banks[3]={0,0,0};
       rejects([&]{ p->begin_restored_load(*driver); });
       rejects([&]{ p->start_driver(*driver); });
@@ -135,6 +186,10 @@ int entry(int argc,char **argv) {
     }
 #endif
     if(restore) {
+      if (reserved_creator) {
+        p->begin_restored_load(*driver);
+        reserve_creator(*p);
+      }
       uint32_t banks[3]={0,0,0};
       rejects([&]{ p->resume_restored_driver(67,banks); });
       rejects([&]{ p->arm_restored_driver(*driver); });

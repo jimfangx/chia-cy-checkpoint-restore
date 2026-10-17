@@ -27,6 +27,8 @@ def audit(path, report=None):
                  'tsi_bridge_context.cc','tsi_bridge_context_tb.sv','verify_tsi_bridge_context_vcs.py','audit_tsi_bridge_context.py'):
         require(any(p.endswith('/'+name) for p in bindings), 'missing bridge source '+name)
     for b in bindings.values(): require(file_sha(b['snapshot']) == b['sha256'], 'bridge source snapshot drift')
+    if r.get('creator_worker_reserved'):
+        require(any(p.endswith('/emul/driver_thread.h') for p in bindings), 'missing creator worker source')
     require({b['snapshot'] for b in bindings.values()} == {str(p) for p in (out/'sources').iterdir()}, 'bridge snapshots membership')
     binding = json.loads((out/'build-binding.json').read_text())
     require(binding['sources'] == {b['path']:b['sha256'] for b in r['source_inputs']} and
@@ -54,6 +56,9 @@ def audit(path, report=None):
         require(c['argv'][:2] == ['bash','-lc'] and 'source /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/vcs-env.sh && ' in c['argv'][2], 'bridge native environment')
         require(not any(s in text for s in ('ERROR: AddressSanitizer','runtime error:','LeakSanitizer: detected')), 'bridge sanitizer')
         if c.get('backend') == 'vcs-dpi': require('BRIDGE_CONTEXT_VCS_ZERO_EDGES time=0 edges=0' in text, 'bridge VCS edge check')
+        if r.get('creator_worker_reserved') and 'scenario' in c:
+            require('BRIDGE_RESERVED_CREATOR same_thread=1 preparation_complete=1 target_edges=0' in text,
+                    'missing reserved creator continuation')
         if 'scenario' in c:
             args = shlex.split(c['argv'][2]); native = c['backend'] == 'native'
             require(str(out/('native' if native else 'simv')) in args and all(

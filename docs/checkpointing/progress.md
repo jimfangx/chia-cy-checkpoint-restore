@@ -14,6 +14,60 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 158, in progress.
+The simulator can now reserve its eventual driver creator under the existing
+pre-edge loading hold, run synchronous retryable preparation callbacks, and
+continue on that same thread. MMIO/ticks reject throughout loading and after a
+poisoned bootstrap; unused reservations cancel/join. CPU stream/empty-schema
+admission stays unchanged. Recovery:
+[driver-creator-reservation.md](driver-creator-reservation.md).
+
+Diagnostics: `runs/m11-iteration158/`. Native ASan/UBSan and VCS pass 512 tasks,
+512 exceptions, 17 launches, 16 cancellations and 1,296 rejections per backend.
+Both legacy and both reserved actual-harness modes pass: 20 fresh continuations,
+140 malformed native processes, 80 lifecycle cases and 140 aggregate prevalidation
+cases (overlapping the malformed counts). Ten reserved continuations prove
+creator identity; 130 preparation guards and ten retryable failures pass before
+any edge. The independent audit rejects four incomplete receipt variants.
+All dispatcher/capture/reservation regressions pass, including 108 poison
+rejections over twelve destinations with all sixty native readbacks unchanged.
+
+The production bridge matrix uses the same mailbox on its creator and passes
+64 fresh restores / 52,088 complete-owner comparisons / 3,000 serial boundaries /
+4,652 words. All 336 invalid processes, 1,326 control truncations, 7,555 allocation
+failures, ten foreign calls, four late guards and eight first divergences pass.
+Its independent audit rejects twelve missing/duplicate receipt variants and
+all 125 source omissions. These remain component host-operation boundaries,
+not complete Rocket target-cycle restores.
+
+All eight native scopes (280 Python tests), their independent archive audit and
+thirty retained auditors pass. All six full 16-GiB four-hart controls and audits
+pass: both direct controls at C=3,329,794; all four syscall controls at C=3,330,050.
+Complete hart traces and decoded labels match within each protocol. Fresh
+ordinary RTL VCS plus the full-source audit pass all four independent Level-2
+cuts: 318,637 words before any edge per cut, 256 events, sixteen first divergences
+and 44 invalid cases. Level 2 retains the direct ELF.
+
+Exact receipts, source archives, native argv and all created artifact paths and
+hashes are in `summary.json`, `selected-results.json`, `verification-commands.json`,
+`raw-native-commands.json`, `native-input-archives.json` and `artifact-manifest.json`
+under this iteration. Early source-epoch rejections and the first bridge auditor's
+incorrect runtime-marker requirement on build logs remain diagnostic; selected
+receipts use completed source epochs. All selected maintained C++ matches current
+sources. Both plans, environment helpers, heads and indices retain starting bytes.
+Existing controller heads reached GitHub, FireSim first and Chipyard second;
+only local tracking-ref writes warned. No staging or local commits occurred.
+
+Complete Rocket Level 1 remains disabled. Next: keep a live TSI provider on the
+reserved worker through launch, join creator preparation to the complete
+simulator/FAME/channel/CPU-managed-stream/other-bridge/functional-memory/runtime
+cut and establish production process-wide thread/signal/descriptor/parser
+exclusion with jointly guarded publication. BOOM/Saturn remain pending;
+standalone Shuttle, physical FPGA validation and ASIC power remain outside scope.
+No external dependency is missing.
+
+Previous iteration 157 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 157, in progress.
 The actual TSI bridge now prepares a private fresh creator-side provider and
 matching bridge control, then publishes both without MMIO, native context entry

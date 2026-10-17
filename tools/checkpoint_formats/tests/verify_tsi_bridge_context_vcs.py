@@ -52,7 +52,7 @@ def main():
               TESTS/'verify_firesim_tsi_loadmem_vcs.py', sv, *sources, parent, identity_path,
               archive, archive.with_suffix('.json'),
               ROOT/'env.sh', ROOT/'sims/firesim/env.sh', ROOT/'automations/checkpoint_loop/vcs-env.sh',
-              *sorted((CC/'core').glob('*.h')), CC/'bridges/loadmem.h', STUBS/'bridges/serial_data.h',
+              *sorted((CC/'core').glob('*.h')), CC/'emul/driver_thread.h', CC/'bridges/loadmem.h', STUBS/'bridges/serial_data.h',
               *sorted((STUBS/'fesvr').glob('*.h')), STUBS/'bridges/tsibridge.h', STUBS/'bridges/tsi_bridge_state.h',
               *sorted(TESTS.glob('tsi*.cc')), *sorted(TESTS.glob('tsi*.h'))]
     a.out.resolve().mkdir(parents=True, exist_ok=True)
@@ -141,6 +141,7 @@ def main():
                   context_summary=str(parent), context_sha256=file_sha(parent), recipe_build_identity=str(identity_path),
                   source_inputs=bindings, cuts=cuts, restores=restores, invalids=invalids, specials=specials,
                   faults=faults, commands=commands, build_sha256=build.hex(), level1_verified=False, level2_verified=False,
+                  creator_worker_reserved=True,
                   artifact_sha256={str(f):file_sha(f) for f in out.rglob('*') if f.is_file()})
     path = out/'summary.json'; path.write_text(json.dumps(report, indent=2)+'\n')
     from tools.checkpoint_formats.tests.audit_tsi_bridge_context import audit

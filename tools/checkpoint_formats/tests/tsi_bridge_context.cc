@@ -4,6 +4,7 @@
 #include "bridges/tsibridge.h"
 #include "bridges/loadmem.h"
 #include "core/config.h"
+#include "emul/driver_thread.h"
 #include <deque>
 #include <getopt.h>
 
@@ -66,7 +67,10 @@ static int bridge_context_run(const char *mode,const char *elf,const char *input
     require(build_bytes.size()==32,"need build SHA-256"); tsibridge_t::context_build_t build;
     std::copy(build_bytes.begin(),build_bytes.end(),build.begin());
     std::exception_ptr failure;
-    std::thread creator([&] {
+    emul_driver_thread_t creator;
+    creator.reserve();
+    const auto creator_id=creator.get_id();
+    creator.invoke([&] {
       try {
         const fs::path out(destination); fs::create_directories(out);
         context_mmio_t mmio;
@@ -226,7 +230,13 @@ static int bridge_context_run(const char *mode,const char *elf,const char *input
                  <<" words="<<mmio.words<<" exit="<<bridge.exit_code()<<" startup_replays=0 target_edges=0\n";
       } catch(...) { tsi_terminal_fail_allocation_after(-1); failure=std::current_exception(); }
     });
-    creator.join(); if(failure) std::rethrow_exception(failure); return 0;
+    creator.launch([&] {
+      require(std::this_thread::get_id()==creator_id,"creator reservation changed thread");
+    });
+    creator.join();
+    if(failure) std::rethrow_exception(failure);
+    std::cout<<"BRIDGE_RESERVED_CREATOR same_thread=1 preparation_complete=1 target_edges=0\n";
+    return 0;
   } catch(const std::exception &e) { std::cerr<<"FAIL "<<e.what()<<'\n'; return 2; }
 }
 #ifdef TSI_BRIDGE_CONTEXT_DPI

@@ -10,8 +10,9 @@ int main(int argc, char **argv) {
     const std::filesystem::path input=argv[1];
     auto base=read(input/"base"), concrete=read(input/"driver");
     auto timing=read(input/"timing"), mmio=read(input/"mmio"), memory=read(input/"memory");
-    for(unsigned mode=0;mode<6;++mode) {
+    for(bool reserved : {false,true}) for(unsigned mode=0;mode<6;++mode) {
       fixture_t f(0);auto &p=f.platform;auto &d=f.driver;
+      if(reserved) { p.begin_restored_load(d); p.reserve_restored_creator(d); }
       auto *t=p.checkpoint_host_timing_owner().second;
       d.base().validate_checkpoint(base);d.validate_checkpoint(concrete);
       t->validate_checkpoint(timing);p.master->validate_checkpoint(mmio);
@@ -29,12 +30,15 @@ int main(int argc, char **argv) {
       rejects([&]{ p.start_restored_driver(d,67,banks); });
       rejects([&]{ p.resume_restored_driver(67,banks); });
       rejects([&]{ p.to_sim(); });
+      rejects([&]{ p.simif_emul_t::read(0); });
+      rejects([&]{ p.simif_emul_t::write(0,1); });
+      rejects([&]{ p.do_tick(); });
       check(d.base().save_checkpoint()==base && d.save_checkpoint()==concrete);
       check(t->save_checkpoint()==timing && p.master->save_checkpoint()==mmio);
       check(p.slave.at(0)->save_checkpoint()==memory && !p.calls && !p.ticks);
     }
-    check(rejected==36);
-    puts("PASS: armed dispatcher poison rejections=36 unchanged_owners=30 zero_workers=6 zero_edges=6");
+    check(rejected==108);
+    puts("PASS: armed dispatcher poison rejections=108 unchanged_owners=60 zero_launched_workers=12 reserved_workers=6 zero_edges=12");
     return 0;
   } catch(const std::exception &e) {
     fprintf(stderr,"armed dispatcher poison failure: %s\n",e.what());return 1;
