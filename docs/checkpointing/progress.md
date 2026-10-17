@@ -14,6 +14,52 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 165, in progress.
+Production `simif_emul_t::read/write` now have a distinct returned-call owner,
+`runtime/mmio-io`, in the driver diagnostic inventory. All three checkpoint
+hooks and nested calls reject during suspended reads/writes; interrupted calls
+stay poisoned. `runtime/mmio` continues to own the AXI queues separately.
+TracerV count reads nest the CPU stream and MMIO call owners. CPU aggregate
+admission remains disabled. Recovery: [mmio-runtime-io.md](mmio-runtime-io.md).
+
+Final-source native ASan/UBSan and VCS DPI pass 48 fresh component restores,
+192 complete pre-edge and 192 final owner comparisons, 2,556 suspended
+boundaries / 14,094 guard rejections and 824 invalid/configuration/poisoned
+rejections. The independent MT19937-64/AXI oracle passes every handshake,
+returned-call label and complete host timing payload at both delay settings.
+An additional audit passes both MMIO owners in all 32 dispatcher diagnostics.
+These are component and diagnostic results, not Rocket CPU continuation.
+
+All eight preserved native scopes (280 Python tests), the stream-widget and
+CPU-managed I/O suites, creator/harness matrix, dispatcher guards and thirty
+retained auditors pass. The production TSI component matrix and independent
+audit pass; the additional audit rejects all 336 invalid images before
+publication and checks 128 staged cancellations remain unpublished. Four fresh
+ordinary RTL VCS windows and the independent full-source audit pass 318,637
+pre-edge words per cut, 256 captured events, sixteen first semantic divergences
+and 44 invalid cases. Both exact-recipe 16-GiB direct-exit four-hart controls
+pass at C=3,329,794, with complete hart traces and workload labels matching.
+All four syscall controls and their independent audits pass at C=3,330,050;
+complete hart traces and decoded workload labels match within each protocol.
+The independent native suite audit also passes. Final selected receipts,
+workload hashes, source archives and executable native commands are in
+summary.json, selected-results.json, workloads.json, native-input-archives.json,
+raw-native-commands.json, verification-commands.json and artifact-manifest.json
+under `runs/m11-iteration165/`. All implementation sources stayed fixed through
+validation; no check was cancelled or superseded.
+Complete simulator coordination and production thread/signal/descriptor/parser
+exclusion remain pending. Join the new returned MMIO owner and returned stream
+I/O owner into the complete CPU transaction with sealed creator-side TSI
+publication; neither component API supplies that policy. Level 2 stays
+independent. BOOM/Saturn remain pending; standalone Shuttle, physical FPGA
+validation and ASIC power remain outside scope. No external dependency is
+missing. Existing controller commits reached GitHub, FireSim first then
+Chipyard; remote heads match despite local tracking-reference write warnings.
+Both plans, environment helpers, heads and indices retain their starting bytes.
+No staging or local commits occurred.
+
+Previous iteration 164 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 164, in progress.
 The production metasim CPU-managed stream wrapper now has an explicit
 returned-call owner, separate from AXI queues and stream hardware. Capture,
