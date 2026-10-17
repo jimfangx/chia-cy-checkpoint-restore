@@ -29,6 +29,7 @@ SPECS = tuple((residue, code, flush) for flush in (0, 0x20004000) for residue, c
 GUARDS = ('pending', 'mask', 'exit', 'stop', 'peer')
 ADMISSION = ('entry-duplicate', 'entry-unsealed', 'entry-signature',
              'unsupported-odd', 'unsupported-device', 'unsupported-selector', 'terminal-corrupt')
+DESCRIPTORS = ('descriptors-restricted', 'descriptors-ordinary')
 
 
 def queues(image):
@@ -51,7 +52,7 @@ def packets(data, flush):
     return result
 
 
-def scenario(residue, code, flush):
+def scenario(residue, code, flush, idle_rounds=0):
     """Compose two independent byte oracles, batching only internal advances.
 
     Lower PACKET drains are not simulator events: the live dispatcher keeps
@@ -81,6 +82,20 @@ def scenario(residue, code, flush):
             step('PACKET '+' '.join(map(str, part)))
 
     snapshot(); drain()
+    for _ in range(idle_rounds):
+        # Original host-control idle_count=3: three target yields, including
+        # the remaining=0 cut, before resuming mailbox polling. No device work.
+        response.append(0); step('SEND 0')
+        partial = [response.pop()]; step('TICK')
+        response.append(0); step('SEND 0'); response.clear()
+        phase, address, partial = 4, 0, []
+        for remaining in (2, 1, 0):
+            base['host'] = config(18, 3)+words(1, remaining, 6)
+            step('TICK')
+        base['host'] = config(18, 3)+words(0, 0, 7)
+        phase, address = 1, polling.TOHOST
+        request += packets([0, polling.TOHOST, 0, 1, 0], flush)
+        step('TICK'); drain()
     response.append(low['address'] & 0xffffffff); step('SEND '+str(response[-1]))
     partial = [response.pop()]; step('TICK')
     response.append(low['address'] >> 32); step('SEND '+str(response[-1])); response.clear()
@@ -129,8 +144,8 @@ def scenario(residue, code, flush):
     return dict(plan=plan, states=states, final=final, raw=((code << 1)|1)&0xffffffff)
 
 
-def fault_case(i):
-    s = scenario(*SPECS[i]); cut = next(c for c, state in enumerate(s['states']) if state['syscall'][88] == 3)
+def fault_case(i, idle_rounds=0):
+    s = scenario(*SPECS[i], idle_rounds); cut = next(c for c, state in enumerate(s['states']) if state['syscall'][88] == 3)
     bad = bytearray(s['states'][cut]['syscall']); bad[120] ^= 1
     read_size = int.from_bytes(bad[168:176], 'little'); write_start = 176+read_size+8
     bad[write_start+96+16] ^= 1
@@ -155,6 +170,9 @@ def fault_case(i):
 
 def audit(path):
     path = Path(path).resolve(); out = path.parent; r = json.loads(path.read_text())
+    idle_rounds = r.get('idle_rounds', 0)
+    require(idle_rounds in (0, 2), 'unsupported polling idle schedule')
+    case = lambda spec: scenario(*spec, idle_rounds)
     require(r['status'] == 'passed' and not r['level1_verified'] and not r['level2_verified'], 'wrong polling scope')
     require(set(r['artifact_sha256']) == {str(p) for p in out.rglob('*') if p.is_file() and p != path}, 'changed polling artifact membership')
     for p, digest in r['artifact_sha256'].items(): require(file_sha(p) == digest, 'changed polling artifact '+p)
@@ -190,12 +208,12 @@ def audit(path):
         for name, digest in identity['sources_sha256'].items():
             if name in bindings: require(bindings[name]['sha256'] == digest, 'recipe/component source differs')
     expected = {(i, p, b, c) for i, spec in enumerate(SPECS) for p in BACKENDS for b in BACKENDS
-                for c in range(len(scenario(*spec)['states']))}
+                for c in range(len(case(spec)['states']))}
     actual = {(c['scenario'], c['producer'], c['backend'], c['cut']) for c in r['restores']}
     require(len(r['restores']) == len(expected) and actual == expected, 'incomplete fresh polling matrix')
     readbacks = operations = 0
     for i, spec in enumerate(SPECS):
-        s = scenario(*spec); folder = out/f'scenario-{i}'
+        s = case(spec); folder = out/f'scenario-{i}'
         require((folder/'plan').read_text().splitlines() == s['plan'], 'changed production polling schedule')
         for b in BACKENDS:
             capture = folder/(b+'-capture')
@@ -203,7 +221,7 @@ def audit(path):
                 for name in NAMES: require((capture/f'cut-{c}.{name}').read_bytes() == state[name], 'production polling owner mismatch '+name)
             require((capture/'completion.txt').read_text() == f'raw_exit={s["raw"]} stopped=1 response=1 context_entries=source\n', 'source did not finish actual polling/stop')
     for c in r['restores']:
-        s = scenario(*SPECS[c['scenario']]); dest = Path(c['destination'])
+        s = case(SPECS[c['scenario']]); dest = Path(c['destination'])
         for name in NAMES:
             require((dest/('preedge.'+name)).read_bytes() == s['states'][c['cut']][name], 'incomplete zero-service polling readback')
             require((dest/('final.'+name)).read_bytes() == s['final'][name], 'incomplete final polling readback')
@@ -243,14 +261,38 @@ def audit(path):
         used.add(log); return command
     for i in range(len(SPECS)):
         for b in BACKENDS: process(i, b, 'capture', b+'-capture')
+    if idle_rounds:
+        for b in BACKENDS:
+            for mode in DESCRIPTORS:
+                process(0, b, mode, b+'-'+mode)
+                dest = out/'scenario-0'/(b+'-'+mode)
+                def fdmap(name):
+                    rows = [shlex.split(line) for line in (dest/(name+'.fds')).read_text().splitlines()]
+                    require(all(len(row) == 8 for row in rows), 'incomplete descriptor identity')
+                    result = {int(row[0]): tuple(row[1:]) for row in rows}
+                    require(len(result) == len(rows) and {0, 1, 2} <= result.keys(), 'duplicate/missing descriptors')
+                    return result
+                before, constructed, polling_fds = map(fdmap, ('before', 'constructed', 'polling'))
+                def additions(old, new, count):
+                    require(all(new.get(fd) == value for fd, value in old.items()) and
+                            len(new) == len(old)+count, 'existing descriptors changed or wrong session count')
+                    require(sorted(v for fd, v in new.items() if fd not in old) ==
+                            sorted([old[0], old[1], old[1]]*(count//3)), 'wrong installed duplicate identities')
+                additions(before, constructed, 3)
+                count = 3 if mode == 'descriptors-ordinary' else 0
+                additions(constructed, polling_fds, count)
+                require(all(fdmap('idle-'+str(i)) == polling_fds for i in range(4)) and
+                        fdmap('destroyed') == before, 'idle/suspended teardown changed descriptors')
+                marker = f'DESCRIPTOR_LIFETIME inherited=3 polling_added={count} idle_cuts=4 teardown_equal=1 ordinary={int(bool(count))} target_edges=0'
+                require(marker in dest.with_suffix('.log').read_text(), 'missing actual descriptor lifetime checks')
     for c in r['restores']:
         command = process(c['scenario'], c['backend'], 'restore', Path(c['destination']).name,
                           producer=c['producer'], cut=c['cut'])
         require(all(c[k] == v for k, v in command.items()), 'changed restore command binding')
     chosen = next(i for i, spec in enumerate(SPECS) if spec[0] == 2 and not spec[2])
-    candidate_cut = next(c for c, s in enumerate(scenario(*SPECS[chosen])['states']) if s['syscall'][88] == 3)
+    candidate_cut = next(c for c, s in enumerate(case(SPECS[chosen])['states']) if s['syscall'][88] == 3)
     candidate = out/f'scenario-{chosen}/native-capture'/f'cut-{candidate_cut}'
-    expected_malformed = sum(len(image)+2 for image in scenario(*SPECS[chosen])['states'][candidate_cut].values())
+    expected_malformed = sum(len(image)+2 for image in case(SPECS[chosen])['states'][candidate_cut].values())
     atomic = []
     for b in BACKENDS:
         process(chosen, b, 'atomic', b+'-atomic', candidate)
@@ -272,7 +314,7 @@ def audit(path):
         for b in BACKENDS: process(chosen, b, 'invalid', f'{b}-invalid-{n}', out/f'bad-{n}')
     require([(c['scenario'], c['backend']) for c in r['faults']] == [(i, b) for i in (1, 3, 5, 7) for b in BACKENDS], 'incomplete semantic fault matrix')
     for c in r['faults']:
-        cut, image, divergence = fault_case(c['scenario'])
+        cut, image, divergence = fault_case(c['scenario'], idle_rounds)
         require(c['cut'] == cut and c['divergence'] == divergence, 'changed semantic fault expectation')
         require((out/f'scenario-{c["scenario"]}/native-capture'/f'cut-{cut}.fault').read_bytes() == image, 'changed actual semantic fault')
         command = process(c['scenario'], c['backend'], 'corrupt', c['backend']+'-corrupt', cut=cut)
@@ -283,10 +325,11 @@ def audit(path):
     build = shlex.split(commands[str(out/'vcs-build.log')]['argv'][2][len(ENVIRONMENT):])
     require(build[0] == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs' and '-full64' in build and
             build[build.index('-cc')+1] == '/usr/bin/gcc-13' and build[build.index('-cpp')+1] == '/usr/bin/g++-13', 'wrong VCS/compiler')
-    return dict(status='passed', scenarios=len(SPECS), cuts=sum(len(scenario(*s)['states']) for s in SPECS),
+    return dict(status='passed', scenarios=len(SPECS), cuts=sum(len(case(s)['states']) for s in SPECS),
                 fresh_restores=len(expected), owner_readbacks=readbacks, host_operations=operations,
                 invalid_processes=len(r['invalids']), semantic_first_divergences=len(r['faults']),
                 late_guards=2*len(GUARDS), admission_rejections=2*len(ADMISSION)+1,
+                idle_rounds=idle_rounds, descriptor_processes=2*len(DESCRIPTORS) if idle_rounds else 0,
                 atomic_per_backend=atomic[0].strip(), level1_verified=False, level2_verified=False)
 
 
@@ -297,6 +340,8 @@ def main():
     require(a.out and a.out.resolve().is_relative_to(ROOT/'automations/checkpoint_loop/runs'), 'need runs output')
     require(os.environ.get('VCS_HOME') == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1' and os.environ.get('CXX') == '/usr/bin/g++-13', 'source vcs-env LAST')
     a.out.resolve().mkdir(parents=True, exist_ok=True); out = Path(tempfile.mkdtemp(prefix='invocation-', dir=a.out.resolve()))
+    idle_rounds = 2
+    case = lambda spec: scenario(*spec, idle_rounds)
     source = TESTS/'tsi_polling_syscall_fesvr.cc'; sv = TESTS/'tsi_polling_prepare_fesvr_tb.sv'
     sources = [source, STUBS/'fesvr/firesim_tsi.cc', STUBS/'fesvr/owned_fesvr_tsi.cc',
                TESTCHIP/'testchip_tsi.cc', TESTCHIP/'testchip_htif.cc', TESTS/'tsi_terminal_allocations.cc']
@@ -350,17 +395,18 @@ def main():
         return dict(execute(argv, dest.with_suffix('.log')), scenario=i, backend=backend, mode=mode,
                     destination=str(dest), producer=producer, cut=cut)
     for i, spec in enumerate(SPECS):
-        folder = out/f'scenario-{i}'; folder.mkdir(); s = scenario(*spec)
+        folder = out/f'scenario-{i}'; folder.mkdir(); s = case(spec)
         (folder/'plan').write_text('\n'.join(s['plan'])+'\n')
         (folder/('flush.input' if spec[2] else 'input')).write_bytes(b'')
         for b in BACKENDS: invoke(i, b, 'capture', b+'-capture')
     for b in BACKENDS:
         for mode in ADMISSION: invoke(0, b, mode, b+'-'+mode)
+        for mode in DESCRIPTORS: invoke(0, b, mode, b+'-'+mode)
     execute([out/'absent-provider', out/'polling.elf', out/'scenario-0/input'], out/'absent-provider.log')
     jobs = [(i, b, 'restore', f'{p}-{b}-cut-{c}', p, c) for i, spec in enumerate(SPECS)
-            for p in BACKENDS for b in BACKENDS for c in range(len(scenario(*spec)['states']))]
+            for p in BACKENDS for b in BACKENDS for c in range(len(case(spec)['states']))]
     with ThreadPoolExecutor(max_workers=8) as pool: restores = list(pool.map(lambda j: invoke(*j), jobs))
-    chosen = 1; s = scenario(*SPECS[chosen]); candidate_cut = next(c for c, state in enumerate(s['states']) if state['syscall'][88] == 3)
+    chosen = 1; s = case(SPECS[chosen]); candidate_cut = next(c for c, state in enumerate(s['states']) if state['syscall'][88] == 3)
     candidate = out/f'scenario-{chosen}/native-capture'/f'cut-{candidate_cut}'
     for b in BACKENDS:
         invoke(chosen, b, 'atomic', b+'-atomic', source=candidate)
@@ -376,13 +422,13 @@ def main():
         for b in BACKENDS: invalids.append(invoke(chosen, b, 'invalid', f'{b}-invalid-{n}', source=prefix))
     faults = []
     for i in (1, 3, 5, 7):
-        cut, bad, divergence = fault_case(i)
+        cut, bad, divergence = fault_case(i, idle_rounds)
         prefix = out/f'scenario-{i}/native-capture'/f'cut-{cut}'
         Path(str(prefix)+'.fault').write_bytes(bad)
         for b in BACKENDS: faults.append(dict(invoke(i, b, 'corrupt', b+'-corrupt', cut=cut), divergence=divergence))
     for b in bindings: require(file_sha(b['path']) == b['sha256'], 'polling source changed during execution')
     report = dict(status='passed', scope='restricted syscall polling components; complete CPU Level 1 disabled',
-                  commands=commands, source_inputs=bindings, restores=restores, invalids=invalids, faults=faults,
+                  idle_rounds=idle_rounds, commands=commands, source_inputs=bindings, restores=restores, invalids=invalids, faults=faults,
                   recipe_build_identity=str(a.recipe_build_identity.resolve()) if a.recipe_build_identity else None,
                   level1_verified=False, level2_verified=False,
                   artifact_sha256={str(p): file_sha(p) for p in sorted(out.rglob('*')) if p.is_file()})

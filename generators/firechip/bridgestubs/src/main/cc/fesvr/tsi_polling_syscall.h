@@ -84,7 +84,7 @@ public:
 private:
   firesim_tsi_t &tsi;
   static void require_mode(const firesim_tsi_t &tsi) {
-    if (!tsi.syscall_exit || !tsi.metadata_supported || !tsi.owned_default_devices ||
+    if (!tsi.syscall_exit || !tsi.metadata_supported || !tsi.owned_default_devices || tsi.default_devices ||
         tsi.terminal->checkpoint_schema().empty() ||
         tsi.htif_exit_component.phase() != firesim_tsi_htif_exit_t::phase_t::running ||
         tsi.htif_exit_component.raw_exit())

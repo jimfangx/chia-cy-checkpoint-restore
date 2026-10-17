@@ -5,6 +5,9 @@
 #include "fesvr/tsi_polling_syscall.h"
 #include <csignal>
 #include <pthread.h>
+#include <dirent.h>
+#include <iomanip>
+#include <sys/stat.h>
 using syscall_group_t = firesim_tsi_polling_syscall_t;
 static images_t load_syscall(const fs::path &p) {
   auto result = load(p);
@@ -19,6 +22,71 @@ static void syscall_startup(firesim_tsi_t &tsi) {
   tsi.send_loadmem_word(0xaabbccdd); tsi.send_loadmem_word(0x11223344); tsi.tick();
   require(tsi.recv_loadmem_write_req(request) && request.addr==0x80001000 && request.size==8,"startup merge");
   tsi.recv_loadmem_data(data.data(),8); tsi.set_loaded_in_target(true); tsi.tick();
+}
+// Audit the actual process descriptor table, including the installed HTIF's
+// embedded syscall_proxy. A missing optional second session does not remove
+// that inherited owner. Never infer descriptor ownership from object names.
+using descriptors_t = std::map<int, std::string>;
+static descriptors_t descriptors() {
+  DIR *directory=opendir("/proc/self/fd");require(directory,"cannot inspect descriptors");
+  struct close_dir_t {DIR *p;~close_dir_t(){closedir(p);}} close{directory};
+  descriptors_t result;
+  while(auto entry=readdir(directory)) {
+    char *end=nullptr;const auto fd=strtol(entry->d_name,&end,10);
+    if(!*entry->d_name || *end || fd==dirfd(directory))continue;
+    struct stat info{};require(!fstat(fd,&info),"descriptor changed during audit");
+    std::array<char,4096> target{};const auto path="/proc/self/fd/"+std::to_string(fd);
+    const auto n=readlink(path.c_str(),target.data(),target.size());
+    require(n>=0 && size_t(n)<target.size(),"cannot inspect descriptor target");
+    const auto status=fcntl(fd,F_GETFL),flags=fcntl(fd,F_GETFD);
+    require(status>=0 && flags>=0,"cannot inspect descriptor flags");
+    std::ostringstream row;row<<info.st_dev<<' '<<info.st_ino<<' '<<info.st_mode<<' '
+      <<info.st_rdev<<' '<<status<<' '<<flags<<' '<<std::quoted(std::string(target.data(),n));
+    require(result.emplace(fd,row.str()).second,"duplicate descriptor");
+  }
+  return result;
+}
+static void save_descriptors(const fs::path &p,const descriptors_t &fds) {
+  std::ofstream f(p);for(const auto &[fd,value]:fds)f<<fd<<' '<<value<<'\n';
+  require(bool(f),"cannot save descriptors");
+}
+static void require_additions(const descriptors_t &before,const descriptors_t &after,size_t count) {
+  require(after.size()==before.size()+count,"unexpected session descriptor count");
+  for(const auto &[fd,value]:before)
+    require(after.count(fd) && after.at(fd)==value,"session changed an existing descriptor");
+  std::vector<std::string> added;
+  for(const auto &[fd,value]:after)if(!before.count(fd))added.push_back(value);
+  std::vector<std::string> expected;
+  for(size_t i=0;i<count/3;++i)
+    expected.insert(expected.end(),{before.at(0),before.at(1),before.at(1)});
+  std::sort(added.begin(),added.end());std::sort(expected.begin(),expected.end());
+  require(added==expected,"session descriptor identities differ from installed duplicates");
+}
+static void descriptor_lifetime(std::vector<char *> &argv,bool ordinary,const fs::path &out) {
+  const auto before=descriptors();save_descriptors(out/"before.fds",before);
+  {
+    firesim_tsi_t tsi(argv.size(),argv.data(),true);
+    const auto constructed=descriptors();require_additions(before,constructed,3);
+    save_descriptors(out/"constructed.fds",constructed);
+    syscall_startup(tsi);
+    const auto polling=descriptors();require_additions(constructed,polling,ordinary?3:0);
+    save_descriptors(out/"polling.fds",polling);
+    // Complete a zero mailbox read and each actual idle yield, then issue
+    // the next mailbox read. Every suspension has the same descriptor set.
+    while(tsi.data_available())tsi.recv_word();
+    tsi.send_word(0);tsi.tick();tsi.send_word(0);tsi.tick();
+    for(unsigned i=0;i<4;++i) {
+      require(descriptors()==polling,"idle changed descriptors");
+      save_descriptors(out/("idle-"+std::to_string(i)+".fds"),descriptors());
+      if(i<3)tsi.tick();
+    }
+    require(tsi.data_available() && !tsi.done(),"idle did not return to mailbox read");
+    if(!ordinary)syscall_group_t(tsi).inspect();
+  } // Destruction must release the inherited and optional suspended session.
+  const auto destroyed=descriptors();require(destroyed==before,"suspended teardown leaked/closed descriptors");
+  save_descriptors(out/"destroyed.fds",destroyed);
+  std::cout<<"DESCRIPTOR_LIFETIME inherited=3 polling_added="<<(ordinary?3:0)
+    <<" idle_cuts=4 teardown_equal=1 ordinary="<<ordinary<<" target_edges=0\n";
 }
 static auto unprepared(const firesim_tsi_t &tsi) {
   auto result=peers(tsi);
@@ -79,11 +147,15 @@ static int syscall_run(const char *mode,const char *elf,const char *input,const 
     if(action=="entry-duplicate")args.push_back("+checkpoint-syscall-exit");
     if(action=="entry-signature")args.push_back("+signature=unsupported");
     if(action=="entry-unsealed")args.erase(args.begin()+5);
+    if(action=="descriptors-ordinary")args.erase(args.begin()+4);
     args.insert(args.end(),{"+permissive-off",elf});
     std::vector<char *> argv;for(auto &a:args)argv.push_back(a.data());
     if(action.rfind("entry-",0)==0) {
       bool failed=false;try{firesim_tsi_t candidate(argv.size(),argv.data(),true);}catch(const std::runtime_error &){failed=true;}
       require(failed,"unsupported entry admitted");std::cout<<"ENTRY_REJECTED "<<action<<" startup=0 target_edges=0\n";return 0;
+    }
+    if(action.rfind("descriptors-",0)==0) {
+      descriptor_lifetime(argv,action=="descriptors-ordinary",out);return 0;
     }
     firesim_tsi_t tsi(argv.size(),argv.data(),true);
     syscall_group_t group(tsi);

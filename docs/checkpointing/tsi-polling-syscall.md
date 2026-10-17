@@ -52,13 +52,14 @@ bridge and memory publication remain pending. **Complete CPU Level 1 remains
 disabled.** Caller-held exclusion and the existing provider signal policy
 remain required; this work does not implement a process signal coordinator.
 
-The live restricted path still constructs `default_devices_t` and its installed
-syscall session, although restricted dispatch and device ticks do not use that
-session. The next increment should audit this lifetime and construct the
-restricted services without unused descriptor owners, then implement the outer
-caller and coherent simulator publication. General syscall support remains a
-separate pending feature. New-mode zero-mailbox idle and outer completion cuts
-also need coverage before complete CPU admission.
+Iteration 146 removes the unused `default_devices_t` from restricted polling
+and extends fresh component coverage through two zero-mailbox idle rounds.
+The inherited HTIF syscall proxy still owns three duplicated standard-stream
+descriptors. Its session ownership, the outer caller/completion and coherent
+simulator publication remain pending. See
+[tsi-restricted-session.md](tsi-restricted-session.md) for the actual descriptor
+inventory and suspended-lifetime checks. General syscall support remains a
+separate pending feature.
 
 `verify_tsi_polling_syscall_vcs` compares every captured owner byte against an
 independent Python protocol/serial/syscall oracle, with fresh native ASan/UBSan

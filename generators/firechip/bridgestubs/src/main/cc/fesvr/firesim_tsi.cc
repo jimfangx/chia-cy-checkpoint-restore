@@ -209,8 +209,11 @@ int firesim_tsi_t::run_host() {
   htif_poll = std::make_unique<firesim_tsi_htif_poll_t>(get_tohost_addr(), get_fromhost_addr());
   bcd = std::make_unique<firesim_tsi_bcd_t>(*htif_poll, 1048576, terminal.get(),
       [this](uint64_t address, const firesim_tsi_bcd_t::identity_t &bytes) { write_identity(address, bytes); });
-  default_devices = std::make_unique<default_devices_t>(*this, *bcd);
-  polling_services_t services(*this, &default_devices->list);
+  // Restricted dispatch owns its syscall caller and never uses a device list.
+  // Do not create an unused session (and three duplicated host descriptors)
+  // on the suspended outer stack. The inherited HTIF proxy remains separate.
+  if (!syscall_exit) default_devices = std::make_unique<default_devices_t>(*this, *bcd);
+  polling_services_t services(*this, default_devices ? &default_devices->list : nullptr);
   for (;;) {
     const auto result = htif_poll->advance(services);
     if (result == firesim_tsi_htif_poll_t::result_t::complete) break;
