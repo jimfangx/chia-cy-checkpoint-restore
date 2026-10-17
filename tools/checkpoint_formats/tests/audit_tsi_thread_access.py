@@ -5,6 +5,7 @@ import itertools
 import json
 from pathlib import Path
 import shlex
+import struct
 
 from tools.checkpoint_formats.codec import FormatError, require
 from tools.checkpoint_formats.evidence import file_sha
@@ -20,6 +21,11 @@ OPERATIONS = (
     'host-tick', 'host-switch', 'host-busy', 'host-loaded', 'host-set-loaded', 'loadmem-send',
     'loadmem-read-request', 'loadmem-write-request', 'loadmem-data', 'loadmem-available',
     'memory-read', 'memory-write', 'memory-interface', 'metadata-save', 'metadata-prepare')
+
+BASE_OPERATIONS = OPERATIONS
+OPERATIONS += tuple('retained-'+owner+'-'+method for owner in ('poll', 'program', 'init', 'host', 'read', 'serial', 'loadread', 'queues', 'bcd', 'terminal', 'identity', 'write', 'memread', 'syscall', 'outer', 'wrapper')
+                    for method in ('schema','save','validate','load','invalid-load'))
+
 
 
 def images(prefix, names=NAMES):
@@ -38,6 +44,8 @@ def audit(path, report=None):
                  'audit_tsi_thread_access.py', 'tsi_thread_owner.h', 'tsi.h', 'tsi_context_group.h',
                  'tsi_host_group.h', 'tsi_polling_syscall.h', 'tsi_polling_lifecycle.h', 'firesim_tsi.cc'):
         require(any(p.endswith('/'+name) for p in bindings), 'missing access source '+name)
+    if r.get('retained_views'):
+        require(any(p.endswith('/tsi_owner_view.h') for p in bindings), 'missing retained view policy')
     for b in bindings.values(): require(file_sha(b['snapshot']) == b['sha256'], 'access source snapshot drift')
     identity_path = r['recipe_build_identity']; require(identity_path in bindings, 'unbound access recipe')
     require(file_sha(identity_path) == bindings[identity_path]['sha256'], 'access recipe changed')
@@ -61,7 +69,8 @@ def audit(path, report=None):
                 'source /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/vcs-env.sh && ' in c['argv'][2], 'access exit/environment')
         require(not any(s in text for s in ('ERROR: AddressSanitizer', 'runtime error:', 'LeakSanitizer: detected')), 'access sanitizer failure')
         return text
-    expected = set(itertools.product(('execution','tail'), OPERATIONS, ('native','vcs-dpi')))
+    operations = OPERATIONS if r.get('retained_views') else BASE_OPERATIONS
+    expected = set(itertools.product(('execution','tail'), operations, ('native','vcs-dpi')))
     actual = {(c['boundary'],c['operation'],c['backend']) for c in r['results']}
     require(len(r['results']) == len(expected) and actual == expected, 'access result membership')
     for c in r['results']:
@@ -92,6 +101,20 @@ def audit(path, report=None):
             require(images(dest/'ordinary-before', names) == images(dest/'ordinary-after', names), 'ordinary polling mutation')
             names = set(NAMES)-{'syscall','lifecycle','outer','wrapper'}
             require(images(dest/'ordinary-source', names) == images(dest/'ordinary-retry', names), 'ordinary polling candidate retry')
+        if op.startswith('retained-'):
+            owner = op.split('-')[1]
+            name = {'loadread':'loadmem-read', 'queues':'loadmem-queues', 'memread':'memread'}.get(owner, owner)
+            image = (dest/'retained.image').read_bytes()
+            require(image == (dest/'retained-retry.image').read_bytes(), 'retained creator retry mutated owner')
+            if owner == 'memread':
+                # The restricted syscall owns a different nested reader; the
+                # ordinary runtime reader must remain completely pristine.
+                def words(*values): return struct.pack('<'+'Q'*len(values), *values)
+                def config(kind,*values): return words(0x3154504b43474457,1,kind,len(values),*values)
+                child = config(20,1024,4,2,2)+words(0,0,0,0)
+                require(image == config(30,1,8,1024,1048576)+words(0,0,0,0,len(child))+child,
+                        'retained ordinary memory reader is not pristine')
+            else: require(image == images(source)[name], 'retained owner differs from independent source')
         continued = min(cut+int(op == 'context-resume-fresh')+2*initialized, r['cuts']['tail'])
         require(images(dest/'retry') == images(parent.parent/'scenario-1/native-capture'/f'cut-{continued}'), 'access creator retry differs from oracle')
     for name in ('native-build','vcs-build'):
@@ -100,7 +123,7 @@ def audit(path, report=None):
         require(any(str(out/'libfesvr-checkpoint.a') in token for token in args), 'access build omitted recipe archive')
         if name == 'vcs-build': require('/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs' in args and '-full64' in args, 'access VCS release')
     require(used == set(commands), 'unclassified access commands')
-    return dict(status='passed', foreign_entries=len(expected), operations=len(OPERATIONS), boundaries=2,
+    return dict(status='passed', foreign_entries=len(expected), operations=len(operations), boundaries=2,
                 backends=2, level1_verified=False, level2_verified=False)
 
 

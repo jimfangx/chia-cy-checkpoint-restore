@@ -56,32 +56,32 @@ public:
 
   // Component owner only. HTIF/context and all request/response queues must
   // also be reconstructed before complete TSI checkpointing can be enabled.
-  const checkpoint_owner_t &loadmem_read_owner() const { require_target_thread(); return loadmem_read; }
-  const checkpoint_owner_t &loadmem_queue_owner() const { require_target_thread(); return loadmem_queues; }
-  const checkpoint_owner_t &host_control_owner() const { require_target_thread(); return host_control; }
-  const checkpoint_owner_t &init_accesses_owner() const { require_target_thread(); return init_control; }
-  const checkpoint_owner_t &program_loader_owner() const { require_target_thread(); return program_loader; }
+  const checkpoint_owner_t &loadmem_read_owner() const { require_target_thread(); return loadmem_read_view; }
+  const checkpoint_owner_t &loadmem_queue_owner() const { require_target_thread(); return loadmem_queues_view; }
+  const checkpoint_owner_t &host_control_owner() const { require_target_thread(); return host_control_view; }
+  const checkpoint_owner_t &init_accesses_owner() const { require_target_thread(); return init_control_view; }
+  const checkpoint_owner_t &program_loader_owner() const { require_target_thread(); return program_loader_view; }
   // Component observation only; no coroutine or complete HTIF admission.
-  const checkpoint_owner_t &host_execution_owner() const { require_target_thread(); return host_execution; }
+  const checkpoint_owner_t &host_execution_owner() const { require_target_thread(); return host_execution_view; }
   const checkpoint_owner_t &htif_poll_owner() const {
     require_target_thread();
     if (!htif_poll) throw std::runtime_error("HTIF polling has not started or uses unsupported devices");
-    return *htif_poll;
+    return htif_poll_view;
   }
   const checkpoint_owner_t &bcd_owner() const {
     require_target_thread();
     if (!bcd) throw std::runtime_error("default HTIF BCD has not started");
-    return *bcd;
+    return bcd_view;
   }
-  const checkpoint_owner_t &terminal_owner() const { require_target_thread(); return *terminal; }
+  const checkpoint_owner_t &terminal_owner() const { require_target_thread(); return terminal_view; }
   // Independent write child only; its device/HTIF caller is not restored.
-  const checkpoint_owner_t &memif_write_owner() const { require_target_thread(); return memif_write; }
-  const checkpoint_owner_t &memif_read_owner() const { require_target_thread(); return memif_read; }
-  const checkpoint_owner_t &bcd_identity_owner() const { require_target_thread(); return bcd_identity; }
+  const checkpoint_owner_t &memif_write_owner() const { require_target_thread(); return memif_write_view; }
+  const checkpoint_owner_t &memif_read_owner() const { require_target_thread(); return memif_read_view; }
+  const checkpoint_owner_t &bcd_identity_owner() const { require_target_thread(); return bcd_identity_view; }
   const checkpoint_owner_t &syscall_exit_owner() const {
     require_target_thread();
     if (!syscall_exit) throw std::runtime_error("restricted syscall mode is disabled");
-    return *syscall_exit;
+    return syscall_exit_view;
   }
   // Direct pass/fail and no-signature stop only. This never restores the
   // installed session/signal/exit fields or certifies a complete HTIF cut.
@@ -251,6 +251,20 @@ private:
   static void validate_initialization(const firesim_tsi_host_control_t &host,
                                       const firesim_tsi_init_accesses_t &init,
                                       const firesim_tsi_serial_read_t &read);
+  // Stable checked views follow owner slots across atomic publication.
+  firesim_tsi_owner_view_t<firesim_loadmem_read_t> loadmem_read_view{target_thread_policy(), loadmem_read};
+  firesim_tsi_owner_view_t<firesim_loadmem_queues_t> loadmem_queues_view{target_thread_policy(), loadmem_queues};
+  firesim_tsi_owner_view_t<firesim_tsi_host_control_t> host_control_view{target_thread_policy(), host_control};
+  firesim_tsi_owner_view_t<firesim_tsi_init_accesses_t> init_control_view{target_thread_policy(), init_control};
+  firesim_tsi_owner_view_t<firesim_tsi_program_loader_t> program_loader_view{target_thread_policy(), program_loader};
+  firesim_tsi_owner_view_t<firesim_tsi_host_execution_t> host_execution_view{target_thread_policy(), host_execution};
+  firesim_tsi_owner_view_t<std::unique_ptr<firesim_tsi_htif_poll_t>> htif_poll_view{target_thread_policy(), htif_poll};
+  firesim_tsi_owner_view_t<std::unique_ptr<firesim_tsi_bcd_t>> bcd_view{target_thread_policy(), bcd};
+  firesim_tsi_owner_view_t<std::unique_ptr<firesim_tsi_terminal_t>> terminal_view{target_thread_policy(), terminal};
+  firesim_tsi_owner_view_t<firesim_tsi_memif_write_t> memif_write_view{target_thread_policy(), memif_write};
+  firesim_tsi_owner_view_t<firesim_tsi_memif_read_t> memif_read_view{target_thread_policy(), memif_read};
+  firesim_tsi_owner_view_t<firesim_tsi_bcd_identity_t> bcd_identity_view{target_thread_policy(), bcd_identity};
+  firesim_tsi_owner_view_t<std::unique_ptr<firesim_tsi_syscall_exit_t>> syscall_exit_view{target_thread_policy(), syscall_exit};
   void flush_program_cache_lines(addr_t address, size_t bytes);
   void write_identity(uint64_t address, const firesim_tsi_bcd_t::identity_t &bytes);
   bool dispatch_identity(uint64_t command);

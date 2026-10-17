@@ -31,6 +31,10 @@ OPERATIONS = (
     'host-tick', 'host-switch', 'host-busy', 'host-loaded', 'host-set-loaded', 'loadmem-send',
     'loadmem-read-request', 'loadmem-write-request', 'loadmem-data', 'loadmem-available',
     'memory-read', 'memory-write', 'memory-interface', 'metadata-save', 'metadata-prepare')
+
+OPERATIONS += tuple('retained-'+owner+'-'+method for owner in ('poll', 'program', 'init', 'host', 'read', 'serial', 'loadread', 'queues', 'bcd', 'terminal', 'identity', 'write', 'memread', 'syscall', 'outer', 'wrapper')
+                    for method in ('schema','save','validate','load','invalid-load'))
+
 BACKENDS = ('native', 'vcs-dpi')
 
 
@@ -92,7 +96,8 @@ def main():
     with ThreadPoolExecutor(max_workers=8) as pool:
         results = list(pool.map(invoke, itertools.product(cuts, OPERATIONS, BACKENDS)))
     for b in bindings: require(file_sha(b['path']) == b['sha256'], 'access source changed during execution')
-    report = dict(status='passed', scope='original-thread TSI access; signals and CPU pending',
+    report = dict(status='passed', scope='original-thread TSI access including retained views; signals and CPU pending',
+                  retained_views=True,
                   context_summary=str(parent), context_sha256=file_sha(parent), recipe_build_identity=str(identity_path),
                   source_inputs=bindings, cuts=cuts, commands=commands, results=results,
                   level1_verified=False, level2_verified=False,

@@ -164,9 +164,16 @@ static void atomic_cases(firesim_tsi_t &tsi,const images_t &good,const fs::path 
     if(which==0)tsi.send_word(0x12345678);
     else if(which==1)tsi.set_loaded_in_target(true);
     else {
-      auto &terminal=static_cast<firesim_tsi_terminal_t &>(
-          const_cast<checkpoint_owner_t &>(tsi.terminal_owner()));
-      require(terminal.read()>=0,"late terminal mutation needs sealed input");
+      // Owner observations are checked views, not concrete device references.
+      // Advance the saved sealed cursor by one byte through its image format.
+      auto image=tsi.terminal_owner().save_checkpoint();
+      require(image.size()>=64,"late terminal mutation needs sealed input");
+      uint64_t size=0;for(unsigned i=0;i<8;++i)size|=uint64_t(image.at(48+i))<<(8*i);
+      const size_t cursor=56+size;
+      require(size && image.size()>=cursor+16,"late terminal input is empty");
+      for(unsigned i=0;i<8;++i)require(image.at(cursor+i)==0,"late terminal cursor is not pristine");
+      image.at(cursor)=1; // This pristine destination starts with cursor zero.
+      const_cast<checkpoint_owner_t &>(tsi.terminal_owner()).load_checkpoint(image);
     }
     const auto changed=destination_peers(tsi);require(changed!=before,"ineffective late-peer fault");
     bool failed=false;try{next.commit();}catch(const std::runtime_error &){failed=true;}

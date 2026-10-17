@@ -21,12 +21,38 @@ static int access_run(const char *operation, const char *elf, const char *input,
     firesim_tsi_t tsi(argv.size(), argv.data(), true); context_group_t group(tsi);
     tsi.prepare_startup_metadata(bytes(metadata)); const auto good = load_context(source);
     auto candidate = group.prepare(good);
+    // Capture fixed owner views before aggregate publication. Optional owners
+    // become observable only once their real slots have been published.
+    const checkpoint_owner_t *retained_serial=&tsi.serial_queue_owner();
+    const checkpoint_owner_t *retained_terminal=&tsi.terminal_owner();
     const bool pristine = op.find("prepare") != std::string::npos || op.find("commit") != std::string::npos;
     if (!pristine) { candidate.commit(); if (op == "context-resume-live") group.resume(); }
     const auto before = context_unprepared(tsi);
     const auto initialized = group.native_context_initialized();
     save(out/"before", before);
     if (!pristine) save(out/"aggregate-before", group.inspect());
+    const checkpoint_owner_t *retained=nullptr;
+    std::string retained_method, retained_schema;
+    std::vector<uint8_t> retained_image;
+    if(op.rfind("retained-",0)==0) {
+      const auto split=op.find('-',9); require(split!=std::string::npos,"missing retained method");
+      const auto name=op.substr(9,split-9); retained_method=op.substr(split+1);
+      const std::vector<std::pair<std::string,const checkpoint_owner_t *>> owners{
+        {"poll",&tsi.htif_poll_owner()}, {"program",&tsi.program_loader_owner()},
+        {"init",&tsi.init_accesses_owner()}, {"host",&tsi.host_control_owner()},
+        {"read",&tsi.serial_read_owner()}, {"serial",retained_serial},
+        {"loadread",&tsi.loadmem_read_owner()}, {"queues",&tsi.loadmem_queue_owner()},
+        {"bcd",&tsi.bcd_owner()}, {"terminal",retained_terminal},
+        {"identity",&tsi.bcd_identity_owner()}, {"write",&tsi.memif_write_owner()},
+        {"memread",&tsi.memif_read_owner()}, {"syscall",&tsi.syscall_exit_owner()},
+        {"outer",&tsi.host_execution_owner()}, {"wrapper",&tsi.host_wrapper_owner()}};
+      for(const auto &[key,owner]:owners)if(key==name)retained=owner;
+      require(retained,"unknown retained owner");
+      require(retained_serial==&tsi.serial_queue_owner() && retained_terminal==&tsi.terminal_owner(),
+              "view identity changed across publication");
+      retained_schema=retained->checkpoint_schema(); retained_image=retained->save_checkpoint();
+      save(out/"retained.image",retained_image);
+    }
     const images_t host_images(good.begin(), good.begin()+15), syscall_images(good.begin(),good.begin()+14),
                    polling_images(good.begin(),good.begin()+12);
     using host_candidate_t = firesim_tsi_host_group_t::prepared_t;
@@ -78,7 +104,15 @@ static int access_run(const char *operation, const char *elf, const char *input,
     std::string reason;
     auto action = [&] {
       firesim_loadmem_t request; uint64_t value = 0;
-      if (op == "context-prepare") { auto next = group.prepare(good); }
+      if(retained) {
+        if(retained_method=="schema")retained->checkpoint_schema();
+        else if(retained_method=="save")retained->save_checkpoint();
+        else if(retained_method=="validate")retained->validate_checkpoint(retained_image);
+        else if(retained_method=="load")const_cast<checkpoint_owner_t *>(retained)->load_checkpoint(retained_image);
+        else if(retained_method=="invalid-load")const_cast<checkpoint_owner_t *>(retained)->load_checkpoint({});
+        else throw std::runtime_error("unknown retained checkpoint method");
+      }
+      else if (op == "context-prepare") { auto next = group.prepare(good); }
       else if (op == "context-prepare-invalid") { auto next = group.prepare({}); }
       else if (op == "context-commit") candidate.commit();
       else if (op == "context-capture") group.inspect();
@@ -161,6 +195,16 @@ static int access_run(const char *operation, const char *elf, const char *input,
       if (pristine) { candidate.commit(); require(group.inspect() == good, "creator commit retry differs"); }
       else {
         save(out/"aggregate-after", group.inspect());
+        if(retained) {
+          require(retained->checkpoint_schema()==retained_schema && retained->save_checkpoint()==retained_image,
+                  "foreign retained access changed owner");
+          if(retained_method=="invalid-load") {
+            bool rejected=false;try{action();}catch(const std::runtime_error &){rejected=true;}
+            require(rejected,"creator accepted invalid retained image");
+          } else action();
+          require(group.inspect()==good,"retained creator retry changed aggregate");
+          save(out/"retained-retry.image",retained->save_checkpoint());
+        }
         if (op == "context-resume-fresh" || op == "context-resume-live") group.resume();
       }
       save(out/"retry", group.inspect());

@@ -14,6 +14,57 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 154, in progress.
+All sixteen public TSI owner getters now return stable views that recheck the
+live creator on schema/save/validate/load, including malformed loads and
+references retained before aggregate publication. Views follow actual optional
+owner slots without serializing process-local bindings. Recovery:
+[tsi-owner-views.md](tsi-owner-views.md). Owner image schemas stay unchanged;
+complete Rocket Level 1 stays disabled.
+
+Diagnostics: `runs/m11-iteration154/`. The 500-process / 125-operation native
+ASan/UBSan + VCS matrix and independent audit pass, including all six missing/
+duplicate evidence rejections. Receipt:
+`thread-access/invocation-1ojny_2f/summary.json`. The lifetime diagnostic passes
+128 real recycled-ID cases / 640 expired-view rejections, optional-slot replacement
+and absence, unchanged owner calls and creator retries. Sixteen prior-source
+sensitivity processes fail as expected, reproducing the raw-reference gap.
+
+The complete 720-case admission matrix, 686-case signal/thread suite, fourteen-
+owner lifecycle suite, eight native scopes (280 Python tests), thirty retained
+auditors and fresh four-cut ordinary RTL VCS replay pass. The complete context
+suite and independent audit pass 887 cuts / 3,548 restores / 3,277,056 owner
+comparisons / 201,268 operations, 102 invalid processes, twelve late guards,
+eight resource cases, eight first divergences and fourteen evidence rejections.
+Both backends reject 1,960 malformed images, 64 membership variants, two cross-
+owner inconsistencies and 927 allocations without publication. Receipt:
+`context-regression/invocation-saf8lf7z/summary.json`.
+All six complete 16-GiB four-hart controls and independent audits pass: both
+direct controls at C=3,329,794, all four ordinary/restricted syscall controls at
+C=3,330,050. Complete hart traces and decoded workload labels match within each
+protocol. Fresh ordinary RTL VCS and complete-source audit pass four retained
+cuts: all 318,637 words before any edge, 256 events, sixteen actual semantic
+first divergences and 44 invalid cases. Level 2 uses the retained direct ELF.
+
+Catalogs: `summary.json`, `selected-results.json`, `verification-commands.json`,
+`raw-native-commands.json`, `native-input-archives.json`, `artifact-manifest.json`.
+The initial CPU/native source-snapshot drift failures stay diagnostic; selected
+stable-source runs use fresh roots. Both plans, environment helpers, heads and
+indices retain starting bytes. Existing controller heads reached GitHub FireSim
+first and Chipyard second; local tracking-ref updates warned about read-only
+metadata after remote success. No staging or local commits occurred.
+
+Next: supply production process-wide exclusion and coordinate one complete
+simulator/FAME/bridge/functional-memory cut. TSI is created on the driver thread;
+serialize its owners there and hand immutable images to the parked low-clock
+VCS callback. Do not transfer mutable TSI owner references across that boundary.
+Fresh restoration likewise needs creator-thread preparation/publication before
+any target edge. Complete Rocket Level-1 continuation remains pending; Level 2
+stays independent. BOOM/Saturn remain pending. Standalone Shuttle, physical FPGA
+validation and ASIC power are outside scope. No dependency is missing.
+
+Previous iteration 153 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 153, in progress.
 Supported TSI aggregate and production serial/load-memory entries now reject
 foreign threads before mutable owner access. A weak thread-local lifetime token

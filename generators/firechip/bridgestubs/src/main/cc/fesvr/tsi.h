@@ -12,6 +12,7 @@
 #include "tsi_serial_read.h"
 #include "tsi_host_wrapper.h"
 #include "tsi_thread_owner.h"
+#include "tsi_owner_view.h"
 
 #define SAI_CMD_READ 0
 #define SAI_CMD_WRITE 1
@@ -31,10 +32,11 @@ public:
   bool in_valid() { require_target_thread(); return serial.request_available(); }
   bool out_ready() { require_target_thread(); return true; }
   void tick(bool out_valid, uint32_t out_bits, bool in_ready) { require_target_thread(); serial.tick(out_valid, out_bits, in_ready); }
-  const checkpoint_owner_t &serial_queue_owner() const { require_target_thread(); return serial; }
-  const checkpoint_owner_t &serial_read_owner() const { require_target_thread(); return serial_read; }
-  const checkpoint_owner_t &host_wrapper_owner() const { require_target_thread(); return host_wrapper; }
+  const checkpoint_owner_t &serial_queue_owner() const { require_target_thread(); return serial_view; }
+  const checkpoint_owner_t &serial_read_owner() const { require_target_thread(); return serial_read_view; }
+  const checkpoint_owner_t &host_wrapper_owner() const { require_target_thread(); return host_wrapper_view; }
 protected:
+  const firesim_tsi_thread_owner_t &target_thread_policy() const { return thread_owner; }
   virtual int run_host() { return htif_t::run(); }
   virtual void validate_host_entry() const {}
   void reset() override;
@@ -53,6 +55,9 @@ private:
   context_t *target;
   bool host_initialized = false;
   bool host_suspended = false;
+  firesim_tsi_owner_view_t<firesim_tsi_serial_state_t> serial_view{thread_owner, serial};
+  firesim_tsi_owner_view_t<firesim_tsi_serial_read_t> serial_read_view{thread_owner, serial_read};
+  firesim_tsi_owner_view_t<firesim_tsi_host_wrapper_t> host_wrapper_view{thread_owner, host_wrapper};
 protected:
   bool host_context_initialized() const { return host_initialized; }
   bool host_context_suspended() const { return host_initialized && host_suspended; }
