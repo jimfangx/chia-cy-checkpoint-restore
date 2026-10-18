@@ -14,6 +14,62 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 169, in progress.
+Added a default-unsupported prepared-owner interface and production scheduler /
+bridge-loop adapters with complete sealing before allocation-free `noexcept`
+publication. Lifetime, native thread, generation, seal and consumption guards
+reject invalid candidates; identical-byte legacy loads invalidate them. Both
+owners are noncopyable/nonmovable. Recovery:
+[control-sealed-publication.md](control-sealed-publication.md).
+
+Final-source native ASan/UBSan and time-zero VCS DPI pass 48 fresh component
+restores, 776 complete owner comparisons, 3,120 service boundaries, 12,336 invalid
+rejections, 3,072 exhaustive allocation failures and 288 fatal contract checks.
+The independent full-state/event oracle and five explicitly offline adversarial
+auditor controls pass. These are two actual host owners with synthetic services,
+not a whole-simulator restore. The final receipt is
+`runs/m11-iteration169/control-final/invocation-92_ldc4m/summary.json`.
+
+All fourteen broader checks and eleven independent audits pass. The eight
+preserved native scopes (280 Python tests), creator/harness matrix, dispatcher
+guards, stream, MMIO, DMA, runtime I/O, memory and production TSI pass. Thirty
+retained auditors and nine retained I/O/memory receipts pass. The four fresh
+ordinary RTL windows and independent full-source audit pass 318,637 pre-edge
+words per cut, 256 events, sixteen first semantic divergences and 44 invalid
+cases at C=100 / 700,000 / 900,000 / 3,250,000. Both exact-recipe 16-GiB four-hart
+direct-exit controls pass at C=3,329,794. All four ordinary/restricted and
+buffered/unbuffered syscall controls pass at C=3,330,050. Complete hart traces
+and decoded workload labels match within each protocol. These uninterrupted
+CPU controls do not establish Level-1 restore. Final selected receipts, exact
+workload/source hashes, executable native commands and the full-path artifact
+index are `summary.json`, `selected-results.json`, `workloads.json`,
+`native-input-archives.json`, `raw-native-commands.json`,
+`verification-commands.json` and `artifact-manifest.json` under
+`runs/m11-iteration169/`. Both control and memory offline forged-receipt tests
+reject all five altered receipts after artifact hashes are recomputed.
+
+The source-bound census and linked-symbol audit retain 15 host widgets,
+11,464 generated entries / 445,838 words, both new control publication APIs,
+and all three CPU admission guards. Three current-binary requests and their
+independent audit retain unsupported owner/capability denial with no CPU image
+created; these are not malformed CPU-image parser tests. Additional audits
+retain all 32 dispatcher diagnostics, 336 TSI invalids and 128 unpublished
+prepared/sealed cancellations. Both existing controller heads reached GitHub,
+FireSim first then Chipyard, with independently verified remote tips despite
+local tracking-reference write warnings. No staging or local commit occurred.
+Plans, environment helpers, heads and indices retain their starting bytes.
+No external dependency is missing. No test was cancelled or reduced.
+
+Complete CPU admission remains disabled: prepare/seal the remaining widgets and
+concrete driver, join memory/I/O/creator-side TSI/generated RTL/harness under
+production controller/creator/thread/signal/descriptor/parser exclusion, and
+validate fresh whole-CPU continuation at all four workload cuts. The generic
+aggregate still loads legacy owners sequentially. Independent Level 2 remains
+separate; BOOM/Saturn remain pending. Standalone Shuttle, physical FPGA validation
+and ASIC power remain outside scope.
+
+Previous iteration 168 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 168, in progress.
 Production `mm_magic_t` now prepares and seals its complete functional-memory
 payload before allocation-free, nonthrowing publication, preserving the mmap

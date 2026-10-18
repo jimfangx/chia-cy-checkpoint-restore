@@ -56,8 +56,9 @@ Next: join prepared/sealed functional memory with runtime I/O, creator-side TSI,
 all remaining widgets/driver state, generated RTL and harness state under actual
 controller/creator/thread/signal/descriptor/parser exclusion. The generic
 `aggregate_restore_t::commit_native` still calls allocating owner loads
-sequentially; `checkpoint_owner_t` still has no general prepared publication
-contract. Keep complete CPU requests denied until the whole transaction and
+sequentially; `checkpoint_owner_t` now has a default-unsupported prepared publication
+contract; iteration 169 adds scheduler and bridge-loop adapters. See
+[control-sealed-publication.md](control-sealed-publication.md). Keep complete CPU requests denied until the whole transaction and
 independent whole-state readback are implemented, then test fresh-process
 Rocket continuation at all four real workload cuts. Level 2 stays independent.
 BOOM/Saturn remain pending; standalone Shuttle, FPGA validation and ASIC power
@@ -78,8 +79,8 @@ mutation does not make them an atomic multi-owner transaction:
 | Four `tracerv_t` owners | Allocate each output prefix, then swap it and assign initialization/cycle state. Include all four stream identities and sinks. |
 | `heartbeat_t` | Allocate decoded samples, then swap samples and assign start time, timeout, trip count and last cycle. |
 | FireSim concrete driver | Rebuild and validate its configuration, require a fresh driver, then set `started`. Keep this separate from scheduler and run-loop state. |
-| `systematic_scheduler_t` | Parse and allocate a deadline vector, then assign current cycle and every task deadline. Bind callback identities and owner schemas before publication. |
-| `bridge_run_loop_t` | Parse phase/index/termination/status into a POD replacement; expose a prepared publication contract instead of re-running throwing validation at aggregate commit. |
+| `systematic_scheduler_t` | Prepared/sealed adapter added in iteration 169; complete simulator coordination remains pending. |
+| `bridge_run_loop_t` | Prepared/sealed adapter added in iteration 169; complete simulator coordination remains pending. |
 | `tsibridge_t` | Already has private creator-side preparation, sealing and `noexcept` publication for its restricted context group; its generic owner schema remains unsupported. Join that real creator/lifetime guard, rather than calling generic legacy hooks. |
 
 These observations come from the corresponding concrete `load_checkpoint`
