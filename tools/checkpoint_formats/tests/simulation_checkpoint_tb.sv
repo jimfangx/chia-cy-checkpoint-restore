@@ -3,12 +3,22 @@ module simulation_checkpoint_tb;
       input int restore_mode, input int cut, input int scenario);
   import "DPI-C" function int simulation_checkpoint_run();
   import "DPI-C" function int simulation_checkpoint_negative();
+  import "DPI-C" function int simulation_publication_negative();
+  import "DPI-C" function void simulation_publication_fatal(input string mode);
+  import "DPI-C" function void simulation_checkpoint_failure();
   bit clock = 0;
   always #5 clock = ~clock;
-  string source, outdir;
+  string source, outdir, fatal_mode;
   int restore_mode, cut, scenario, rc;
   initial begin
-    if ($test$plusargs("negative")) begin
+    if ($value$plusargs("publication-fatal=%s", fatal_mode)) begin
+      simulation_publication_fatal(fatal_mode);
+      simulation_checkpoint_failure();
+    end else if ($test$plusargs("publication-negative")) begin
+      rc = simulation_publication_negative();
+      if ($time != 0) simulation_checkpoint_failure();
+      $display("BASE_PUBLICATION_ZERO_TIME_PASS");
+    end else if ($test$plusargs("negative")) begin
       rc = simulation_checkpoint_negative();
     end else begin
       if (!$value$plusargs("source=%s", source) || !$value$plusargs("outdir=%s", outdir) ||
