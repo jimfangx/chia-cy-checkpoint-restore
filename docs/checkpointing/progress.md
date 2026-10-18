@@ -14,6 +14,75 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 174, in progress.
+Prepared/sealed publication now covers the buffered, unfinished heartbeat owner.
+Preparation owns every decoded sample and stamps the full destination payload;
+sealing checks lifetime/thread/generation/consumption before owner access.
+Allocation-free `noexcept` publication swaps samples and assigns four scalars,
+with no tick/time/localtime/MMIO/output/edge. Legacy load invalidates candidates.
+The v1 payload is unchanged; live-log/finished/suspended/poisoned modes reject.
+Details: [heartbeat-sealed-publication.md](heartbeat-sealed-publication.md).
+
+Native ASan/UBSan and fresh VCS pass 96 prepared continuations, 96 complete
+pre-edge owner readbacks and 1,260 matched MMIO calls across all sixteen cuts
+in three polling scenarios. Both backends pass 904 candidate rejections,
+102 preparation and 66 sealing allocation failures, twelve fatal contract
+cases, two unexpected-return controls, eight malformed fresh loads and two
+actual first-boundary polling corruptions at fixture cycle 107. Eight offline
+rehashed forged-receipt controls reject. These are host components with fixture
+MMIO and substituted diagnostic wall time, not Rocket Level-1 restores.
+Selected receipt: `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration174/heartbeat-prepared/native-yun3bzvd/summary.json`.
+
+The independent retained Rocket Level-2 audit passes all four original cuts
+(C=100 / 700,000 / 900,000 / 3,250,000), 318,637 pre-edge words per cut,
+256 events, sixteen actual first divergences and 44 invalid cases. This is a
+re-audit of retained ordinary RTL VCS artifacts, not a new Rocket replay run.
+The current exact-recipe build/link census retains 15 host widgets,
+11,464 generated entries / 445,838 words, the heartbeat prepared adapter and
+all three CPU admission guards. Three new native capability/owner denials
+create no image; they are not CPU-image parser tests.
+
+All eight preserved regression scopes pass, including 280 Python tests,
+semantic/banked, widget, FCFS, UART, blockdev and heartbeat checks. The legacy
+heartbeat matrix independently passes all 96 continuations. The prepared
+concrete-driver regression passes all 224 fresh native/VCS continuations.
+Six unchanged publication/I/O/base evidence audits also pass.
+Native suite: `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration174/native-regressions/invocation-j8xhqpnf/summary.json`.
+Driver: `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration174/driver-regression/invocation-i2hecxq3/summary.json`.
+
+Both new exact-recipe 16-GiB four-hart controls pass at C=3,329,794. Every
+complete hart trace and decoded workload/store label matches the uninterrupted
+reference. These are full CPU controls, not Level-1 restores. Selected receipt:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration174/rocket/invocation-qg7mpk66/summary.json`.
+Both environments and vcs-env.sh last are sourced for native VCS builds/runs,
+using Y-2026.03-SP1, -full64, GCC/G++ 13 and reused Make VCS_FLAGS=-Mupdate.
+Exact source/workload hashes, recipe settings and executable commands are in
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md) and
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration174/verification-commands.json`.
+All seven final independent source/evidence audits pass. The complete full-path
+artifact catalog is `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration174/artifact-manifest.json`.
+No external dependency is missing.
+
+Workspace capacity required relocating 68 inactive compiler-IR files (2,971,569,360
+bytes) from retained diagnostic builds to `/tmp`, with identical verified bytes
+and links at their original paths. Preserve the storage listed in
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration174/cold-artifact-storage.json`.
+Logs/images/traces remain under `runs/`; no check is reduced or cancelled.
+Existing controller-created FireSim and Chipyard commits were published in that
+order; remote tips match despite local tracking-ref write warnings. No staging,
+local commit, reset or cleanup occurred. Plans/environment inputs remain read-only.
+
+Next: prepared publication for blockdev, UART, FASED and four TracerV owners;
+then one production coordinator joining all generated/harness, memory, I/O,
+scheduler/loop and creator TSI state under thread/signal/descriptor/parser
+exclusion. Generic aggregate loading still uses sequential legacy publication.
+Complete Rocket Level 1 stays disabled/pending; independent Level 2 stays
+separate. Source-bound recovery: `runs/m11-iteration174/remaining-owner-audit.json`.
+BOOM/Saturn are pending; standalone Shuttle, physical FPGA and ASIC power are
+outside scope. No plan correction is proposed.
+
+Previous iteration 173 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 173, in progress.
 Added prepared/sealed publication for the separate
 `simulation_t::base_checkpoint_t` lifecycle owner. The fresh destination stamp

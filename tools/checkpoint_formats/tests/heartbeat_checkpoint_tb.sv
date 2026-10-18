@@ -4,13 +4,23 @@ module heartbeat_checkpoint_tb;
   import "DPI-C" function int heartbeat_step();
   import "DPI-C" function int heartbeat_negative(input string directory);
   import "DPI-C" function void heartbeat_failure();
+  import "DPI-C" function int heartbeat_publication_negative(input string directory);
+  import "DPI-C" function void heartbeat_publication_fatal(input string directory, input string mode);
   string directory;
+  string fatal_mode;
   int restore_mode, cut, mode, result;
   bit clock = 0;
   always #5 clock = ~clock;
   initial begin
     if (!$value$plusargs("outdir=%s", directory)) heartbeat_failure();
-    if ($test$plusargs("negative")) begin
+    if ($value$plusargs("publication-fatal=%s", fatal_mode)) begin
+      heartbeat_publication_fatal(directory, fatal_mode);
+      heartbeat_failure();
+    end else if ($test$plusargs("publication-negative")) begin
+      if (heartbeat_publication_negative(directory)) heartbeat_failure();
+      if ($time != 0) heartbeat_failure();
+      $display("HEARTBEAT_PUBLICATION_ZERO_TIME_PASS");
+    end else if ($test$plusargs("negative")) begin
       if (heartbeat_negative(directory)) heartbeat_failure();
     end else begin
       if (!$value$plusargs("restore=%d", restore_mode) || !$value$plusargs("cut=%d", cut) ||

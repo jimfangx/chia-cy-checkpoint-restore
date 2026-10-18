@@ -10,12 +10,15 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
 import shutil
 import tempfile
 
 from tools.checkpoint_formats.codec import require
 from tools.checkpoint_formats.tests.verify_blockdev_checkpoint_vcs import words
 from tools.checkpoint_formats.tests.verify_semantic_vcs import ROOT, run
+from tools.checkpoint_formats.tests.audit_base_publication import ENVIRONMENT, FATAL
+from tools.checkpoint_formats.evidence import file_sha
 
 TESTS = Path(__file__).resolve().parent
 CC = ROOT / 'sims/firesim/sim/midas/src/main/cc'
@@ -84,6 +87,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--rocket-header', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--prepared', action='store_true')
     args = parser.parse_args()
     require(os.environ['VCS_HOME'] == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'source vcs-env.sh LAST')
     require(os.environ['CXX'] == '/usr/bin/g++-13', 'keep GCC/G++ 13')
@@ -93,20 +97,36 @@ def main():
     configs = [configuration(header.read_text(), i) for i in range(3)]
     sources = [TESTS / 'heartbeat_checkpoint.cc', CC / 'core/widget.cc',
                CC / 'bridges/clock.cc', CC / 'bridges/heartbeat.cc']
+    inputs = [header, *sources, *sorted((CC / 'core').glob('*.h')),
+              CC / 'bridges/clock.h', CC / 'bridges/heartbeat.h',
+              TESTS / 'heartbeat_checkpoint_tb.sv', Path(__file__),
+              TESTS / 'audit_heartbeat_publication.py', TESTS / 'audit_base_publication.py',
+              TESTS / 'verify_semantic_vcs.py', TESTS / 'verify_blockdev_checkpoint_vcs.py',
+              ROOT / 'env.sh', ROOT / 'sims/firesim/env.sh',
+              ROOT / 'automations/checkpoint_loop/vcs-env.sh']
+    (out / 'sources').mkdir()
+    bindings = []
+    for path in inputs:
+        digest = file_sha(path); saved = out / 'sources' / digest
+        if not saved.exists(): shutil.copyfile(path, saved)
+        bindings.append(dict(path=str(path), sha256=digest, snapshot=str(saved)))
     native, simv = out / 'heartbeat-native', out / 'heartbeat-simv'
     commands = []
     def execute(argv, log, expected=0):
-        text = run(argv, log, expected=expected)
-        commands.append(dict(cwd='.', argv=list(map(str, argv)), log=str(log), expected_exit=expected))
+        command = ['bash', '-lc', ENVIRONMENT + shlex.join(map(str, argv))]
+        text = run(command, log, cwd=out, expected=expected)
+        commands.append(dict(cwd=str(out.relative_to(ROOT)), argv=command, log=str(log), expected_exit=expected,
+                             pid=int(re.search(r'fresh_process_pid=(\d+)', text)[1])))
         (out / 'commands.json').write_text(json.dumps(commands, indent=2)+'\n')
         return text
-    execute([os.environ['CXX'], '-std=c++17', '-Wall', '-Wextra', '-Wno-unused-parameter', '-Werror',
+    flags = ['-DHEARTBEAT_PREPARED_PUBLICATION'] if args.prepared else []
+    execute([os.environ['CXX'], '-std=c++17', *flags, '-Wall', '-Wextra', '-Wno-unused-parameter', '-Werror',
              '-g', '-no-pie', '-fsanitize=address,undefined', '-fno-omit-frame-pointer', f'-I{CC}',
-             *sources, '-Wl,--wrap=time', '-o', native], out / 'native-build.log')
+             *sources, '-pthread', '-Wl,--wrap=time', '-o', native], out / 'native-build.log')
     execute([Path(os.environ['VCS_HOME']) / 'bin/vcs', '-full64', '-sverilog', '-timescale=1ns/1ps',
              '-top', 'heartbeat_checkpoint_tb', '-cc', os.environ['CC'], '-cpp', os.environ['CXX'],
-             f'-Mdir={out / "csrc"}', '-CFLAGS', f'-std=c++17 -DHEARTBEAT_CHECKPOINT_DPI -I{CC}',
-             '-LDFLAGS', '-Wl,--wrap=time', '-o', simv, TESTS / 'heartbeat_checkpoint_tb.sv', *sources],
+             f'-Mdir={out / "csrc"}', '-CFLAGS', f'-std=c++17 {" ".join(flags)} -DHEARTBEAT_CHECKPOINT_DPI -I{CC}',
+             '-LDFLAGS', '-pthread -Wl,--wrap=time', '-o', simv, TESTS / 'heartbeat_checkpoint_tb.sv', *sources],
             out / 'vcs-build.log')
     results = []
     for backend in ['native-sanitized', 'vcs-dpi']:
@@ -133,6 +153,22 @@ def main():
         negative = invoke('negative', 0, 0, positive)
         count = re.search(r'PASS: heartbeat atomic payload/configuration/suspension checks (\d+)', negative)
         require(count is not None, 'missing heartbeat rejection checks')
+        if args.prepared:
+            execute([native, 'publication-negative', positive, 0, 0] if backend == 'native-sanitized' else
+                    [simv, '-no_save', '+outdir='+str(positive), '+publication-negative'],
+                    backend_root / 'publication-negative.log')
+            for mode in (*FATAL, 'returned'):
+                case = backend_root / ('fatal-'+mode); case.mkdir()
+                execute([native, 'publication-fatal', case, mode, 0] if backend == 'native-sanitized' else
+                        [simv, '-no_save', '+outdir='+str(case), '+publication-fatal='+mode],
+                        case / 'run.log', 88 if mode == 'returned' else 86)
+        for i, bad in enumerate((b'', oracle(configs[0], 0)[1][7][:-1],
+                                 oracle(configs[0], 0)[1][7]+b'\0', b'\0'*200)):
+            case = backend_root / ('malformed-'+str(i)); case.mkdir()
+            (case / 'cut-7.owner').write_bytes(bad)
+            invoke('restore', 7, 0, case, expected=1)
+            require(not (case / 'restore-7.initial.owner').exists() and
+                    (case / 'restore-7.trace').read_bytes() == b'', 'invalid image partially published')
         fault = backend_root / 'actual-poll-counter-fault'; fault.mkdir()
         bad = bytearray(oracle(configs[0], 0)[1][1]); bad[160] = 2
         (fault / 'cut-1.owner').write_bytes(bad)
@@ -147,12 +183,14 @@ def main():
             audit_case(backend_root / f'scenario-{i}', config, i)
         results.append(dict(backend=backend, fresh_continuations=48, scenarios=scenarios,
                             negative_assertions=int(count[1]), first_actual_corruption_fixture_cycle=107))
-    inputs = [header, *sources, CC / 'core/widget_checkpoint.h', CC / 'bridges/clock.h',
-              CC / 'bridges/heartbeat.h', TESTS / 'heartbeat_checkpoint_tb.sv', Path(__file__)]
+    for binding in bindings:
+        require(file_sha(binding['path']) == binding['sha256'], 'source changed during execution')
     summary = dict(status='passed', artifact_root=str(out),
                    scope='buffered heartbeat host component; CPU checkpoint acceptance pending',
                    fresh_continuations=96, backends=results, deterministic_fixture_wall_time=True,
                    level1_verified=False, level2_verified=False,
+                   prepared=args.prepared, source_inputs=bindings, commands=commands,
+                   artifact_sha256={str(p): file_sha(p) for p in out.rglob('*') if p.is_file()},
                    inputs_sha256={str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs})
     (out / 'summary.json').write_text(json.dumps(summary, indent=2)+'\n')
     (args.out.resolve() / 'latest.json').write_text(json.dumps(dict(summary=str(out / 'summary.json')), indent=2)+'\n')
