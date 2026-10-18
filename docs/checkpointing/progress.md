@@ -14,6 +14,58 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 168, in progress.
+Production `mm_magic_t` now prepares and seals its complete functional-memory
+payload before allocation-free, nonthrowing publication, preserving the mmap
+address and backing-memory aliases. Lifetime/thread/seal/consumption/generation
+guards reject stale candidates, including after identical-byte legacy loads.
+CPU aggregate admission remains disabled. Recovery:
+[functional-memory-sealed-publication.md](functional-memory-sealed-publication.md).
+
+Final-source native ASan/UBSan and time-zero VCS DPI pass 16 fresh component
+restores, 200 complete owner comparisons, 420 AXI boundary samples, 728 invalid
+rejections, 2,152 exhaustive allocation failures and 112 fatal contract checks.
+The independent byte/queue/strobe oracle and five explicitly offline adversarial
+auditor controls pass. These use 4-KiB component mappings, not a complete 16-GiB
+Rocket checkpoint. The final memory receipt is
+`runs/m11-iteration168/memory-final/invocation-h3ent2gp/summary.json`.
+
+The eight preserved native scopes (280 Python tests), creator/harness matrix,
+dispatcher guards, stream widgets, MMIO and DMA suites, production TSI matrix,
+thirty retained auditors and five retained I/O receipts pass. Four fresh ordinary
+RTL replay windows and the independent full-source audit pass 318,637 pre-edge
+words per cut, 256 events, sixteen first semantic divergences and 44 invalid
+cases at C=100 / 700,000 / 900,000 / 3,250,000. Both exact-recipe 16-GiB four-hart
+direct-exit controls pass at C=3,329,794. All four ordinary/restricted and
+buffered/unbuffered syscall controls pass at C=3,330,050. Complete hart traces
+and decoded workload labels match within each protocol. All fourteen final
+checks and ten independent audits pass. These CPU controls are uninterrupted
+regressions, not complete Level-1 restores. Final selected receipts, executable
+native commands, exact workload/source hashes and full-path artifact index are
+`summary.json`, `selected-results.json`, `verification-commands.json`,
+`raw-native-commands.json`, `workloads.json`, `native-input-archives.json` and
+`artifact-manifest.json` under `runs/m11-iteration168/`.
+The exploratory memory pilot overlapped final edits and correctly failed its
+source-binding guard after all cases ran; only the fixed-source final receipt
+is selected. No test was cancelled or reduced.
+
+The source-bound census and linked-symbol audit retain 15 host widgets,
+11,464 generated entries / 445,838 words, the new memory and existing I/O APIs,
+and all three CPU admission guards. Three current-binary requests and their
+independent audit retain unsupported owner/capability denial, with no CPU image
+created; these are not malformed CPU-image parser tests. Both existing
+controller heads reached GitHub, FireSim first then Chipyard, with independently
+confirmed remote tips despite local tracking-reference write warnings. No
+staging or local commit occurred. Plans, environment helpers, heads and indices
+retain their starting bytes. No external dependency is missing.
+Complete prepared/sealed simulator coordination and production
+controller/creator/thread/signal/descriptor/parser exclusion remain pending.
+The generic aggregate still loads allocating owners sequentially. Level 2 stays
+independent; BOOM/Saturn remain pending. Standalone Shuttle, physical FPGA
+validation and ASIC power remain outside scope.
+
+Previous iteration 167 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 167, in progress.
 Production runtime I/O now separates complete destination sealing from
 allocation-free `noexcept` publication. A destination generation invalidates
