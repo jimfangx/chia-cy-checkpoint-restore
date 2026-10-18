@@ -14,6 +14,78 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 170, in progress.
+Added explicitly opted-in prepared publication for production master, clock,
+loadmem and reset-pulse configuration-only host owners. Complete source and
+current destination bytes must match. Sealing checks lifetime/native-thread/
+generation/consumption; publication is allocation-free `noexcept` with no MMIO,
+target edge or host-state assignment. Identical-byte legacy loads invalidate
+candidates. All four owners are noncopyable/nonmovable. Suspended/interrupted
+calls remain unsupported. Recovery:
+[configuration-sealed-publication.md](configuration-sealed-publication.md).
+
+Final-source native ASan/UBSan and time-zero VCS DPI pass 24 fresh component
+restores, 296 complete owner comparisons, 154 service boundaries, 22,248 invalid
+rejections, 2,472 exhaustive allocation failures and 48 fatal contract checks.
+The independent full-byte/MMIO oracle and five offline forged-receipt controls
+pass. The final receipt is
+`runs/m11-iteration170/configuration-final/invocation-4k90qdxr/summary.json`.
+These are four actual host owners with deterministic fixture services, not
+complete Rocket Level-1 checkpoints or target-cycle continuation.
+
+All fifteen broader checks and twelve independent audits pass. The eight
+preserved native scopes retain 280 Python tests plus semantic/banked, FCFS,
+widget, UART, block-device and heartbeat native VCS checks. Creator/harness,
+dispatcher, stream/DMA, MMIO, runtime I/O, memory, scheduler/bridge-loop and the
+production TSI matrix pass. Thirty retained auditors and thirteen retained
+I/O/memory receipts pass. A retained-receipt wrapper initially selected the DMA
+auditor for a memory receipt; corrected routing passes all thirteen receipts and
+preserves the failed diagnostic. Additional audits retain all 32 dispatcher
+diagnostics, 336 unpublished TSI invalid cases and 128 unpublished cancellations.
+
+Fresh ordinary RTL VCS and its independent full-source audit pass all four
+retained Rocket windows at C=100 / 700,000 / 900,000 / 3,250,000: 318,637 words
+read back per cut before any edge, 256 captured events, sixteen first semantic
+divergences and 44 invalid cases. Both exact-recipe 16-GiB four-hart direct-exit
+controls pass at C=3,329,794; all four ordinary/restricted and buffered/unbuffered
+syscall controls pass at C=3,330,050. Complete hart traces and decoded workload
+labels match within each protocol. These CPU controls are uninterrupted runs,
+not complete Level-1 continuations. Final selected receipts, exact workload/source
+hashes and executable native commands are `summary.json`, `selected-results.json`,
+`workloads.json`, `native-input-archives.json`, `verification-commands.json`,
+`raw-native-commands.json` and `artifact-manifest.json` under
+`runs/m11-iteration170/`; see [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md).
+
+The source census and linked-symbol audit retain 15 host widgets, 11,464
+generated entries / 445,838 words, all four prepared widget APIs and all three
+CPU admission guards. Three fresh capability/owner denials and their independent
+audit create no CPU image; these are not malformed CPU-image parser tests.
+Existing controller heads reached both GitHub forks, FireSim first; independently
+read remote tips match despite local tracking-reference write warnings.
+Plans, environment helpers, heads and indices retain their starting bytes.
+No staging or local commit occurred. No external dependency is missing.
+No test was cancelled or reduced.
+
+The remaining-owner read-only audit binds seventeen source files in
+`runs/m11-iteration170/remaining-publication-owner-audit.json` and records
+mutable flags, nested UART state, FASED/TracerV/heartbeat output ownership,
+blockdev libc-resource preparation/retirement and the driver's fresh-state
+boundary. The smallest next increment is CPU-managed stream initialization,
+peek/poke result flags and the concrete driver's fresh lifecycle candidate;
+none can use the configuration-only equality adapter for differing values.
+
+Complete CPU admission remains disabled. Prepare/seal CPU-managed stream control,
+peek/poke, block device, UART, FASED, four TracerV owners, heartbeat and the concrete
+driver, then join them with generated RTL/FAME/channels/harness, memory, runtime
+I/O, scheduler/bridge-loop and creator-side TSI under production
+controller/creator/thread/signal/descriptor/parser exclusion. The generic
+aggregate still loads legacy owners sequentially. Complete fresh Rocket Level-1
+continuation at all four active-workload cuts remains pending. Independent
+Level 2 remains separate; BOOM/Saturn remain pending. Standalone Shuttle,
+physical FPGA validation and ASIC power remain outside scope.
+
+Previous iteration 169 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 169, in progress.
 Added a default-unsupported prepared-owner interface and production scheduler /
 bridge-loop adapters with complete sealing before allocation-free `noexcept`
