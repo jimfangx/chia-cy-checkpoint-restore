@@ -41,8 +41,8 @@ next C++ allocation armed to fail. Separate processes test fatal misuse without
 acknowledging publication. Exact receipts and executable commands are recorded in
 [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md).
 
-Complete Rocket Level 1 remains disabled. `CPUManagedStreamWidget`, `peek_poke_t`,
-`blockdev_t`, `uart_t`, FASED, all four TracerV owners, `heartbeat_t` and the
+Complete Rocket Level 1 remains disabled. Iteration 171 adds separate prepared
+publication for `CPUManagedStreamWidget` and `peek_poke_t`. `blockdev_t`, `uart_t`, FASED, all four TracerV owners, `heartbeat_t` and the
 concrete FireSim driver still need audited prepared publication. Join those
 owners with scheduler/bridge-loop, memory, runtime I/O, creator-side TSI, generated
 RTL and harness under production exclusion before admitting a complete CPU
@@ -68,8 +68,8 @@ The current four adapters cannot replace any of the following loads.
 | `blockdev_t` | Initialized/response-pending flags, complete private disk bytes, stream cursor, all request/data/response/ack queues and every write tracker | Prepare disk/queues/trackers and a correctly positioned owned `fmemopen` stream before sealing. Preserve its backing-vector alias through publication. The legacy load creates a libc stream and closes the old stream; neither operation can simply be moved into a supposedly nonthrowing aggregate commit. Retire/cancel resources under the eventual process/descriptor policy. External disk/log modes reject. |
 | FireSim `concrete_checkpoint_t` | Running/fresh/finalized driver lifecycle; separate scheduler and bridge-loop owners retain credits/deadlines/cursor/termination | Prepare a running-source flag for a strictly fresh unfinished destination. Capture of a fresh driver's source image already rejects, so destination sealing needs its own explicit fresh-state stamp rather than calling the source-only `save_checkpoint()`. Bind registry order/identities/schemas and profile settings; set `started` without initialization, reset, stepping or finalization. |
 
-The smallest next increment is scalar candidates for CPU-managed stream control
-and peek/poke, followed by the concrete driver's fresh-state candidate. The
+The scalar candidates for CPU-managed stream control and peek/poke are now
+implemented in iteration 171; the concrete driver's fresh-state candidate is next. The
 existing configuration-only helper requires exact source/destination payload
 equality and cannot restore these differing scalar values. Keep source-bound
 lifetime/thread/generation checks, identical-byte legacy-load invalidation and

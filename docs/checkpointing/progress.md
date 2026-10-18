@@ -14,6 +14,74 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 171, in progress.
+Added explicitly opted-in prepared publication for production CPU-managed stream
+initialization and peek/poke returned-call unstable/timeout flags. Complete source
+configuration/payload and destination bytes validate before scalar-only,
+allocation-free `noexcept` publication. Lifetime/native-thread/generation/
+consumption guards precede owner access; identical-byte legacy loads invalidate
+candidates. Both final concrete owners are noncopyable/nonmovable. Suspended and
+interrupted services remain unsupported. Recovery:
+[scalar-sealed-publication.md](scalar-sealed-publication.md).
+
+Final-source native ASan/UBSan and time-zero VCS DPI pass 40 fresh component
+restores, 244 complete owner comparisons, 418 service boundaries, 34,440 invalid
+rejections, 1,360 exhaustive allocation failures and 24 fatal contract checks.
+The independent full-byte/MMIO/DMA oracle and five offline forged-receipt controls
+pass. The selected receipt is
+`runs/m11-iteration171/scalar-verified/invocation-ziqgcxqh/summary.json`.
+These are two actual host owners with fixture MMIO/DMA/clock services, not
+complete Rocket Level-1 checkpoints or target-cycle continuation. The initial
+fixture compile diagnostic and an earlier source-drift rejection remain separate.
+
+The final-source eight-scope repeat passes 280 Python tests and preserved
+semantic, banked, widget, FCFS, UART, block-device and heartbeat native checks.
+Stream/MMIO/CPU-managed I/O and configuration publication regressions pass.
+An earlier native envelope completed all eight checks then rejected source drift;
+the selected repeat is `runs/m11-iteration171/verified/native-confirmed/invocation-q8mph5lg/summary.json`.
+Fresh ordinary RTL VCS and its independent full-source audit pass all four
+retained Rocket windows: 318,637 words before any edge per cut, 256 captured
+events, sixteen actual first divergences and 44 invalid cases. The replay receipt
+is `runs/m11-iteration171/regressions/native-replay/invocation-s35wxbbl/summary.json`.
+These results retain the independent Level-2 evidence; they do not enable Level 1.
+
+Both exact-recipe 16-GiB four-hart direct-exit controls pass at C=3,329,794;
+every complete hart trace and decoded workload label matches the uninterrupted
+reference. The selected receipt is
+`runs/m11-iteration171/verified/rocket/invocation-4cpr4qqv/summary.json`.
+These are uninterrupted CPU controls, not complete Level-1 continuations.
+The preserved scheduler/bridge-loop publication matrix also passes. Exact
+workload/source hashes and commands are in [cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md)
+and the receipts under `runs/m11-iteration171/`.
+
+All twelve final independent audits pass. The source census and linked-symbol
+audit retain 15 host widgets, 11,464 generated entries / 445,838 words, both new
+scalar APIs and all three CPU admission guards. Three fresh native capability/
+owner denials and their audit create no CPU image; these are not malformed
+CPU-image parser tests. Selected receipts, exact workload/source bindings,
+executable commands and full-path artifacts are `selected-results.json`,
+`workloads.json`, `native-input-archives.json`, `verification-commands.json`,
+`raw-native-commands.json` and `artifact-manifest.json` under `runs/m11-iteration171/`.
+Existing controller heads reached both GitHub forks, FireSim first, with remote
+tip verification despite local tracking-reference write warnings. Plans,
+environment helpers, heads and the root index retain their starting bytes;
+both cached diffs remain empty. No staging/local commit occurred. No external
+dependency is missing. No test was cancelled or reduced.
+
+Complete CPU admission remains disabled. The next smallest owner is the concrete
+FireSim driver's fresh lifecycle; the source-only save cannot stamp a fresh
+destination. The read-only recovery audit is
+`runs/m11-iteration171/next-driver-publication-audit.json`. Prepare/seal that owner,
+blockdev, UART, FASED, four TracerV owners and heartbeat, then join all owners with
+generated RTL/FAME/channels/harness, memory, runtime I/O, scheduler/bridge-loop and
+creator-side TSI under production controller/creator/thread/signal/descriptor/
+parser exclusion. The generic aggregate still loads legacy owners sequentially.
+Complete fresh Rocket Level-1 continuation at all four active-workload cuts
+remains pending. Independent Level 2 stays separate; BOOM/Saturn remain pending.
+Standalone Shuttle, physical FPGA validation and ASIC power remain outside scope.
+
+Previous iteration 170 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 170, in progress.
 Added explicitly opted-in prepared publication for production master, clock,
 loadmem and reset-pulse configuration-only host owners. Complete source and
