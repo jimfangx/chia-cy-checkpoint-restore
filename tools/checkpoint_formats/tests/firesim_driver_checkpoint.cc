@@ -7,6 +7,27 @@
 #include <iostream>
 #include <limits>
 #include <sstream>
+#include <new>
+#include <thread>
+#include <type_traits>
+
+static thread_local long fail_after = -1;
+static thread_local bool allocation_failed = false;
+void *operator new(std::size_t n) {
+  if (fail_after >= 0 && fail_after-- == 0) {
+    fail_after = -1; allocation_failed = true; throw std::bad_alloc();
+  }
+  if (auto p = std::malloc(n ? n : 1)) return p;
+  throw std::bad_alloc();
+}
+void *operator new[](std::size_t n) { return ::operator new(n); }
+void operator delete(void *p) noexcept { std::free(p); }
+void operator delete[](void *p) noexcept { std::free(p); }
+void operator delete(void *p, std::size_t) noexcept { std::free(p); }
+void operator delete[](void *p, std::size_t) noexcept { std::free(p); }
+
+static_assert(!std::is_copy_constructible_v<firesim_top_t> &&
+              !std::is_move_constructible_v<firesim_top_t>);
 
 simif_t::simif_t(const TargetConfig &c) : config(c) {}
 simif_t::~simif_t() = default;
@@ -171,7 +192,18 @@ void initialize(const char *source,const char *directory,bool restore,unsigned c
       owners[i].second->validate_checkpoint(bytes.back());
     }
     // Complete fixture inventory validation precedes any load/publication.
+#ifdef FIRESIM_DRIVER_PREPARED_PUBLICATION
+    // Only the driver adapter is under test here. Other owners retain their
+    // legacy fixture loader; this is not a whole-simulator transaction.
+    auto driver = owners[0].second->prepare_checkpoint_publication(bytes[0]);
+    driver->seal();
+    for (size_t i=1;i<owners.size();++i) owners[i].second->load_checkpoint(bytes[i]);
+    allocation_failed = false; fail_after = 0;
+    driver->publish();
+    const bool clean = fail_after == 0 && !allocation_failed; fail_after = -1; check(clean);
+#else
     for (size_t i=0;i<owners.size();++i) owners[i].second->load_checkpoint(bytes[i]);
+#endif
     check(fixture->platform.calls==0);
     snapshot("initial");
     std::ifstream f(std::filesystem::path(source)/"trace"); check(bool(f));
@@ -303,6 +335,146 @@ void negative() {
   rejects([&]{completed.owners()[0].second->load_checkpoint(good);});
   std::cout << "PASS: FireSim driver atomic/configuration/lifecycle rejections " << rejected << '\n';
 }
+
+checkpoint_owner_t &driver_owner(fixture_t &f) {
+  return *f.driver->checkpoint_driver_owners().front().second;
+}
+using inventory_t = std::vector<std::vector<uint8_t>>;
+inventory_t observe(fixture_t &f) {
+  inventory_t result;
+  auto owners = f.owners();
+  // A fresh driver deliberately has no source image. All other fixture owners
+  // can be read back, including the separate scheduler and bridge-loop state.
+  try { result.push_back(owners[0].second->save_checkpoint()); }
+  catch (const std::runtime_error &) { result.emplace_back(); }
+  for (size_t i=1; i<owners.size(); ++i) result.push_back(owners[i].second->save_checkpoint());
+  return result;
+}
+void publish(prepared_checkpoint_t &candidate) {
+  allocation_failed = false; fail_after = 0;
+  static_assert(noexcept(candidate.publish())); candidate.publish();
+  const bool clean = fail_after == 0 && !allocation_failed; fail_after = -1; check(clean);
+}
+void publication_negative() {
+  fixture_t source; source.driver->simulation_run_step();
+  const auto good = driver_owner(source).save_checkpoint();
+  fixture_t dest; auto &owner = driver_owner(dest);
+  const auto initial = observe(dest);
+  auto unchanged = [&] {
+    check(observe(dest) == initial && dest.platform.calls == 0);
+    // Also prove that a failed/cancelled operation has not poisoned or started
+    // the destination; source-save rejection alone cannot establish freshness.
+    auto probe = owner.prepare_checkpoint_publication(good);
+    probe->seal();
+  };
+  auto malformed = [&](const std::vector<uint8_t> &bad) {
+    rejects([&] { owner.prepare_checkpoint_publication(bad); }); unchanged();
+  };
+  for (size_t n=0; n<good.size(); ++n) malformed({good.begin(), good.begin()+n});
+  for (size_t n=0; n<good.size(); ++n) { auto bad=good; bad[n]^=1; malformed(bad); }
+  for (unsigned bit=0; bit<64; ++bit) {
+    auto bad=good; bad[good.size()-8+bit/8]^=uint8_t(1U<<(bit%8)); malformed(bad);
+  }
+  { auto bad=good; bad.push_back(0); malformed(bad); }
+  // A payload from a different owner is not a compatible running driver.
+  malformed(source.owners()[1].second->save_checkpoint());
+  for (unsigned phase=0; phase<2; ++phase) {
+    auto c=owner.prepare_checkpoint_publication(good); if (phase) c->seal();
+    c.reset(); unchanged();
+  }
+  { auto c=owner.prepare_checkpoint_publication(good); c->seal(); rejects([&] { c->seal(); }); unchanged(); }
+  { auto c=owner.prepare_checkpoint_publication(good);
+    std::thread t([&] { rejects([&] { c->seal(); }); }); t.join(); unchanged(); }
+  { std::unique_ptr<prepared_checkpoint_t> c;
+    { fixture_t dead; c=driver_owner(dead).prepare_checkpoint_publication(good); }
+    rejects([&] { c->seal(); }); unchanged(); }
+  { fixture_t f; auto &o=driver_owner(f);
+    auto c=o.prepare_checkpoint_publication(good), other=o.prepare_checkpoint_publication(good);
+    c->seal(); publish(*c);
+    check(o.save_checkpoint()==good && f.platform.calls==0);
+    rejects([&] { c->seal(); }); rejects([&] { other->seal(); });
+    rejects([&] { o.prepare_checkpoint_publication(good); }); }
+  { fixture_t f; auto &o=driver_owner(f); auto c=o.prepare_checkpoint_publication(good);
+    o.load_checkpoint(good); rejects([&] { c->seal(); });
+    rejects([&] { o.prepare_checkpoint_publication(good); }); }
+  { fixture_t f; auto &o=driver_owner(f); auto c=o.prepare_checkpoint_publication(good);
+    f.driver->simulation_run_step(); rejects([&] { c->seal(); });
+    rejects([&] { o.prepare_checkpoint_publication(good); }); }
+  { fixture_t f; auto &o=driver_owner(f); auto c=o.prepare_checkpoint_publication(good);
+    // Premature finalization poisons a still-unstarted driver's call state.
+    rejects([&] { f.driver->simulation_run_finalize(); });
+    rejects([&] { c->seal(); }); rejects([&] { o.prepare_checkpoint_publication(good); }); }
+  { fixture_t f(5); auto &o=driver_owner(f);
+    check(f.driver->simulation_run_step()); f.driver->simulation_run_finalize();
+    rejects([&] { o.prepare_checkpoint_publication(good); }); }
+  for (const auto &extra : std::vector<std::vector<std::string>>{
+         {"+profile-interval=10"}, {"+profile-interval=11"}}) {
+    fixture_t f(0,extra); rejects([&] { driver_owner(f).prepare_checkpoint_publication(good); });
+    check(f.platform.calls==0);
+  }
+  { fixture_t f(0,{},3); rejects([&] { driver_owner(f).prepare_checkpoint_publication(good); }); }
+  { fixture_t f; auto &o=driver_owner(f); auto c=o.prepare_checkpoint_publication(good);
+    f.registry.add_widget(new bridge_t(f.platform,4));
+    rejects([&] { c->seal(); }); rejects([&] { o.prepare_checkpoint_publication(good); });
+    check(f.platform.calls==0); }
+  // Preparation retains no caller-owned image bytes.
+  { fixture_t f; auto &o=driver_owner(f); auto before=observe(f); auto input=good;
+    auto c=o.prepare_checkpoint_publication(input); input.assign(1,0); c->seal(); publish(*c);
+    before[0]=good; check(observe(f)==before && f.platform.calls==0); }
+  unsigned failures[2]{};
+  for (unsigned phase=0; phase<2; ++phase) for (long n=0; ; ++n) {
+    std::unique_ptr<prepared_checkpoint_t> c;
+    if (phase) c=owner.prepare_checkpoint_publication(good);
+    allocation_failed=false; fail_after=n; bool failed=false;
+    try { if (phase) c->seal(); else c=owner.prepare_checkpoint_publication(good); }
+    catch (const std::bad_alloc &) { failed=true; }
+    fail_after=-1; unchanged();
+    if (!failed) { check(!allocation_failed); break; }
+    ++failures[phase];
+    // A partially failed seal can be retried on the same candidate.
+    if (phase) c->seal();
+  }
+  check(failures[0] && failures[1]);
+  std::cout << "DRIVER_PUBLICATION_NEGATIVE rejections=" << rejected
+            << " prepare_failures=" << failures[0] << " seal_failures=" << failures[1]
+            << " unchanged=1 mmio=0\n";
+}
+fixture_t *fatal_fixture;
+inventory_t fatal_expected;
+std::vector<uint8_t> fatal_source;
+const char *fatal_mode;
+void terminated() noexcept {
+  fail_after=-1;
+  try {
+    check(observe(*fatal_fixture)==fatal_expected && fatal_fixture->platform.calls==0);
+    if (fatal_expected[0].empty()) {
+      auto probe=driver_owner(*fatal_fixture).prepare_checkpoint_publication(fatal_source); probe->seal();
+    }
+    std::fprintf(stderr,"DRIVER_PUBLICATION_FATAL mode=%s unchanged=1 mmio=0\n",fatal_mode);
+    std::fflush(stderr); std::_Exit(86);
+  } catch (...) { std::_Exit(87); }
+}
+void publication_fatal(const char *mode) {
+  std::set_terminate(terminated);
+  fixture_t source; source.driver->simulation_run_step(); fatal_source=driver_owner(source).save_checkpoint();
+  fixture_t f; fatal_fixture=&f; fatal_mode=mode;
+  auto &o=driver_owner(f); auto c=o.prepare_checkpoint_publication(fatal_source);
+  const std::string m(mode);
+  if (m=="expired") {
+    auto dead=std::make_unique<fixture_t>(); c=driver_owner(*dead).prepare_checkpoint_publication(fatal_source);
+    c->seal(); dead.reset();
+  } else if (m!="unsealed") c->seal();
+  if (m=="consumed") publish(*c);
+  else if (m=="stale") { auto other=o.prepare_checkpoint_publication(fatal_source); other->seal(); publish(*other); }
+  else if (m=="legacy") o.load_checkpoint(fatal_source);
+  fatal_expected=observe(f);
+  if (m=="thread") { std::thread t([&] { c->publish(); }); t.join(); }
+  else c->publish();
+  // An unexpected return must never enter the successful terminate handler.
+  std::fprintf(stderr, "DRIVER_PUBLICATION_UNEXPECTED_RETURN mode=%s\n", mode);
+  std::fflush(stderr);
+  std::_Exit(88);
+}
 } // namespace
 
 extern "C" int firesim_driver_init(const char *source,const char *out,int restore,int cut,int mode) {
@@ -317,10 +489,17 @@ extern "C" int firesim_driver_negative() {
   try { negative(); return 0; }
   catch (const std::exception &e) { std::cerr << e.what() << '\n'; return 1; }
 }
+extern "C" int firesim_driver_publication_negative() {
+  try { publication_negative(); return 0; }
+  catch (const std::exception &e) { fail_after=-1; std::cerr << e.what() << '\n'; return 1; }
+}
+extern "C" void firesim_driver_publication_fatal(const char *mode) { publication_fatal(mode); }
 extern "C" void firesim_driver_failure() { std::exit(1); }
 #ifndef FIRESIM_DRIVER_CHECKPOINT_DPI
 int main(int argc,char **argv) {
   if (argc==2 && std::string(argv[1])=="negative") return firesim_driver_negative();
+  if (argc==2 && std::string(argv[1])=="publication-negative") return firesim_driver_publication_negative();
+  if (argc==3 && std::string(argv[1])=="publication-fatal") { publication_fatal(argv[2]); return 1; }
   if (argc!=6) return 1;
   if (firesim_driver_init(argv[1],argv[2],std::stoi(argv[3]),std::stoi(argv[4]),std::stoi(argv[5]))) return 1;
   int result;

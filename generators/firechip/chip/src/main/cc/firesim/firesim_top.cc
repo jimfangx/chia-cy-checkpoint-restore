@@ -9,6 +9,7 @@
 #include "core/simulation.h"
 #include "core/systematic_scheduler.h"
 #include "core/bridge_run_loop.h"
+#include "core/checkpoint_publication.h"
 #include <charconv>
 #include <filesystem>
 #include <fstream>
@@ -69,12 +70,48 @@ private:
     }
     void load_checkpoint(const std::vector<uint8_t> &payload) override {
       validate_checkpoint(payload);
-      if (driver.started)
-        throw std::runtime_error("FireSim restore requires a fresh driver");
+      require_fresh();
+      publication.changed();
       driver.started = true;
     }
+    std::unique_ptr<prepared_checkpoint_t>
+    prepare_checkpoint_publication(const std::vector<uint8_t> &payload) override {
+      return std::make_unique<restore_t>(*this, payload);
+    }
   private:
+    void require_fresh() const {
+      driver.checkpoint_state.require_idle();
+      if (driver.started || driver.finalized)
+        throw std::runtime_error("FireSim restore requires a fresh driver");
+    }
+    std::vector<uint8_t> destination_stamp() const {
+      require_fresh();
+      // Source capture requires a running driver. Stamp the fresh destination
+      // separately, including the complete registry/configuration binding.
+      return driver.checkpoint_state.save(driver.checkpoint_configuration(), 0);
+    }
+    class restore_t final : public prepared_checkpoint_t {
+      concrete_checkpoint_t &owner;
+      checkpoint_publication_t::guard_t guard;
+      const std::vector<uint8_t> expected;
+    public:
+      restore_t(concrete_checkpoint_t &owner, const std::vector<uint8_t> &payload)
+          : owner(owner), guard(owner.publication), expected(owner.destination_stamp()) {
+        owner.validate_checkpoint(payload);
+      }
+      void seal() override {
+        guard.require_unsealed(); // Check lifetime/thread/generation before owner access.
+        if (owner.destination_stamp() != expected)
+          throw std::runtime_error("FireSim checkpoint destination changed");
+        guard.seal();
+      }
+      void publish() noexcept override {
+        guard.publish();
+        owner.driver.started = true;
+      }
+    };
     firesim_top_t &driver;
+    checkpoint_publication_t publication;
   } driver_checkpoint{*this};
   widget_checkpoint_config_t checkpoint_configuration() const;
   simif_t &simif;

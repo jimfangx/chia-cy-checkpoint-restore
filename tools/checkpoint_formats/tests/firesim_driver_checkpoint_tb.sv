@@ -4,13 +4,22 @@ module firesim_driver_checkpoint_tb;
       input int restore_mode, input int cut, input int mode);
   import "DPI-C" function int firesim_driver_step();
   import "DPI-C" function int firesim_driver_negative();
+  import "DPI-C" function int firesim_driver_publication_negative();
+  import "DPI-C" function void firesim_driver_publication_fatal(input string mode);
   import "DPI-C" function void firesim_driver_failure();
-  string source, outdir;
+  string source, outdir, fatal_mode;
   int restore_mode, cut, mode, result;
   bit clock = 0;
   always #5 clock = ~clock;
   initial begin
-    if ($test$plusargs("negative")) begin
+    if ($value$plusargs("publication-fatal=%s", fatal_mode)) begin
+      firesim_driver_publication_fatal(fatal_mode);
+      firesim_driver_failure();
+    end else if ($test$plusargs("publication-negative")) begin
+      if (firesim_driver_publication_negative()) firesim_driver_failure();
+      if ($time != 0) firesim_driver_failure();
+      $display("DRIVER_PUBLICATION_ZERO_TIME_PASS");
+    end else if ($test$plusargs("negative")) begin
       if (firesim_driver_negative()) firesim_driver_failure();
     end else begin
       if (!$value$plusargs("source=%s", source) || !$value$plusargs("outdir=%s", outdir) ||

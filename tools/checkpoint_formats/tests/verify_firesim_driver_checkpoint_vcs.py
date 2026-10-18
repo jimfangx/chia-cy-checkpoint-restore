@@ -21,6 +21,7 @@ from tools.checkpoint_formats.tests.verify_semantic_vcs import ROOT, run
 TESTS = Path(__file__).resolve().parent
 CC = ROOT / 'sims/firesim/sim/midas/src/main/cc'
 FIRECHIP = ROOT / 'generators/firechip/chip/src/main/cc'
+FATAL = ('expired', 'unsealed', 'consumed', 'stale', 'legacy', 'thread')
 ENVIRONMENT = ('source ' + shlex.quote(str(ROOT / 'env.sh')) + ' && source ' +
                shlex.quote(str(ROOT / 'sims/firesim/env.sh')) + ' && source ' +
                shlex.quote(str(ROOT / 'automations/checkpoint_loop/vcs-env.sh')) + ' && ')
@@ -139,6 +140,26 @@ def audit(path):
         for case in backend['cases']:
             require(case == audit_case(path.parent / backend['backend'] / str(case['mode']), case['mode']),
                     'changed native comparison counts')
+        if report.get('prepared_driver', False):
+            log = (path.parent / backend['backend'] / 'publication-negative.log').read_text()
+            match = re.search(r'DRIVER_PUBLICATION_NEGATIVE rejections=(\d+) prepare_failures=(\d+) seal_failures=(\d+) unchanged=1 mmio=0', log)
+            require(match is not None, 'missing prepared driver negative checks')
+            rejected, prepare, seal = map(int, match.groups())
+            require(rejected == 2*len(oracle(0)[1][0][0])+85 and prepare > 0 and seal > 0,
+                    'prepared driver negative/allocation coverage changed')
+            require(backend['publication'] == dict(rejections=rejected, prepare_failures=prepare, seal_failures=seal,
+                                                  fatal_checks=len(FATAL)), 'changed publication counts')
+            if backend['backend'] == 'vcs-dpi':
+                require('DRIVER_PUBLICATION_ZERO_TIME_PASS' in log, 'publication negatives advanced VCS time')
+            for mode in FATAL:
+                log = (path.parent / backend['backend'] / ('publication-fatal-'+mode+'.log')).read_text()
+                require(f'DRIVER_PUBLICATION_FATAL mode={mode} unchanged=1 mmio=0' in log and
+                        'exit=86' in log and 'PASS:' not in log and 'ZERO_TIME_PASS' not in log,
+                        'invalid publication acknowledged or changed owner state')
+            log = (path.parent / backend['backend'] / 'publication-returned.log').read_text()
+            require('DRIVER_PUBLICATION_UNEXPECTED_RETURN mode=returned' in log and
+                    log.rstrip().endswith('exit=88') and 'DRIVER_PUBLICATION_FATAL mode=' not in log,
+                    'unexpected return accepted by fatal publication test harness')
     commands = report['commands']
     require(len({c['pid'] for c in commands}) == len(commands), 'reused native process')
     for c in commands:
@@ -148,13 +169,16 @@ def audit(path):
                 'unbound native command/environment')
     return dict(status='passed', summary=str(path),
                 fresh_continuations=sum(c['cuts'] for b in report['backends'] for c in b['cases']),
-                native_processes=len(commands), level1_verified=False, level2_verified=False)
+                native_processes=len(commands), prepared_driver=report.get('prepared_driver', False),
+                publication=[b['publication'] for b in report['backends']] if report.get('prepared_driver', False) else [],
+                level1_verified=False, level2_verified=False)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', type=Path)
     parser.add_argument('--audit', type=Path)
+    parser.add_argument('--prepared', action='store_true', help='use prepared publication for the concrete driver')
     args = parser.parse_args()
     if args.audit:
         print(json.dumps(audit(args.audit), indent=2)); return
@@ -186,6 +210,8 @@ def main():
         (out / 'commands.json').write_text(json.dumps(commands, indent=2)+'\n')
         return result
     include = f'-std=c++17 -I{CC} -I{FIRECHIP}'
+    if args.prepared:
+        include += ' -DFIRESIM_DRIVER_PREPARED_PUBLICATION'
     native, simv = out / 'driver-native', out / 'driver-simv'
     execute([os.environ['CXX'], *shlex.split(include), '-Wall', '-Wextra', '-Werror', '-Wno-unused-parameter',
              '-g', '-no-pie', '-fsanitize=address,undefined', '-fno-omit-frame-pointer', *sources,
@@ -253,11 +279,26 @@ def main():
         require((destination / 'trace').read_text().splitlines() == ['OP 6 C 106'], 'divergent MMIO was acknowledged')
         results.append(dict(backend=backend, cases=cases, atomic_rejections=rejections,
                             invalid_fresh_processes=invalid, first_divergence_fixture_cycle=106))
+        if args.prepared:
+            log = execute([native, 'publication-negative'] if backend == 'native-sanitized' else
+                          [simv, '-no_save', '+publication-negative'], base / 'publication-negative.log')
+            match = re.search(r'DRIVER_PUBLICATION_NEGATIVE rejections=(\d+) prepare_failures=(\d+) seal_failures=(\d+)', log)
+            require(match is not None, 'missing driver publication matrix')
+            results[-1]['publication'] = dict(zip(('rejections', 'prepare_failures', 'seal_failures'), map(int, match.groups())))
+            results[-1]['publication']['fatal_checks'] = len(FATAL)
+            for mode in FATAL:
+                execute([native, 'publication-fatal', mode] if backend == 'native-sanitized' else
+                        [simv, '-no_save', '+publication-fatal='+mode],
+                        base / ('publication-fatal-'+mode+'.log'), 86)
+            # A valid publication deliberately returns here: prove that the
+            # fatal-test harness cannot convert that return into a passing trap.
+            execute([native, 'publication-fatal', 'returned'] if backend == 'native-sanitized' else
+                    [simv, '-no_save', '+publication-fatal=returned'], base / 'publication-returned.log', 88)
     for binding in bindings:
         require(file_sha(binding['path']) == binding['sha256'], 'source changed during execution')
     report = dict(status='passed', scope='production FireSim host driver component; CPU/harness/TSI ownership pending',
                   backends=results, commands=commands, source_inputs=bindings,
-                  level1_verified=False, level2_verified=False)
+                  prepared_driver=args.prepared, level1_verified=False, level2_verified=False)
     report['artifact_sha256'] = {str(p): file_sha(p) for p in sorted(out.rglob('*')) if p.is_file()}
     summary = out / 'summary.json'; summary.write_text(json.dumps(report, indent=2)+'\n')
     print(json.dumps(audit(summary), indent=2))

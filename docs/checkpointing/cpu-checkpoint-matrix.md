@@ -33,6 +33,142 @@ are retained in the recipe record, with no FPGA implementation invoked.
 VCS uses Y-2026.03-SP1, `-full64`, `VCS_FLAGS=-Mupdate`, system GCC/G++ 13,
 and the sourced Conda library/include directories. No Conda files are edited.
 
+## Iteration 172: prepared concrete-driver lifecycle publication
+
+Complete Rocket Level 1 remains **in_progress** with CPU admission disabled.
+`firesim_top_t::concrete_checkpoint_t` now explicitly prepares a running v1
+source image for a strictly fresh destination. A separate destination stamp
+checks idle/non-poisoned calls, `started == false`, `finalized == false`, profile
+configuration, peek/poke identity/schema and every ordered bridge identity/schema.
+Source capture still requires an unfinished running driver. The candidate retains
+its own destination bytes and no caller-owned payload. Sealing checks lifetime,
+native thread, generation, consumption and all destination bytes before mutation.
+Publication is allocation-free `noexcept` and assigns only `started = true`.
+Legacy loads invalidate candidates before that assignment. No init, reset, target
+edge, MMIO, scheduler callback, bridge tick, finalization or output is performed.
+The driver remains noncopyable/nonmovable. The coordinator must retain exclusion
+from sealing through aggregate readback; this adapter acquires no process lock.
+
+The maintained driver matrix has an explicit `--prepared` mode and retains
+legacy loading. Both compile actual production driver/scheduler/bridge-loop code
+with separate deterministic MMIO, bridge and heartbeat-clock fixtures. Only the
+concrete driver uses the new adapter in the prepared fixture loader. This is not
+an all-owner transaction; component service cursors and fixture cycle labels are
+not Rocket target cycles or complete CPU checkpoints.
+
+Final native ASan/UBSan and fresh VCS checks pass **224** component
+continuations across all 112 returned-service cuts, **2,464** complete
+owner readbacks before any service and **4,846** continued boundaries.
+Six scenarios cover each of four bridge termination positions, signed statuses,
+timeout and an already-finished loop. An independent Python oracle encodes every
+owner byte and the original nested-loop call transcript. The legacy matrix also
+passes all 224 fresh continuations.
+
+Prepared publication passes **1,490** invalid-candidate rejections,
+**82** preparation and **40** sealing allocation-failure points,
+and **12** fatal contract cases. Cases include every source truncation and
+configuration-byte mutation, all flag bits, trailing bytes, wrong owners/profile/
+registry geometry, changed/started/finalized/poisoned destinations, cancellation,
+repeated sealing, expiration, thread affinity, consumed/stale/legacy-load-stale
+candidates and source-buffer independence. Publication runs with the next C++
+allocation armed to fail. Every injected preparation/sealing allocation failure
+preserves complete fixture state and permits a fresh retry without MMIO. Sixteen incomplete/invalid
+fixture inventories reject before initial readback or trace creation. Two actual
+valid cursor corruptions fail at fixture C=106 before acknowledging the divergent
+MMIO response (`expected=R 200 0`, `actual=R 208 0`). These are fixture parser and
+execution faults, not CPU image-parser acceptance.
+
+Review found a weakness in the initial fatal-test fallback. An unexpected return
+now exits 88 directly, bypassing the successful terminate handler. Both native
+and VCS deliberately execute that return path and require exit 88. Both complete
+driver matrices and the full eight-scope native suite were repeated with final
+fixture bytes. Final selected driver receipts supersede preliminary driver runs.
+Seven explicitly offline forged-receipt controls reject modified readback bytes,
+service labels, invalid counts, acknowledged fatal misuse, acknowledged divergent
+MMIO, a substituted legacy-build claim and an acknowledged unexpected return,
+after recomputing artifact hashes. They test the auditor, not additional CPU runs.
+
+Selected native/VCS driver receipt:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration172/driver-final/invocation-rd6me6o5/summary.json`.
+Independent full-byte/MMIO oracle:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration172/driver-final-independent-audit.json`.
+Adversarial oracle receipt:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration172/driver-final-oracle-negative-audit.json`.
+Executable commands from the Chipyard root (each verifier allocates new paths):
+
+```bash
+bash -lc 'source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh && python -m tools.checkpoint_formats.tests.verify_firesim_driver_checkpoint_vcs --prepared --out automations/checkpoint_loop/runs/m11-iteration172/driver-final'
+bash -lc 'source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh && python -m tools.checkpoint_formats.tests.verify_firesim_driver_checkpoint_vcs --out automations/checkpoint_loop/runs/m11-iteration172/driver-legacy-final'
+python automations/checkpoint_loop/runs/m11-iteration172/audit-driver-publication.py --summary /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration172/driver-final/invocation-rd6me6o5/summary.json
+python automations/checkpoint_loop/runs/m11-iteration172/audit-driver-final-oracle-negatives.py
+```
+
+All eight final preserved scopes pass 280 Python tests plus semantic/banked,
+widget, FCFS, UART, block-device and heartbeat native checks. Stream/MMIO/
+CPU-managed I/O and scalar/configuration/control publication regressions pass.
+The final eight-scope receipt is `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration172/native-final/invocation-hyx1jrze/summary.json`.
+Fourteen final independent audits pass. The current exact-recipe census and
+symbol audit retain 15 host widgets, 11,464 generated entries / 445,838 words,
+the driver's prepared/seal/publish methods and all three CPU admission guards.
+Three fresh native exact-recipe capability/owner denials create no CPU image;
+they are not malformed CPU-image parser tests.
+
+Fresh ordinary pre-FAME RTL VCS independently replays all four retained Rocket
+cuts, **C=100 / 700,000 / 900,000 / 3,250,000**, reading every one of **318,637**
+semantic words before any edge per cut. All **256** captured events and **21,760**
+output comparisons match, with **sixteen** actual first divergences and **44**
+invalid-image cases. The full-source independent audit binds the original capture
+log and complete replay sources. Selected replay receipt:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration172/regressions/native-replay/invocation-uy0e94is/summary.json`.
+Independent audit: `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration172/replay-full-source-independent-audit.json`.
+
+Both exact-recipe 16-GiB four-hart direct-exit controls pass at **C=3,329,794**;
+every full hart trace and decoded workload/store label matches the uninterrupted
+reference. These are full CPU controls, not Level-1 continuations. Selected receipt:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration172/rocket/invocation-yir8lv5x/summary.json`.
+The production binary's 60 translation units remain unchanged by the later
+fixture-only correction; its original pre-build source snapshots are retained.
+The workload ELF is
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration82/workload/rocket-quad.riscv`,
+SHA-256 `f3d86f54caf42b9589385e8021dba46777f647134f19595e38a3d452b745f3d4`.
+Complete workload/source bindings are `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration172/workloads.json`.
+Recipe settings are the exact YAML values above; native VCS uses Y-2026.03-SP1,
+`-full64`, `VCS_FLAGS=-Mupdate`, system GCC/G++ 13 and `vcs-env.sh` sourced last.
+No FPGA bitstream is built.
+
+```bash
+bash -lc 'source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh && python automations/checkpoint_loop/runs/m11-iteration172/run-native-final.py'
+bash -lc 'source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh && python -m tools.checkpoint_formats.tests.verify_fame_event_replay_vcs --base automations/checkpoint_loop/runs/m11-iteration138/rocket-semantic-map-sealed/FireSim-generated --capture automations/checkpoint_loop/runs/m11-iteration139/runtime-pilot/capture --cuts 100,700000,900000,3250000 --out automations/checkpoint_loop/runs/m11-iteration172/regressions/native-replay'
+bash -lc 'source env.sh && source sims/firesim/env.sh && source automations/checkpoint_loop/vcs-env.sh && python -m tools.checkpoint_formats.tests.verify_rocket_controls_vcs --seed-build automations/checkpoint_loop/runs/m11-iteration171/verified/rocket/invocation-4cpr4qqv/build --workload automations/checkpoint_loop/runs/m11-iteration82/workload --reference-runtime automations/checkpoint_loop/runs/m11-iteration85/rocket-runtime --reference-audit automations/checkpoint_loop/runs/m11-iteration85/rocket-workload-audit.json --htif-source toolchains/riscv-tools/riscv-isa-sim/fesvr/htif.cc --out automations/checkpoint_loop/runs/m11-iteration172/rocket'
+```
+
+All selected receipts, exact native compiler/runtime argv arrays, workload/source
+hashes, archived inputs, diagnostic paths and full-path artifact catalog are:
+
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration172/selected-results.json`.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration172/verification-commands.json`.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration172/raw-native-commands.json`.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration172/native-input-archives.json`.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration172/final-audit-results.json`.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration172/artifact-manifest.json`.
+- `/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration172/remaining-owner-audit.json`.
+
+Existing controller heads were pushed FireSim first and then Chipyard, with
+independently verified remote tips despite local tracking-reference write
+warnings. The controller still owns staging/local commits. Plans, environment
+helpers, heads and indices retain their starting bytes; cached diffs are empty.
+No test was cancelled or reduced; no external dependency is missing.
+
+The separate `simulation_t::base_checkpoint_t` is another lifecycle owner and
+still lacks prepared publication. Remaining widgets are heartbeat, blockdev,
+UART, FASED and four TracerV owners. Complete generated state, harness, memory,
+runtime I/O, scheduler/loop and creator-side TSI coordination plus process
+exclusion remain required. Generic aggregate restoration still uses sequential
+legacy loads. No complete CPU image-parser rejection or fresh Rocket Level-1
+continuation is claimed. Independent Rocket Level 2 remains separate; BOOM and
+Saturn remain pending. Standalone Shuttle, FPGA validation and ASIC power remain
+outside this task.
+
 ## Iteration 171: prepared mutable scalar host publication
 
 Production `CPUManagedStreamWidget` and `peek_poke_t` now explicitly prepare,
