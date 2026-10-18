@@ -1,5 +1,10 @@
 # Joint metasim runtime I/O restoration
 
+Iteration 167 adds a split sealing/nonthrowing publication API to this
+transaction; see [runtime-io-sealed-publication.md](runtime-io-sealed-publication.md).
+The account below retains the iteration-166 API and evidence. The complete
+simulator coordinator and production process exclusion remain pending.
+
 Iteration 166 adds a prepared component transaction to production
 `simif_emul_t`. Its ordered membership is:
 

@@ -69,7 +69,7 @@ def main():
                                   destination=str(dest),reference=str(reference)))
     for b in bindings: require(file_sha(b['path'])==b['sha256'],'source changed '+b['path'])
     report=dict(status='passed',scope='production metasim returned MMIO IO; synthetic AXI peer',
-                level1_verified=False,level2_verified=False,runtime_io_transaction=True,
+                level1_verified=False,level2_verified=False,runtime_io_transaction=True,joint_io_seal_guards=True,
                 cases=cases,commands=commands,source_inputs=bindings,
                 rocket_header=str(header),artifact_sha256={str(f):file_sha(f) for f in out.rglob('*') if f.is_file()})
     path=out/'summary.json'; path.write_text(json.dumps(report,indent=2)+'\n')

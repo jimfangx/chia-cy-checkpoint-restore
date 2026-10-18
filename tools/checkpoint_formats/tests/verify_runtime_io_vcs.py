@@ -43,9 +43,9 @@ def main():
         bindings.append(dict(path=str(f),sha256=h,snapshot=str(saved)))
     (out/'source-inputs.json').write_text(json.dumps(bindings,indent=2)+'\n')
     commands=[]
-    def execute(argv,name):
+    def execute(argv,name,expected=0):
         cmd=['bash','-lc',ENVIRONMENT+shlex.join(map(str,argv))]
-        log=out/(name+'.log'); run(cmd,log,cwd=out)
+        log=out/(name+'.log'); run(cmd,log,cwd=out,expected=expected)
         result=dict(argv=cmd,cwd=str(out.relative_to(ROOT)),log=str(log))
         commands.append(result); (out/'commands.json').write_text(json.dumps(commands,indent=2)+'\n')
         return result
@@ -60,17 +60,20 @@ def main():
     for backend in ('native','vcs-dpi'):
         for delay in (0,1):
             reference=None
-            for mode,cut in [(m,c) for c in range(3) for m in ('reference','restore','negative')]:
+            modes=('reference','restore','sealed-restore','negative','fatal-unsealed','fatal-thread',
+                   'fatal-destination','fatal-recycled','fatal-consumed','fatal-stale')
+            for mode,cut in [(m,c) for c in range(3) for m in modes]:
                 reference=out/f'{backend}-{delay}-reference-{cut}'
                 dest=reference if mode=='reference' else out/f'{backend}-{delay}-{mode}-{cut}'
                 argv=([out/'native',mode,reference,dest,cut,delay] if backend=='native' else
                       [out/'simv','-no_save',f'+mode={mode}',f'+source={reference}',
                        f'+destination={dest}',f'+cut={cut}',f'+beat={delay}'])
-                cases.append(dict(execute(argv,dest.name),backend=backend,delay=delay,mode=mode,cut=cut,
+                cases.append(dict(execute(argv,dest.name,86 if mode.startswith('fatal-') else 0),backend=backend,delay=delay,mode=mode,cut=cut,
                                   destination=str(dest),reference=str(reference)))
     for b in bindings: require(file_sha(b['path'])==b['sha256'],'source changed '+b['path'])
     report=dict(status='passed',scope='joint production runtime IO; synthetic AXI traffic',
                 level1_verified=False,level2_verified=False,runtime_io_transaction=True,
+                sealed_publication=True,
                 cases=cases,commands=commands,source_inputs=bindings,
                 rocket_header=str(header),artifact_sha256={str(f):file_sha(f) for f in out.rglob('*') if f.is_file()})
     path=out/'summary.json'; path.write_text(json.dumps(report,indent=2)+'\n')

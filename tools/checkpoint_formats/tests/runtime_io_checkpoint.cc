@@ -1,6 +1,7 @@
 // Joint production runtime I/O candidate; synthetic AXI traffic, no CPU claim.
 #include "emul/simif_emul.h"
 #include <cstdlib>
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <new>
@@ -38,6 +39,23 @@ struct platform_t : simif_emul_t {
   void timing() { host_timing.begin_delay(); }
 };
 using image_t=simif_emul_t::io_checkpoint_t;
+static platform_t *fatal_destination=nullptr;
+static const image_t *fatal_expected=nullptr;
+static const char *fatal_mode=nullptr;
+static void terminated() noexcept {
+  fail_after=-1;
+  try {
+    check(fatal_destination && fatal_expected && fatal_destination->save_checkpoint_io()==*fatal_expected);
+    std::fprintf(stderr,"RUNTIME_IO_FATAL mode=%s unchanged=1 target_edges=0\n",fatal_mode);
+    std::fflush(stderr); std::_Exit(86);
+  } catch (...) { std::_Exit(87); }
+}
+static void publish_without_allocation(platform_t &p,simif_emul_t::io_restore_t &c) {
+  static_assert(noexcept(p.publish_sealed_checkpoint_io(c)));
+  allocation_failed=false;fail_after=0;
+  p.publish_sealed_checkpoint_io(c);
+  const bool untouched=fail_after==0 && !allocation_failed;fail_after=-1;check(untouched);
+}
 static void save(const std::filesystem::path &out,const std::string &prefix,const image_t &image) {
   std::filesystem::create_directories(out);
   std::ofstream manifest(out/(prefix+".owners"));
@@ -85,6 +103,33 @@ static int execute(const char *mode,const char *source,const char *destination,u
  try {
   check(stage<3 && no_dma<2); platform_t p(no_dma); const auto initial=p.save_checkpoint_io();
   auto unchanged=[&] { check(p.save_checkpoint_io()==initial); };
+  if(std::string(mode).starts_with("fatal-")) {
+    std::set_terminate(terminated);fatal_destination=&p;fatal_expected=&initial;fatal_mode=mode;
+    platform_t incoming(no_dma);traffic(*incoming.master,stage);
+    if(!no_dma)traffic(*incoming.get_cpu_managed_axi4(),stage);
+    incoming.timing();const auto image=incoming.save_checkpoint_io();
+    auto c=p.prepare_checkpoint_io(image);
+    if(std::string(mode)=="fatal-unsealed") p.publish_sealed_checkpoint_io(*c);
+    p.seal_checkpoint_io(*c);unchanged();
+    if(std::string(mode)=="fatal-thread") {std::thread t([&]{p.publish_sealed_checkpoint_io(*c);});t.join();}
+    if(std::string(mode)=="fatal-destination") {
+      platform_t other(no_dma);fatal_destination=&other;other.publish_sealed_checkpoint_io(*c);
+    }
+    if(std::string(mode)=="fatal-recycled") {
+      alignas(platform_t) unsigned char storage[sizeof(platform_t)];
+      auto *retired=new(storage) platform_t(no_dma);auto old=retired->prepare_checkpoint_io(image);
+      retired->seal_checkpoint_io(*old);retired->~platform_t();
+      auto *replacement=new(storage) platform_t(no_dma);fatal_destination=replacement;
+      replacement->publish_sealed_checkpoint_io(*old);
+    }
+    if(std::string(mode)=="fatal-consumed" || std::string(mode)=="fatal-stale") {
+      auto other=p.prepare_checkpoint_io(image);p.seal_checkpoint_io(*other);
+      publish_without_allocation(p,*c);fatal_expected=&image;
+      if(std::string(mode)=="fatal-consumed") p.publish_sealed_checkpoint_io(*c);
+      else p.publish_sealed_checkpoint_io(*other);
+    }
+    throw std::runtime_error("fatal contract unexpectedly returned");
+  }
   if(std::string(mode)=="negative") {
     platform_t incoming(no_dma);traffic(*incoming.master,stage);
     if(!no_dma)traffic(*incoming.get_cpu_managed_axi4(),stage);
@@ -125,6 +170,9 @@ static int execute(const char *mode,const char *source,const char *destination,u
       auto changed=stale.save_checkpoint_io();reject([&]{stale.publish_checkpoint_io(*c);});check(stale.save_checkpoint_io()==changed);
     }
     unsigned preparation_failures=0,publication_failures=0;
+    // Abandonment after a successful seal must leave every owner unpublished.
+    {auto abandoned=p.prepare_checkpoint_io(image);p.seal_checkpoint_io(*abandoned);unchanged();}
+    unchanged();
     for(long limit=0;;++limit) {
       check(limit<20000);allocation_failed=false;fail_after=limit;
       try { auto c=p.prepare_checkpoint_io(image);fail_after=-1;check(!allocation_failed);unchanged();break; }
@@ -139,16 +187,32 @@ static int execute(const char *mode,const char *source,const char *destination,u
     // owners. A three-owner group naturally allocates less than a DMA group.
     check(preparation_failures>0 && publication_failures>0);
     check(p.save_checkpoint_io()==image);reject([&]{p.publish_checkpoint_io(*candidate);});check(p.save_checkpoint_io()==image);
+    auto sealing=p.prepare_checkpoint_io(image);auto stale=p.prepare_checkpoint_io(image);
+    unsigned sealing_failures=0;
+    for(long limit=0;;++limit) {
+      check(limit<20000);allocation_failed=false;fail_after=limit;
+      try {p.seal_checkpoint_io(*sealing);fail_after=-1;check(!allocation_failed);break;}
+      catch(const std::exception &) {fail_after=-1;check(allocation_failed);++sealing_failures;check(p.save_checkpoint_io()==image);}
+    }
+    check(sealing_failures>0);check(p.save_checkpoint_io()==image);
+    reject([&]{p.seal_checkpoint_io(*sealing);});reject([&]{p.publish_checkpoint_io(*sealing);});
+    publish_without_allocation(p,*sealing);check(p.save_checkpoint_io()==image);
+    // Equal destination bytes do not revive a candidate from a previous commit.
+    reject([&]{p.seal_checkpoint_io(*stale);});check(p.save_checkpoint_io()==image);
     save(destination,"published",p.save_checkpoint_io());
     std::cout<<"RUNTIME_IO_NEGATIVE rejected="<<rejections<<" preparation_failures="<<preparation_failures
-             <<" publication_failures="<<publication_failures<<" partial_publication=0 target_edges=0\n";return 0;
+             <<" publication_failures="<<publication_failures<<" partial_publication=0 target_edges=0\n"
+             <<"RUNTIME_IO_SEAL failures="<<sealing_failures<<" publication_allocations=0 cancellation_unchanged=1\n";return 0;
   }
   if(std::string(mode)=="reference") {
     traffic(*p.master,stage);if(!no_dma)traffic(*p.get_cpu_managed_axi4(),stage);p.timing();
     save(destination,"cut",p.save_checkpoint_io());
   } else {
     const auto image=load(source,"cut");auto candidate=p.prepare_checkpoint_io(image);unchanged();
-    p.publish_checkpoint_io(*candidate);check(p.save_checkpoint_io()==image);save(destination,"readback",p.save_checkpoint_io());
+    if(std::string(mode)=="sealed-restore") {
+      p.seal_checkpoint_io(*candidate);unchanged();publish_without_allocation(p,*candidate);
+    } else p.publish_checkpoint_io(*candidate);
+    check(p.save_checkpoint_io()==image);save(destination,"readback",p.save_checkpoint_io());
   }
   finish(*p.master,stage);if(!no_dma)finish(*p.get_cpu_managed_axi4(),stage);
   save(destination,"final",p.save_checkpoint_io());

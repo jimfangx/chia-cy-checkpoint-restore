@@ -111,6 +111,9 @@ static int execute(const char *mode,const char *source,const char *dest,unsigned
       check(p.ticks>0); --p.ticks; // Fixture startup's single do_tick, no AXI or PRNG use.
       std::cout<<"MMIO_IO_PREEDGE_READBACK owners=5 target_edges=0\n";
     }
+    // Use the current generation so suspended-call denial cannot be satisfied
+    // merely by an already invalidated candidate from before the restore.
+    pending_group=p.prepare_checkpoint_io(p.save_checkpoint_io());
     widget_registry_t registry;
     registry.add_widget(new master_t(p,{0,4,8},0,{}));
     registry.add_widget(new clockmodule_t(p,{16,20,24,28,32,36},0,{}));
@@ -131,6 +134,7 @@ static int execute(const char *mode,const char *source,const char *dest,unsigned
         reject([&] { p.save_checkpoint_io(); });
         reject([&] { p.prepare_checkpoint_io(good_group); });
         reject([&] { p.publish_checkpoint_io(*pending_group); });
+        reject([&] { p.seal_checkpoint_io(*pending_group); });
         reject([&] { p.simif_emul_t::read(0x100); }); reject([&] { p.simif_emul_t::write(0x100,0); });
         check(m.save_checkpoint()==before); ++active;
         if(m.ar_valid() || m.aw_valid()) ++queued;

@@ -14,6 +14,62 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 167, in progress.
+Production runtime I/O now separates complete destination sealing from
+allocation-free `noexcept` publication. A destination generation invalidates
+other prepared candidates after any commit, including identical-byte commits.
+CPU aggregate admission remains disabled. Recovery:
+[runtime-io-sealed-publication.md](runtime-io-sealed-publication.md).
+
+Final-source native ASan/UBSan and time-zero VCS DPI pass 24 fresh component
+restores, 336 complete owner comparisons, 510 invalid/stale rejections, 5,092
+exhaustive allocation failures and 72 fatal contract checks without partial
+publication. The independent complete byte/queue/MT19937-64 oracle passes.
+The final receipt is `runs/m11-iteration167/runtime-io-final/invocation-taxn7a8r/summary.json`.
+The initial matrix also passed; its retained receipt is under `runtime-io/`.
+The MMIO fixture and independent audit pass 48 fresh restores, 480 owner
+comparisons, 2,556 suspended boundaries / 24,318 guard rejections and 824 invalid
+cases. DMA passes 84 fresh restores, 336 owner comparisons, 187,296 suspended
+boundaries / 1,872,960 guard rejections and 1,230 invalid cases. These are
+component results, not complete Rocket Level-1 continuation.
+
+All thirteen final checks and nine independent audits pass. All eight preserved
+native scopes (280 Python tests), creator/harness matrix, dispatcher guards,
+stream-widget suite, thirty retained auditors and production TSI matrix pass.
+The four fresh ordinary RTL windows and independent full-source audit pass
+318,637 pre-edge words per cut, 256 captured events, sixteen first semantic
+divergences and 44 invalid cases at C=100 / 700,000 / 900,000 / 3,250,000.
+Both exact-recipe 16-GiB direct-exit four-hart controls pass at C=3,329,794.
+All four syscall variants pass at C=3,330,050. Complete hart traces and decoded
+workload labels match within each protocol. Final selected receipts, exact
+workload/source hashes, executable native commands and the full-path artifact
+index are `summary.json`, `selected-results.json`, `workloads.json`,
+`native-input-archives.json`, `raw-native-commands.json`,
+`verification-commands.json` and `artifact-manifest.json` under
+`runs/m11-iteration167/`.
+
+The source-bound structural audit records 15 host widgets and 11,464 generated
+entries / 445,838 words. A symbol audit confirms all three I/O transaction APIs
+are linked in the current exact-recipe binary. Three fresh native CPU requests
+and their independent audit retain unsupported owner/capability denial; no
+CPU checkpoint is created. These denials are not malformed CPU-image parser
+validation. Additional audits pass all 32 dispatcher diagnostics, 336 TSI
+invalids and 128 unpublished prepared/sealed cancellations. Four retained I/O
+receipts also pass the backwards-compatible auditors.
+
+Both existing iteration-166 controller heads reached GitHub, FireSim first and
+then Chipyard, with independently checked remote heads; local tracking-reference
+writes warned. Both plans, environment helpers, heads and indices retain their
+starting bytes. No staging, local commits, test cancellation or check reduction
+occurred. No external dependency is missing. Complete simulator coordination
+and production controller/creator/thread/signal/descriptor/parser exclusion
+remain pending. In particular, the generic aggregate still loads allocating
+owners sequentially; the new I/O sealing API does not make it a CPU transaction.
+Level 2 stays independent; BOOM/Saturn remain pending. Standalone Shuttle,
+physical FPGA validation and ASIC power remain outside scope.
+
+Previous iteration 166 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 166, in progress.
 Production `simif_emul_t` now prepares and publishes the returned MMIO/stream
 callers, control/DMA AXI and host timing jointly. Exact owner membership,

@@ -92,6 +92,8 @@ static int execute(const char *mode,const char *source,const char *dest,unsigned
   try {
     platform_t p(beat); auto &owner=p.owner(); auto &io=p.get_cpu_managed_stream_io();
     auto good=owner.save_checkpoint(), axi=p.get_cpu_managed_axi4()->save_checkpoint();
+    const auto good_group=p.save_checkpoint_io();
+    auto pending_group=p.prepare_checkpoint_io(good_group);
     check(owner.checkpoint_schema()=="firesim.emul.cpu-managed-stream-io.returned.v1");
     const fs::path out(dest); fs::create_directories(out);
     if(std::string(mode)=="negative") {
@@ -148,6 +150,10 @@ static int execute(const char *mode,const char *source,const char *dest,unsigned
         auto before=m.save_checkpoint();
         reject([&] { owner.save_checkpoint(); }); reject([&] { owner.validate_checkpoint(good); });
         reject([&] { owner.load_checkpoint(good); });
+        reject([&] { p.save_checkpoint_io(); });
+        reject([&] { p.prepare_checkpoint_io(good_group); });
+        reject([&] { p.publish_checkpoint_io(*pending_group); });
+        reject([&] { p.seal_checkpoint_io(*pending_group); });
         reject([&] { io.cpu_managed_axi4_read(0,nullptr,0); });
         reject([&] { io.cpu_managed_axi4_write(0,nullptr,0); });
         reject([&] { io.mmio_read(100); });

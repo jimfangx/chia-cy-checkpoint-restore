@@ -57,34 +57,47 @@ def audit(path):
     require({str(f) for f in out.rglob('*') if f.is_file() and f!=path}==set(r['artifact_sha256']),'runtime IO artifact membership')
     for f,h in r['artifact_sha256'].items():require(file_sha(f)==h,'runtime IO artifact changed')
     require(json.loads((out/'commands.json').read_text())==r['commands'],'runtime IO command receipts')
-    require(len(r['commands'])==38 and len(r['cases'])==36,'runtime IO process counts')
+    sealed=r.get('sealed_publication',False)
+    modes=('reference','restore','sealed-restore','negative','fatal-unsealed','fatal-thread',
+           'fatal-destination','fatal-recycled','fatal-consumed','fatal-stale') if sealed else ('reference','restore','negative')
+    require(len(r['commands'])==2+12*len(modes) and len(r['cases'])==12*len(modes),'runtime IO process counts')
     require({(c['backend'],c['delay'],c['mode'],c['cut']) for c in r['cases']}==
-            {(b,n,m,c) for b in ('native','vcs-dpi') for n in (0,1) for m in ('reference','restore','negative') for c in range(3)},'runtime IO case membership')
-    comparisons=rejects=preparation=publication=0
+            {(b,n,m,c) for b in ('native','vcs-dpi') for n in (0,1) for m in modes for c in range(3)},'runtime IO case membership')
+    comparisons=rejects=preparation=publication=sealing=fatals=0
     for c in r['cases']:
         log=Path(c['log']).read_text();lines=log.splitlines()
+        fatal=c['mode'].startswith('fatal-')
         require(lines[0]=='cwd='+str(out) and json.loads(lines[1][5:])==c['argv'] and
-                lines[2].startswith('fresh_process_pid=') and lines[-1]=='exit=0','runtime IO fresh process receipt')
+                lines[2].startswith('fresh_process_pid=') and lines[-1]==('exit=86' if fatal else 'exit=0'),'runtime IO fresh process receipt')
         require('source /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/vcs-env.sh && ' in c['argv'][2],'runtime IO VCS environment')
         require(not any(s in log for s in ('ERROR: AddressSanitizer','runtime error:','LeakSanitizer: detected','RUNTIME_IO_FAIL')),'runtime IO sanitizers')
+        if fatal:
+            require(f'RUNTIME_IO_FATAL mode={c["mode"]} unchanged=1 target_edges=0' in log,'runtime IO fatal boundary')
+            require('RUNTIME_IO_PASS' not in log and 'RUNTIME_IO_VCS_ZERO_EDGES' not in log,'runtime IO fatal must not return to simulator')
+            require(not Path(c['destination']).exists(),'runtime IO fatal published output')
+            fatals+=1;continue
         if c['backend']=='vcs-dpi':require('RUNTIME_IO_VCS_ZERO_EDGES time=0 edges=0' in log,'runtime IO zero edges')
         no_dma=c['delay'];stage=c['cut'];dest=Path(c['destination'])
         if c['mode']=='negative':
             m=re.search(r'RUNTIME_IO_NEGATIVE rejected=(\d+) preparation_failures=(\d+) publication_failures=(\d+) partial_publication=0 target_edges=0',log)
-            require(m and int(m[1])==(47 if not no_dma else 32) and int(m[2])>0 and int(m[3])>0,'runtime IO atomic rejections')
+            require(m and int(m[1])==((50 if not no_dma else 35) if sealed else (47 if not no_dma else 32)) and int(m[2])>0 and int(m[3])>0,'runtime IO atomic rejections')
             rejects+=int(m[1]);preparation+=int(m[2]);publication+=int(m[3])
+            if sealed:
+                s=re.search(r'RUNTIME_IO_SEAL failures=(\d+) publication_allocations=0 cancellation_unchanged=1',log)
+                require(s and int(s[1])>0,'runtime IO seal allocation/cancellation checks');sealing+=int(s[1])
             comparisons+=check_image(dest,'published',expected(no_dma,stage));continue
         require(f'RUNTIME_IO_PASS owners={3 if no_dma else 5} stage={stage} target_edges=0' in log,'runtime IO continuation')
         comparisons+=check_image(dest,'cut' if c['mode']=='reference' else 'readback',expected(no_dma,stage))
         comparisons+=check_image(dest,'final',expected(no_dma,stage,True))
-        if c['mode']=='restore':
+        if c['mode'] in ('restore','sealed-restore'):
             ref=Path(c['reference'])
             for i in range(3 if no_dma else 5):
                 require((dest/f'readback.{i}').read_bytes()==(ref/f'cut.{i}').read_bytes(),'runtime IO independent restore readback')
                 require((dest/f'final.{i}').read_bytes()==(ref/f'final.{i}').read_bytes(),'runtime IO finite continuation')
-    return dict(status='passed',fresh_component_restores=12,complete_owner_comparisons=comparisons,
+    return dict(status='passed',fresh_component_restores=24 if sealed else 12,complete_owner_comparisons=comparisons,
                 invalid_rejections=rejects,preparation_allocation_failures=preparation,
-                publication_allocation_failures=publication,partial_publication=0,
+                publication_allocation_failures=publication,sealing_allocation_failures=sealing,
+                fatal_contract_rejections=fatals,partial_publication=0,
                 level1_verified=False,level2_verified=False)
 
 

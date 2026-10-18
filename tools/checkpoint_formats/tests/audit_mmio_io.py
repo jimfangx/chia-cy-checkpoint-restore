@@ -79,7 +79,7 @@ def audit(path):
              for m,c in [('reference',0),*[('restore',c) for c in range(12)],('negative',0)]},'MMIO case membership')
     comparisons=active=nested=negative=queued=inflight=0
     joint=r.get('runtime_io_transaction',False)
-    guards=8 if joint else 5
+    guards=9 if r.get('joint_io_seal_guards',False) else 8 if joint else 5
     for c in r['cases']:
         log=Path(c['log']).read_text(); lines=log.splitlines()
         require(lines[0]=='cwd='+str(out) and json.loads(lines[1][5:])==c['argv'] and

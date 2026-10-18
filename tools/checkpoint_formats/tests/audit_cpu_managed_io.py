@@ -39,6 +39,7 @@ def audit(path):
             {(b,w,m,c) for b in ('native','vcs-dpi') for w in (8,16,64)
              for m,c in [('reference',0),*[('restore',c) for c in range(14)],('negative',0)]},'IO case membership')
     comparisons=active=negative=0
+    guards=10 if r.get('joint_io_seal_guards',False) else 6
     for c in r['cases']:
         log=Path(c['log']).read_text(); rows=log.splitlines()
         require(rows[0]=='cwd='+str(out) and json.loads(rows[1][5:])==c['argv'] and
@@ -55,7 +56,7 @@ def audit(path):
             negative+=int(m[1]); continue
         require((dest/'trace').read_text().splitlines()==oracle(beat,cut),'IO transfer oracle')
         m=re.search(r'CPU_IO_PASS operations=(\d+) active_boundaries=(\d+) rejections=(\d+) target_edges=0',log)
-        require(m and int(m[1])==14-cut and int(m[3])==1+6*int(m[2]),'IO suspension guards')
+        require(m and int(m[1])==14-cut and int(m[3])==1+guards*int(m[2]),'IO suspension guards')
         require(int(m[2])>0,'IO active transfer coverage'); active+=int(m[2])
         expected=struct.pack('<8Q',0x3154504B43474457,1,24,3,16,64,beat*8,0)
         for op in range(cut,14):
@@ -73,7 +74,7 @@ def audit(path):
                 require((dest/f'final.{kind}').read_bytes()==(ref/f'final.{kind}').read_bytes(),'IO continuation mismatch')
                 comparisons+=2
     return dict(status='passed',fresh_component_restores=84,owner_comparisons=comparisons,
-                suspended_boundaries=active,suspended_rejections=6*active,invalid_rejections=negative,
+                suspended_boundaries=active,suspended_rejections=guards*active,invalid_rejections=negative,
                 level1_verified=False,level2_verified=False)
 
 
