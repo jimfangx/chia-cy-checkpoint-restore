@@ -4,15 +4,17 @@ The MMIO service is a deterministic component fixture. Its cycle labels are
 fixture labels, not captured Rocket target cycles; no CPU acceptance is inferred.
 """
 import argparse
-import hashlib
 import json
 import os
 from pathlib import Path
 import re
 import shutil
+import shlex
 import struct
 import tempfile
 
+from tools.checkpoint_formats.tests.audit_base_publication import ENVIRONMENT, FATAL
+from tools.checkpoint_formats.evidence import file_sha
 from tools.checkpoint_formats.codec import require
 from tools.checkpoint_formats.tests.verify_semantic_vcs import ROOT, run
 
@@ -110,6 +112,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--rocket-header', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--prepared', action='store_true')
     args = parser.parse_args()
     require(os.environ['VCS_HOME'] == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'source vcs-env.sh LAST')
     require(os.environ['CXX'] == '/usr/bin/g++-13', 'keep GCC/G++ 13')
@@ -120,14 +123,33 @@ def main():
     sources = [TESTS / 'blockdev_checkpoint.cc', CC / 'core/widget.cc', BRIDGES / 'bridges/blockdev.cc']
     native, simv = out / 'blockdev-native', out / 'blockdev-simv'
     includes = f'-I{CC} -I{BRIDGES}'
-    run([os.environ['CXX'], '-std=c++17', '-Wall', '-Wextra', '-Wno-unused-parameter', '-Werror',
-         '-g', '-no-pie', '-fsanitize=address,undefined', '-fno-omit-frame-pointer', f'-I{CC}', f'-I{BRIDGES}',
-         *sources, '-o', native], out / 'native-build.log')
-    run([Path(os.environ['VCS_HOME']) / 'bin/vcs', '-full64', '-sverilog', '-timescale=1ns/1ps',
-         '-top', 'blockdev_checkpoint_tb', '-cc', os.environ['CC'], '-cpp', os.environ['CXX'],
-         f'-Mdir={out / "csrc"}', '-CFLAGS', f'-std=c++17 -DBLOCKDEV_CHECKPOINT_DPI {includes}',
-         '-o', simv, TESTS / 'blockdev_checkpoint_tb.sv', *sources], out / 'vcs-build.log')
+    inputs = [header, *sources, *sorted((CC / 'core').glob('*.h')), BRIDGES / 'bridges/blockdev.h',
+              TESTS / 'blockdev_checkpoint_tb.sv', Path(__file__), TESTS / 'audit_blockdev_publication.py',
+              TESTS / 'audit_base_publication.py', TESTS / 'verify_semantic_vcs.py',
+              ROOT / 'env.sh', ROOT / 'sims/firesim/env.sh', ROOT / 'automations/checkpoint_loop/vcs-env.sh']
+    (out / 'sources').mkdir(); bindings = []
+    for path in inputs:
+        digest = file_sha(path); saved = out / 'sources' / digest
+        if not saved.exists(): shutil.copyfile(path, saved)
+        bindings.append(dict(path=str(path), sha256=digest, snapshot=str(saved)))
     commands, results = [], []
+    def execute(argv, log, expected=0):
+        command = ['bash', '-lc', ENVIRONMENT + shlex.join(map(str, argv))]
+        text = run(command, log, cwd=out, expected=expected)
+        commands.append(dict(cwd=str(out.relative_to(ROOT)), argv=command, log=str(log), expected_exit=expected,
+                             pid=int(re.search(r'fresh_process_pid=(\d+)', text)[1])))
+        (out / 'commands.json').write_text(json.dumps(commands, indent=2)+'\n')
+        return text
+    flags = ['-DBLOCKDEV_PREPARED_PUBLICATION'] if args.prepared else []
+    wrappers = ' '.join('-Wl,--wrap='+name for name in ('fmemopen', 'fseeko', 'fclose', 'fflush', 'ftello')) if args.prepared else ''
+    execute([os.environ['CXX'], '-std=c++17', *flags, '-Wall', '-Wextra', '-Wno-unused-parameter', '-Werror',
+         '-g', '-no-pie', '-fsanitize=address,undefined', '-fno-omit-frame-pointer', f'-I{CC}', f'-I{BRIDGES}',
+         *sources, '-pthread', *wrappers.split(), '-o', native], out / 'native-build.log')
+    execute([Path(os.environ['VCS_HOME']) / 'bin/vcs', '-full64', '-sverilog', '-timescale=1ns/1ps',
+         '-top', 'blockdev_checkpoint_tb', '-cc', os.environ['CC'], '-cpp', os.environ['CXX'],
+         f'-Mdir={out / "csrc"}', '-CFLAGS', f'-std=c++17 {" ".join(flags)} -DBLOCKDEV_CHECKPOINT_DPI {includes}',
+         '-LDFLAGS', '-pthread '+wrappers,
+         '-o', simv, TESTS / 'blockdev_checkpoint_tb.sv', *sources], out / 'vcs-build.log')
     for backend in ('native-sanitized', 'vcs-dpi'):
         case = out / backend; case.mkdir()
         def invoke(mode, cut, directory=case, expected=0):
@@ -137,8 +159,7 @@ def main():
                 argv = [simv, '-no_save', f'+outdir={directory}', f'+restore={int(mode == "restore")}',
                         f'+cut={cut}', *(['+negative'] if mode == 'negative' else [])]
             log = directory / f'{mode}-{cut}.log'
-            output = run(argv, log, expected=expected)
-            commands.append(dict(cwd=str(ROOT), argv=list(map(str, argv)), log=str(log), expected_exit=expected))
+            output = execute(argv, log, expected)
             if backend == 'vcs-dpi' and expected == 0 and mode != 'negative':
                 require('BLOCKDEV_READBACK edges=0' in output and 'PASS: blockdev component continuation' in output,
                         'missing zero-edge/native completion markers')
@@ -155,6 +176,21 @@ def main():
             require((case / f'restore-{cut}.trace').read_text().splitlines() == suffix, 'all MMIO timing/response continuation')
         output = invoke('negative', 0)
         require('PASS: blockdev atomic payload/configuration/suspension checks' in output, 'incomplete negative checks')
+        if args.prepared:
+            execute([native, 'publication-negative', case, 0] if backend == 'native-sanitized' else
+                    [simv, '-no_save', '+outdir='+str(case), '+publication-negative'],
+                    case / 'publication-negative.log')
+            for mode in (*FATAL, 'returned'):
+                directory = case / ('fatal-'+mode); directory.mkdir()
+                execute([native, 'publication-fatal', directory, mode] if backend == 'native-sanitized' else
+                        [simv, '-no_save', '+outdir='+str(directory), '+publication-fatal='+mode],
+                        directory / 'run.log', 88 if mode == 'returned' else 86)
+        for i, bad in enumerate((b'', snapshots[5][:-1], snapshots[5]+b'\0', b'\0'*400)):
+            directory = case / ('malformed-'+str(i)); directory.mkdir()
+            (directory / 'cut-5.owner').write_bytes(bad)
+            invoke('restore', 5, directory, expected=1)
+            require(not (directory / 'restore-5.initial.owner').exists() and
+                    not (directory / 'restore-5.trace').exists(), 'invalid image partially published')
         # Negative fixtures must retain every successful continuation's raw
         # trace and snapshots, so the subsequent independent evidence audit
         # can review all cuts after the suite completes.
@@ -178,16 +214,18 @@ def main():
                 'corruption continued past first divergence')
         results.append(dict(backend=backend, cuts=15, transactions=txns, actual_fault_first_cycle=142,
                             actual_fault_signal='bdev_rresp_data_lower', negative_log=str(case / 'negative-0.log')))
-    inputs = [header, *sources, CC / 'core/widget_checkpoint.h', BRIDGES / 'bridges/blockdev.h',
-              TESTS / 'blockdev_checkpoint_tb.sv', Path(__file__)]
+    for binding in bindings:
+        require(file_sha(binding['path']) == binding['sha256'], 'source changed during execution')
     summary = dict(status='passed', scope='exact Rocket blockdev host component with scripted MMIO; no CPU restore acceptance',
                    artifact_root=str(out), complete_disk_bytes=65536, tracker_words=1024, fresh_continuations=30,
                    level1_verified=False, level2_verified=False, backends=results,
-                   inputs_sha256={str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs})
-    (out / 'commands.json').write_text(json.dumps(commands, indent=2)+'\n')
+                   prepared=args.prepared, source_inputs=bindings, commands=commands,
+                   artifact_sha256={str(p): file_sha(p) for p in out.rglob('*') if p.is_file()},
+                   inputs_sha256={str(p): file_sha(p) for p in inputs})
     (out / 'summary.json').write_text(json.dumps(summary, indent=2)+'\n')
     (args.out.resolve() / 'latest.json').write_text(json.dumps(dict(summary=str(out / 'summary.json')),indent=2)+'\n')
-    print(json.dumps(summary, indent=2))
+    print(json.dumps(dict(status='passed', summary=str(out/'summary.json'), fresh_continuations=30,
+                          level1_verified=False, level2_verified=False), indent=2))
 
 
 if __name__ == '__main__':

@@ -8,6 +8,7 @@
 
 #include "core/bridge_driver.h"
 #include "core/widget_checkpoint.h"
+#include "core/checkpoint_publication.h"
 
 struct BLOCKDEVBRIDGEMODULE_struct {
   uint64_t read_latency;
@@ -62,7 +63,7 @@ struct blkdev_write_tracker {
   uint64_t data[MAX_REQ_LEN * SECTOR_BEATS];
 };
 
-class blockdev_t : public bridge_driver_t {
+class blockdev_t final : public bridge_driver_t {
 public:
   /// The identifier for the bridge type used for casts.
   static char KIND;
@@ -91,8 +92,12 @@ public:
   std::vector<uint8_t> save_checkpoint() const override;
   void validate_checkpoint(const std::vector<uint8_t> &) const override;
   void load_checkpoint(const std::vector<uint8_t> &) override;
+  std::unique_ptr<prepared_checkpoint_t>
+  prepare_checkpoint_publication(const std::vector<uint8_t> &) override;
 
 private:
+  class restore_t;
+  checkpoint_publication_t publication;
   const BLOCKDEVBRIDGEMODULE_struct mmio_addrs;
   widget_checkpoint_state_t checkpoint_state;
   bool initialized = false;

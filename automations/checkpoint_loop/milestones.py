@@ -1,7 +1,7 @@
-"""Ordered, independently verifiable work for plan_agent.md.
+"""Checkpoint/restore, finite replay and restored-metasim-guided RTL work.
 
-The FPGA bring-up milestone is deliberately absent: this machine has no FPGA.
-The metasim and ordinary RTL paths remain separate throughout the loop.
+Physical FPGA bring-up is deferred. Milestone names retain historical labels
+so legacy state can migrate without restarting completed checkpoint work.
 """
 
 from dataclasses import dataclass
@@ -16,12 +16,49 @@ class Milestone:
     needs_vcs: bool = False
 
 
+CPU_LIVE_TASK = (
+    " Restore a matching Level-1 and Level-2 pair into fresh metasim and original "
+    "pre-FAME RTL VCS processes at the same logical target cut. Keep restored "
+    "metasim running as the environment authority, drive clean RTL with its live "
+    "target-boundary inputs, compare every output before acknowledging each edge, "
+    "and retain full-visibility RTL debug waveforms. Exercise active workload, "
+    "backpressure and outstanding memory traffic beyond the recorded trace window."
+)
+CPU_LIVE_ACCEPTANCE = (
+    " A fresh restored metasim/clean-RTL pair passes independent complete zero-edge "
+    "state readback and sustained cycle-exact live comparison beyond the recorded "
+    "trace window, with healthy completion of both processes and debug waveforms. "
+    "Deliberate semantic corruption stops at its first divergent signal/target "
+    "cycle without acknowledging that edge. Finite replay or component restores "
+    "alone cannot establish live CPU acceptance."
+)
+
+# Exact ordering used by state files without milestone_order. These names are
+# migration metadata only; removed work has no executable milestone here.
+LEGACY_MILESTONE_ORDER = (
+    "M0-reconnaissance",
+    "M1-schema-and-stateids",
+    "M2-semantic-vcs-replay",
+    "M3-banked-state-access",
+    "M4-full-metasim-restore",
+    "M5-rolling-checkpoints",
+    "M6-live-clean-rtl-shadow",
+    "M7-dessert-replay",
+    "M8-formal-state-map",
+    "M9-gate-level-replay",
+    "M10-production-dut-formal-map",
+    "M11-rocket-level1-level2",
+    "M12-boom-level1-level2",
+    "M13-shuttle-saturn-level1-level2",
+)
+
+
 MILESTONES = (
     Milestone(
         "M0-reconnaissance",
         "Trace the current Golden Gate pass order, semantic state before FAME, "
         "generated simulator state, bridges, DMA, FASED, host drivers, VCS "
-        "metasim targets, and available ASIC/formal tools. Record exact source "
+        "metasim targets, and live clean-RTL interfaces. Record exact source "
         "paths and unsupported state. Do not assume names from older FireSim.",
         "A source-backed reconnaissance document identifies a viable StateID "
         "insertion point and all known Level-1 state owners.",
@@ -91,56 +128,6 @@ MILESTONES = (
         needs_vcs=True,
     ),
     Milestone(
-        "M8-formal-state-map",
-        "Use an available formal equivalence tool to prove original RTL to ASIC "
-        "netlist state correspondence, with retiming disabled initially. Export "
-        "a build-bound StateID-to-gate map; reject unproven or unmappable state.",
-        "A small synthesized DUT has a complete validated mapping, including "
-        "polarity, reordering, duplication, optimization, and memory cases.",
-    ),
-    Milestone(
-        "M9-gate-level-replay",
-        "Load semantic state through the formally validated map into fresh "
-        "gate-level VCS, replay recorded inputs, compare outputs, and produce "
-        "SAIF from the actual netlist. Run power analysis only when suitable "
-        "libraries and a power tool are available.",
-        "Restored gate-level replay matches continuous gate-level simulation "
-        "at sampled cycles and generates real gate-level switching activity.",
-        needs_vcs=True,
-    ),
-    Milestone(
-        "M10-production-dut-formal-map",
-        "Extend the M8 formal mapping and M9 gate replay flow to the actual "
-        "pre-FAME DUT used by the completed M6/M7 metasim workflows. Start with "
-        "AXI4Fuzzer-FCFSConfig-FCFS16GBQuadRank_DefaultF1Config and its existing "
-        "semantic-clean RTL, StateID manifest, boundary manifest, metasim-captured "
-        ".rtlckpt and .trace. Read docs/checkpointing/m6-restored-live-shadow.md, "
-        "m7-dessert-replay.md, m8-formal-state-map.md and m9-gate-level-replay.md. "
-        "Synthesize the complete selected DUT with retiming disabled; implement "
-        "the hierarchy, cell and memory adapters needed to prove and export a "
-        "complete build-bound semantic StateID-to-gate map. Cover all captured "
-        "registers, memory contents, pipeline and port state. Use real installed "
-        "CAD tools and suitable cell/memory models, preserving every proof "
-        "obligation and explicitly rejecting unsupported or unproven state. "
-        "Small synthetic fixtures may support development but cannot satisfy "
-        "this milestone. Validate the map by restoring the actual metasim "
-        "checkpoint into fresh gate-level VCS and replaying its recorded trace. "
-        "FPGA hardware is not a dependency for synthesis, formal mapping or "
-        "gate replay. Power characterization is needed only for power analysis. "
-        "Preserve completed milestone progress and write recovery details in "
-        "docs/checkpointing/m10-production-dut-formal-map.md.",
-        "The selected real metasim DUT has a complete independently audited "
-        "formal state map bound to its exact RTL, netlist, models and semantic "
-        "manifest. Fresh gate-level VCS initializes and reads back all mapped "
-        "state before any target edge, replays the actual metasim-captured trace, "
-        "matches every sampled output against ordinary RTL replay, and detects "
-        "a deliberate mapped-state corruption at its first divergent cycle. "
-        "Missing state or unproven mappings reject explicitly; fixture-only "
-        "results cannot mark this milestone ready.",
-        ("docs/checkpointing/m10-production-dut-formal-map.md",),
-        needs_vcs=True,
-    ),
-    Milestone(
         'M11-rocket-level1-level2',
         'Implement and validate both Level-1 and Level-2 checkpoint/restore for Rocket,'
         ' using existing recipe firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3 from '
@@ -158,8 +145,8 @@ MILESTONES = (
         'Add invalid-image/build/state-owner rejection and first-divergence corruption '
         'cases, preserve existing regressions, and record exact artifacts and '
         'executable native VCS checks in docs/checkpointing/cpu-checkpoint-matrix.md. '
-        'Standalone Shuttle, physical FPGA validation and ASIC power are outside the '
-        'current task.',
+        'Standalone Shuttle and physical FPGA validation are outside the '
+        'current task.' + CPU_LIVE_TASK,
         'The exact Rocket recipe passes independently audited complete Level-1 '
         'fresh-process metasim continuation against an uninterrupted workload run, and '
         'complete Level-2 zero-edge state readback plus finite captured-trace replay in'
@@ -170,7 +157,7 @@ MILESTONES = (
         'boundary. Per-recipe/per-level evidence records workload hashes, exact state '
         'ownership and build settings, tested cuts, native VCS commands and results. '
         'Fixture-only, FCFS-only, boot-only, idle-only and scalar-only Saturn tests '
-        'cannot satisfy this milestone.',
+        'cannot satisfy this milestone.' + CPU_LIVE_ACCEPTANCE,
         ("docs/checkpointing/cpu-checkpoint-matrix.md",),
         needs_vcs=True,
     ),
@@ -192,8 +179,8 @@ MILESTONES = (
         'Add invalid-image/build/state-owner rejection and first-divergence corruption '
         'cases, preserve existing regressions, and record exact artifacts and '
         'executable native VCS checks in docs/checkpointing/cpu-checkpoint-matrix.md. '
-        'Standalone Shuttle, physical FPGA validation and ASIC power are outside the '
-        'current task.',
+        'Standalone Shuttle and physical FPGA validation are outside the '
+        'current task.' + CPU_LIVE_TASK,
         'The exact BOOM recipe passes independently audited complete Level-1 '
         'fresh-process metasim continuation against an uninterrupted workload run, and '
         'complete Level-2 zero-edge state readback plus finite captured-trace replay in'
@@ -204,7 +191,7 @@ MILESTONES = (
         'boundary. Per-recipe/per-level evidence records workload hashes, exact state '
         'ownership and build settings, tested cuts, native VCS commands and results. '
         'Fixture-only, FCFS-only, boot-only, idle-only and scalar-only Saturn tests '
-        'cannot satisfy this milestone.',
+        'cannot satisfy this milestone.' + CPU_LIVE_ACCEPTANCE,
         ("docs/checkpointing/cpu-checkpoint-matrix.md",),
         needs_vcs=True,
     ),
@@ -227,8 +214,8 @@ MILESTONES = (
         'Add invalid-image/build/state-owner rejection and first-divergence corruption '
         'cases, preserve existing regressions, and record exact artifacts and '
         'executable native VCS checks in docs/checkpointing/cpu-checkpoint-matrix.md. '
-        'Standalone Shuttle, physical FPGA validation and ASIC power are outside the '
-        'current task.',
+        'Standalone Shuttle and physical FPGA validation are outside the '
+        'current task.' + CPU_LIVE_TASK,
         'The exact Shuttle + Saturn recipe passes independently audited complete '
         'Level-1 fresh-process metasim continuation against an uninterrupted workload '
         'run, and complete Level-2 zero-edge state readback plus finite captured-trace '
@@ -239,7 +226,7 @@ MILESTONES = (
         'boundary. Per-recipe/per-level evidence records workload hashes, exact state '
         'ownership and build settings, tested cuts, native VCS commands and results. '
         'Fixture-only, FCFS-only, boot-only, idle-only and scalar-only Saturn tests '
-        'cannot satisfy this milestone.',
+        'cannot satisfy this milestone.' + CPU_LIVE_ACCEPTANCE,
         ("docs/checkpointing/cpu-checkpoint-matrix.md",),
         needs_vcs=True,
     ),

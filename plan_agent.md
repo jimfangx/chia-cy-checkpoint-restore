@@ -1,8 +1,118 @@
+# Current instructions: CPU checkpoint and live RTL acceptance (October 22, 2026)
+
+The current user priority is working Level-1 and Level-2 checkpoint/restore
+on the existing Rocket, BOOM, and Shuttle + Saturn FireSim targets below.
+The endpoint is conventional VCS simulation of the original, untransformed
+pre-FAME RTL, guided cycle by cycle by a concurrently running,
+checkpoint-restored FireSim metasimulation. Both simulations must restore at
+the same logical target cut; the metasim remains the environment authority.
+Standalone finite trace replay remains a separate supported debugging mode.
+
+ASIC synthesis, RTL-to-standard-cell state matching, gate-level replay,
+switching-activity generation for power analysis, and ASIC power estimation
+are outside this plan. Jasper, Formality, Conformal, Genus, Joules, Voltus,
+standard-cell libraries and ASIC netlists are not required dependencies for
+checkpoint/debug acceptance. Startup and verification for this scope must
+not require those tools, licenses or their resource-limit services.
+Physical FPGA validation remains future work. Preserve the existing FCFS
+and historical formal/gate evidence without rerunning it as an acceptance
+prerequisite. These instructions take precedence over older loop prompts,
+milestone definitions and verification lists that still require the removed
+ASIC work; align such runtime requirements with this scope when encountered.
+
+Use `sims/firesim-staging/sample_config_build_recipes.yaml` as the source of
+build settings. Start with these existing F2 recipes, in this order:
+
+| Family | Recipe | TARGET_CONFIG |
+| --- | --- | --- |
+| Rocket | `firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3` | `WithDefaultFireSimBridges_WithFireSimTestChipConfigTweaks_chipyard.QuadRocketConfig` |
+| BOOM | `firesim_boom_singlecore_no_nic_l2_llc4mb_ddr3` | `WithDefaultFireSimBridges_WithFireSimTestChipConfigTweaks_chipyard.LargeBoomV3Config` |
+| Shuttle + Saturn | `firesim_saturn_GENV256D128_shuttle_singlecore_no_nic_l2_llc4mb_ddr3` | `FireSimGENV256D128ShuttleConfig` |
+
+Use each recipe's exact PLATFORM, TARGET_PROJECT, TARGET_PROJECT_MAKEFRAG,
+DESIGN, TARGET_CONFIG and PLATFORM_CONFIG in VCS metasim builds. Run through
+the metasim path without FPGA bitstream builds. Standalone Shuttle is excluded:
+the user explicitly said not to add a recipe when none exists. NIC, MegaBOOM,
+RAM-optimized, other-platform and other accelerator variants are later expansion,
+not substitutes for or prerequisites of this initial three-recipe matrix.
+
+Complete both levels for each recipe before advancing to the next family:
+
+1. Level 1: inventory every generated simulator, FAME/token/channel, memory,
+   bridge and host-driver state owner for the actual CPU configuration. Add
+   missing adapters, preserving complete ownership and atomic cut validation.
+   Checkpoint during real CPU execution, terminate the source process, and
+   restore into a fresh VCS metasim process before any target edge. Compare
+   target-visible behavior and transaction timing with an uninterrupted run.
+2. Level 2: inventory the complete original pre-FAME DUT, including CPU,
+   cache/uncore and memory state inside the selected boundary. For Saturn,
+   include vector registers and in-flight vector execution/memory state.
+   Capture an independent .rtlckpt and actual boundary .trace; restore and
+   read back every semantic word in fresh ordinary RTL VCS before its first
+   edge, then replay the captured inputs and compare every output per cycle.
+   Select a complete, explicit boundary; a CPU architectural register dump
+   or partial tile inventory cannot satisfy semantic checkpoint acceptance.
+3. Live RTL shadow: restore a paired .fsckpt and .rtlckpt into separate fresh
+   VCS metasim and untransformed RTL processes at the same logical target cut.
+   Independently read back both complete states before target advancement.
+   Keep restored metasim running as the authority for FASED and the environment;
+   forward its actual target-boundary inputs to clean RTL, compare every output
+   at the corresponding settled observation point, then acknowledge/advance
+   the matching edge. Exercise ready/valid backpressure and outstanding traffic.
+   Demonstrate sustained continuation beyond any prerecorded trace window,
+   full-visibility clean RTL waveforms, healthy completion and first-divergence
+   detection for deliberate semantic corruption. Independent finite replay
+   alone does not establish this live mode.
+4. Exercise reset/early execution, warmed caches, outstanding memory traffic,
+   and late execution cuts. Run self-checking bare-metal CPU workloads first;
+   Rocket must exercise all four cores, BOOM speculative/in-flight execution,
+   and Shuttle + Saturn actual vector computation plus vector loads/stores
+   while vector work is in flight. Record workload bytes/hash and pass status.
+   Boot-only, idle-only and scalar-only Saturn runs are insufficient.
+5. At every tested cut, independently audit complete state readback and cycle
+   labels. Exercise corrupt/truncated images, incompatible builds, missing
+   state owners and deliberate post-restore semantic corruption. Fail before
+   partial restore for invalid images and report the first divergent signal
+   and target cycle for execution faults; never acknowledge a divergent edge.
+6. Extend common checkpoint infrastructure where needed. Do not reuse the
+   fcfs-fased-v1 driver whitelist for CPUs without auditing their actual owners.
+   Handle clocks, memory pipelines and external state explicitly. Unsupported
+   features remain reported as incomplete work, not silently omitted state.
+7. Retain FCFS and small-fixture regressions. Save exact build/runtime settings,
+   workload and source hashes, checkpoint/trace paths, tested cuts, state totals,
+   comparisons, negative cases and runnable VCS commands per recipe under
+   automations/checkpoint_loop/runs/. Maintain pending/in_progress/verified
+   results per recipe and level in docs/checkpointing/cpu-checkpoint-matrix.md.
+   Mark a recipe verified only after its own complete Level-1, Level-2 finite
+   replay and restored-metasim-guided live RTL tests and independent audits pass.
+   Existing fuzzer acceptance cannot establish CPU support. Do not claim
+   untested configurations as supported.
+
+For this stage, complete checkpoint restore and sustained metasim-guided
+untransformed RTL execution in VCS are the exit criterion. Keep future hardware
+capture interfaces synthesizable, but do not delay CPU checkpoint acceptance
+for physical FPGA validation or optimization of the DMA path. Preserve the
+loop's previously verified M0-M10 history and
+resume from its saved state without resetting milestone or iteration counters.
+Historical formal/gate milestones remain evidence of past work, not continuing
+requirements or dependencies for the current CPU checkpoint milestones.
+Implementation agents must continue treating both plan files as read-only;
+this priority section is a user-directed instruction update.
+
+---
+
+# New: Additional Resources:
+https://github.com/ucb-bar/midas-top-release - MIDAS paper release repo
+https://github.com/ucb-bar/midas-examples - MIDAS examples
+
+These historical MIDAS artifacts are references for checkpointing and RTL
+replay mechanisms where applicable to the current FireSim implementation.
+
 # Implementation Plan: Two-Level Checkpointing for Modern FireSim
 
 ## 1. Project Objective
 
-Implement a two-level checkpointing and replay framework for modern FireSim that supports full simulator migration, RTL debugging, deterministic replay, and ASIC power estimation.
+Implement a two-level checkpointing and replay framework for modern FireSim that supports full simulator migration, RTL debugging, deterministic replay, and live untransformed RTL simulation guided by restored FireSim metasimulation.
 
 The implementation must support:
 
@@ -14,9 +124,7 @@ The implementation must support:
 
 4. **DESSERT-style debugging:** Restore original RTL state and replay recorded target I/O traces over a finite region of interest, generating full-visibility RTL waveforms.
 
-5. **Live clean-RTL cosimulation:** Run conventional VCS simulation of the original RTL alongside FireSim metasimulation, keeping them synchronized at the target-cycle level.
-
-6. **Strober-style ASIC power analysis:** Use formal verification to establish correspondence between original RTL sequential state and the synthesized ASIC gate-level netlist, initialize the gate-level simulation, replay the recorded target execution, and generate gate-level switching activity for power estimation.
+5. **Live clean-RTL cosimulation:** Restore Level-1 state into FireSim metasimulation and matching Level-2 state into conventional VCS simulation of the original RTL. Keep metasim running as the authoritative environment, guide clean RTL with its live target-boundary inputs, compare outputs cycle by cycle, and generate full-visibility RTL debug waveforms.
 
 The two checkpoint levels must operate independently or together.
 
@@ -95,17 +203,7 @@ It may obtain target inputs from either:
 - A recorded boundary I/O trace
 - A concurrently running FireSim metasimulation
 
-### 2.4 ASIC Gate-Level Simulation (VCS)
-
-Conventional VCS simulation of the synthesized ASIC netlist.
-
-This is a different simulation from both FireSim metasimulation and clean RTL simulation.
-
-It receives checkpoint state through a formally validated correspondence between pre-synthesis RTL state and gate-level sequential state.
-
-Its switching activity is used for ASIC power estimation.
-
-### 2.5 Complete Architecture
+### 2.4 Complete Architecture
 
 ```text
                          FireSim FPGA
@@ -130,18 +228,6 @@ Its switching activity is used for ASIC power estimation.
                +--------- cosimulation ------+
                |                             |
        Arbitrary continuation          Debug waveforms
-                                             |
-                                      Formal RTL-to-Gate
-                                        State Mapping
-                                             |
-                                             v
-                                    ASIC Gate-Level VCS
-                                             |
-                                      Gate-Level SAIF
-                                             |
-                                      Joules / Voltus
-                                             |
-                                         ASIC Power
 ```
 
 The essential separation is:
@@ -222,10 +308,6 @@ Clean RTL simulation must reproduce the same target-cycle behavior over the reco
 
 Clean RTL simulation must stay synchronized with the FAME-transformed DUT executing inside FireSim metasimulation.
 
-**ASIC gate-level replay:**
-
-The gate-level netlist must reproduce the same target-cycle logical behavior after formally validated state initialization and replay of the recorded target inputs.
-
 ---
 
 ## 4. Phase 0 — Repository Reconnaissance
@@ -247,7 +329,7 @@ Do not assume historical compiler APIs or source locations are still valid.
 9. Locate the FireSim metasimulation build and execution flow using VCS.
 10. Identify the generated simulator hierarchy used by FireSim metasimulation.
 11. Locate existing test infrastructure for Golden Gate and FireSim metasimulation.
-12. Identify the available ASIC synthesis, formal verification, and gate-level simulation toolchains.
+12. Identify the VCS runtime, checkpoint loaders, waveform support, and target-cycle transport needed for restored-metasim-guided clean RTL execution.
 
 Likely areas to inspect, after confirming the current repository layout:
 
@@ -277,7 +359,7 @@ Document:
 - Available DMA interfaces
 - FASED and bridge-driver state requirements
 - FireSim metasimulation build/test commands
-- Formal verification tool availability
+- VCS compile/runtime license availability and live cosimulation dependencies
 
 **Acceptance:** The agent can trace an original DUT state element through FAME transformations to its implementation in the generated FPGA simulator, and can identify the full simulator state required for Level 1.
 
@@ -747,10 +829,10 @@ For every target cycle:
 1. Advance the authoritative FireSim metasimulation to the appropriate target-cycle observation boundary.
 2. Extract the target-visible inputs consumed by its FAME-transformed DUT.
 3. Supply equivalent inputs to the original clean RTL simulation.
-4. Advance the clean RTL through the corresponding target clock event.
-5. Compare the clean RTL outputs against those of the FAME-transformed DUT.
+4. Settle the clean RTL at the corresponding observation boundary and compare every output against the FAME-transformed DUT before acknowledging that edge.
+5. On a match, advance the corresponding target clock event and acknowledge it to the synchronization adapter.
 6. Optionally compare the semantic state represented by both DUTs.
-7. Report the first divergence.
+7. On a mismatch, report the first divergent signal and original target-cycle label, then stop without acknowledging the divergent edge.
 
 The synchronization adapter must handle target-cycle timing, ready/valid signaling, and relevant combinational boundary dependencies correctly.
 
@@ -778,9 +860,17 @@ The two executions can continue for an arbitrary number of target cycles, subjec
 
 ### Acceptance
 
-Demonstrate sustained cycle-exact cosimulation with matching boundary outputs.
+Start both simulations in fresh processes from matching Level-1 and Level-2
+checkpoints, with independent complete state readback before the first target
+edge. Demonstrate sustained cycle-exact cosimulation with matching boundary
+outputs, active workload and outstanding memory traffic, and healthy completion
+of both processes. Restored metasim must supply live environment inputs beyond
+any prerecorded trace window. Retain full-visibility clean RTL debug waveforms.
 
-Inject an intentional RTL-state mismatch and verify that the checker reports the divergence.
+Inject an intentional RTL-state mismatch and verify that the checker reports
+the first divergent signal and target cycle before acknowledging that edge.
+Run this acceptance for each supported CPU recipe after its individual
+checkpoint/replay acceptance. This live restored pair is the project endpoint.
 
 ---
 
@@ -832,230 +922,9 @@ Reproduce a known RTL bug using only the semantic checkpoint, recorded trace, an
 
 ---
 
-## 14. Phase 10 — Formal RTL-to-Gate State Mapping
+## 14. Future Work — Physical FPGA Validation
 
-Implement formal state correspondence as a dedicated subsystem, following Strober's approach.
-
-This phase connects Level-2 semantic checkpoints to the actual synthesized ASIC netlist.
-
-### Inputs
-
-- Original, pre-FAME DUT RTL
-- Corresponding ASIC synthesized netlist
-- Level-2 StateID manifest
-- Formal verification configuration
-
-### Formal tool
-
-Use Synopsys Formality or Cadence Conformal, depending on available licenses and integrations.
-
-The agent must first determine how the available formal tool exports matching-point information.
-
-### Required procedure
-
-1. Load the original pre-FAME RTL as the reference design.
-2. Load the ASIC synthesized netlist as the implementation.
-3. Establish consistent clocks, resets, configurations, and assumptions.
-4. Run formal equivalence.
-5. Extract sequential matching points or proven state relationships.
-6. Build a semantic-StateID-to-gate-level-state mapping.
-7. Validate that the mapped state is sufficient to initialize the gate-level simulation.
-
-### Mapping file
-
-Generate:
-
-```text
-asic_state_map.json
-```
-
-Each mapping entry should describe:
-
-```text
-semantic StateID
-original RTL signal
-ASIC gate-level object(s)
-bit positions
-mapping transformation
-formal proof/matching status
-```
-
-Support mapping transformations such as:
-
-- Bit reordering
-- Inverted register polarity
-- Register duplication
-- Register merging
-- Constant propagation
-- Optimized-away state
-
-A successful formal equivalence result does not automatically provide a complete gate-level state initialization map.
-
-Every required gate-level state element must be initialized consistently or shown to be functionally irrelevant/reconstructable.
-
-Unsupported mappings must fail explicitly.
-
-### Retiming
-
-Initially disable retiming in the ASIC synthesis flow used for checkpoint replay.
-
-Later investigate retimed-state reconstruction using formal state relationships or recorded input histories.
-
-### Memories
-
-Support memory initialization through the appropriate ASIC SRAM macro or simulation model interface.
-
-Do not assume all memories remain arrays of individual flip-flops in the ASIC netlist.
-
-### Acceptance
-
-For a small DUT, demonstrate that the formally generated mapping can initialize a gate-level simulation at an intermediate target cycle and reproduce the same trajectory as an uninterrupted reference.
-
----
-
-## 15. Phase 11 — Strober-Style ASIC Gate-Level Replay and Power
-
-Power analysis must use **actual gate-level simulation activity**, not RTL activity propagated to gates by a power tool.
-
-### Complete workflow
-
-```text
-           FireSim FPGA
-                OR
-       FireSim Metasimulation
-            (VCS backend)
-                 |
-                 v
-      Semantic DUT checkpoint
-            + I/O trace
-                 |
-                 v
-          Formal State Map
-                 |
-                 v
-       ASIC Gate-Level Simulation
-                 (VCS)
-                 |
-        Restore ASIC state
-        Replay target inputs
-        Verify target outputs
-                 |
-                 v
-          Gate-Level SAIF
-                 |
-                 v
-           Joules / Voltus
-                 |
-                 v
-             ASIC Power
-```
-
-### Checkpoint loading
-
-Implement a VPI/PLI state loader that:
-
-1. Reads the semantic `.rtlckpt`.
-2. Loads the validated formal mapping.
-3. Computes the corresponding ASIC register values.
-4. Initializes gate-level sequential state.
-5. Initializes SRAM contents.
-6. Applies appropriate clock/reset conditions.
-7. Allows combinational logic to settle.
-8. Starts gate-level replay at the selected target cycle.
-
-Do not permanently force functional state after initialization.
-
-### Gate-level replay
-
-Drive the exact recorded target-boundary input values into the ASIC netlist.
-
-Compare its cycle-sampled outputs with the recorded reference.
-
-Timing-aware gate-level simulation may produce intra-cycle glitches, but logical behavior at the defined target-cycle observation points must match.
-
-### Switching activity
-
-Generate:
-
-```text
-gate_level.saif
-```
-
-or gate-level VCD directly from VCS simulating the ASIC netlist.
-
-The SAIF must reflect the actual gate-level simulation.
-
-Do not substitute:
-
-```text
-Clean RTL SAIF -> Joules inferred gate activity
-```
-
-That path is explicitly excluded.
-
-### Power analysis
-
-Use Joules or Voltus to analyze gate-level activity with the appropriate:
-
-- ASIC technology libraries
-- Cell timing and power information
-- Operating conditions
-- Clock constraints
-- ASIC netlist
-- Physical/parasitic data when available
-- Gate-level SAIF or VCD
-
-Generate reports covering:
-
-- Dynamic power
-- Leakage power
-- Total power
-- Energy per target cycle
-- Energy per instruction, where relevant
-- Hierarchical power breakdown
-
-### Two supported sample origins
-
-**Direct FPGA sample:**
-
-```text
-FireSim FPGA
-   |
-.rtlckpt + trace
-   |
-Formal mapping
-   |
-ASIC Gate-Level VCS
-   |
-SAIF -> Power
-```
-
-**Metasim-generated sample:**
-
-```text
-FireSim Metasimulation
-      (VCS backend)
-          |
-   .rtlckpt + trace
-          |
-     Formal mapping
-          |
-  ASIC Gate-Level VCS
-          |
-      SAIF -> Power
-```
-
-Both use the same gate-level replay and power flow.
-
-### Acceptance
-
-A semantic checkpoint and recorded trace can initialize the ASIC netlist, reproduce the original target behavior, and generate a valid gate-level power report.
-
----
-
-## 16. Phase 12 — FPGA Validation
-
-After completing development using FireSim metasimulation, validate on a supported physical FPGA platform.
+Physical FPGA validation is deferred and is not a prerequisite for completing this plan. A future hardware effort may validate the checkpoint/debug flow on a supported FPGA platform.
 
 ### Tasks
 
@@ -1067,8 +936,7 @@ After completing development using FireSim metasimulation, validate on a support
 6. Restore them into FireSim metasimulation using VCS.
 7. Capture Level-2 checkpoints from FPGA execution.
 8. Restore them into conventional clean RTL VCS.
-9. Replay FPGA-sourced traces against the ASIC gate-level netlist.
-10. Generate ASIC power reports.
+9. Run clean RTL VCS guided by the restored FireSim metasimulation and compare target-cycle behavior.
 
 ### Measurements
 
@@ -1090,11 +958,16 @@ Separate state capture overhead from host transfer overhead.
 
 ---
 
-## 17. Implementation Milestones
+## 15. Implementation Milestones
+
+The design milestone labels below retain their historical numbering; the
+removed ASIC milestones are no longer part of this plan. These labels are
+separate from the controller's saved milestone indices. Preserve controller
+history and saved progress when applying the current CPU acceptance above.
 
 ### M0 — Repository reconnaissance
 
-Identify compiler entry points, current simulation flows, available formal tools, and checkpoint state boundaries.
+Identify compiler entry points, current VCS simulation flows, live cosimulation interfaces, and checkpoint state boundaries.
 
 ### M1 — Level-2 semantic state infrastructure
 
@@ -1134,7 +1007,7 @@ Implement checkpoint scheduling, retention, and recovery.
 
 Run conventional clean RTL VCS alongside a checkpoint-restored FireSim metasimulation.
 
-**Exit:** Cycle-exact shadow execution over a long interval.
+**Exit:** Both fresh processes restore at the same cut with complete zero-edge state readback; restored metasim guides clean RTL cycle by cycle beyond the recorded trace window, produces RTL debug waveforms, completes healthy execution and detects deliberate corruption at its first divergent boundary.
 
 ### M8 — DESSERT workflow
 
@@ -1142,27 +1015,15 @@ Implement standalone finite replay with clean RTL waveforms.
 
 **Exit:** Reproduce a known bug without requiring live FireSim metasimulation.
 
-### M9 — Formal state correspondence
+### M11 — Physical FPGA validation (future work)
 
-Match original RTL sequential state against the synthesized ASIC netlist.
-
-**Exit:** Validate gate-level initialization using a formally established state mapping.
-
-### M10 — Strober power flow
-
-Restore the ASIC gate-level netlist, replay recorded target inputs, generate gate-level activity, and estimate ASIC power.
-
-**Exit:** Repeatable gate-level power results using checkpoints sourced from either FPGA or FireSim metasimulation.
-
-### M11 — Physical FPGA validation
-
-Validate extraction, DMA, and restoration using actual FPGA hardware.
+Outside current completion criteria: validate extraction, DMA, and restoration using actual FPGA hardware in a future hardware effort.
 
 **Exit:** FPGA-produced checkpoints restore successfully into the correct software simulation environments.
 
 ---
 
-## 18. Engineering Requirements
+## 16. Engineering Requirements
 
 1. Always distinguish **FireSim metasimulation** from conventional RTL simulation.
 
@@ -1170,59 +1031,47 @@ Validate extraction, DMA, and restoration using actual FPGA hardware.
 
 3. Use “clean RTL simulation (VCS)” when referring to conventional simulation of the original pre-FAME RTL.
 
-4. Use “ASIC gate-level simulation (VCS)” for simulation of the synthesized ASIC netlist.
+4. Do not treat FireSim metasimulation as equivalent to an untransformed DUT simulation.
 
-5. Do not treat FireSim metasimulation as equivalent to an untransformed DUT simulation.
+5. Do not confuse FPGA host cycles with simulated target cycles.
 
-6. Do not confuse FPGA host cycles with simulated target cycles.
+6. Keep Level-1 and Level-2 state inventories separate.
 
-7. Keep Level-1 and Level-2 state inventories separate.
+7. Implement stable semantic StateIDs before FAME transformations.
 
-8. Implement stable semantic StateIDs before FAME transformations.
+8. Do not silently omit sequential state.
 
-9. Do not silently omit sequential state.
+9. Do not assume DMA exposes arbitrary register state; synthesize the necessary readout network.
 
-10. Do not assume DMA exposes arbitrary register state; synthesize the necessary readout network.
+10. Do not assume freezing the DUT alone creates a consistent Level-1 checkpoint.
 
-11. Do not assume freezing the DUT alone creates a consistent Level-1 checkpoint.
+11. Preserve FASED timing state and functional memory for Level-1 continuation.
 
-12. Preserve FASED timing state and functional memory for Level-1 continuation.
+12. Use complete target-boundary traces for finite Level-2 replay.
 
-13. Use complete target-boundary traces for finite Level-2 replay.
+13. Preserve both trace-driven replay and live clean-RTL cosimulation.
 
-14. Preserve both trace-driven replay and live clean-RTL cosimulation.
+14. Keep the FAME-transformed DUT authoritative during initial live cosimulation.
 
-15. Keep the FAME-transformed DUT authoritative during initial live cosimulation.
+15. Reject incomplete or unverified semantic-to-generated state mappings used for checkpoint capture and clean RTL restoration.
 
-16. Do not use transformed FireSim simulator activity for ASIC power.
+16. Keep checkpointing optional and disabled by default.
 
-17. Use formal verification to establish RTL-to-gate sequential state correspondence.
+17. Implement small testable milestones before Rocket/BOOM integration.
 
-18. Generate ASIC switching activity through actual gate-level simulation.
+18. Validate restore in fresh simulation processes.
 
-19. Do not ask Joules or another power tool to infer gate-level activity from RTL activity.
-
-20. Initially disable ASIC retiming to simplify gate-level state restoration.
-
-21. Reject incomplete or unverified state mappings.
-
-22. Keep checkpointing optional and disabled by default.
-
-23. Implement small testable milestones before Rocket/BOOM integration.
-
-24. Validate restore in fresh simulation processes.
-
-25. Report the first target-cycle mismatch when equivalence checking fails.
+19. Report the first target-cycle mismatch when equivalence checking fails.
 
 ---
 
-## 19. Final Success Criteria
+## 17. Final Success Criteria
 
 The implementation is complete when it can demonstrate:
 
 ### Level 1
 
-The entire Golden Gate-generated FireSim simulator can be checkpointed during FPGA execution and restored into FireSim metasimulation using VCS, with cycle-identical target-visible continuation.
+The entire Golden Gate-generated FireSim simulator can be checkpointed during active VCS metasim execution and restored into a fresh FireSim metasimulation process using VCS, with complete pre-edge state readback and cycle-identical target-visible continuation. Physical FPGA capture is future work.
 
 ### Level 2
 
@@ -1236,28 +1085,29 @@ Periodic checkpoints allow earlier execution to be reconstructed when a bug or d
 
 A semantic checkpoint and finite trace can reproduce a bug in clean RTL simulation without rerunning the full FireSim simulator.
 
-### Live Cosimulation
+### Live Cosimulation — Project Endpoint
 
-A conventional VCS simulation of the original RTL can run in synchronization with FireSim metasimulation, receiving the same target-visible inputs and producing matching outputs.
+A fresh conventional VCS simulation of the original, untransformed pre-FAME
+RTL restores its Level-2 checkpoint at the same logical target cut as a fresh
+Level-1-restored FireSim metasimulation. Both complete state readbacks precede
+any target edge. The restored metasim remains running in the background,
+authoritatively driving FASED and the environment and supplying live
+boundary inputs to clean RTL. Cycle-by-cycle comparison preserves ready/valid
+and transaction timing beyond the recorded trace window, supports full RTL
+debug waveforms, completes healthy execution, and detects deliberate corruption
+at the first divergent signal and target cycle without acknowledging that edge.
 
-### Strober
-
-A semantic checkpoint can be translated using formally verified RTL-to-gate state correspondence, loaded into the synthesized ASIC netlist, and replayed with the recorded target I/O.
-
-### ASIC Power
-
-Gate-level VCS produces actual gate-level switching activity, which Joules or Voltus uses to calculate ASIC power.
-
-No inferred RTL-to-gate activity propagation is used.
+All current CPU recipes must satisfy Level 1, independent Level-2 finite replay,
+and this live cosimulation acceptance before they are marked verified.
 
 ---
 
-## 20. Central Design Principle
+## 18. Central Design Principle
 
 **Level 1 captures the complete Golden Gate-generated FPGA simulator and restores it into FireSim metasimulation.**
 
-**Level 2 captures the original pre-FAME DUT state and restores it into conventional clean RTL simulation for debugging or formally mapped ASIC gate-level replay for power analysis.**
+**Level 2 captures the original pre-FAME DUT state and restores it into conventional, untransformed RTL VCS for debugging, with live environment guidance from checkpoint-restored metasim or independent finite trace replay.**
 
 The two levels can work together through target-cycle-synchronized cosimulation, or independently through checkpoint and trace-driven replay.
 
-The agent should prioritize complete, provably correct Level-2 replay and Level-1 FireSim metasimulation continuation before optimizing checkpoint performance or requiring physical FPGA access.
+The agent should prioritize complete Level-2 replay, Level-1 FireSim metasimulation continuation, and restored-metasim-guided live clean RTL execution before optimizing checkpoint performance or requiring physical FPGA access.

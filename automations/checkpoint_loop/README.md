@@ -1,19 +1,31 @@
 # FireSim checkpoint/restore Chia loop
 
-Current priority (October 13, 2026): Level-1 and Level-2 checkpoint/restore
+Current priority (October 22, 2026): Level-1 and Level-2 checkpoint/restore
 for existing F2 Rocket quad-core, BOOM single-core and Shuttle + Saturn recipes
 in `sims/firesim-staging/sample_config_build_recipes.yaml`. The detailed workload,
 cut, state-coverage and negative-test requirements are at the top of
-`plan_agent.md`. There is no standalone Shuttle milestone. Physical FPGA
-validation and ASIC power analysis are deferred.
+`plan_agent.md`. Each recipe must also pass live untransformed RTL VCS guided
+by a concurrently running, checkpoint-restored metasim. There is no standalone
+Shuttle milestone. Physical FPGA validation is deferred.
 
-M11-M13 append one CPU family at a time after the preserved M0-M10 milestones.
-A completed saved run at milestone index 11 / iteration 81 resumes at Rocket
-using the ordinary `run.sh` command below; do not delete or reset `state.json`.
-This instruction update does not start a run. Completion of M0-M10 establishes
-FCFS/fixture support, while CPU support remains pending until each new milestone
-passes its own Level-1 and Level-2 acceptance. Track that acceptance in
+The active milestones are M0-M7 and M11-M13, retaining historical names.
+The three synthesis/formal/gate milestones have been removed. Legacy saved
+states migrate by completed milestone name on resume: old index 11 becomes
+active index 8, still Rocket, with the same iteration, feedback and commits.
+The saved state then records `milestone_order` so migration is idempotent.
+Do not delete or reset `runs/state.json`. FCFS/fixture results do not establish
+CPU support; each recipe needs its own complete restore, finite replay and
+live-shadow acceptance. Track that acceptance in
 `docs/checkpointing/cpu-checkpoint-matrix.md` as implementation proceeds.
+
+The old loop, including its Jasper launcher, memory limiter, tests and ASIC
+milestones, is preserved in `automations/checkpoint_loop_legacy_asic/`.
+That source archive also includes the old plans, a state snapshot and file
+hashes; see its `ARCHIVE.md`. Large historical run artifacts remain under
+the existing `runs/` directory. The active loop does not initialize a Jasper
+broker, require systemd/cgroup services, or require formal tools, synthesis,
+standard-cell libraries, gate-level activity or power analysis. Historical
+formal/gate proofs are retained as evidence, not rerun as prerequisites.
 
 This local Chia loop drives Codex through the metasimulation and ordinary RTL
 parts of `plan_agent.md`. It does not report FPGA validation on this machine.
@@ -65,17 +77,20 @@ for VCS features. `vcs -ID` only identifies the version; a successful VCS
 compilation and `simv` run confirm actual compile/runtime license checkout.
 Codex defaults to `gpt-6.1-sol` with `high` reasoning effort; `--model MODEL`
 and `--effort LEVEL` override these settings. For a
-short trial, `--max-iterations 1` stops after one Codex turn and leaves a
-resumable state. With the default `0`, the loop continues until milestones are
+short trial from a fresh state, `--max-iterations 1` stops after one Codex turn
+and leaves a resumable state. This flag is an absolute iteration ceiling:
+to run one more turn from saved iteration N, pass N+1. With the default `0`,
+the loop continues until milestones are
 verified or a real external dependency blocks progress. A repeat invocation
 resumes from `runs/state.json`.
 
-M0–M9 establish the checkpoint/replay flows and mapping on small synthesized
-fixtures. M10 extends the complete formal map and gate replay to the actual
-pre-FAME DUT from the M6/M7 metasim workflows, starting with
-`AXI4Fuzzer-FCFSConfig-FCFS16GBQuadRank_DefaultF1Config`. This work requires
-synthesis, formal tools and VCS, and can run without FPGA hardware. A run that
-finished M9 resumes directly at M10, preserving its saved progress.
+M0-M7 establish checkpoint formats, semantic replay, banked state access,
+full metasim restore, rolling recovery, live clean-RTL shadowing and standalone
+finite replay. M11-M13 apply complete Level-1, Level-2 and live-shadow acceptance
+to Rocket, BOOM and Shuttle + Saturn, one family at a time. The live pair must
+read back both restored states before any target edge, preserve transaction
+timing beyond a recorded trace window, generate clean RTL debug waveforms,
+complete healthy execution, and detect the first divergent signal and cycle.
 
 The local Codex invocation defaults to `workspace-write`, using the Linux
 bubblewrap sandbox. A per-invocation `checkpoint` permission profile inherits
@@ -87,20 +102,6 @@ Full access is unavailable through the loop's `--sandbox` option.
 `--ignore-user-config` keeps unrelated MCP apps out of the implementation
 agent; Codex still uses its local authentication. The loop explicitly passes
 its model and reasoning effort settings to each Codex turn.
-
-Jasper matching/proof jobs use `jasper-limited.sh` (also available as `jg`
-after sourcing `vcs-env.sh`). A host resource broker places each caller and
-its engine children in a shared kernel memory budget of **475 GB**
-(475,000,000,000 bytes, about 442 GiB), with swap disabled. The broker changes
-resource accounting without changing the caller's bwrap filesystem/network
-sandbox. `run.sh` starts it before the implementation agent.
-Jobs refuse to run if the limit cannot be applied. Memory-limit failures leave
-proofs incomplete. Engine children are killed when their original caller exits,
-including after a verifier timeout. `CHECKPOINT_JASPER_MEMORY_GB` sets the
-budget when the broker starts; `CHECKPOINT_JASPER_TIMEOUT_SECONDS` optionally
-adds a runtime limit (default 0). For standalone host checks, initialize it with
-`python3 automations/checkpoint_loop/jasper_limits.py ensure`.
-Always use the launcher, including for exploratory matching jobs.
 
 There are two remote Chia nodes: one runs Codex, one runs verification. Codex
 receives one focused milestone at a time and reports a structured result with
@@ -136,8 +137,6 @@ Older saved runs automatically migrate to path-only commit exclusions on
 resume, preserving milestone and iteration progress.
 
 The current machine has VCS at
-`/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs` and Jasper at
-`/ecad/tools/cadence/JASPER/jasper_2025.03/bin/jg`. FPGA bring-up is deferred.
-Gate-level replay and power analysis still require a real ASIC netlist,
-matching libraries, and a suitable power analysis tool; the loop must report
-those dependencies rather than inventing a result.
+`/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs`. VCS compile/runtime licenses
+remain required. FPGA bring-up is deferred. See `plan_agent.md` for the current
+checkpoint/debug scope; it takes precedence over older plan and progress notes.

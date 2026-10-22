@@ -592,22 +592,55 @@ void blockdev_t::validate_checkpoint(const std::vector<uint8_t> &payload) const 
 }
 
 void blockdev_t::load_checkpoint(const std::vector<uint8_t> &payload) {
-  auto d = decode_checkpoint(payload);
-  // Prepare a fresh owned libc stream before touching any current driver state.
-  // The vector swap keeps its backing address stable. No MMIO or source-disk
-  // writes occur, and malformed payloads never reach this preparation step.
+  auto candidate = prepare_checkpoint_publication(payload);
+  candidate->seal();
+  candidate->publish();
+}
+
+// Completed-call in-memory/disconnected owner only. Preparation owns the new
+// stream and every decoded byte. After publication it owns the retired stream
+// and backing until destruction; closing a stream is never part of publication.
+class blockdev_t::restore_t final : public prepared_checkpoint_t {
+  blockdev_t &owner;
+  checkpoint_publication_t::guard_t guard;
+  const std::vector<uint8_t> expected;
+  decoded_checkpoint_t replacement;
+  // Destroy the stream BEFORE its backing vector (reverse declaration order).
   using file_ptr = std::unique_ptr<FILE, int (*)(FILE *)>;
-  file_ptr file(nullptr, fclose);
-  if (!d.disk.empty()) {
-    file.reset(fmemopen(d.disk.data(), d.disk.size(), "r+"));
-    if (!file || fseeko(file.get(), d.position, SEEK_SET))
-      throw std::runtime_error("blockdev restore backing preparation failed");
+  file_ptr file{nullptr, fclose};
+public:
+  restore_t(blockdev_t &owner, const std::vector<uint8_t> &payload)
+      : owner(owner), guard(owner.publication), expected(owner.save_checkpoint()),
+        replacement(owner.decode_checkpoint(payload)) {
+    if (!replacement.disk.empty()) {
+      file.reset(fmemopen(replacement.disk.data(), replacement.disk.size(), "r+"));
+      if (!file || fseeko(file.get(), replacement.position, SEEK_SET))
+        throw std::runtime_error("blockdev restore backing preparation failed");
+    }
   }
-  if (_file) fclose(_file);
-  _file = file.release();
-  memory_disk.swap(d.disk);
-  requests.swap(d.requests); req_data.swap(d.req_data);
-  read_responses.swap(d.read_responses); write_acks.swap(d.write_acks);
-  write_trackers.swap(d.trackers);
-  initialized = d.initialized; resp_data_pending = d.resp_data_pending;
+  void seal() override {
+    guard.require_unsealed(); // Lifetime/thread/generation before owner access.
+    if (owner.save_checkpoint() != expected)
+      throw std::runtime_error("blockdev checkpoint destination changed");
+    guard.seal();
+  }
+  void publish() noexcept override {
+    guard.publish();
+    auto *retired = owner._file;
+    owner._file = file.release();
+    file.reset(retired); // Empty after release: no fclose or libc I/O here.
+    owner.memory_disk.swap(replacement.disk);
+    owner.requests.swap(replacement.requests);
+    owner.req_data.swap(replacement.req_data);
+    owner.read_responses.swap(replacement.read_responses);
+    owner.write_acks.swap(replacement.write_acks);
+    owner.write_trackers.swap(replacement.trackers);
+    owner.initialized = replacement.initialized;
+    owner.resp_data_pending = replacement.resp_data_pending;
+  }
+};
+
+std::unique_ptr<prepared_checkpoint_t>
+blockdev_t::prepare_checkpoint_publication(const std::vector<uint8_t> &payload) {
+  return std::make_unique<restore_t>(*this, payload);
 }

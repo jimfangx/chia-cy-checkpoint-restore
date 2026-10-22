@@ -2,7 +2,7 @@
 
 import json
 import io
-from contextlib import contextmanager
+from contextlib import contextmanager, redirect_stdout
 from pathlib import Path
 import subprocess
 import sys
@@ -14,10 +14,56 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import loop
 from loop import BoundedLog, render_codex_event, verification_plan
-from milestones import MILESTONES
+from milestones import LEGACY_MILESTONE_ORDER, MILESTONES
 
 
 class LoopTests(unittest.TestCase):
+    def test_legacy_resume_skips_retired_work_without_skipping_cpu_work(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "state.json"
+            for old_index in range(len(LEGACY_MILESTONE_ORDER) + 1):
+                with self.subTest(old_index=old_index):
+                    original = dict(milestone_index=old_index, iteration=174,
+                                    feedback="saved feedback", commits={"chipyard": "saved"},
+                                    baseline={"chipyard": list(loop.READ_ONLY_PLANS), "firesim": []})
+                    loop.save_state(path, original)
+                    state = loop.load_state(path)
+                    expected = old_index if old_index < 8 else max(8, old_index - 3)
+                    self.assertEqual(state["milestone_index"], expected)
+                    self.assertEqual(state["milestone_order"], [m.name for m in MILESTONES])
+                    for key in ("iteration", "feedback", "commits", "baseline"):
+                        self.assertEqual(state[key], original[key])
+                    self.assertEqual(loop.load_state(path), state)
+            # The actual saved position resumes the same CPU family.
+            self.assertEqual(MILESTONES[8].name, LEGACY_MILESTONE_ORDER[11])
+
+    def test_invalid_resume_position_does_not_rewrite_saved_state(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "state.json"
+            for index in (-1, len(LEGACY_MILESTONE_ORDER) + 1):
+                loop.save_state(path, dict(milestone_index=index, baseline={}))
+                original = path.read_bytes()
+                with self.assertRaisesRegex(ValueError, "saved milestone"):
+                    loop.load_state(path)
+                self.assertEqual(path.read_bytes(), original)
+
+    def test_new_state_uses_active_order(self):
+        with self.repositories() as (_, _, state_path):
+            state = loop.load_state(state_path)
+            self.assertEqual(state["milestone_index"], 0)
+            self.assertEqual(state["milestone_order"], [m.name for m in MILESTONES])
+
+    def test_dry_run_requires_only_vcs_and_codex(self):
+        with patch.object(sys, "argv", ["loop.py", "--dry-run"]), \
+                patch.object(loop, "VCS") as vcs, \
+                patch.object(loop.shutil, "which", return_value="/tools/codex"), \
+                redirect_stdout(io.StringIO()) as output:
+            vcs.is_file.return_value = True
+            self.assertEqual(loop.main(), 0)
+        self.assertIn("M11-rocket-level1-level2", output.getvalue())
+        self.assertNotIn("Jasper:", output.getvalue())
+        self.assertNotIn("M8-formal-state-map:", output.getvalue())
+
     @contextmanager
     def repositories(self):
         with tempfile.TemporaryDirectory() as directory:

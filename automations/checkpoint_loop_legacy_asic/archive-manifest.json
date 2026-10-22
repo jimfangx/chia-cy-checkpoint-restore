@@ -1,0 +1,24 @@
+{
+  "archived_on": "2026-10-22",
+  "source": "automations/checkpoint_loop",
+  "run_artifacts": "automations/checkpoint_loop/runs",
+  "files": {
+    ".gitignore": "ea71dd12855e9fe85575fba7a3af1f83bd2fc6dc3dfed0b32a8f0919cd1ffa96",
+    "README.md": "f3ea3ec1e45e3cc2c00a65cd62d1dd7e02dcbb8b8a3ece81e0b0b44c003441b0",
+    "compiler-bin/g++": "33be05c3cfbea9dceccc757847c9db51ea294b89ae11308a47b8401724a3398a",
+    "compiler-bin/gcc": "b91c8f0d71439b63aedaff0f2c5955a0a934d5d3da70e03cecd5a536fc213bdb",
+    "compiler-bin/jg": "9a4da099cf98727931a456eaa68cb244bc241ed66180889ee313a3a05aac1932",
+    "jasper-limited.sh": "81243e177dadad029b3b4179c26deaad48205fefce7c9f60c6bbb3284cc01de7",
+    "jasper_limits.py": "90e219e7837495fdb543e881dab27f379509e7570e7dd308a89c912afb81e6aa",
+    "loop.py": "99d70a2f28108b9c32a936f6f76e643bb9e76c83fab52d062e2fa983d95d2b85",
+    "milestones.py": "9ea3d8c199a871cce758df79a2ab9b19f31e933825eb2d03c63da2e58a50e296",
+    "plans/plan_agent.md": "1e15074a531883ad58f33739b9cc4b605589eec817c6e52ccba060e62a5e96eb",
+    "plans/plan_human.md": "d50f8b081de4eb16e89ef4d386429df73b01f53c57c4667651fbb9fda63a0f0a",
+    "report.schema.json": "1845ee9321e478f22b61f63208ef2c0359efac22130103001ae62736f1bcd225",
+    "run.sh": "f70dbe63607754058c06a3b4fcac8ae0be221d62112843d821ce6be06e72f73e",
+    "saved-state.json": "9d5c1e57284cfc2db456c7b879253221257b8ae224c7d97e2bbba5e0b0dc0a98",
+    "tests/test_jasper_limits.py": "d1f7d51501809e14e647d25fe2187df41d11a0de4fd959290d56bcd3e0699e6d",
+    "tests/test_loop.py": "ec136bb724c16d96bfe2f07ab349503f58143dc7cce398f4ed38b37fc1d03769",
+    "vcs-env.sh": "e54e489f30045f6ee9f3b33324a7c67da5f105800a4c355a66122c64c33d7984"
+  }
+}

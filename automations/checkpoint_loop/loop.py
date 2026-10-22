@@ -21,7 +21,7 @@ from typing import Any
 import ray
 
 from chia.base.ChiaFunction import ChiaFunction, get
-from milestones import MILESTONES, Milestone
+from milestones import LEGACY_MILESTONE_ORDER, MILESTONES, Milestone
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -30,7 +30,6 @@ HERE = Path(__file__).resolve().parent
 SCHEMA = HERE / "report.schema.json"
 DEFAULT_RUNS = HERE / "runs"
 VCS = Path("/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs")
-JASPER = ROOT / "automations/checkpoint_loop/jasper-limited.sh"
 LOG_BYTES = 16 * 1024 * 1024
 LOG_BACKUPS = 6
 STREAM_CHUNK_CHARS = 64 * 1024
@@ -322,6 +321,20 @@ def load_state(path: Path) -> dict[str, Any]:
     else:
         state = {"milestone_index": 0, "iteration": 0, "feedback": "",
                  "baseline": initial_baseline(), "commits": {}}
+    # Map completed milestone names instead of reusing positional indices after
+    # removing historical work. Preserve the iteration, feedback and commits.
+    order = [milestone.name for milestone in MILESTONES]
+    previous_order = state.get("milestone_order", LEGACY_MILESTONE_ORDER)
+    index = state["milestone_index"]
+    if (not isinstance(previous_order, (list, tuple)) or
+            any(not isinstance(name, str) for name in previous_order) or
+            len(set(previous_order)) != len(previous_order) or
+            type(index) is not int or not 0 <= index <= len(previous_order)):
+        raise ValueError("invalid saved milestone order or index")
+    completed = set(previous_order[:index])
+    state["milestone_index"] = next(
+        (i for i, name in enumerate(order) if name not in completed), len(order))
+    state["milestone_order"] = order
     # Old runs stored path -> fingerprint maps. Keep only the excluded paths;
     # their contents can change freely without blocking resume or checkpoints.
     for name, paths in state["baseline"].items():
@@ -339,8 +352,14 @@ def make_prompt(milestone: Milestone, iteration: int, state: dict[str, Any],
 
 Read the sections of {ROOT / 'plan_agent.md'} and {ROOT / 'plan_human.md'}
 relevant to this milestone before editing. Re-read the top of plan_agent.md
-on every iteration and apply its current user priorities. Physical FPGA
-validation and ASIC power are deferred for the CPU checkpoint milestones.
+on every iteration and apply its current user priorities. plan_agent.md takes
+precedence over older instructions in plan_human.md and historical progress.
+The endpoint is untransformed pre-FAME RTL VCS guided by a concurrently running,
+checkpoint-restored metasim. Physical FPGA validation is deferred. Synthesis,
+formal RTL-to-cell mapping, gate replay and power analysis are outside scope;
+do not launch their tools or make their historical checks prerequisites.
+The old loop is archived at {ROOT / 'automations/checkpoint_loop_legacy_asic'};
+treat that archive and its plans as read-only historical inputs.
 Read {ROOT / 'docs/checkpointing/progress.md'}.
 Read and follow {ROOT / 'docs/checkpointing/github-publication.md'}.
 You may push existing loop checkpoint commits to the configured GitHub forks;
@@ -373,20 +392,14 @@ When reusing a VCS build directory from an older release, use VCS_FLAGS=-Mupdate
 for the first Make build so VCS regenerates its cached C build Makefile.
 An absolute bin/vcs path alone does not override an older VCS_HOME set by
 login-shell initialization. Use this release for new checks even if saved
-reports or historical logs name an older version. Jasper is {JASPER}.
-Use this Jasper launcher for every matching/proof job, including pilots; never
-invoke the underlying Jasper binary directly. It enforces a shared 475 GB
-memory budget for all Jasper jobs and engines, with zero swap.
-CHECKPOINT_JASPER_MEMORY_GB sets the shared budget at broker startup;
-CHECKPOINT_JASPER_TIMEOUT_SECONDS optionally limits a job's runtime.
-The launcher cleans up engine children if their parent exits. A resource-limit
-failure is an incomplete proof, never a passing result.
+reports or historical logs name an older version.
 There is no FPGA. Keep FPGA capture/transport code
 synthesizable and test it through metasim, but do not claim FPGA validation.
 
 Preserve target-cycle semantics and fail explicitly on unsupported state.
-Keep Level-1 simulator and Level-2 semantic checkpoints independent. Do not
-substitute RTL switching activity for ASIC gate-level activity. Read the two
+Keep Level-1 simulator and Level-2 semantic checkpoints independent. Validate
+both independent finite replay and live clean-RTL shadowing driven by restored
+metasim; a CPU recipe needs both modes before it is verified. Read the debugging
 papers at the repository root when relevant. Work on a focused, testable
 increment. Do not skip tests, edit the existing dirty conda files or the
 untracked plan/PDF files, commit, reset, or clean git history. The Chia loop
@@ -399,7 +412,7 @@ Return the required JSON report. Set status to ready only when the milestone's
 acceptance is supported by real artifacts and verification commands. Include
 commands as argv arrays (use bash -lc when environment sourcing is needed),
 with cwd relative to the Chipyard root. Never report a test as passing unless
-it actually ran. If an external tool, netlist, license, or library is missing,
+it actually ran. If a required VCS tool, runtime dependency, license, or library is missing,
 report blocked with the exact missing dependency. Otherwise report in_progress
 and continue next turn. Include full paths to all created artifacts.
 """
@@ -447,11 +460,11 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     runs = args.runs.resolve()
-    if not VCS.is_file() or not JASPER.is_file() or not shutil.which("codex"):
-        raise RuntimeError("VCS, Jasper, or Codex executable is missing")
+    if not VCS.is_file() or not shutil.which("codex"):
+        raise RuntimeError("VCS or Codex executable is missing")
     if args.dry_run:
         print(f"Chipyard: {ROOT}\nFireSim: {FIRE}\nChia: {ray.__version__}")
-        print(f"VCS: {VCS}\nJasper: {JASPER}\nCodex: {shutil.which('codex')}")
+        print(f"VCS: {VCS}\nCodex: {shutil.which('codex')}")
         for item in MILESTONES:
             print(f"{item.name}: {item.acceptance}")
         print("Physical FPGA validation: deferred because this machine has no FPGA")

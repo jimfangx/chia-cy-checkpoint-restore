@@ -14,6 +14,70 @@ Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
+Current milestone: M11-rocket-level1-level2, iteration 175, in progress.
+Prepared/sealed publication now covers the private-memory/disconnected blockdev
+owner. Preparation owns all queues, trackers, disk bytes and a positioned libc
+stream. Guarded allocation-free `noexcept` publication swaps resources and
+assigns two flags, with no libc I/O/MMIO/edge. The candidate retires old streams
+and backing afterward. Legacy loads use the same guarded path. External
+files/logs and suspended/poisoned calls reject. See
+[blockdev-sealed-publication.md](blockdev-sealed-publication.md).
+
+Native ASan/UBSan and fresh VCS pass 30 prepared continuations, complete pre-edge
+readback and 25,870 continued MMIO calls across all fifteen component cuts.
+Each backend passes 756 candidate rejections, 65 preparation and 44 sealing
+allocation failures and both libc preparation failures. Twelve fatal contract
+cases, two unexpected-return controls, eight malformed fresh loads and two
+actual first-boundary tracker corruptions at fixture C=142 pass. Eight rehashed
+offline forged receipts reject. These are host components, not Rocket Level-1
+restores. Prepared receipt:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration175/blockdev-prepared/native-33p9_drw/summary.json`.
+
+All eight preserved native scopes pass, including 280 Python tests plus
+semantic/banked, widget, FCFS, UART, blockdev and heartbeat. Legacy blockdev
+independently passes all 30 continuations; prepared concrete-driver checks pass
+224 fresh continuations. Both exact-recipe 16-GiB four-hart VCS controls pass
+at C=3,329,794, with every complete hart trace and decoded workload/store label
+matching the uninterrupted reference. These are CPU controls, not Level-1
+restores. All nine final independent audits pass, twice. Explicit receipt
+selection replaces ambiguous singleton/glob selection; two repeated audits
+succeed with sibling builds present. Native source snapshots remain immutable;
+checker-only completion/path corrections followed the frozen execution runs.
+
+The retained Rocket Level-2 audit passes all four original cuts (C=100 /
+700,000 / 900,000 / 3,250,000), 318,637 pre-edge words per cut, 256 events,
+sixteen actual first divergences and 44 invalid cases. This re-audits retained
+ordinary RTL VCS artifacts. Six unchanged publication/I/O/base audits and the
+prepared/legacy heartbeat audits pass. The current exact-recipe census/link
+checks retain 15 widgets, 11,464 generated entries / 445,838 words, the new
+blockdev adapter and all three CPU admission guards. Three fresh capability/
+owner denials create no image; they are not CPU-image parser tests.
+
+Exact receipts, source/workload hashes and executable VCS commands are in
+[cpu-checkpoint-matrix.md](cpu-checkpoint-matrix.md) and
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration175/verification-commands.json`.
+Full artifact catalog:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration175/artifact-manifest.json`.
+The storage manifest preserves 132 inactive compiler-IR files (3,198,216,645
+bytes) with verified identical bytes and links at their original paths:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration175/cold-artifact-storage.json`.
+Retain its `/tmp` storage. Logs/images/traces remain under runs; no test scope
+was reduced. Existing controller-created FireSim and Chipyard heads were pushed
+in that order; remote tips match despite local tracking-ref write warnings.
+No staging, local commit or plan/environment edit occurred.
+
+Next: prepared UART, FASED and four TracerV owners, then a production coordinator
+joining complete generated/harness, memory, I/O, scheduler/loop and creator-side
+TSI state under process/thread/signal/descriptor/parser exclusion. Generic
+aggregate loading remains sequential legacy publication. Source-bound recovery:
+`/scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/runs/m11-iteration175/remaining-owner-audit.json`.
+Complete Rocket Level 1 remains disabled/in progress; independent Level 2 stays
+separate. BOOM/Saturn remain pending. No dependency is missing and no plan
+correction is proposed. Standalone Shuttle, FPGA validation and ASIC power
+remain outside scope.
+
+Previous iteration 174 recovery follows.
+
 Current milestone: M11-rocket-level1-level2, iteration 174, in progress.
 Prepared/sealed publication now covers the buffered, unfinished heartbeat owner.
 Preparation owns every decoded sample and stamps the full destination payload;

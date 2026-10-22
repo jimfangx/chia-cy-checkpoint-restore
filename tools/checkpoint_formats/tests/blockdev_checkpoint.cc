@@ -8,6 +8,46 @@
 #include <iostream>
 #include <memory>
 #include <sstream>
+#include <thread>
+#include <type_traits>
+#include <cerrno>
+
+#ifdef BLOCKDEV_PREPARED_PUBLICATION
+static thread_local long fail_after = -1;
+static thread_local bool allocation_failed = false;
+void *operator new(std::size_t n) {
+  if (fail_after >= 0 && fail_after-- == 0) {
+    fail_after = -1; allocation_failed = true; throw std::bad_alloc();
+  }
+  if (auto p = std::malloc(n ? n : 1)) return p;
+  throw std::bad_alloc();
+}
+void *operator new[](std::size_t n) { return ::operator new(n); }
+void operator delete(void *p) noexcept { std::free(p); }
+void operator delete[](void *p) noexcept { std::free(p); }
+void operator delete(void *p, std::size_t) noexcept { std::free(p); }
+void operator delete[](void *p, std::size_t) noexcept { std::free(p); }
+static unsigned libc_calls = 0, stream_opens = 0, stream_closes = 0;
+static bool fail_open = false, fail_seek = false;
+extern "C" FILE *__real_fmemopen(void *, size_t, const char *);
+extern "C" int __real_fseeko(FILE *, off_t, int);
+extern "C" int __real_fclose(FILE *);
+extern "C" int __real_fflush(FILE *);
+extern "C" off_t __real_ftello(FILE *);
+extern "C" FILE *__wrap_fmemopen(void *p, size_t n, const char *mode) {
+  ++libc_calls;
+  if (fail_open) { errno = ENOMEM; return nullptr; }
+  auto *f = __real_fmemopen(p,n,mode); if(f)++stream_opens; return f;
+}
+extern "C" int __wrap_fseeko(FILE *f, off_t p, int mode) {
+  ++libc_calls;
+  if(fail_seek) { errno=EIO; return -1; }
+  return __real_fseeko(f,p,mode);
+}
+extern "C" int __wrap_fclose(FILE *f) { ++libc_calls; ++stream_closes; return __real_fclose(f); }
+extern "C" int __wrap_fflush(FILE *f) { ++libc_calls; return __real_fflush(f); }
+extern "C" off_t __wrap_ftello(FILE *f) { ++libc_calls; return __real_ftello(f); }
+#endif
 
 simif_t::simif_t(const TargetConfig &c) : config(c) {}
 simif_t::~simif_t() = default;
@@ -103,6 +143,17 @@ std::filesystem::path directory;
 unsigned index;
 bool restoring;
 std::string prefix;
+#ifdef BLOCKDEV_PREPARED_PUBLICATION
+static_assert(!std::is_copy_constructible_v<blockdev_t> && !std::is_move_constructible_v<blockdev_t>);
+void publish(prepared_checkpoint_t &candidate) {
+  static_assert(noexcept(candidate.publish()));
+  const auto calls = libc_calls;
+  allocation_failed=false; fail_after=0;
+  candidate.publish();
+  const bool clean=fail_after==0 && !allocation_failed;
+  fail_after=-1; check(clean && libc_calls == calls,"publication allocated or called libc stream I/O");
+}
+#endif
 void snapshot(const std::string &name) {
   const auto calls = mmio->calls;
   auto b = driver->save_checkpoint(); driver->validate_checkpoint(b);
@@ -112,15 +163,25 @@ void snapshot(const std::string &name) {
 void init(const std::filesystem::path &out, bool restore, unsigned cut, bool compare) {
   directory = out; restoring = restore; index = restore ? cut : 0;
   check(index <= operations);
+  driver.reset();
   mmio = std::make_unique<mmio_t>();
   driver = std::make_unique<blockdev_t>(*mmio, addresses, 0, args, 1, 24);
   prefix = restore ? "restore-" + std::to_string(cut) : "reference";
   if (restore) {
-    const auto b = read_file(directory / ("cut-" + std::to_string(cut) + ".owner"));
-    driver->validate_checkpoint(b); driver->load_checkpoint(b);
+    auto b = read_file(directory / ("cut-" + std::to_string(cut) + ".owner"));
+    const auto expected = b;
+    driver->validate_checkpoint(b);
+#ifdef BLOCKDEV_PREPARED_PUBLICATION
+    auto candidate = driver->prepare_checkpoint_publication(b);
+    b.clear(); b.shrink_to_fit(); // Candidate owns stream backing and all queues.
+    candidate->seal(); publish(*candidate);
+    candidate.reset(); // Retired stream/backing cleanup must preserve live disk.
+#else
+    driver->load_checkpoint(b);
+#endif
     check(mmio->calls == 0, "restore issued MMIO before first edge");
     snapshot(prefix + ".initial");
-    check(driver->save_checkpoint() == b, "incomplete zero-edge host readback");
+    check(driver->save_checkpoint() == expected, "incomplete zero-edge host readback");
   }
   mmio->trace.open(directory / (prefix + ".trace")); check(bool(mmio->trace));
   if (compare && restore && cut < operations) {
@@ -281,7 +342,138 @@ void negative(const std::filesystem::path &out) {
   driver.reset(); mmio.reset();
   std::cout << "PASS: blockdev atomic payload/configuration/suspension checks " << rejected << '\n';
 }
+#ifdef BLOCKDEV_PREPARED_PUBLICATION
+void publication_negative(const std::filesystem::path &p) {
+  const auto good=read_file(p/"cut-5.owner");
+  const auto n=p/"publication-negative";std::filesystem::create_directories(n);
+  init(n,false,0,false);
+  const auto initial=driver->save_checkpoint();const auto before=rejected;
+  auto unchanged=[&] {check(driver->save_checkpoint()==initial && mmio->calls==0,"partial blockdev publication");};
+  auto malformed=[&](const std::vector<uint8_t> &bad) {
+    rejects([&]{driver->prepare_checkpoint_publication(bad);});unchanged();
+  };
+  constexpr size_t config=(4+8+26)*8;
+  for(size_t i=0;i<config+24;++i)malformed({good.begin(),good.begin()+i});
+  for(size_t i=0;i<config;++i){auto bad=good;bad[i]^=1;malformed(bad);}
+  for(size_t i:{config+48,good.size()-65536,good.size()-32768,good.size()-1})
+    malformed({good.begin(),good.begin()+i});
+  {auto bad=good;bad.push_back(0);malformed(bad);}
+  for(auto offset:{config,config+8,config+16,config+24,config+56,config+64,config+72}) {
+    auto bad=good;std::fill(bad.begin()+offset,bad.begin()+offset+8,255);malformed(bad);
+  }
+  for(unsigned phase=0;phase<2;++phase) {
+    const auto live=stream_opens-stream_closes;
+    auto c=driver->prepare_checkpoint_publication(good);if(phase)c->seal();c.reset();
+    check(stream_opens-stream_closes==live,"cancelled candidate leaked a stream");unchanged();
+  }
+  {auto c=driver->prepare_checkpoint_publication(good);c->seal();rejects([&]{c->seal();});unchanged();}
+  {auto c=driver->prepare_checkpoint_publication(good);
+    std::thread t([&]{rejects([&]{c->seal();});});t.join();unchanged();c->seal();}
+  {std::unique_ptr<prepared_checkpoint_t> c;
+    {blockdev_t dead(*mmio,addresses,0,args,1,24);c=dead.prepare_checkpoint_publication(good);}
+    rejects([&]{c->seal();});}
+  {auto c=driver->prepare_checkpoint_publication(good);driver->load_checkpoint(initial);
+    rejects([&]{c->seal();});unchanged();}
+  {auto c=driver->prepare_checkpoint_publication(good);auto other=driver->prepare_checkpoint_publication(good);
+    c->seal();publish(*c);check(driver->save_checkpoint()==good && mmio->calls==0);
+    rejects([&]{c->seal();});rejects([&]{other->seal();});c.reset();driver->load_checkpoint(initial);unchanged();}
+  // A returned init mutates configuration state without a legacy load.
+  {auto c=driver->prepare_checkpoint_publication(good);driver->init();rejects([&]{c->seal();});
+    driver->load_checkpoint(initial);mmio->calls=0;unchanged();}
+  unsigned failures[2]{};
+  for(unsigned phase=0;phase<2;++phase)for(long i=0;;++i) {
+    std::unique_ptr<prepared_checkpoint_t> c;if(phase)c=driver->prepare_checkpoint_publication(good);
+    const auto live=stream_opens-stream_closes;
+    allocation_failed=false;fail_after=i;bool failed=false;
+    try{if(phase)c->seal();else c=driver->prepare_checkpoint_publication(good);}
+    catch(const std::bad_alloc &){failed=true;}
+    fail_after=-1;unchanged();
+    if(!failed){check(!allocation_failed);break;}
+    check(stream_opens-stream_closes==live,"allocation failure leaked stream");
+    ++failures[phase];if(phase)c->seal(); // Failed seal can be retried.
+  }
+  check(failures[0] && failures[1]);
+  for(bool seek:{false,true}) {
+    const auto live=stream_opens-stream_closes;
+    fail_open=!seek;fail_seek=seek;
+    rejects([&]{driver->prepare_checkpoint_publication(good);});fail_open=fail_seek=false;
+    check(stream_opens-stream_closes==live,"libc preparation failure leaked stream");unchanged();
+  }
+  // All backing bytes, including a nonzero final byte and EOF cursor, survive
+  // both cancelled and successful candidates and destruction of retired state.
+  auto full=good;for(size_t i=0;i<65536;++i)full[full.size()-65536+i]=1+i%255;
+  for(unsigned i=0;i<8;++i)full[config+16+i]=uint64_t(65536)>>(8*i);
+  {auto c=driver->prepare_checkpoint_publication(full);c->seal();publish(*c);c.reset();
+    check(driver->save_checkpoint()==full && mmio->calls==0);driver->load_checkpoint(initial);unchanged();}
+  // Both source and replacement can be disconnected (there is no FILE).
+  {blockdev_t f(*mmio,addresses,0,{},1,24);auto payload=f.save_checkpoint();
+    auto c=f.prepare_checkpoint_publication(payload);c->seal();publish(*c);c.reset();check(f.save_checkpoint()==payload);
+    rejects([&]{f.prepare_checkpoint_publication(good);});}
+  // All public service phases exclude suspended/poisoned destination stamps.
+  for(unsigned op:{0U,1U,7U,13U})for(bool interrupt:{false,true}) {
+    const auto local=n/("suspended-"+std::to_string(op)+(interrupt?"-fault":"-return"));
+    std::filesystem::create_directories(local);init(local,false,0,false);while(index<op)step();
+    auto c=driver->prepare_checkpoint_publication(good);unsigned hooks=0;
+    mmio->hook=[&]{++hooks;rejects([&]{driver->prepare_checkpoint_publication(good);});
+      rejects([&]{c->seal();});if(interrupt)throw std::runtime_error("injected MMIO interruption");};
+    if(interrupt)rejects([&]{step();});else step();
+    mmio->hook=nullptr;check(hooks>0);
+    if(interrupt){rejects([&]{driver->prepare_checkpoint_publication(good);});rejects([&]{c->seal();});}
+  }
+  init(n,false,0,false);
+  auto other_args=args;other_args.push_back("+blkdev-rlatency0=4095");
+  {blockdev_t f(*mmio,addresses,0,other_args,1,24);rejects([&]{f.prepare_checkpoint_publication(good);});}
+  {auto map=addresses;++map.bdev_req_len;blockdev_t f(*mmio,map,0,args,1,24);rejects([&]{f.prepare_checkpoint_publication(good);});}
+  {blockdev_t f(*mmio,addresses,0,args,2,24);rejects([&]{f.prepare_checkpoint_publication(good);});}
+  {blockdev_t f(*mmio,addresses,0,{"+blkdev-in-mem0=127"},1,24);rejects([&]{f.prepare_checkpoint_publication(good);});}
+  const auto external=n/"external.disk";write_file(external,std::vector<uint8_t>(65536,0xa5));
+  const auto bytes=read_file(external);const std::vector<std::string> external_args{"+blkdev0="+external.string()};
+  const std::vector<std::string> log_args{"+blkdev-in-mem0=128","+blkdev-log0="+(n/"debug.log").string()};
+  {blockdev_t f(*mmio,addresses,0,external_args,1,24);rejects([&]{f.prepare_checkpoint_publication(good);});}
+  {blockdev_t f(*mmio,addresses,0,log_args,1,24);rejects([&]{f.prepare_checkpoint_publication(good);});}
+  check(read_file(external)==bytes && mmio->calls==0);
+  std::cout<<"BLOCKDEV_PUBLICATION_NEGATIVE rejections="<<rejected-before<<" prepare_failures="<<failures[0]
+           <<" seal_failures="<<failures[1]<<" libc_failures=2 unchanged=1\n";
+}
+std::vector<uint8_t> fatal_expected;
+const char *fatal_mode=nullptr;
+void terminated() noexcept {
+  fail_after=-1;
+  try {
+    check(driver->save_checkpoint()==fatal_expected && mmio->calls==0);
+    std::fprintf(stderr,"BLOCKDEV_PUBLICATION_FATAL mode=%s unchanged=1 mmio=0\n",fatal_mode);
+    std::fflush(stderr);std::_Exit(86);
+  }catch(...){std::_Exit(87);}
+}
+void publication_fatal(const std::filesystem::path &p,const char *mode) {
+  init(p,false,0,false);fatal_expected=driver->save_checkpoint();fatal_mode=mode;
+  const std::string m(mode);auto c=driver->prepare_checkpoint_publication(fatal_expected);
+  if(m=="expired"){driver.reset();driver=std::make_unique<blockdev_t>(*mmio,addresses,0,args,1,24);}
+  else if(m!="unsealed")c->seal();
+  if(m=="consumed")publish(*c);
+  if(m=="stale"){auto other=driver->prepare_checkpoint_publication(fatal_expected);other->seal();publish(*other);}
+  if(m=="legacy")driver->load_checkpoint(fatal_expected);
+  std::set_terminate(terminated);
+  if(m=="thread"){std::thread t([&]{c->publish();});t.join();}
+  else if(m!="returned")c->publish();
+  std::fprintf(stderr,"BLOCKDEV_PUBLICATION_UNEXPECTED_RETURN mode=%s\n",mode);std::_Exit(88);
+}
+#endif
 } // namespace
+extern "C" int blockdev_publication_negative(const char *p) {
+#ifdef BLOCKDEV_PREPARED_PUBLICATION
+  try{publication_negative(p);return 0;}catch(const std::exception &e){fail_after=-1;std::cerr<<e.what()<<'\n';return 1;}
+#else
+  return 1;
+#endif
+}
+extern "C" void blockdev_publication_fatal(const char *p,const char *mode) {
+#ifdef BLOCKDEV_PREPARED_PUBLICATION
+  publication_fatal(p,mode);
+#else
+  std::exit(2);
+#endif
+}
 
 extern "C" void blockdev_failure() { std::exit(1); }
 #ifdef BLOCKDEV_CHECKPOINT_DPI
@@ -301,6 +493,8 @@ extern "C" int blockdev_negative(const char *d) {
 int main(int argc,char **argv) {
   try {
     check(argc==4);
+    if (std::string(argv[1])=="publication-negative") return blockdev_publication_negative(argv[2]);
+    if (std::string(argv[1])=="publication-fatal") {blockdev_publication_fatal(argv[2],argv[3]);return 88;}
     if (std::string(argv[1])=="negative") negative(argv[2]);
     else { init(argv[2],std::string(argv[1])=="restore",std::stoul(argv[3]),true); while (!step()) {} }
     return 0;
