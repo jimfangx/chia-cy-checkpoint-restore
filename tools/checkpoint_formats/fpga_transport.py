@@ -5,7 +5,7 @@ Generated manifest/bank bindings must be independently audited for the image.
 Do not publish a canonical image until the entire stream and host owners pass.
 """
 
-from .banked import encode_banked, validate_binding
+from .banked import encode_banked, encode_chunked_banked, transport_shape, validate_binding
 from .codec import natural, require
 from .semantic import manifest_hash
 
@@ -38,7 +38,7 @@ def decode_frames(raw: bytes, manifest: dict, binding: dict, expected_cycle: int
     natural(expected_cycle)
     require(expected_cycle < 1 << 64, "target cycle exceeds hardware width")
     require(type(raw) is bytes, "transport requires bytes")
-    count = sum(e["depth"] for e in binding["state"])
+    count = sum(transport_shape(binding, e)[1] for e in binding["state"])
     require(len(binding["state"]) <= 65535 and count < 1 << 64, "transport inventory too large")
     require(len(raw) == (count + 2) * FRAME_BYTES, "truncated or extra transport frames")
     checksum = crc32c(raw[:-FRAME_BYTES]) ^ 0xffffffff
@@ -55,18 +55,21 @@ def decode_frames(raw: bytes, manifest: dict, binding: dict, expected_cycle: int
     ordinal = 0
     # Iterate the independently expected shape, never untrusted on-wire counts.
     for index, entry in enumerate(binding["state"]):
-        for address in range(entry["depth"]):
+        width, depth = transport_shape(binding, entry)
+        require(0 < depth < 1 << 32, "transport address overflow")
+        for address in range(depth):
             start = (ordinal + 1) * FRAME_BYTES
             frame = int.from_bytes(raw[start:start + FRAME_BYTES], "little")
             require(field(frame, 80, 16) == 2 and field(frame, 160, 64) == ordinal and
                     field(frame, 224, 32) == index and field(frame, 256, 32) == address and
-                    field(frame, 288, 16) == entry["width"] and
+                    field(frame, 288, 16) == width and
                     field(frame, 304, 8) == entry["bank"] and
                     field(frame, 312, 16) == entry["slot"], "transport state order/selector mismatch")
             require(field(frame, 328, 8) == 0 and frame >> 400 == 0, "transport error/reserved bits")
             data = field(frame, 336, 64)
-            require(data < 1 << entry["width"], "noncanonical transport data")
-            beats.append(dict(entry=index, address=address, width=entry["width"], data=data,
+            chunk = address % ((entry["width"] + 63) // 64) if binding["access_version"] == 2 else 0
+            require(data < 1 << min(64, entry["width"] - chunk * 64), "noncanonical transport data")
+            beats.append(dict(entry=index, address=address, width=width, data=data,
                               error=0, last=int(ordinal == count - 1)))
             ordinal += 1
     # Include header and trailer in the independent common-field validation.
@@ -79,5 +82,6 @@ def decode_frames(raw: bytes, manifest: dict, binding: dict, expected_cycle: int
 
 def encode_transport_semantic(raw: bytes, manifest: dict, binding: dict,
                               configuration: str, expected_cycle: int) -> bytes:
-    return encode_banked(manifest, configuration, expected_cycle,
-                         decode_frames(raw, manifest, binding, expected_cycle))
+    beats = decode_frames(raw, manifest, binding, expected_cycle)
+    encode = encode_chunked_banked if binding["access_version"] == 2 else encode_banked
+    return encode(manifest, configuration, expected_cycle, beats)

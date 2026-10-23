@@ -10,9 +10,21 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 
 | Family | F2 workload / custom capture image | FPGA Level-1 to EDA metasim | FPGA Level-2 finite RTL replay | Live RTL / rolling hardware recovery |
 | --- | --- | --- | --- | --- |
-| Rocket (all four harts) | baseline verified: real F2, slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress (MMIO/CPU-DMA Widget, synchronous pipelines and initialized RAM bank fixtures; complete Rocket integration pending) | pending | pending | pending |
+| Rocket (all four harts) | baseline verified: real F2, slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress (MMIO/CPU-DMA Widget, synchronous/initialized and wide/deep bank fixtures; complete Rocket integration pending) | pending | pending | pending |
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
+
+Iteration 183 adds versioned wide/deep generated bank mapping, complete EDA
+fixture readout/reconstruction through production MMIO/DMA, and native localhost
+synthesis. Each of **C=1 / 42 / 138** captures **65,564** physical / **65,545**
+logical words, including signed 65-bit and 128/512-bit registers, 129-bit RAM
+and a 65,537-entry RAM. Original RTL, functional-input oracles, reset/write
+freeze, backpressure, first-word semantic corruption and ASan/UBSan host frame
+validation pass. Native OOC synthesis uses **20,687 LUTs / 259 registers**;
+this is not Rocket image P&R or an AFI. Exact commands, per-cut hashes and logs
+are under `automations/checkpoint_loop/runs/aws-f2/iteration183/`.
+Rocket hardware capture, both FPGA-produced image levels, fresh CPU restores,
+finite/live CPU execution and rolling hardware recovery remain pending.
 
 Iteration 182 preserves initialization/preservation annotations through generated
 module specialization, with explicit local/nonlocal target translation and

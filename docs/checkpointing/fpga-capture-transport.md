@@ -1,5 +1,51 @@
 # FPGA capture transport component
 
+Iteration 183 adds wide/deep generated bank mapping. A logical state entry keeps
+its StateID, width and depth. For `chunks = ceil(width / 64)`, physical address
+`a * chunks + c` selects bits `[64*c +: min(64, width - 64*c)]` of logical address
+`a`, zero-padded to 64 bits. A single selector and descriptor cover each StateID;
+chunking never invents independent semantic owners. Signed words preserve their
+bit representation. RAM addresses divide by the exact chunk count, including
+non-power-of-two counts. Transfers above **2^31-1** per entry fail explicitly;
+physical address and descriptor depth ports remain 32 bits.
+
+A circuit with any wide state uses `latched-banked64-chunked-v2`. Its binding
+retains logical `width`/`depth` and adds `chunks`, `transfer_width`, and
+`transfer_depth` to every entry. `CheckpointCaptureDescriptors` derives and
+checks those fields before producing the ROM and host C++ metadata. Transport
+frames remain version 1, carrying the physical shape. The Python host binding
+uses `banked64-chunked-v2`, validates both shapes, checks final-chunk padding,
+and reconstructs canonical `.rtlckpt` logical words only after full validation.
+Narrow-only generated circuits retain the previous binding protocol; the old
+explicit unchunked bank codec continues rejecting wide state.
+
+Fresh EDA VCS SP2 connects the real generated storage and descriptor ROM to
+production MMIO/DMA transport and captures **65,564** physical words at each
+of **C=1 / 42 / 138**. Signed 65-bit, exact 128-bit and 512-bit registers,
+129-bit x 5 RAM and 9-bit x 65,537 RAM pass independent original-RTL and
+functional-input checks, reset/write freeze, **1,573,571** DMA stall cycles,
+complete host reconstruction, sanitizer frame checks and frozen first-word
+corruption rejection. Native localhost Vivado 2025.2 OOC synthesis uses
+**20,687 LUTs / 259 registers**, estimated setup slack **+5.328 ns** at 140 MHz.
+This is component evidence; complete Rocket compilation/integration, image
+build/P&R/AFI and physical capture/migration remain pending.
+
+After Scala elaboration, on EDA with `vcs-env.sh` sourced last:
+
+```bash
+python3 -m tools.checkpoint_formats.tests.verify_chunked_bank_vcs \
+  --generated automations/checkpoint_loop/runs/aws-f2/iteration183/scala/bank/chunked \
+  --out automations/checkpoint_loop/runs/aws-f2/iteration183/chunked-reverify
+```
+
+On this manager, after native F2 HDK setup:
+
+```bash
+python3 -m tools.checkpoint_formats.tests.synth_chunked_bank \
+  --generated automations/checkpoint_loop/runs/aws-f2/iteration183/scala/bank/chunked \
+  --out automations/checkpoint_loop/runs/aws-f2/iteration183/native-chunked-reverify
+```
+
 Iteration 182 adds explicit annotation translation during bank specialization.
 Local `DontTouchAnnotation` and `MemoryFileInlineAnnotation` targets clone to
 every reachable module instance; nonlocal targets resolve only the specified

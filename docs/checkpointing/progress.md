@@ -20,17 +20,14 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 182,
-**in_progress**. Generated banks now explicitly translate preservation and
-file-backed RAM initialization annotations through instance specialization,
-including synthesis initialization policy. Independent initialized-RAM and
-unchanged-RTL checks cover capture before the first functional edge, later
-writes, freeze, backpressure and release. FPGATop retains its actual MMIO/CPU
-DMA fixture checks. Execution audits bind private VCS/native synthesis
-snapshots; see [fpga-capture-transport.md](fpga-capture-transport.md).
-Complete Rocket/FAME/memory/host integration remains pending. No checkpoint-enabled AFI,
-FPGA-origin checkpoint, CPU migration or sustained live CPU acceptance is
-claimed. The bring-up baseline below is retained hardware evidence.
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 183,
+**in_progress**. Generated banks now support explicit 64-bit chunking of wide
+logical state and transfer depths above 65,535. Logical StateIDs/shapes remain
+independent of flattened transport descriptors. The EDA wide/deep fixture and
+native localhost synthesis pass; complete Rocket/FAME/memory/host integration,
+checkpoint-enabled AFI, FPGA-origin checkpoints and CPU migration remain pending.
+The bring-up baseline below is retained hardware evidence. See
+[fpga-capture-transport.md](fpga-capture-transport.md).
 
 On October 23 the
 existing manager successfully launched one tagged `f2.6xlarge`, instance
@@ -91,6 +88,74 @@ pending the complete state network, bridge and host-owner implementation.
 Report individual nonempty files, including actual native manager logs and
 `results-workload/.../uartlog`, instead of directories. Keep original
 iteration-175 artifacts and failed-license receipts unchanged.
+
+## Iteration 183: wide/deep storage and versioned transport reconstruction
+
+`GeneratedStateBankAccess` slices arbitrary-width lowered registers/RAM words
+into little-endian 64-bit transfers, address-major within each unchanged StateID.
+The generated `latched-banked64-chunked-v2` binding retains logical width/depth
+and explicitly binds chunk count and physical width/depth. Descriptor ROM and
+C++ metadata share the checked flattened shape. Signed high chunks zero-pad
+rather than sign-extend. Transfers beyond the supported **2^31-1** per-entry
+depth reject before hardware generation. Narrow-only bindings retain v1;
+legacy explicit unchunked capture still rejects wide state.
+
+EDA VCS SP2 passes **13,769,412** checks, **196,692** physical reads and
+**1,573,571** stalled DMA cycles for three complete **65,564-transfer-word** /
+**65,545-logical-word** captures at **C=1 / 42 / 138**. The fixture covers signed
+65-bit, 128-bit and 512-bit registers, 129-bit x 5 RAM (three chunks per word)
+and 9-bit x 65,537 RAM. Every public output agrees with original RTL and a
+functional-input oracle; the decoder independently reconstructs every logical
+word. Active writes to address 65,536 cross the former limit. Reset and writes
+remain frozen during readout; the first corrupted data word stops frozen at
+C=1 before any image publication. Full healthy debug VCD is retained. Fresh
+ASan/UBSan production C++ frame validation passes all three complete cuts,
+including corrupt/truncated, wrong-cycle, incompatible and incomplete metadata.
+
+Native localhost Vivado 2025.2 synthesizes the complete wide/deep storage fixture
+for `xcvu47p-fsvh2892-2-e`: **20,687 LUTs / 259 registers**, estimated setup
+slack **+5.328 ns** at 140 MHz. This is component OOC synthesis; it is not a
+checkpoint-enabled Rocket image, P&R, AFI or FPGA execution. A read-only shape
+audit of the retained exact Rocket generated inventory finds **11,464** entries,
+**132** wider than 64 bits, maximum width **512**, maximum depth **16,384**,
+**445,838** logical / **618,252** transfer words, and no flattened-depth overflow.
+That retained inventory is historical input, not fresh full-Rocket generation.
+
+All **60** Scala / **286** checkpoint Python / **40** loop tests pass. The full
+retained FCFS ASan/UBSan/VCS and generated-bank, Widget, host, cut, synchronous,
+initialized, generated-network and FPGATop fixture scopes pass without reduced
+checks. Independent EDA audits verify **107** wide/deep files and **92** top
+files; both suites reject all **14** receipt/evidence mutations. The retained
+fixture-top native synthesis remains **3,528 LUTs / 1,383 registers**. Final
+inventory reports no owned live runtime or native Vivado/Java build job.
+Initial Scala syntax, reference-clock and backpressure-coverage trials
+remain diagnostic evidence. The testbench reference now receives exactly one
+pulse per functional edge; backpressure was increased to satisfy the original
+stress requirement. Healthy captures and waveforms remain separate from the
+semantic-negative run.
+
+Fresh AWS identity/type access passes. Isolated exact-Rocket checkpoint configs
+reuse initialized manager inputs, disabled metasim, one `f2.6xlarge`, tag
+`checkpoint-f2-rocket-capture-183` and ExternallyProvisioned `[localhost]`.
+The original invocation with a mistyped workload name remains a preparation
+trial. `checkpoint-build-final/` selects the byte-identical retained quad-hart
+self-check ELF, installed under the invocation's new workload name; the native
+manager resolves its real file successfully. `workload-installation.json` binds
+the original, private and manager-installed bytes. No F2 instance or AFI job
+was launched. Existing controller commits were
+published FireSim first (`1fb2d55a`), then Chipyard (`07392193`); independent
+remote tips agree. The successful Chipyard push reports its usual read-only
+local tracking-ref failure. Managed delegation failed before creating a worker;
+all work remained central. Plans, conda and the legacy archive were preserved;
+no staging or local commits were made.
+
+Exact commands, immutable inputs, per-cut receipts and raw logs are cataloged
+in `automations/checkpoint_loop/runs/aws-f2/iteration183/summary.json`. Next: actual
+Rocket compiler/FAME binding and remaining annotation/side-effect/clock contracts;
+global channel/FASED/functional-memory/host ownership and atomic freeze; complete
+localhost Rocket image P&R/AFI/deployment; four real active-workload FPGA cuts;
+independent zero-edge CPU restores, finite/live RTL comparison and rolling F2
+recovery. All hardware capture/migration acceptance remains pending.
 
 ## Iteration 182: initialized storage and explicit annotation translation
 
