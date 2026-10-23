@@ -20,12 +20,14 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 189,
-**in_progress**. Exact FPGA `plusarg_reader` synthesis constants now have an
-explicit preparation/instance-provenance contract, distinct from metasim
-init-only registers. The whole retained Rocket input inventories 12,099 entries /
-619,016 words, but complete bank generation still rejects FPGATop's constant-zero
-bridge clock pins. This is an actual compiler rejection, not hardware coverage.
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 190,
+**in_progress**. Bank clock provenance now distinguishes explicitly tied-off
+metadata pins from root clocks and rejects static origins on every functional
+register, memory port and clocked effect. Descriptors independently reconstruct
+that contract. All **83 Scala / 286 checkpoint Python / 40 loop tests**, the
+full retained EDA regression scope and **11** native component syntheses pass. The whole retained Rocket inventory
+remains **12,099 entries / 619,016 words**; generation now passes the previous
+constant-zero rejection and stops on PeekPoke's invalid dummy `tIO_clock` pin.
 Complete simulator/mapped-primitive/common-cut memory/host integration, custom
 AFI, physical capture and CPU migration remain pending. See
 [fpga-capture-transport.md](fpga-capture-transport.md).
@@ -89,6 +91,69 @@ pending the complete state network, bridge and host-owner implementation.
 Report individual nonempty files, including actual native manager logs and
 `results-workload/.../uartlog`, instead of directories. Keep original
 iteration-175 artifacts and failed-license receipts unchanged.
+
+## Iteration 190: static metadata clock provenance
+
+`GeneratedStateBankAccess` resolves exact one-bit constants through transparent
+hierarchical clock routing into explicit `constant_clock` binding rows, with
+neither a fabricated root clock nor an omitted pin. Static clocks cannot drive
+registers, synchronous RAM pipelines, memory ports, registered gates or clocked
+effects. Descriptor validation checks actual sequential consumers as well as
+all port routes, including an attacker who rewrites a storage clock and updates
+the circuit hash. Existing conditional RAM clocks retain their independent
+same-enable generation checks; materialized RAM pipeline clocks are followed
+through aliases during descriptor-origin validation.
+
+The new repeated-child static metadata fixture retains all **9 owners / 15
+words** and **22 clock-port routes**, including **8** explicit zero/one static
+pins. The three new Scala tests cover transparent casts/IO, complete ownership,
+register/RAM/effect rejection, changed/dropped/static-to-root bindings and
+post-generation clock rewiring. All **83 Scala / 286 checkpoint Python / 40 loop tests** pass. The
+initial Scala diagnostic (a misplaced FIRRTL fixture connection and conditional
+pipeline-origin validation) is preserved under this iteration's `runs/`.
+
+Fresh EDA VCS SP2 checks every word against the unchanged original RTL and
+functional-input model at component steps **6 / 43 / 126 / 223**: **5,483 checks**,
+**60** readouts, independent clocks, frozen reset/write pressure, backpressure,
+post-release continuation and first-word corruption rejection with full VCD.
+The full retained bank/top/MMIO/DMA/host/FCFS ASan/UBSan scope passes. Top VCS
+uses the exact native synthesis's immutable generated inputs; **7,858** top
+checks pass without an elaboration mismatch. Independent complete-word/source/
+DCP/clock audits pass, with a healthy copied control followed by all **10** new
+static metadata corruptions rejected (including Boolean/float origins despite
+Python's numeric equality), all **23** static-clock receipt negatives and the
+retained rejection suites. Original remote receipt paths remain intact.
+
+All **11** native localhost component syntheses pass, including retained FASED
+(**759 entries / 99,611 words**) and the static-clock fixture (**181 LUTs / 79
+registers**, estimated setup WNS **+6.298 ns**, hold WHS **+0.049 ns** at 140 MHz).
+These are OOC component estimates with unconstrained external I/O, not complete
+image timing closure. FASED retains its **-0.299 ns** estimated hold slack / **4,102**
+failing endpoints. Fresh AWS/localhost inventory records no invocation runtime
+instance or native Vivado/Java build job. No new AFI request was made.
+
+The whole exact-recipe retained-input probe clears the prior constant-zero
+clock rejection and now fails, exit **1**, at
+`F1Shim.top.PeekPokeBridgeModule_0.hPort_dummyModule.tIO_clock` with
+`missing child clock`. Its parent explicitly marks the pin invalid. No invalid
+or undriven origin is treated as a root clock, no state/port was dropped and no
+complete bank output was published. Inventory remains **12,099 entries /
+619,016 transfer words / 21,005,343 logical bits / 2,300 instances**. Probe inputs,
+raw command/failure and hashes are in
+`runs/aws-f2/iteration190/whole-rocket-probe.json` relative to the loop. This is
+the retained iteration-184 intermediate, not freshly generated complete F2
+hardware. Next: prove the dummy pin's lack of functional consumers and represent
+any supported invalid metadata explicitly, then finish actual simulator,
+semantic boundary, physical primitive and atomic memory/host integration.
+
+Managed worker startup failed before any worker began; all work stayed central.
+Existing controller-created checkpoints were pushed FireSim first (`45e976a3`),
+then Chipyard (`0ea54f0a`); the latter remote push succeeded while its local
+tracking-ref update failed read-only. No local commit/staging, plan/conda edits
+or history reset/clean. Full image P&R/AFI, physical capture, paired CPU restores,
+finite/live comparison and rolling F2 recovery remain pending. Detailed fresh
+verification commands, results and immutable receipts are cataloged in
+`runs/aws-f2/iteration190/summary.json`.
 
 ## Iteration 189: exact FPGA synthesis constants and whole-Rocket probe
 

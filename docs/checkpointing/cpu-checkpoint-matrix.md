@@ -10,9 +10,31 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 
 | Family | F2 workload / custom capture image | FPGA Level-1 to EDA metasim | FPGA Level-2 finite RTL replay | Live RTL / rolling hardware recovery |
 | --- | --- | --- | --- | --- |
-| Rocket (all four harts) | baseline verified: real F2, slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress (MMIO/CPU-DMA Widget, banks, clock provenance, exact registered-gate/FPGA-constant owners, retained FASED/DTLB/D-cache banks; whole-root bank generation rejects tied-off bridge clock pins) | pending | pending | pending |
+| Rocket (all four harts) | baseline verified: real F2, slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress (MMIO/CPU-DMA Widget, banks, clock provenance, exact registered-gate/FPGA-constant owners, retained FASED/DTLB/D-cache banks; static metadata clocks explicit; whole-root bank generation now rejects invalid PeekPoke dummy clock) | pending | pending | pending |
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
+
+Iteration 190 binds exact zero/one metadata clock pins explicitly without
+inventing functional domains, and independently rejects static clocks feeding
+storage, RAM pipelines/ports or clocked effects. All **83 Scala / 286 checkpoint Python / 40 loop tests**, full retained EDA
+FCFS/fixture/host ASan/UBSan scope and **11** native component syntheses pass.
+Fresh EDA VCS passes **5,483** static-fixture checks at complete component cuts
+**6 / 43 / 126 / 223**, with 60 word reads, frozen backpressure/clock/reset/write
+pressure and first-word corruption rejection. Independent audits verify all 22
+clock-port routes / eight static metadata pins and reject all **10** semantic
+metadata corruptions plus **23** receipt corruptions. Native static-fixture OOC
+synthesis uses **181 LUTs / 79 registers**, estimated setup WNS **+6.298 ns** /
+hold WHS **+0.049 ns** at 140 MHz, with external I/O unconstrained. This is
+component evidence; whole-image timing and physical capture remain pending.
+Post-generation clock rewiring with an updated circuit hash rejects in Scala.
+The whole retained recipe probe now clears the tied-off bridge clock rejection
+and stops on the explicitly invalid PeekPoke dummy `tIO_clock` pin. Complete
+inventory remains **12,099 entries / 619,016 transfer words**; no complete bank
+output or custom checkpoint AFI is claimed. Fresh component verification and
+raw compiler diagnostics are cataloged under
+`automations/checkpoint_loop/runs/aws-f2/iteration190/summary.json`. Complete
+hardware owners/common cut, checkpoint image, all active FPGA cuts, paired
+restores, finite/live CPU comparison and rolling F2 recovery remain **pending**.
 
 Iteration 189 explicitly materializes the exact source-bound FPGA plusarg
 `SYNTHESIS` constants, retaining original-circuit/parameter provenance through

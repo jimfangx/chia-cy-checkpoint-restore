@@ -1,5 +1,41 @@
 # FPGA capture transport component
 
+Iteration 190 adds explicit static metadata clock provenance. Exact one-bit
+zero/one constants can pass through concrete clock aliases, casts, IO cells and
+repeated hierarchy, with `constant_clock` binding rows instead of invented root
+clock names. Every sequential consumer still requires a functional root origin:
+registers, memory ports/pipelines, gate enable state and clocked effects reject
+static clocks. Descriptor reconstruction checks consumers even when an attacker
+updates the instrumented-circuit hash. Unknown/invalid/undriven and derived
+clock origins remain unsupported.
+
+The new `static-clocks` fixture keeps 9 state owners / 15 words and 22 clock-port
+routes, including eight repeated static metadata pins. It uses the same
+`verify_multiple_clocks_vcs`, native `synth_clocked_effects` and independent
+`audit_multiple_clocks` checks as the direct/forwarded fixtures.
+`verify_static_clock_audit` corrupts the explicit static metadata in copied
+receipts while coherently updating both outer input hashes; a healthy copied
+control must pass before semantic negatives can count.
+
+Fresh static-fixture VCS checks pass at component steps 6 / 43 / 126 / 223
+(5,483 checks / 60 complete word reads) with full debug VCD and first-word
+corruption stop. Native localhost OOC synthesis uses 181 LUTs / 79 registers;
+independent audits verify all 22 routes and reject ten coherently rehashed
+metadata corruptions, including Boolean/float values, plus 23 receipt negatives.
+All 83 Scala / 286 checkpoint Python / 40 loop tests, retained full EDA
+FCFS/fixture/host sanitizer scope and eleven native component syntheses pass.
+Exact commands and immutable receipts: `runs/aws-f2/iteration190/summary.json`
+relative to the loop. These results establish component behavior only.
+
+The retained whole-Rocket probe now passes the old constant-zero bridge pin
+rejection but stops at PeekPoke's explicitly invalid dummy `tIO_clock` pin:
+`missing child clock at F1Shim.top.PeekPokeBridgeModule_0.hPort_dummyModule.tIO_clock`.
+It still inventories 12,099 entries / 619,016 words and emits no complete banks.
+The new raw failure is under `runs/aws-f2/iteration190/`; the iteration-189
+failure below is historical. No invalid pin or functional owner was dropped.
+Complete capture integration, image P&R/AFI, real F2 execution/capture and CPU
+migration remain pending.
+
 Iteration 189 adds `GeneratedSynthesisConstantAdapter.prepare`, an explicit
 FPGA-only preparation step **before** simulator inventory and bank generation.
 It accepts only the exact source-hashed Rocket `plusarg_reader` model, exact
