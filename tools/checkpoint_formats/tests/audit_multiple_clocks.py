@@ -1,4 +1,4 @@
-"""Independent evidence audit for direct, transparent and inert metadata clock bank components."""
+"""Independent evidence audit for functional-clock and Clock-token bank components."""
 import argparse
 import json
 from pathlib import Path
@@ -35,6 +35,11 @@ def audit(capture, synthesis):
         if 'invalid_clock' in row:
             require(type(row['invalid_clock']) is str and
                     set(row) == {'clock_hierarchy', 'invalid_clock'}, 'incomplete clock provenance')
+        if 'data_clock' in row:
+            origin = row['data_clock']
+            require(type(origin) is dict and set(origin) == {'hierarchy', 'expression'} and
+                    all(type(value) is str and value for value in origin.values()) and
+                    set(row) == {'clock_hierarchy', 'data_clock'}, 'incomplete clock provenance')
     for key, name in [('reference_sha256', 'generated-bank-input.fir'), ('instrumented_sha256', 'generated-bank.fir'),
                       ('manifest_sha256', 'generated-bank-manifest.json')]:
         require(binding[key] == sha(generated / name), 'stale bank binding: ' + key)
@@ -98,11 +103,12 @@ def audit(capture, synthesis):
         for token in ('<Top Name="MultiClockStorage"', '<Part Name="xcvu47p-fsvh2892-2-e"',
                       '<OutOfContext Name="1"', 'Vivado v2025.2'):
             require(token in metadata, 'native DCP identity mismatch: ' + token)
-    return dict(status='pass', scope='direct, transparent or inert metadata clock component only', physical_fpga_capture=False,
+    return dict(status='pass', scope='functional-clock or Clock-token bank component only', physical_fpga_capture=False,
                 complete_cpu_acceptance=False, words_verified=len(words),
                 clock_ports_verified=len(binding['functional_clock_domains']),
                 static_clock_ports_verified=sum('constant_clock' in row for row in binding['functional_clock_domains']),
                 invalid_clock_ports_verified=sum('invalid_clock' in row for row in binding['functional_clock_domains']),
+                data_clock_ports_verified=sum('data_clock' in row for row in binding['functional_clock_domains']),
                 checks=run['checks'], cuts=cuts,
                 luts=native['luts'], registers=native['registers'], capture_receipt=str(capture),
                 capture_sha256=sha(capture), synthesis_receipt=str(synthesis), synthesis_sha256=sha(synthesis),

@@ -20,18 +20,17 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 191,
-**in_progress**. Explicitly invalid metadata clocks now preserve their exact
-hierarchical origin through transparent routes; every sequential consumer
-still rejects them. All **86 Scala / 286 checkpoint Python / 40 loop tests**
-and the complete retained EDA bank/transport/host/FCFS ASan/UBSan scope pass.
-The new fixture passes **5,483** VCS checks with complete independent word
-readback at four component cuts. All **12** native component syntheses and independent evidence
-audits pass, including **12** invalid-origin semantic corruptions and **23**
-invalid-fixture receipt corruptions. Whole retained Rocket generation clears PeekPoke's dummy
-pin and rejects a computed Clock-typed FAME token value, with no complete bank
-output published. Complete simulator/mapped-primitive/common-cut memory/host
-integration, custom AFI, physical capture and CPU migration remain pending.
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 192,
+**in_progress**. Computed Clock-typed FAME token data now has explicit scoped
+expression provenance and remains prohibited on every sequential clock.
+All **89 Scala / 286 checkpoint Python / 40 loop tests** and the full retained
+EDA bank/transport/host/FCFS ASan/UBSan scope pass. Whole retained Rocket bank
+emission and descriptor validation now pass for **12,099 entries / 619,016
+transfer words / 2,300 instances**. This covers the retained generated RTL
+inventory only. All 14 native OOC synthesis runs complete; whole-root estimated
+setup/hold slack fails (**-0.916 ns / -0.324 ns**). Independent EDA audits pass;
+physical primitive/common-cut memory/host integration, custom AFI, actual F2
+capture, paired CPU migration and live/rolling hardware acceptance remain pending.
 See [fpga-capture-transport.md](fpga-capture-transport.md).
 
 On October 23 the
@@ -93,6 +92,65 @@ pending the complete state network, bridge and host-owner implementation.
 Report individual nonempty files, including actual native manager logs and
 `results-workload/.../uartlog`, instead of directories. Keep original
 iteration-175 artifacts and failed-license receipts unchanged.
+
+## Iteration 192: computed FAME clock tokens and whole-root bank emission
+
+`GeneratedStateBankAccess` binds one-bit combinational token origins with
+`data_clock: {hierarchy, expression}` and follows them through concrete aliases,
+casts and repeated child pins. Every sequential consumer, including gate
+sources, independently rejects computed data as a physical clock. The descriptor
+validator reconstructs origins/consumers from emitted wiring and rejects binding
+changes or sequential rewiring with a refreshed circuit hash.
+
+The new fixture uses both token values for functional next-state data and keeps
+**9 owners / 15 words / 22 clock-port routes**. Fresh EDA VCS SP2 passes **5,483**
+checks / 60 words at **6 / 43 / 126 / 223**, original RTL and public-input oracles,
+frozen write/reset/clock pressure, backpressure, continuation, first-word
+corruption stop and full debug VCD. All **89 Scala / 286 checkpoint Python / 40
+loop tests** and the complete retained EDA bank/transport/host/FCFS ASan/UBSan
+scope pass. A healthy copied control and all **14** coherently rehashed token
+metadata corruptions pass/reject as intended.
+
+The retained whole Rocket probe now emits and validates banks for **12,099
+entries / 619,016 words / 21,005,343 logical bits / 2,300 instances**. Its 2,120
+clock-port routes include four computed data origins, eight static and one
+invalid origin, plus three registered gate adapters. This is the retained
+iteration-184 intermediate with explicit `generated_rtl_only` scope and
+`external_runtime_required=true`, not a fresh complete F2 image. The original
+input/annotation files and recipe provenance are preserved. All **13** native
+component syntheses pass; the token fixture uses **169 LUTs / 96 registers**,
+estimated WNS **+6.260 ns** / WHS **+0.038 ns** at 140 MHz (OOC, external I/O
+unconstrained). Whole-root native OOC synthesis completes with **715,823 LUTs /
+107,016 registers / 64 DSPs / no block RAM**, zero synthesis errors/critical
+warnings and zero OOC DRC errors. Estimated setup WNS **-0.916 ns** has **6,878**
+failing endpoints; hold WHS **-0.324 ns** has **18,710**, of **3,580,132** total.
+The worst setup path crosses 34 logic levels from target cbus synchronizer state
+to `ckpt_saved_data[0]`. These are pre-placement estimates with external I/O
+unconstrained and OOC clock-buffer locations unbound. Timing closure is **not**
+verified. Native DCP, netlist, exact Tcl and reports are retained. Final independent
+EDA audits pass, including complete inventory/source/DCP identity, all retained
+negative suites, **14** coherently rehashed token-origin corruptions and **23**
+new fixture receipt corruptions. Top VCS passes **7,858** checks on exact native
+inputs. Fresh inventory confirms no invocation runtime instance and no native
+Vivado/Java job remains. Commands and immutable receipts are cataloged in
+`runs/aws-f2/iteration192/summary.json` relative to the loop.
+
+Next: integrate these banks with the real bridge/common cut and source-bound
+physical primitive implementations; complete atomic functional-memory/host
+capture and pre-FAME mapping, address readout/functional timing with mapped
+clocks, then fresh whole-image build/P&R/AFI, active F2
+captures and FPGA-produced paired CPU restore/finite/live/rolling acceptance.
+The invocation reuses the initialized configs, exact recipe and localhost build
+farm. No new AFI or runtime instance has been requested. Native worker startup
+failed before a worker began; all implementation stayed central, with no worker
+requests remaining. Existing controller commits were pushed FireSim first
+(`118daa04`), then Chipyard (`ec2b9f95`); remote tips agree. The successful
+Chipyard remote push retained its read-only local tracking-ref update error.
+Both plan hashes remain unchanged. No staging, local commits, conda edits or
+history changes were performed. Initial Scala diagnostic text and the stopped
+first whole-synthesis attempt (corrected Tcl gate checks) remain under
+`runs/aws-f2/iteration192/` relative to the loop. The controller owns the next
+checkpoint commit/publication.
 
 ## Iteration 191: explicitly invalid metadata clock origins
 

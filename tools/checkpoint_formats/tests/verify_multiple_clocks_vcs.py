@@ -46,6 +46,7 @@ def bench(binding, manifest):
         expected_domains.sort(key=lambda row: row['clock_hierarchy'])
     static = any(row['clock_hierarchy'].startswith('MultiClockStorage.static_')
                  for row in binding['functional_clock_domains'])
+    data_tokens = any('data_clock' in row for row in binding['functional_clock_domains'])
     if static:
         require(forwarded, 'static metadata fixture must retain functional forwarding')
         invalid = any('invalid_clock' in row for row in binding['functional_clock_domains'])
@@ -54,6 +55,9 @@ def bench(binding, manifest):
                          f'static_{name}.unused', f'static_{name}.forwarded'):
                 origin = (dict(invalid_clock=f'MultiClockStorage.static_{name}.unused') if invalid
                           else dict(constant_clock=value))
+                if data_tokens:
+                    origin = dict(data_clock=dict(hierarchy='MultiClockStorage', expression=(
+                        'eq(bits(data, 0, 0), UInt<1>("h0"))' if name == 'zero' else 'lt(data, UInt<17>("h10000"))')))
                 expected_domains.append(dict(clock_hierarchy='MultiClockStorage.' + path, **origin))
         expected_domains.sort(key=lambda row: row['clock_hierarchy'])
     require(binding['functional_clock_domains'] == expected_domains, 'incomplete clock provenance')
@@ -79,7 +83,7 @@ def bench(binding, manifest):
             capture.append(f'for(a=0;a<4;a++) {call}a,{index},original.{name}[a],{oracle});')
         else:
             capture.append(f'{call}0,{index},original.{name},{oracle});')
-    return r'''`timescale 1ns/1ps
+    text = r'''`timescale 1ns/1ps
 module checkpoint_multiple_clocks_tb;
 import "DPI-C" function void checkpoint_network_fail();
 reg clock_a=0, clock_b=0, ckpt_clock=0, reference_a=0, reference_b=0;
@@ -218,6 +222,14 @@ initial begin
 end
 endmodule
 '''.replace('$CAPTURE', '\n    '.join(capture))
+    if data_tokens:
+        # Token bits control functional next-state data, never a storage clock.
+        # Reconstruct their behavior from public inputs independently of RTL.
+        text = text.replace('model_a[0]=reset_a?0:data[8:0]',
+                            "model_a[0]=(reset_a || data[0]!=0)?0:data[8:0]")
+        text = text.replace('model_a[1]=reset_b?0:data[8:0]',
+                            "model_a[1]=(reset_b || data>=17'h10000)?0:data[8:0]")
+    return text
 
 
 def main():

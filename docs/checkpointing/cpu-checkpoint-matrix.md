@@ -10,9 +10,40 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 
 | Family | F2 workload / custom capture image | FPGA Level-1 to EDA metasim | FPGA Level-2 finite RTL replay | Live RTL / rolling hardware recovery |
 | --- | --- | --- | --- | --- |
-| Rocket (all four harts) | baseline verified: real F2, slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress (MMIO/CPU-DMA Widget, banks, clock provenance, exact registered-gate/FPGA-constant owners, retained FASED/DTLB/D-cache banks; static/invalid metadata clocks explicit; whole-root bank generation now rejects computed Clock-typed FAME token data) | pending | pending | pending |
+| Rocket (all four harts) | baseline verified: real F2, slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress (MMIO/CPU-DMA Widget, banks, clock provenance, exact registered-gate/FPGA-constant owners, retained FASED/DTLB/D-cache banks; static/invalid/computed token clock provenance explicit; retained whole-root banks/descriptors emit for all 12,099 entries and native OOC synthesis completes; whole-root timing fails) | pending | pending | pending |
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
+
+Iteration 192 distinguishes computed Clock-typed FAME token data from physical
+clock origins. The binding records the expression and its defining hierarchy;
+registers, memory ports/pipelines, gate sources and clocked effects still reject
+computed clocks. Descriptor reconstruction rejects altered provenance and
+sequential rewiring even with an updated circuit hash. The new repeated-child
+fixture uses tokens for functional data updates. Fresh EDA VCS passes **5,483**
+checks and 60 complete word reads at component cuts **6 / 43 / 126 / 223**, with
+independent clocks, frozen pressure, backpressure, continuation, full debug VCD
+and first-word corruption stop. All **89 Scala / 286 checkpoint Python / 40
+loop tests** and the retained EDA sanitizer scope pass.
+
+The retained exact-recipe whole-root probe now emits and validates banks for
+**12,099 entries / 619,016 words / 21,005,343 logical bits / 2,300 instances**.
+Its 2,120 clock-port rows include four computed data routes, eight static pins,
+one explicitly invalid pin and three registered gate adapters. This is the
+retained iteration-184 generated RTL, with `external_runtime_required=true`;
+it does not establish physical primitive, functional-memory/host, common-cut,
+bridge integration or FPGA coverage. All **14** native OOC synthesis runs complete, including the retained whole root
+(**715,823 LUTs / 107,016 registers / 64 DSPs / no block RAM**). Whole-root
+estimated WNS **-0.916 ns** / WHS **-0.324 ns** fails setup/hold; external I/O is
+unconstrained and OOC clock-buffer locations are unbound. The worst setup path
+has 34 logic levels into the checkpoint response register. Complete image timing
+closure remains pending. Final independent EDA audits pass, including whole-root
+inventory/source/DCP checks, retained negatives, **14** coherently rehashed token
+origin corruptions and **23** new fixture receipt corruptions. Top VCS passes
+**7,858** checks on exact native inputs. Fresh inventory records no invocation
+runtime instance or remaining native Vivado/Java job.
+Complete checkpoint-image P&R/AFI, active F2 captures, paired zero-edge CPU
+restores, finite/live comparison and rolling recovery remain **pending**.
+Commands and immutable receipts are cataloged in `runs/aws-f2/iteration192/summary.json` relative to the loop.
 
 Iteration 191 preserves explicit invalid metadata origins without fabricating
 functional clocks or dropping pins. Independent descriptor checks reject invalid

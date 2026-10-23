@@ -1,5 +1,48 @@
 # FPGA capture transport component
 
+Iteration 192 represents one-bit combinational Clock-token origins explicitly
+as `data_clock: {hierarchy, expression}`. Transparent casts/aliases/child pins
+preserve the defining scope and expression. The generator and independent
+post-generation descriptor reconstruction reject such origins on registers,
+RAM ports/pipelines, registered gate sources and clocked effects. Bare storage
+references, missing drivers, opaque outputs and actual derived clocks remain
+unsupported. No root oscillator or extra state owner is invented.
+
+The new `data-clocks` repeated-hierarchy fixture retains **9 owners / 15 words /
+22 clock-port routes**, eight with computed origins. Tokens control functional
+next-state data rather than remaining unused metadata. The existing EDA runner
+independently reconstructs those token functions from public inputs and compares
+every captured word with both original RTL and the functional-input model.
+`verify_data_clock_audit` copies both immutable input sets and coherently updates
+their outer hashes before corrupting token scope/expression/schema; a healthy
+copied control must pass first. Evidence stays component-scoped.
+
+The whole retained Rocket probe now completes generated-RTL bank emission and
+descriptor construction (**12,099 entries / 619,016 words / 2,300 instances**).
+The four FAME data-clock routes retain their exact ClockBridge counter comparison
+expressions. Complete physical primitive mapping, atomic memory/host ownership,
+transport integration, full image timing/P&R/AFI and physical FPGA checkpoint
+migration remain pending. Fresh commands and evidence are under
+`runs/aws-f2/iteration192/` relative to the loop.
+
+Current component validation: **89 Scala / 286 checkpoint Python / 40 loop tests**
+and the retained EDA sanitizer scope pass. Token-fixture EDA VCS passes **5,483**
+checks / 60 words at four complete cuts. Native localhost OOC synthesis uses
+**169 LUTs / 96 registers**, estimated WNS **+6.260 ns** / WHS **+0.038 ns** at
+140 MHz, with external I/O unconstrained. All **13** retained/new component
+syntheses complete. Whole-root OOC synthesis also completes with **715,823 LUTs /
+107,016 registers / 64 DSPs / no block RAM**, zero synthesis errors/critical
+warnings and zero OOC DRC errors. Its estimated setup WNS **-0.916 ns** / hold
+WHS **-0.324 ns** fails timing (6,878 setup / 18,710 hold failing endpoints).
+The worst setup path has 34 logic levels into `ckpt_saved_data[0]`. External I/O
+is unconstrained and physical clock-buffer locations are unbound; this is not
+whole-image timing closure. Final independent EDA audits pass, including the whole
+root's complete inventory/source/DCP identity, all **14** token-origin semantic
+corruptions and **23** new fixture receipt corruptions. Top VCS passes **7,858**
+checks using exact native inputs. Fresh inventory confirms no invocation runtime
+instance or remaining native Vivado/Java build job. Commands and immutable
+receipts are cataloged in `runs/aws-f2/iteration192/summary.json` relative to the loop.
+
 Iteration 191 adds explicit invalid metadata clock origins. A lowered FIRRTL
 `is invalid` driver stays an exact `invalid_clock` hierarchy string through
 transparent aliases/casts, one-bit IO and repeated children. It cannot become a
