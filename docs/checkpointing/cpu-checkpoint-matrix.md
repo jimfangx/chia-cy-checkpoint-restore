@@ -10,9 +10,25 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 
 | Family | F2 workload / custom capture image | FPGA Level-1 to EDA metasim | FPGA Level-2 finite RTL replay | Live RTL / rolling hardware recovery |
 | --- | --- | --- | --- | --- |
-| Rocket (all four harts) | baseline verified: real F2, slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress (MMIO/CPU-DMA Widget, bank fixtures and actual retained Rocket DTLB subtree; complete Rocket integration pending) | pending | pending | pending |
+| Rocket (all four harts) | baseline verified: real F2, slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress (MMIO/CPU-DMA Widget, banks, actual retained DTLB and D-cache data array; complete Rocket integration pending) | pending | pending | pending |
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
+
+Iteration 185 adds a separate always-running bank response clock and validates
+the actual retained Rocket D-cache data array: **64 512-byte RAMs + 64 read-data
+pipeline owners**, **32,832 words per component cut** at **C=513 / 611 / 869**.
+Fresh EDA VCS passes **7,132,541** checks / **98,496** reads / **196,992** stalled-response cycles,
+including **65,664** reads with the functional clock stopped and **131,328**
+frozen functional-clock edges with writes enabled. Every word/output matches
+unchanged original RTL and a separate functional-input model; first-word
+corruption stops frozen at C=513. Full VCD is retained. Native localhost OOC
+synthesis uses **9,568 LUTs / 522 registers**, estimated setup slack **+5.228 ns**
+with both clocks constrained at 140 MHz. This is retained-source component
+evidence; complete Rocket image/AFI and physical checkpoint capture remain
+**pending**, as do hardware-origin paired images/trace, all four workload cuts,
+CPU migration, finite/live comparison and rolling FPGA recovery. Exact commands
+and individual receipts are under
+`automations/checkpoint_loop/runs/aws-f2/iteration185/`.
 
 Iteration 184 validates the actual retained Rocket DTLB subtree (17 specialized
 modules / 101 register words) through generated public bank readout and native

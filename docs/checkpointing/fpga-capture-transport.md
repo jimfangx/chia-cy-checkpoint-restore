@@ -1,5 +1,30 @@
 # FPGA capture transport component
 
+Iteration 185 adds `separateAccessClock = true` to generated bank access. The
+root endpoint then uses a dedicated `ckpt_clock` while all functional storage
+and synchronous RAM read owners keep their original clocks. The descriptor
+validator checks the actual three endpoint register clocks against the binding's
+`access_clock` and explicit freeze contract. The caller must acquire every
+functional owner and hold freeze before reads until responses drain; this
+option does not add a CDC handshake or establish an atomic CPU cut.
+
+The retained exact Rocket `DCacheDataArray` passes complete original-RTL and
+independent functional-model checks in fresh EDA VCS: **32,832 words** at
+**C=513 / 611 / 869**, with **65,664** reads while its functional clock is
+stopped, adversarial writes/clock pulses while frozen, backpressure, continuation,
+first-word corruption and full debug VCD. Native localhost OOC synthesis uses
+**9,568 LUTs / 522 registers**, estimated setup slack **+5.228 ns** at 140 MHz
+with both clocks constrained. This is component evidence only; no complete
+Rocket FPGA image or hardware checkpoint is claimed. Run the new check on EDA,
+after the complete Scala suite emits `rocket-dcache-array`:
+
+```bash
+source automations/checkpoint_loop/vcs-env.sh
+python3 -m tools.checkpoint_formats.tests.verify_independent_clock_vcs \
+  --generated automations/checkpoint_loop/runs/aws-f2/iteration185/scala/bank/rocket-dcache-array \
+  --out automations/checkpoint_loop/runs/aws-f2/iteration185/dcache-vcs
+```
+
 Iteration 184 adds a synchronous effect contract: `printf`, `stop` and FIRRTL
 verification retain their original clock/predicate/reporting behavior, with
 enables ANDed with `!ckpt_freeze`. Direct input clocks are required; derived

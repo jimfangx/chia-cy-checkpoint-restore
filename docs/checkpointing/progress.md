@@ -20,12 +20,11 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 184,
-**in_progress**. Generated banks now freeze synchronous print/stop/verification
-effects, accept clockless stateless helpers, validate child clock wiring and
-preserve specialized modules under an explicit no-dedup annotation policy.
-The retained exact Rocket DTLB subtree passes fresh EDA complete bank readout
-and native localhost component synthesis. Complete Rocket/FAME/memory/host
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 185,
+**in_progress**. Generated banks have an explicit separate transport-clock
+option, with checked clock/freeze provenance. The retained Rocket D-cache data
+array passes complete EDA bank readout with its functional clock stopped and
+native localhost component synthesis. Complete Rocket/FAME/memory/host
 integration, custom image/AFI, FPGA-origin checkpoints and CPU migration remain
 pending. See [fpga-capture-transport.md](fpga-capture-transport.md).
 
@@ -88,6 +87,75 @@ pending the complete state network, bridge and host-owner implementation.
 Report individual nonempty files, including actual native manager logs and
 `results-workload/.../uartlog`, instead of directories. Keep original
 iteration-175 artifacts and failed-license receipts unchanged.
+
+## Iteration 185: transport-clock bank endpoint and retained Rocket D-cache RAM
+
+`GeneratedStateBankAccess.generate(..., separateAccessClock = true)` adds an
+always-running root `ckpt_clock`; only the three response endpoint registers
+use it. Functional registers, synchronous read-pipeline owners and RAM port
+clocks retain their original clock. Descriptor construction checks the actual
+endpoint clocks against `access_clock` and the explicit freeze contract.
+Missing/altered contracts and wrong roots reject. This does not supply a CDC
+handshake or an atomic multi-owner cut: the caller must establish and hold
+global freeze before access until every response drains. Default generation
+keeps its functional-clock endpoint and all existing state/clock restrictions.
+
+The actual retained exact-recipe `DCacheDataArray` has **64 512-byte RAMs** and
+**64 synchronous read-data owners**, **32,832** transfer words per cut.
+Fresh EDA VCS SP2 captures every word at component cuts **C=513 / 611 / 869**,
+with **7,132,541 checks**, **98,496** complete reads, **196,992** stalled-response cycles and full
+debug VCD. **65,664** reads complete with the functional clock stopped; the
+middle cut also applies **131,328** frozen functional-clock edges with writes
+enabled to every way/byte. All outputs and words match unchanged original RTL
+and a separate model initialized and updated solely through functional
+requests. Masked writes, all eight ways, read pipelines, freeze and post-release
+execution pass. First-word semantic corruption stops frozen at C=513 before
+any completed state read. These are component cycle labels, not Rocket workload
+or FPGA cuts. No `.fsckpt`, `.rtlckpt` or hardware `.trace` is claimed.
+
+All **66 Scala / 286 checkpoint Python / 40 loop tests** pass. The complete
+retained initialized/synchronous/wide-deep bank, FPGATop/network,
+Widget/transport/host/cut and native/VCS ASan/UBSan FCFS scope passes. FCFS
+retains 46 fresh continuations, 138 pre-edge owner comparisons, 296 matching
+MMIO calls, eight malformed fresh processes and 2,972 rejections per backend.
+Native localhost Vivado 2025.2 OOC
+synthesis for the F2 part uses **9,568 LUTs / 522 registers**, estimated setup
+slack **+5.228 ns** with both clocks constrained at 140 MHz. This is neither
+whole-image P&R nor an AFI. The immutable exact-recipe donor FIRRTL remains
+the iteration-184 retained input (SHA-256 `cb35c05f22eae3cfdc15a10e2f5aacd7daf32095c0832e601af86cc0caf243e3`),
+not newly generated hardware. Raw commands, generated/source snapshots, compiler
+and runtime logs and native DCP/reports are under
+`automations/checkpoint_loop/runs/aws-f2/iteration185/`.
+Independent EDA audits verify all **98,496** recorded words and **46** immutable
+VCS/native data-array evidence files, reject **16** receipt-metadata corruption
+cases, and retain complete wide/deep and top audits with all **14** tamper
+rejections per retained suite. Initial audit-script import failure is preserved;
+the complete corrected audit invocation passes. `summary.json` and
+`verification-commands.json` catalog individual files and runnable commands.
+
+Fresh AWS identity/type access succeeds. Initialized-manager overrides retain
+the exact Rocket recipe, disabled metasim, one f2.6xlarge, dedicated tag
+`checkpoint-f2-rocket-capture-185` and ExternallyProvisioned `[localhost]`.
+No runtime instance or AFI request was launched. Final inventory confirms no
+owned runtime instance or native Vivado/Java build job remains. A read-only
+account image inventory also observes the unrelated MegaBoom request
+`afi-0cf1067195094a7f9` / `agfi-0545f60fbeffe7b02` pending (created
+2026-10-23T17:17:17Z); preserve it and do not operate on it as a loop resource.
+Existing controller checkpoints
+were published FireSim first (`65b117cb`), then Chipyard (`4da271c7`); remote
+tips are independently recorded. The Chipyard tracking-ref update reports a
+read-only filesystem after the successful remote push. The controller still
+owns local commits and subsequent publication. Native subagent startup failed
+before a worker started; all implementation and verification was coordinated
+by this central turn.
+
+Next: integrate the complete real simulator bank network while leaving MMIO,
+DMA and capture control running; implement explicit gated/multiple-clock and
+opaque-owner contracts, bind pre-FAME semantic mappings, and finish common-cut
+memory/host ownership. Full Rocket synthesis/P&R/AFI/deployment, FPGA-produced
+paired images/trace, independent zero-edge CPU restores, finite/live CPU
+comparison and rolling hardware recovery remain pending. Initial Scala
+format/exception-type failures are retained separately from the passing rerun.
 
 ## Iteration 184: synchronous effects and actual Rocket DTLB bank integration
 
