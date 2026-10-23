@@ -20,12 +20,13 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 186,
-**in_progress**. Generated banks now accept explicitly traced multiple direct
-functional clock domains with a separate transport endpoint. Per-instance
-root-clock provenance is checked against actual emitted wiring. Complete
-Rocket/FAME/memory/host integration, custom image/AFI, FPGA-origin checkpoints
-and CPU migration remain pending. See
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 187,
+**in_progress**. Generated banks now resolve transparent hierarchical clock
+forwarding, including sibling routes and concrete one-bit clock IO, with
+independently reconstructed root-clock provenance. Synchronous RAM pipeline
+clock aliases remain valid through declaration materialization. Complete
+Rocket/FAME/gated-clock/memory/host integration, custom image/AFI,
+FPGA-origin checkpoints and CPU migration remain pending. See
 [fpga-capture-transport.md](fpga-capture-transport.md).
 
 On October 23 the
@@ -87,6 +88,68 @@ pending the complete state network, bridge and host-owner implementation.
 Report individual nonempty files, including actual native manager logs and
 `results-workload/.../uartlog`, instead of directories. Keep original
 iteration-175 artifacts and failed-license receipts unchanged.
+
+## Iteration 187: transparent hierarchical clocks in generated banks
+
+`GeneratedStateBankAccess` traces output clock ports, sibling forwarding,
+connected child inputs, local aliases and exact one-bit clock casts through
+concrete hierarchy to named root clock inputs. Lazy per-pin resolution avoids
+false dependency cycles; hierarchy-qualified cycle checks reject real loops.
+Registers, RAMs and clocked effects use the same checked resolver. Descriptor
+construction independently reconstructs the actual specialized clock routes.
+Opaque/gated clocks, data logic, sequential clock aliases and asynchronous
+resets still reject. The all-owner freeze contract remains external; no CDC
+acknowledgement or common CPU cut is inferred.
+
+The new forwarded-clock fixture retains **9 entries / 15 words** with **14**
+clock-port routes, including swapped repeated children and split-clock RAMs.
+Fresh EDA VCS SP2 passes **5,483** checks across **352** functional steps,
+**60** complete reads at component cuts **6 / 43 / 126 / 223**, **180** stalled
+responses and **154** adversarial frozen edges in each functional domain.
+Every word/output matches unchanged original RTL and an independent input
+model; first-word corruption stops frozen before any completed read. Full VCD
+is retained. Native localhost Vivado 2025.2 OOC synthesis uses **181 LUTs /
+79 registers**, estimated WNS **+6.298 ns** with all three clocks at 140 MHz.
+This is component synthesis, not a Rocket image build or physical capture.
+
+All **71 Scala / 286 checkpoint Python / 40 loop tests** pass. Full retained
+EDA initialized/synchronous/wide-deep banks, top/network, Widget/transport/host/
+cut and native/VCS ASan/UBSan FCFS regressions pass. FCFS retains **46** fresh
+continuations, **138** pre-edge owner comparisons, **296** matching MMIO calls,
+eight malformed fresh processes and **2,972** rejections per backend.
+Two initial Scala failures exposed parsed RAM clock types and declaration
+ordering for local aliases. Both were corrected without changing logical
+pipeline ownership; their diagnostic logs remain under this iteration's runs.
+
+Fresh AWS identity/type access succeeds; the exact Rocket recipe and existing
+manager configuration are preserved in invocation-local overrides selecting
+one tagged f2.6xlarge, disabled metasim and ExternallyProvisioned `[localhost]`.
+No runtime or AFI request was launched. Account AFI observations are read-only;
+existing unrelated images were not used as checkpoint acceptance. The retained
+exact-recipe donor remains iteration-184 FIRRTL with its original path/hash.
+All seven native component/top synthesis checks pass. Independent EDA audits
+verify all **60** forwarded-clock words/domain labels, **14** clock-port routes
+and **48** immutable VCS/native files; all **23** forwarded-clock and **23**
+direct-clock metadata corruptions reject. Retained data-array, wide/deep and top
+audits pass with their full **16 / 14 / 14** rejection scopes. Final inventory
+confirms no invocation-owned runtime instance or local Vivado/Java build job.
+Individual receipts, executed commands and source provenance are cataloged in
+`automations/checkpoint_loop/runs/aws-f2/iteration187/summary.json` and
+`verification-commands.json` in the same directory. This is component evidence;
+no FPGA-produced Level-1/Level-2 images or hardware trace was captured.
+
+Published existing controller checkpoints FireSim first (`ecd698e2`), then
+Chipyard (`3b56a234`); independently queried remote tips agree. Chipyard's local
+tracking-ref update failed read-only after the remote push succeeded. Plans,
+conda files and historical evidence were preserved; no staging/commits/reset/
+clean. Managed subagent startup failed before a worker started; all work stayed
+central, with no outstanding delegated LLM work.
+
+Next: explicit gated/opaque-owner adapters and complete generated simulator
+network, semantic mappings and common-cut memory/host owners; localhost whole
+Rocket image P&R/AFI/deployment; all four active quad-hart hardware cuts and
+paired images/trace; independent zero-edge CPU restores, finite/live comparison
+and rolling FPGA recovery. These acceptance steps remain **pending**.
 
 ## Iteration 186: explicit multiple direct functional clock domains
 

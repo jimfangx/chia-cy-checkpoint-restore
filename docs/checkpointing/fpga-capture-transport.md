@@ -1,5 +1,34 @@
 # FPGA capture transport component
 
+Iteration 187 adds transparent hierarchical clock routing to generated bank
+access. Output clock ports, sibling forwarding, connected child input pins,
+local nodes/wires, and exact `Clock`/one-bit `UInt` casts through concrete IO
+cells must resolve to named root clock inputs. Resolution is lazy per pin with
+hierarchy-qualified cycle checks; unrelated clock dependencies cannot create a
+false cycle. Data logic, register next-state drivers, constants, opaque modules,
+gated clocks and asynchronous resets remain unsupported. Descriptor construction
+reconstructs all clock-port provenance from the actual specialized circuit.
+
+Materialized synchronous RAM pipeline clocks now use explicitly connected
+clock wires. This preserves the original clock while allowing its alias node
+to occur later than the new pipeline declaration. Original StateIDs and
+pipeline ownership remain unchanged. No clock gate is replaced or treated as
+a transparent wire.
+
+`MultipleFunctionalClocksSpec` emits a second `forwarded-clocks` fixture with
+14 checked clock-port routes and the same 9 entries / 15 words as the direct
+fixture. On EDA, run `verify_multiple_clocks_vcs` with this generated directory;
+on the manager, run `synth_clocked_effects` after native HDK setup. The same
+independent `audit_multiple_clocks` verifies the private VCS/native inputs,
+complete per-domain cuts, corruption stop, waveforms and native DCP. Current
+commands and evidence are under `runs/aws-f2/iteration187/` relative to the loop.
+
+The caller must still establish and hold all-owner freeze before reads through
+response drain. This increment supplies neither a CDC acknowledgement nor a
+common CPU cut. Complete Rocket/FAME/gated-clock/functional-memory/host
+integration, localhost image P&R/AFI and FPGA-produced paired checkpoints remain
+pending.
+
 Iteration 186 extends the separate-clock bank generator to multiple direct
 functional input clocks. Functional registers, RAM read/write ports and
 materialized synchronous pipelines retain their distinct clocks. Child inputs

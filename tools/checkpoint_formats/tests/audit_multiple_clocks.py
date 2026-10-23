@@ -1,4 +1,4 @@
-"""Independent immutable evidence audit for multiple-clock bank components."""
+"""Independent immutable evidence audit for direct and transparent hierarchical clock bank components."""
 import argparse
 import json
 from pathlib import Path
@@ -89,8 +89,8 @@ def audit(capture, synthesis):
         for token in ('<Top Name="MultiClockStorage"', '<Part Name="xcvu47p-fsvh2892-2-e"',
                       '<OutOfContext Name="1"', 'Vivado v2025.2'):
             require(token in metadata, 'native DCP identity mismatch: ' + token)
-    return dict(status='pass', scope='multiple direct functional clocks component only', physical_fpga_capture=False,
-                complete_cpu_acceptance=False, words_verified=len(words), checks=run['checks'], cuts=cuts,
+    return dict(status='pass', scope='direct or transparent hierarchical clock component only', physical_fpga_capture=False,
+                complete_cpu_acceptance=False, words_verified=len(words), clock_ports_verified=len(binding['functional_clock_domains']), checks=run['checks'], cuts=cuts,
                 luts=native['luts'], registers=native['registers'], capture_receipt=str(capture),
                 capture_sha256=sha(capture), synthesis_receipt=str(synthesis), synthesis_sha256=sha(synthesis),
                 files_verified=len(run['files']) + len(native['files']))

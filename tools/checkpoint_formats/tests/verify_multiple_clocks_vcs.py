@@ -35,6 +35,14 @@ def bench(binding, manifest):
                         for name, root in [('clock_a', 'clock_a'), ('clock_b', 'clock_b'),
                                            ('left_.a', 'clock_a'), ('left_.b', 'clock_b'),
                                            ('right_.a', 'clock_b'), ('right_.b', 'clock_a')]]
+    forwarded = any(row['clock_hierarchy'].startswith('MultiClockStorage.route_')
+                    for row in binding['functional_clock_domains'])
+    if forwarded:
+        for instance, roots in [('route_a', ('clock_a', 'clock_a')), ('route_b', ('clock_b', 'clock_a'))]:
+            for pin, root in [('a', roots[0]), ('b', roots[1]),
+                              ('input_a', roots[0]), ('input_b', roots[1])]:
+                expected_domains.append(dict(clock_hierarchy=f'MultiClockStorage.{instance}.{pin}', root_clock=root))
+        expected_domains.sort(key=lambda row: row['clock_hierarchy'])
     require(binding['functional_clock_domains'] == expected_domains, 'incomplete clock provenance')
     require(len(binding['state']) == len(manifest['state']) == 9, 'incomplete state')
     capture = []
@@ -253,7 +261,7 @@ def main():
     require((healthy / 'debug.vcd').stat().st_size > 1000, 'missing full debug waveform')
     (out / 'summary.json').write_text(json.dumps(dict(status='pass', backend='eda',
         observed_utc=datetime.now(timezone.utc).isoformat(), host=socket.gethostname(), original_root=str(ROOT),
-        scope='multiple direct functional clocks component only; caller-established freeze', root='MultiClockStorage',
+        scope='transparent hierarchical functional clock component only; caller-established freeze', root='MultiClockStorage',
         physical_fpga_capture=False, complete_cpu_acceptance=False, cuts=cuts,
         checks=int(marker[1]), steps=int(marker[2]), edges_a=int(marker[3]), edges_b=int(marker[4]),
         reads=int(marker[5]), stalls=int(marker[6]), frozen_a=int(marker[7]), frozen_b=int(marker[8]), commands=commands,

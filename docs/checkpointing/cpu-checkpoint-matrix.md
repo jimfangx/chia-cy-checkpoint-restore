@@ -10,9 +10,25 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 
 | Family | F2 workload / custom capture image | FPGA Level-1 to EDA metasim | FPGA Level-2 finite RTL replay | Live RTL / rolling hardware recovery |
 | --- | --- | --- | --- | --- |
-| Rocket (all four harts) | baseline verified: real F2, slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress (MMIO/CPU-DMA Widget, banks, explicit direct clock domains, actual retained DTLB and D-cache data array; complete Rocket integration pending) | pending | pending | pending |
+| Rocket (all four harts) | baseline verified: real F2, slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress (MMIO/CPU-DMA Widget, banks, transparent hierarchical clock routes, actual retained DTLB and D-cache data array; complete Rocket integration pending) | pending | pending | pending |
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
+
+Iteration 187 adds transparent hierarchical clock forwarding through output
+ports, siblings and concrete one-bit clock IO, with **14** independently checked
+clock-port routes and preserved synchronous RAM pipeline clocks. Fresh EDA VCS
+passes **5,483** checks and complete 15-word component cuts at **6 / 43 / 126 /
+223**, including frozen resets/writes, independent clocks, backpressure,
+post-release activity and first-word corruption rejection. Native localhost OOC
+synthesis uses **181 LUTs / 79 registers**, estimated WNS **+6.298 ns** at 140 MHz.
+All **71 Scala / 286 checkpoint Python / 40 loop tests**, retained full EDA
+FCFS/fixture scope and seven native synthesis checks pass. Independent audits
+verify the complete new cuts and 48 immutable files; all 23 forwarded-clock
+receipt corruptions reject. This is component evidence only. Complete
+Rocket/FAME/gated-clock/memory/host integration, whole-image P&R/AFI, all four
+active quad-hart FPGA cuts, hardware-origin paired images/trace, CPU restores,
+finite/live comparison and rolling hardware recovery remain **pending**.
+Evidence and commands are under `automations/checkpoint_loop/runs/aws-f2/iteration187/`.
 
 Iteration 186 adds explicit multiple direct functional clock domains to the
 separate-transport-clock bank generator, with independently checked per-instance
