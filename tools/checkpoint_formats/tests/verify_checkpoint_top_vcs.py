@@ -28,6 +28,7 @@ SOURCES = (
     'sims/firesim/sim/midas/src/main/scala/midas/widgets/CheckpointCaptureWidget.scala',
     'sims/firesim/sim/midas/src/main/scala/midas/widgets/CheckpointCaptureDescriptors.scala',
     'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedStateBankAccess.scala',
+    'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedClockGateAdapter.scala',
     'sims/firesim/sim/midas/src/test/scala/midas/core/CheckpointCaptureTopSpec.scala',
     'sims/firesim/sim/midas/src/main/verilog/CheckpointCaptureTransport.sv',
     'sims/firesim/sim/midas/src/main/verilog/CheckpointCaptureCut.sv',
@@ -130,7 +131,7 @@ def main():
          '-cc', os.environ['CC'], '-cpp', os.environ['CXX'], '-CFLAGS', '-std=c++17',
          '-top', 'checkpoint_top_tb', f'+incdir+{out}', f'-Mdir={out / "csrc"}', '-o', out / 'simv',
          *(snapshots / n for n in ('FPGATop.v', 'generated-bank.sv', 'CheckpointCaptureTransport.sv', 'CheckpointCaptureCut.sv')),
-         out / 'source-snapshots' / SOURCES[8], out / 'source-snapshots' / SOURCES[9]], 'compile.log')
+         out / 'source-snapshots' / 'tools/checkpoint_formats/tests/checkpoint_top_tb.sv', out / 'source-snapshots' / 'tools/checkpoint_formats/tests/checkpoint_generated_network_exit.cc'], 'compile.log')
     log = run([out / 'simv', '-no_save'], 'run.log')
     marker = re.search(r'CHECKPOINT_TOP_PASS checks=(\d+) captures=(\d+) dma_stalls=(\d+) frozen_edges=(\d+)', log)
     require(marker is not None and int(marker[2]) == 3 and int(marker[3]) > 20 and int(marker[4]) > 500, 'incomplete top stress')
@@ -146,7 +147,7 @@ def main():
     (out / 'manifest.txt').write_text(metadata)
     common = [os.environ['CXX'], '-std=c++17', '-Wall', '-Wextra', '-Werror', '-Wno-unused-parameter',
               '-g', '-O1', '-fno-omit-frame-pointer', '-fsanitize=address,undefined', '-I' + str(CC)]
-    run([*common, CC / 'core/checkpoint_capture.cc', ROOT / SOURCES[10], '-o', out / 'capture-host'], 'host-build.log')
+    run([*common, CC / 'core/checkpoint_capture.cc', ROOT / 'tools/checkpoint_formats/tests/checkpoint_capture_host.cc', '-o', out / 'capture-host'], 'host-build.log')
     (out / 'constructor.cc').write_text('#include "core/widget_registry.h"\n#include "bridges/checkpoint_capture.h"\n'
         'void construct(simif_t &simif, widget_registry_t &registry) {\n#define GET_BRIDGE_CONSTRUCTOR\n'
         '#include "generated-snapshots/top_constants.h"\n#undef GET_BRIDGE_CONSTRUCTOR\n}\n')

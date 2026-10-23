@@ -38,7 +38,7 @@ def main():
     for name in GENERATED:
         require(run['files']['generated/' + name] == native['files']['generated/' + name],
                 'VCS and native synthesis have different actual generated inputs: ' + name)
-    for name in ('GeneratedStateBankAccess.scala', 'GeneratedStateBankAnnotations.scala'):
+    for name in ('GeneratedStateBankAccess.scala', 'GeneratedStateBankAnnotations.scala', 'GeneratedClockGateAdapter.scala'):
         key = 'sources/sims/firesim/sim/midas/src/main/scala/midas/checkpoint/' + name
         require(run['files'][key] == native['files'][key], 'different hardware generator: ' + name)
     binding = json.loads((capture.parent / 'generated/generated-bank-binding.json').read_text())

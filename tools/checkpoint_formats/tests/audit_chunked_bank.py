@@ -43,7 +43,7 @@ def audit(capture_path, synthesis_path, host_path, inventory_path, overrides=Non
         check(synthesis_path.parent / 'source-snapshots' / name, digest)
         # Test harnesses are not synthesis inputs. Bind current compiler/generator
         # sources and Tcl; preserve earlier copied harness bytes as provenance.
-        if name in SOURCES[:4] or name.endswith(('capture_chunked_bank_synth.tcl', 'synth_chunked_bank.py')):
+        if name.endswith('.scala') or name.endswith(('capture_chunked_bank_synth.tcl', 'synth_chunked_bank.py')):
             check(ROOT / name, digest)
     for receipt, path in ((capture, capture_path), (native, synthesis_path), (host, host_path)):
         for name, digest in receipt['artifacts'].items():

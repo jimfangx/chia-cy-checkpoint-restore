@@ -24,6 +24,7 @@ ROOT = Path(__file__).resolve().parents[3]
 GENERATED = ('generated-bank-input.fir', 'generated-bank.fir', 'generated-bank.sv',
              'reference.sv', 'generated-bank-manifest.json', 'generated-bank-binding.json')
 SOURCES = ('sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedStateBankAccess.scala',
+           'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedClockGateAdapter.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedStateBankAnnotations.scala',
            'sims/firesim/sim/midas/src/test/scala/midas/checkpoint/ClockedEffectsStateBankSpec.scala',
            'tools/checkpoint_formats/tests/verify_clocked_effects_vcs.py',

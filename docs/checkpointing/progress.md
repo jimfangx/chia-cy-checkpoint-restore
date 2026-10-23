@@ -20,13 +20,14 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 187,
-**in_progress**. Generated banks now resolve transparent hierarchical clock
-forwarding, including sibling routes and concrete one-bit clock IO, with
-independently reconstructed root-clock provenance. Synchronous RAM pipeline
-clock aliases remain valid through declaration materialization. Complete
-Rocket/FAME/gated-clock/memory/host integration, custom image/AFI,
-FPGA-origin checkpoints and CPU migration remain pending. See
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 188,
+**in_progress**. Exact MIDAS registered-enable clock gates now have banked
+readout with independently reconstructed gate-chain provenance and preserved
+posedge/delta-cycle behavior. Conditional RAM clocks require the exact same
+port enable. The retained Rocket FASED subtree elaborates with 759 entries /
+99,611 transfer words. Validation is recorded below. Complete simulator,
+mapped-primitive, common-cut memory/host integration, custom AFI, physical
+capture and CPU migration remain pending. See
 [fpga-capture-transport.md](fpga-capture-transport.md).
 
 On October 23 the
@@ -88,6 +89,58 @@ pending the complete state network, bridge and host-owner implementation.
 Report individual nonempty files, including actual native manager logs and
 `results-workload/.../uartlog`, instead of directories. Keep original
 iteration-175 artifacts and failed-license receipts unchanged.
+
+## Iteration 188: exact registered clock-gate owners and real FASED banks
+
+`GeneratedClockGateAdapter` accepts only the exact inline
+`DefineAbstractClockGate.impl`, its signature and circuit-qualified source
+annotation. It materializes the original posedge enable register and
+`I & enable` output; bank freeze holds the enable and every downstream owner.
+Unknown, altered, missing, duplicated and foreign-circuit implementations
+reject. Descriptors independently validate actual specialized enable clock,
+reset, next-state and output expressions plus ordered gate-chain provenance.
+Repeated/cascaded gate identities remain separate. Conditional RAM
+`validif(enable, clock)` expressions retain their original wiring and are
+accepted only when that same memory port's enable proves the guard. Guarded
+register clocks and mismatched memory enables reject.
+
+The exact retained Rocket FASED timing-model subtree now emits a complete
+bank network: **759 entries / 99,611 physical transfer words**. This uses the
+immutable iteration-184 FIRRTL and a separately hashed retained gate source;
+it is not newly generated whole-Rocket hardware. Its generation and native
+synthesis evidence live under `runs/aws-f2/iteration188/` relative to the loop.
+Fresh EDA component readout checks original RTL plus an independent public-input
+model, both gate-enable values, four cuts, backpressure, frozen resets/writes,
+high-phase CE changes, adversarial clocks and first-word semantic corruption.
+All **77 Scala / 286 checkpoint Python / 40 loop tests** and the full retained
+EDA bank/top/network/Widget/transport/host/FCFS ASan/UBSan scope pass. The new
+gate check passes **3,023** checks over **352** functional steps / **286** gated
+edges, **28** complete reads at **C=6 / 43 / 126 / 223**, **84** stalled responses,
+**74** frozen adversarial input edges and **352** high-phase CE changes. The
+independent gate audit recomputes every word and rejects all **23** metadata
+corruptions. Full debug VCD and first-word corruption stop are retained.
+
+All eight bank/top native components synthesize. Gate OOC synthesis uses
+**103 LUTs / 50 registers**, estimated setup WNS **+5.957 ns**, hold WHS
+**+0.086 ns**. The actual retained FASED bank synthesizes **75,132 LUTs /
+6,522 registers** across **201** specialized hierarchy instances and **1,131,341**
+logical state bits. Its explicitly constrained gated clock has no unclocked or
+unconstrained internal endpoints, estimated setup WNS **+0.978 ns** and hold WHS
+**-0.299 ns** (**4,102** failing hold endpoints). These are OOC estimates with
+unconstrained external I/O, not timing closure or a whole-image implementation.
+FASED runtime/traffic validation remains pending. Final full independent audits
+are cataloged by the iteration's summary; raw failures remain preserved.
+
+The adapter covers the exact abstract RTL gate. Platform-mapped BUFGCE state,
+complete simulator/semantic mapping, common target cut across memory/host
+owners, image P&R/AFI and actual F2 paired checkpoint capture remain pending.
+No complete CPU restore, finite/live comparison or rolling F2 recovery is
+claimed. No new runtime instance or AFI was requested. Fresh final inventory confirms
+no invocation-owned runtime instance or native Vivado/Java build job. Existing controller
+checkpoints were pushed FireSim first (`216c579a`), then Chipyard (`b86a66cb`);
+remote tips agree. Chipyard's tracking-ref update failed read-only after the
+remote push succeeded. No staging/commits, plan/conda edits, reset or clean.
+Managed subagent startup failed before a worker started; work stayed central.
 
 ## Iteration 187: transparent hierarchical clocks in generated banks
 

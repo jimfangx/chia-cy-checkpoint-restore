@@ -1,5 +1,40 @@
 # FPGA capture transport component
 
+Iteration 188 adds a source-bound adapter for the exact MIDAS
+`DefineAbstractClockGate.impl`. Its enable register updates on posedge I;
+its output remains `I & enable`, including delta-cycle pulses when enable
+changes. The bank generator freezes this owner alongside downstream storage.
+It never substitutes CE as a downstream storage enable. Independent descriptor
+validation reconstructs each ordered gate chain from actual specialized
+wiring and checks the gate's enable clock, reset, next value and output.
+Other gates/opaque implementations still reject. The adapter describes the
+abstract RTL model, not platform-mapped BUFGCE state or a completed F2 image.
+
+Conditional RAM clock validity now requires the exact same Boolean enable on
+that memory port. Local aliases and mux(enable,1,0) identities are checked;
+original clock wiring and synchronous pipeline ownership remain intact.
+Unmatched guards and conditional register clocks reject. The retained exact
+Rocket FASED subtree now elaborates **759 entries / 99,611 transfer words**;
+this does not include functional host DRAM, host software or the full simulator.
+
+The new component test runs on EDA after Scala emission:
+
+```bash
+source automations/checkpoint_loop/vcs-env.sh
+python3 -m tools.checkpoint_formats.tests.verify_registered_gate_vcs \
+  --generated automations/checkpoint_loop/runs/aws-f2/iteration188/scala/bank/registered-gate \
+  --out automations/checkpoint_loop/runs/aws-f2/iteration188/registered-gate-vcs
+```
+
+`audit_registered_gate` independently recomputes every captured word and gate
+edge from public inputs, validates immutable VCS/native snapshots and checks
+first-word corruption stopped frozen. Native component synthesis uses
+`synth_clocked_effects` with that generated directory after native HDK setup
+from the HDK directory. This iteration's full commands, native FASED component
+synthesis and independent audits are retained under `runs/aws-f2/iteration188/`.
+All-owner freeze/CDC, physical clock primitive coverage and complete CPU/hardware
+acceptance remain separate pending work.
+
 Iteration 187 adds transparent hierarchical clock routing to generated bank
 access. Output clock ports, sibling forwarding, connected child input pins,
 local nodes/wires, and exact `Clock`/one-bit `UInt` casts through concrete IO

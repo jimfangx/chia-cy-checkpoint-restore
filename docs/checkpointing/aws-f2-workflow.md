@@ -157,9 +157,10 @@ acceptance. Report local artifact paths; preserve the real remote paths inside
 receipts. Stage only acceptance inputs under `runs/` for EDA; native build
 results, manager logs/configs and credentials are not mirrored to EDA by default.
 
-The next incomplete hardware milestone is `F2-bringup-and-baseline`, followed
-by `F2-rocket-checkpoint-migration`, `F2-boom-checkpoint-migration` and
-`F2-shuttle-saturn-checkpoint-migration`. Existing M0-M7 component history,
+The public-image `F2-bringup-and-baseline` is verified in the retained
+iteration-175 physical run. The next incomplete hardware milestone is
+`F2-rocket-checkpoint-migration`, followed by `F2-boom-checkpoint-migration`
+and `F2-shuttle-saturn-checkpoint-migration`. Existing M0-M7 component history,
 iteration counters, feedback, commits and historical completion names are kept.
 Completed old metasim CPU milestones do not complete new F2 milestones.
 `--dry-run` is offline and does not rewrite saved state. `--check-backends`

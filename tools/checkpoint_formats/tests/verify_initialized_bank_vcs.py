@@ -20,6 +20,7 @@ GENERATED = ('generated-bank-input.fir', 'generated-bank.fir', 'generated-bank.s
              'generated-bank-simulator.fir', 'source-annotations.json', 'translated-annotations.json',
              'left.hex', 'right.bin')
 SOURCES = ('sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedStateBankAccess.scala',
+           'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedClockGateAdapter.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedStateBankAnnotations.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/widgets/CheckpointCaptureDescriptors.scala',
            'sims/firesim/sim/midas/src/test/scala/midas/checkpoint/InitializedStateBankSpec.scala',

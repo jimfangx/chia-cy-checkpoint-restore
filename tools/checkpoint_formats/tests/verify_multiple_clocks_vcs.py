@@ -21,6 +21,7 @@ from tools.checkpoint_formats.tests.verify_clocked_effects_vcs import GENERATED,
 
 SOURCES = (
     'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedStateBankAccess.scala',
+    'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedClockGateAdapter.scala',
     'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedStateBankAnnotations.scala',
     'sims/firesim/sim/midas/src/test/scala/midas/checkpoint/MultipleFunctionalClocksSpec.scala',
     'tools/checkpoint_formats/tests/verify_multiple_clocks_vcs.py',

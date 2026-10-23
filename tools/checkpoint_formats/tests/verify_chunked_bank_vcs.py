@@ -25,6 +25,7 @@ GENERATED = ('generated-bank.sv', 'reference.sv', 'generated-bank.fir', 'generat
              'generated-bank-simulator-binding.json', 'generated-bank-simulator.fir', 'descriptor-manifest.inc',
              'rom/CheckpointCaptureDescriptorROM.v', 'deep.hex', 'wide.hex')
 SOURCES = ('sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedStateBankAccess.scala',
+           'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedClockGateAdapter.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedStateBankAnnotations.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/widgets/CheckpointCaptureDescriptors.scala',
            'sims/firesim/sim/midas/src/test/scala/midas/checkpoint/ChunkedStateBankSpec.scala',
@@ -128,8 +129,8 @@ def main():
     run([toolchain.VCS, '-full64', '-sverilog', '-timescale=1ns/1ps', '-Mupdate', '-debug_access+all',
          '-top', 'chunked_bank_tb', f'+incdir+{out}', f'-Mdir={out / "csrc"}', '-o', out / 'simv',
          snapshots / 'generated-bank.sv', snapshots / 'reference.sv',
-         snapshots / 'rom/CheckpointCaptureDescriptorROM.v', native / SOURCES[7], native / SOURCES[8],
-         native / SOURCES[4], native / SOURCES[6]], 'compile.log')
+         snapshots / 'rom/CheckpointCaptureDescriptorROM.v', native / 'sims/firesim/sim/midas/src/main/verilog/CheckpointCaptureTransport.sv', native / 'sims/firesim/sim/midas/src/main/verilog/CheckpointCaptureCut.sv',
+         native / 'tools/checkpoint_formats/tests/chunked_bank_tb.sv', native / 'tools/checkpoint_formats/tests/checkpoint_generated_network_exit.cc'], 'compile.log')
     log = run([out / 'simv', '-no_save'], 'run.log')
     match = re.search(r'CHUNKED_BANK_PASS checks=(\d+) captures=(\d+) reads=(\d+) stalls=(\d+) observations=(\d+)', log)
     require(match is not None and int(match[2]) == 3 and int(match[3]) == words * 3,

@@ -18,6 +18,7 @@ GENERATED = ('generated-bank.sv', 'reference.sv', 'generated-bank.fir', 'generat
              'generated-bank-semantic.json', 'generated-bank-binding.json',
              'generated-bank-simulator.json', 'generated-bank-simulator-binding.json', 'generated-bank-simulator.fir')
 SOURCES = ('sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedStateBankAccess.scala',
+           'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedClockGateAdapter.scala',
            'sims/firesim/sim/midas/src/test/scala/midas/checkpoint/SynchronousStateBankSpec.scala',
            'tools/checkpoint_formats/tests/synchronous_bank_tb.sv',
            'tools/checkpoint_formats/tests/verify_synchronous_bank_vcs.py',
@@ -90,7 +91,7 @@ def main():
     run([toolchain.VCS, '-full64', '-sverilog', '-timescale=1ns/1ps', '-Mupdate', '-debug_access+all',
          '-top', 'synchronous_bank_tb', f'+incdir+{out}', f'-Mdir={out / "csrc"}', '-o', out / 'simv',
          snapshots / 'generated-bank.sv', snapshots / 'reference.sv',
-         out / 'source-snapshots' / SOURCES[2]], 'compile.log')
+         out / 'source-snapshots' / 'tools/checkpoint_formats/tests/synchronous_bank_tb.sv'], 'compile.log')
     log = run([out / 'simv', '-no_save'], 'run.log')
     match = re.search(r'SYNCHRONOUS_BANK_PASS checks=(\d+) reads=(\d+) stalls=(\d+) functional_edges=(\d+) captures=(\d+) output_edges=(\d+)', log)
     require(match is not None and int(match[2]) == 454 and int(match[5]) == 10 and int(match[6]) > 2000,

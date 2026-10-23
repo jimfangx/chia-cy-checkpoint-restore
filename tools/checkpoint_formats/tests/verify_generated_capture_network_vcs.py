@@ -34,6 +34,7 @@ SOURCES = (
     'sims/firesim/sim/midas/src/main/scala/midas/widgets/CheckpointCaptureDescriptors.scala',
     'sims/firesim/sim/midas/src/main/scala/midas/widgets/CheckpointCaptureWidget.scala',
     'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedStateBankAccess.scala',
+    'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedClockGateAdapter.scala',
     'sims/firesim/sim/midas/src/test/scala/midas/widgets/CheckpointCaptureDescriptorsSpec.scala',
     'sims/firesim/sim/midas/src/main/verilog/CheckpointCaptureTransport.sv',
     'sims/firesim/sim/midas/src/main/verilog/CheckpointCaptureCut.sv',
@@ -83,7 +84,7 @@ def main():
             'independent complete fixture oracle required')
     for entry in access['state']:
         require((entry['width'], entry['depth']) == ORACLE[entry['hierarchy']][1:], 'fixture state reshaped')
-    for name, native in ((GENERATED[8], SOURCES[4]), (GENERATED[9], SOURCES[5])):
+    for name, native in ((GENERATED[8], 'sims/firesim/sim/midas/src/main/verilog/CheckpointCaptureTransport.sv'), (GENERATED[9], 'sims/firesim/sim/midas/src/main/verilog/CheckpointCaptureCut.sv')):
         require(sha(snapshots / name) == sha(ROOT / native), 'stale transport resource')
     header = (snapshots / 'checkpoint_network_constants.h').read_text()
     require(f'DESCRIPTOR_BINDING_SHA256 "{sha(snapshots / "generated-bank-binding.json")}"' in header,
@@ -123,7 +124,7 @@ def main():
          '-top', 'checkpoint_generated_network_tb', f'+incdir+{out}', f'-Mdir={out / "csrc"}', '-o', out / 'simv',
          snapshots / 'generated-bank.sv', snapshots / GENERATED[7], snapshots / GENERATED[8], snapshots / GENERATED[9],
          snapshots / GENERATED[10],
-         out / 'source-snapshots' / SOURCES[6], out / 'source-snapshots' / SOURCES[13]], 'compile.log')
+         out / 'source-snapshots' / 'tools/checkpoint_formats/tests/checkpoint_generated_network_tb.sv', out / 'source-snapshots' / 'tools/checkpoint_formats/tests/checkpoint_generated_network_exit.cc'], 'compile.log')
     log = run([out / 'simv', '-no_save'], 'run.log')
     marker = re.search(r'GENERATED_NETWORK_PASS checks=(\d+) captures=(\d+) bank_reads=(\d+) stalls=(\d+) functional_edges=(\d+)', log)
     require(marker is not None and int(marker[2]) == 3 and int(marker[3]) == 3 * len(words), 'incomplete network execution')
@@ -143,7 +144,7 @@ def main():
     (out / 'manifest.txt').write_text(metadata)
     common = [os.environ['CXX'], '-std=c++17', '-Wall', '-Wextra', '-Werror', '-Wno-unused-parameter',
               '-g', '-O1', '-fno-omit-frame-pointer', '-fsanitize=address,undefined', '-I' + str(CC)]
-    run([*common, CC / 'core/checkpoint_capture.cc', out / 'source-snapshots' / SOURCES[8],
+    run([*common, CC / 'core/checkpoint_capture.cc', out / 'source-snapshots' / 'tools/checkpoint_formats/tests/checkpoint_capture_host.cc',
          '-o', out / 'capture-host'], 'native-build.log')
     # Compile the actual generated registry constructor against production types.
     (out / 'constructor.cc').write_text('#include "core/widget_registry.h"\n#define GET_INCLUDES\n'

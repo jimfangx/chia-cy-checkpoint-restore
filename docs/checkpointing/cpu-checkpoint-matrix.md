@@ -10,9 +10,28 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 
 | Family | F2 workload / custom capture image | FPGA Level-1 to EDA metasim | FPGA Level-2 finite RTL replay | Live RTL / rolling hardware recovery |
 | --- | --- | --- | --- | --- |
-| Rocket (all four harts) | baseline verified: real F2, slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress (MMIO/CPU-DMA Widget, banks, transparent hierarchical clock routes, actual retained DTLB and D-cache data array; complete Rocket integration pending) | pending | pending | pending |
+| Rocket (all four harts) | baseline verified: real F2, slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress (MMIO/CPU-DMA Widget, banks, transparent hierarchical clocks, exact registered-gate owners, retained FASED/DTLB/D-cache banks; complete Rocket integration pending) | pending | pending | pending |
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
+
+Iteration 188 implements exact registered-enable gate ownership and conditional
+RAM-clock guard validation. The retained exact-recipe FASED subtree now emits
+**759 entries / 99,611 transfer words**. Independent EDA component checks cover
+four complete cuts, both enable values, original RTL/public-input oracles,
+frozen clock/reset/write pressure and first-word corruption. Native localhost
+component synthesis, full retained regressions and independent audits are
+cataloged under `automations/checkpoint_loop/runs/aws-f2/iteration188/`.
+All **77 Scala / 286 checkpoint Python / 40 loop tests** and the full retained
+EDA regression scope pass. The gate component passes **3,023** checks / **28**
+readouts, with all **23** receipt corruptions rejected. Native gate synthesis
+uses **103 LUTs / 50 registers**. Native FASED component synthesis uses
+**75,132 LUTs / 6,522 registers**, estimated setup WNS **+0.978 ns** and hold WHS
+**-0.299 ns**, with **4,102** failing hold endpoints. This is OOC synthesis,
+not timing closure; external I/O is unconstrained and FASED runtime remains pending.
+This is abstract-gate/component evidence. Platform-mapped primitive state,
+complete simulator/common-cut memory/host coverage, whole-image P&R/AFI,
+quad-hart hardware capture, paired restores, finite/live CPU comparison and
+rolling F2 recovery remain **pending**.
 
 Iteration 187 adds transparent hierarchical clock forwarding through output
 ports, siblings and concrete one-bit clock IO, with **14** independently checked
