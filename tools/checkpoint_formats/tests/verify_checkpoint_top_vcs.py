@@ -39,6 +39,7 @@ SOURCES = (
     'sims/firesim/sim/midas/src/main/cc/bridges/checkpoint_capture.cc',
     'sims/firesim/sim/midas/src/main/cc/bridges/checkpoint_capture.h',
     'tools/checkpoint_formats/tests/verify_checkpoint_top_vcs.py',
+    'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedStateBankAnnotations.scala',
 )
 GENERATED = ('FPGATop.v', 'CheckpointCaptureTransport.sv', 'CheckpointCaptureCut.sv',
              'top_constants.h', 'generated-bank.sv', 'generated-bank.fir', 'generated-bank-input.fir',

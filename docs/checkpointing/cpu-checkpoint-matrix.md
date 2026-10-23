@@ -10,9 +10,20 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 
 | Family | F2 workload / custom capture image | FPGA Level-1 to EDA metasim | FPGA Level-2 finite RTL replay | Live RTL / rolling hardware recovery |
 | --- | --- | --- | --- | --- |
-| Rocket (all four harts) | baseline verified: real F2, slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress (global MMIO/CPU-DMA Widget and synchronous RAM pipeline banks pass fixture checks; complete Rocket integration pending) | pending | pending | pending |
+| Rocket (all four harts) | baseline verified: real F2, slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress (MMIO/CPU-DMA Widget, synchronous pipelines and initialized RAM bank fixtures; complete Rocket integration pending) | pending | pending | pending |
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
+
+Iteration 182 preserves initialization/preservation annotations through generated
+module specialization, with explicit local/nonlocal target translation and
+annotation hashes in the bank/driver binding. Initialized repeated RAMs pass
+complete public-port readout at **C=0 / 7 / 44 / 155**, independent original-RTL
+and functional-input checks, freeze/stall/release and selector negatives in EDA
+VCS. Native localhost Vivado checks the actual initialized memory bit planes.
+The initialized files, full waveforms, generated inputs and raw execution logs
+are retained under `automations/checkpoint_loop/runs/aws-f2/iteration182/`.
+No Rocket checkpoint-enabled AFI, hardware-origin CPU images/trace, CPU restore,
+finite/live CPU comparison or rolling F2 recovery is claimed.
 
 Iteration 181 adds complete synchronous RAM address/data pipeline owners to
 generated bank capture. Fresh EDA VCS SP2 passes **21,970** checks, **454** reads,

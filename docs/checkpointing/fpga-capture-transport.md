@@ -1,5 +1,49 @@
 # FPGA capture transport component
 
+Iteration 182 adds explicit annotation translation during bank specialization.
+Local `DontTouchAnnotation` and `MemoryFileInlineAnnotation` targets clone to
+every reachable module instance; nonlocal targets resolve only the specified
+subtree. Exact declaration kinds and every instance/module path are checked.
+Overlapping initialization, dead/malformed/component targets, unknown annotation
+types and contradictory synthesis initialization policies reject. Hex/binary
+filenames and `MemorySynthInit` / `MemoryNoSynthInit` policies are preserved.
+Canonical source/translated annotation hashes join the bank binding; descriptor
+construction rejects dropped/changed initialization or extra unsupported metadata.
+The compiler's derived path cache is still discarded and recomputed.
+
+`InitializedStateBankSpec` uses two separately initialized repeated RAM instances.
+Standard FIRRTL target-path resolution emits the independent original circuit;
+the checkpoint generator does not supply that reference. EDA VCS checks all
+16 initialized words at **C=0**, before any functional edge, then repeats complete
+captures at **C=7 / 44 / 155** after writes. The public-input oracle and original
+RTL agree through reset-independent transport, selector failures, accepting-edge
+freeze, response stalls and release with a held response. Full debug waveforms
+and both initialization files are retained. Native Vivado synthesis separately
+checks every RAM INIT bit plane and both physical read-port copies. These are
+component checks, not FPGA-origin CPU checkpoint acceptance.
+
+After the full Scala suite elaborates the initialized fixture, run on EDA with
+`vcs-env.sh` sourced last:
+
+```bash
+python3 -m tools.checkpoint_formats.tests.verify_initialized_bank_vcs \
+  --generated automations/checkpoint_loop/runs/aws-f2/iteration182/scala/bank/initialized \
+  --out automations/checkpoint_loop/runs/aws-f2/iteration182/initialized-reverify
+```
+
+On this manager, after native F2 HDK setup:
+
+```bash
+python3 -m tools.checkpoint_formats.tests.synth_initialized_bank \
+  --generated automations/checkpoint_loop/runs/aws-f2/iteration182/scala/bank/initialized \
+  --out automations/checkpoint_loop/runs/aws-f2/iteration182/native-initialized-reverify
+```
+
+Exact commands, immutable inputs and diagnostic trials remain under
+`automations/checkpoint_loop/runs/aws-f2/iteration182/`. Other annotation contracts,
+wide/deep state, complete Rocket/FAME/bridge/memory/host integration and the full
+localhost image build, AFI and physical migration remain pending.
+
 Iteration 181 materializes synchronous memory pipeline owners already present
 in both inventories: saved addresses for new/undefined readers, saved data for
 old readers and old/undefined readwriters. RW data updates on enabled write
@@ -129,7 +173,7 @@ and returns registered responses held until consumption, even after release or
 abort. Dedicated `ckpt_reset` is independent of functional reset. State wider
 than 64 bits/deeper than 65,535 words, unsupported readwrite RAM policies,
 opaque/derived-clock/analog state, side-effecting statements and annotations
-without explicit clone/rename support reject. Derived CombinationalPath caches
+outside the explicit contracts above reject. Derived CombinationalPath caches
 are invalidated and recomputed. The generated simulator and semantic StateIDs
 remain separate. The fixture verifies 16 storage words; no whole-CPU coverage
 is inferred.

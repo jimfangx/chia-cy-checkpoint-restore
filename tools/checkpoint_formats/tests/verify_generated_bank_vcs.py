@@ -55,6 +55,7 @@ def main():
     for name in ["tools/checkpoint_formats/tests/generated_bank_tb.sv",
                  "tools/checkpoint_formats/tests/verify_generated_bank_vcs.py",
                  "sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedStateBankAccess.scala",
+                 "sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedStateBankAnnotations.scala",
                  "sims/firesim/sim/midas/src/test/scala/midas/checkpoint/GeneratedStateBankAccessSpec.scala"]:
         source = ROOT / name
         hashes[name] = sha(source)

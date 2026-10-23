@@ -20,7 +20,8 @@ GENERATED = ('generated-bank.sv', 'reference.sv', 'generated-bank.fir', 'generat
 SOURCES = ('sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedStateBankAccess.scala',
            'sims/firesim/sim/midas/src/test/scala/midas/checkpoint/SynchronousStateBankSpec.scala',
            'tools/checkpoint_formats/tests/synchronous_bank_tb.sv',
-           'tools/checkpoint_formats/tests/verify_synchronous_bank_vcs.py')
+           'tools/checkpoint_formats/tests/verify_synchronous_bank_vcs.py',
+           'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedStateBankAnnotations.scala')
 ORACLE = {f'SyncStorage.{name}': (i, 9, 8) for i, name in
           enumerate(('oldMem', 'newMem', 'undefMem', 'rwOld', 'rwUndef'))}
 ORACLE.update({f'SyncStorage.{name}': (i + 5, width, 1) for i, (name, width) in enumerate((
