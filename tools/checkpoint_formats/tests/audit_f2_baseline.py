@@ -40,6 +40,23 @@ def audit(root):
     require(farm["run_farm_hosts_to_use"] == [{"f2.6xlarge": 1}] and
             farm["always_expand_run_farm"] is False and
             farm["run_farm_tag"] == manifest["run_farm_tag"], "farm scope changed")
+    native_logs = {}
+    for task in ("launchrunfarm", "infrasetup", "runworkload", "terminaterunfarm"):
+        candidates = list((root / "native-manager-logs").glob(f"*-{task}-*.log"))
+        require(len(candidates) == 1, "missing or ambiguous native manager log: " + task)
+        path = candidates[0]
+        native = path.read_text()
+        require(f"Running: {task}\n" in native and manifest["run_farm_tag"] in native,
+                "native manager task/farm mismatch: " + task)
+        require("'metasimulation_enabled': False" in native and
+                "'metasimulation_enabled': True" not in native,
+                "native manager did not disable metasim: " + task)
+        native_logs[task] = dict(path=str(path.relative_to(root)), sha256=sha(path))
+    native_run = (root / native_logs["runworkload"]["path"]).read_text()
+    require("FireSim Simulation Exited Successfully" in native_run and
+            runtime["workload"]["workload_name"] in native_run and
+            load("native-paths.json")["result_dir"] in native_run,
+            "native workload completion/results provenance missing")
     for step in ("launchrunfarm", "infrasetup", "runworkload"):
         name = {"launchrunfarm": "launch", "infrasetup": "infrasetup", "runworkload": "runworkload"}[step]
         receipt = load(f"baseline/{name}-returncode.json")
@@ -114,6 +131,19 @@ def audit(root):
     require(Path(build["base_recipe"]).name == "externally_provisioned.yaml" and
             build["recipe_arg_overrides"]["build_farm_hosts"] == ["localhost"],
             "next image build is not constrained to localhost")
+    build_manifest = load("checkpoint-build/manager-commands.json")
+    require(build_manifest["phase"] == "checkpoint" and
+            build_manifest["build_execution"] == "localhost" and
+            build_manifest["checkpoint_hardware_verified"] is False and
+            build_manifest["recipe"] == recipe,
+            "checkpoint build preparation identity/acceptance mismatch")
+    require(build["recipe_arg_overrides"]["default_build_dir"] == build_manifest["build_dir"] and
+            build_manifest["recipe_file_sha256"] == manifest["recipe_file_sha256"] and
+            build_manifest["recipe_source"] == manifest["recipe_source"],
+            "checkpoint build workspace/recipe changed")
+    baseline_recipe = yaml.safe_load((root / "baseline/config_build_recipes.yaml").read_text())
+    build_recipe = yaml.safe_load((root / "checkpoint-build/config_build_recipes.yaml").read_text())
+    require(build_recipe == baseline_recipe, "checkpoint build changed the exact CPU recipe")
     return dict(status="passed", scope="real AWS F2 single-node Rocket baseline only",
                 checkpoint_hardware_verified=False, account=identity["Account"], region=region,
                 instance_id=instance["InstanceId"], instance_type=instance["InstanceType"], slot=0,
@@ -121,6 +151,7 @@ def audit(root):
                 workload_sha256=workload["sha256"], workload_bytes=workload["size"],
                 driver_sha256=driver["driver_sha256"], target_pass_cycle=int(passed[0]),
                 scoped_runtime_cleanup="terminated", checkpoint_image_build="implementation started; no full image yet",
+                native_manager_logs=native_logs,
                 diagnostic_exception="Optional /dev/xdma* probe failed: F2 driver uses BAR4 PCIS; required identity/slot/hash probes passed. Raw failure retained.",
                 evidence_hashes={str(p.relative_to(root)): sha(p) for p in sorted(root.rglob("*"))
                                  if p.is_file() and p.name in ("uartlog", "sim-run.sh", "loaded-slot.stdout",

@@ -1,5 +1,15 @@
 # AWS F2 Rocket baseline, iteration 175
 
+Iteration 176 revalidated these original hardware records without relaunching
+the terminated instance. Fresh receipts are in
+`automations/checkpoint_loop/runs/aws-f2/iteration176/`: the strengthened
+`baseline-complete-audit.json`, **14** rejected evidence corruptions,
+**39** passing loop/config/inventory tests, successful AWS/HDK checks,
+and a fresh EDA VCS SP2 run passing all **82** cut-coordinator checks.
+The audit now requires all four native manager logs, their disabled-metasim
+configuration, workload/result identity and exact localhost build recipe.
+The new AWS inventory independently reconfirms scoped cleanup.
+
 Real FPGA workload execution passed on October 23, 2026. This verifies the
 baseline hardware path only. No FPGA checkpoint has been captured and no
 checkpoint-enabled AFI has been built or deployed.
@@ -83,15 +93,27 @@ complete state binding, bridge MMIO/DMA and host-owner capture remain pending.
 Exact future build configs use ExternallyProvisioned `[localhost]` and an
 invocation-local `build-host/`. See [f2-rocket-image.md](f2-rocket-image.md).
 
-The required EDA behavioral check for the new cut component is blocked.
-The actual `/tools/Synopsys/vcs/Y-2026.03-SP2/bin/vcs -full64` compile returns
-255 with `Cannot find license file` before parsing the RTL. Both
-`LM_LICENSE_FILE` and `SNPSLMD_LICENSE_FILE` are empty in the EDA login shell;
-`CHECKPOINT_EDA_SETUP` is unset. `cut-vcs/command.stdout`,
-`compile-returncode.txt` and `license-environment.log` preserve the failure.
-The testbench has not executed. Native license setup is needed before this
-implementation increment can be fully verified; FPGA baseline execution
-and local synthesis are independently established above.
+At the stopped iteration 175, the component's EDA check failed before RTL
+parsing with `Cannot find license file` (exit 255). The original `cut-vcs/`
+logs preserve that failure and the empty license environment.
+
+The subsequent license recovery is verified: `.zshrc` sources
+`/tools/flexlm/flexlm.sh`, whereas noninteractive bash does not read `.zshrc`.
+The updated `vcs-env.sh` now loads that site setup if licenses are absent,
+preserving inherited settings and supporting `CHECKPOINT_EDA_LICENSE_SETUP`.
+A fresh native EDA SP2 compile and simulation pass with
+`CHECKPOINT_CUT_PASS checks=82`, proving compile/runtime license checkout.
+The compile uses `-timescale=1ns/1ps` to set the component's default timescale
+consistently with its testbench. No behavioral checks were removed.
+
+Recovery artifacts under
+`automations/checkpoint_loop/runs/aws-f2/iteration175/eda-license-confirmed-7rd4saf_/`:
+`summary.json` (source/log hashes), `verification-commands.json` (exact EDA argv),
+`license-environment.log`, `compile.log`, `run.log` and `transport.log`.
+The initial post-license timescale failure is retained separately in
+`eda-license-recovery-ub66p4av/`. These results verify the cut component only;
+no checkpoint-enabled FPGA image or complete hardware checkpoint is claimed.
+The controller's saved progress is unchanged pending the next normal turn.
 
 Known diagnostics retained: a `firesim.pem`-only localhost OpenSSH check failed,
 while actual Fabric/default-key localhost access passed. The optional

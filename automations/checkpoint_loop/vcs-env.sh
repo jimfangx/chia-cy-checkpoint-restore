@@ -1,10 +1,28 @@
 #!/usr/bin/env bash
-# EDA only. Source LAST after the cluster's native build environment. Licenses
-# are inherited from the login shell; never reset them to the old /ecad servers.
+# EDA only. Source LAST after the cluster's native build environment. Interactive
+# zsh loads the site's licenses from .zshrc; noninteractive bash does not.
 CHECKPOINT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CHECKPOINT_VCS="${CHECKPOINT_EDA_VCS:-/tools/Synopsys/vcs/Y-2026.03-SP2/bin/vcs}"
 if [[ ! -x "$CHECKPOINT_VCS" ]]; then
     echo "VCS is unavailable here: $CHECKPOINT_VCS. Run checks with automations/checkpoint_loop/eda.py." >&2
+    return 1
+fi
+
+# Preserve inherited licenses. An explicit override is sourced even when an
+# inherited license exists; otherwise use the same site script as EDA's .zshrc
+# only when both Synopsys/FlexNet license variables are missing.
+CHECKPOINT_LICENSE_SCRIPT="${CHECKPOINT_EDA_LICENSE_SETUP:-/tools/flexlm/flexlm.sh}"
+if [[ -n "${CHECKPOINT_EDA_LICENSE_SETUP:-}" ]]; then
+    if [[ ! -r "$CHECKPOINT_LICENSE_SCRIPT" ]]; then
+        echo "Cannot read EDA license setup: $CHECKPOINT_LICENSE_SCRIPT" >&2
+        return 1
+    fi
+    source "$CHECKPOINT_LICENSE_SCRIPT" || return $?
+elif [[ -z "${SNPSLMD_LICENSE_FILE:-}" && -z "${LM_LICENSE_FILE:-}" && -r "$CHECKPOINT_LICENSE_SCRIPT" ]]; then
+    source "$CHECKPOINT_LICENSE_SCRIPT" || return $?
+fi
+if [[ -z "${SNPSLMD_LICENSE_FILE:-}" && -z "${LM_LICENSE_FILE:-}" ]]; then
+    echo "EDA VCS licenses are unset; configure CHECKPOINT_EDA_LICENSE_SETUP or source the cluster license setup." >&2
     return 1
 fi
 export VCS_HOME="$(cd "$(dirname "$CHECKPOINT_VCS")/.." && pwd)"

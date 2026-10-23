@@ -103,7 +103,8 @@ class RemoteWorkspace:
             if not shutil.which(binary):
                 raise RuntimeError(f"missing local executable: {binary}")
         config = self.config
-        # No license resets: login-shell setup is authoritative on this cluster.
+        # This checks tool availability, not actual license checkout. vcs-env.sh
+        # loads the site license script when noninteractive startup omits it.
         self.checked(self.ssh(
             "set -e; command -v rsync; command -v bash; "
             f"test -x {shlex.quote(config.vcs)} || "

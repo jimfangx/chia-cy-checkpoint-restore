@@ -468,8 +468,11 @@ automations/checkpoint_loop/runs/ so it is returned here before artifact checks.
 Report artifacts as local paths under {ROOT}; preserve original remote paths
 inside receipts. Do not rewrite historical evidence to appear freshly verified.
 Remote VCS is {eda.vcs}; use -full64. Source vcs-env.sh LAST after any native
-EDA build setup, including inside nested bash -lc commands. EDA licenses are
-already sourced; do not source the former /ecad license setup. If necessary,
+EDA build setup, including inside nested bash -lc commands. If license variables
+are empty it sources /tools/flexlm/flexlm.sh, the same setup used by EDA .zshrc;
+noninteractive bash does not load .zshrc. CHECKPOINT_EDA_LICENSE_SETUP in the
+remote setup can select another license script. Preserve inherited license
+settings; do not source the former /ecad license setup. If necessary,
 CHECKPOINT_EDA_SETUP names an additional REMOTE build environment script.
 Old verification harnesses may pin SP1, /ecad, or Ubuntu compiler paths. Port
 active build/runtime checks to the real SP2 toolchain, preserving exact
@@ -536,7 +539,8 @@ and bash -lc with vcs-env.sh sourced last for EDA scripts),
 with cwd relative to the Chipyard root. Never report a test as passing unless
 it actually ran. If a required AWS/F2 or VCS tool, runtime dependency, license, or library is missing,
 report blocked with the exact missing dependency. Otherwise report in_progress
-and continue next turn. Include full paths to all created artifacts.
+and continue next turn. Include full paths to individual nonempty artifact files,
+not directories; the controller validates each reported path as a file.
 """
 
 

@@ -60,7 +60,11 @@ Default EDA configuration:
 | `CHECKPOINT_EDA_VCS` | `/tools/Synopsys/vcs/Y-2026.03-SP2/bin/vcs` |
 | `CHECKPOINT_EDA_SETUP` | Optional absolute path to a **remote** native build setup script |
 
-Licenses are inherited from EDA's login shell. No old `/ecad` license setup is
+Inherited license variables are preserved. When both `SNPSLMD_LICENSE_FILE`
+and `LM_LICENSE_FILE` are empty, `vcs-env.sh` sources `/tools/flexlm/flexlm.sh`,
+the same license script used by EDA's interactive `.zshrc`. Noninteractive
+`bash -lc` does not read `.zshrc`. An explicit `CHECKPOINT_EDA_LICENSE_SETUP`
+in the remote setup selects another script. No old `/ecad` license setup is
 sourced. Local `env.sh` files, conda environments, credentials and compiler
 caches are excluded from uploads. Minimal remote `env.sh` adapters are created
 only if absent; they source `CHECKPOINT_EDA_SETUP` when set. Configure that
@@ -97,7 +101,7 @@ local absolute workspace paths in argv are translated to EDA paths.
 
 On EDA, source `vcs-env.sh` last after native environment setup, including in
 nested `bash -lc` commands. It pins `VCS_HOME`, 64-bit mode and the compiler
-wrappers without changing licenses. It prefers GCC/G++ 13, including Rocky's
+wrappers and ensures licenses are loaded. It prefers GCC/G++ 13, including Rocky's
 `/opt/rh/gcc-toolset-13` layout, and otherwise selects the native GCC/G++.
 `CHECKPOINT_EDA_CC` and `CHECKPOINT_EDA_CXX` can be set in the remote setup to
 choose explicit compiler executables. GCC 14+ may reject VCS-generated C;

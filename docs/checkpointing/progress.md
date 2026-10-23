@@ -20,7 +20,7 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-bringup-and-baseline`, iteration 175. On October 23 the
+Active milestone: `F2-bringup-and-baseline`, iteration 176. On October 23 the
 existing manager successfully launched one tagged `f2.6xlarge`, instance
 `i-04b9cc3f81f16b61f`, in `us-west-2`, private IP `192.168.1.203`, using AMI
 `ami-07a164f1a402ab274`. Its AWS tag is
@@ -31,17 +31,54 @@ the saved bytes. Artifacts were collected, then scoped manager teardown
 completed; AWS independently confirms **terminated**. No owned runtime
 instance or native Vivado/Java build job remains. Full FPGA checkpoint
 capture remains pending. See [aws-f2-bringup.md](aws-f2-bringup.md).
-The new cut component's required EDA VCS check is **blocked**: actual SP2
-compilation returns 255, `Cannot find license file`. Both license variables
-are empty in the EDA login shell; no additional `CHECKPOINT_EDA_SETUP` is set.
-No behavioral VCS simulation of this component has run. Preserve the FPGA
-baseline pass separately from this unresolved verification dependency.
+License recovery after the stopped iteration 175 is **verified**. EDA's
+interactive `.zshrc` sources `/tools/flexlm/flexlm.sh`; the noninteractive
+`bash -lc` path did not. `vcs-env.sh` now preserves inherited licenses and
+sources that site helper when both license variables are empty (or an explicit
+`CHECKPOINT_EDA_LICENSE_SETUP` override). Actual EDA VCS SP2 compilation and
+simulation pass with `CHECKPOINT_CUT_PASS checks=82`. The fresh command includes
+`-timescale=1ns/1ps`, needed because the testbench has an explicit timescale
+while the component does not. New receipt, exact argv, source/log hashes and
+native compile/runtime logs are under
+`runs/aws-f2/iteration175/eda-license-confirmed-7rd4saf_/` (relative to the loop).
+The old missing-license logs and initial timescale failure are retained.
+No controller milestone/iteration was advanced manually. The original report
+also listed directories as artifacts: future reports must list individual
+nonempty files, not directories, as required by the controller artifact checks.
+Full checkpoint-enabled image/capture support remains pending.
 Retain the verified FCFS/component history and the original receipts below as
 historical metasim/component evidence, not proof of FPGA capture.
 
 Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
+
+Iteration 176 independently re-audits the retained iteration-175 hardware run;
+it does not claim another FPGA execution. New evidence is under
+`automations/checkpoint_loop/runs/aws-f2/iteration176/`. The strengthened
+`baseline-complete-audit.json` verifies all four nonempty native manager logs,
+their actual disabled-metasim settings, task/farm and workload/result identity,
+plus preservation of the exact CPU recipe and localhost build workspace.
+All **14** offline evidence corruptions reject; **39** loop/config/inventory
+tests pass. Fresh AWS access and scoped inventory succeed and still confirm
+`i-04b9cc3f81f16b61f` terminated. Fresh EDA VCS SP2 compilation/simulation in
+`cut-vcs/` passes all **82** coordinator checks with the recovered licenses.
+Fresh HDK setup confirms native Vivado 2025.2, HDK `80b34d3`, shell `0x10212415`.
+New `checkpoint-build/` configs retain ExternallyProvisioned `[localhost]`,
+an invocation-local build directory, and no invented checkpoint AGFI.
+Fresh local 16-owner coordinator synthesis passes for `xcvu47p-fsvh2892-2-e`
+with **56 LUTs / 74 registers**; DCP, reports and exact Tcl are in `cut-vivado/`.
+`summary.json` binds source snapshots and evidence hashes while preserving the
+original remote paths. Final inventory confirms no owned live F2 instance or
+native Vivado/Java job and no new AFI request. Existing controller checkpoints
+were published FireSim first (`79f8dd18`), then Chipyard (`e535132d`); independent
+remote tips agree. Chipyard's local tracking-ref update failed read-only after
+the successful remote push; the controller owns subsequent commits/publication.
+Full checkpoint-image synthesis/P&R, AFI creation and hardware capture remain
+pending the complete state network, bridge and host-owner implementation.
+Report individual nonempty files, including actual native manager logs and
+`results-workload/.../uartlog`, instead of directories. Keep original
+iteration-175 artifacts and failed-license receipts unchanged.
 
 ## Active F2 bring-up recovery
 
@@ -80,16 +117,17 @@ capture network. New `CheckpointCaptureCut.sv` starts the owner-acknowledged
 atomic cut implementation. Native Vivado OOC synthesis on this server for
 the real F2 device passes with 16 owners (56 LUTs, 74 registers), with source
 hash and DCP/reports in `local-build-receipt.json` and `cut-vivado/`.
-EDA source/input migration sync completed. VCS SP2 fails before parsing with
-`Cannot find license file` (exit 255); the testbench did not execute.
-Exact command and stdout: `cut-vcs/compile-retry.log`,
-`cut-vcs/command.stdout`, `cut-vcs/compile-returncode.txt`. The native login
-environment and focused setup search are retained in
-`cut-vcs/license-environment.log` and `cut-vcs/license-candidates.log`.
-Resume by enabling the site's actual native license setup (optionally through
-`CHECKPOINT_EDA_SETUP`), then rerun the raw EDA command in
-`verification-commands.json`; source `vcs-env.sh` last. Do not use old `/ecad`
-settings or substitute local simulation. The helper initially fetched an older
+EDA source/input migration sync completed. At the stopped iteration 175,
+VCS SP2 failed before parsing with `Cannot find license file` (exit 255).
+The original failure logs remain in `cut-vcs/`, including `compile-retry.log`,
+`command.stdout`, `compile-returncode.txt`, `license-environment.log` and
+`license-candidates.log`. This is historical failure evidence, not the current
+license status. The corrected helper and fresh EDA run in
+`eda-license-confirmed-7rd4saf_/` establish compile/runtime checkout and all
+82 cut-component checks. Its `verification-commands.json` records the actual
+argv; when running again, choose a fresh output directory and retain
+`-timescale=1ns/1ps`, `-full64`, and `vcs-env.sh` sourced last. Do not substitute
+local simulation or relabel the old failing logs as passing. The helper initially fetched an older
 copy of its redirected transcript; subsequent transport transcripts use
 `runs/loop.log-eda-*` (excluded from fetch) and compiler stdout is recorded
 directly on EDA. The actual compiler failure is preserved, not inferred.

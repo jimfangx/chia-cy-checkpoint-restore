@@ -119,6 +119,36 @@ class EdaTests(unittest.TestCase):
                 workspace.push()
             self.assertEqual(owned_by_user.read_text(), "keep")
 
+    @unittest.skipUnless(shutil.which("rsync"), "rsync required")
+    def test_noninteractive_nested_shell_loads_explicit_site_license(self):
+        with self.workspace() as (workspace, local, _, output):
+            setup = Path(workspace.config.setup)
+            license_setup = setup.with_name("site-license.sh")
+            license_setup.write_text("export SNPSLMD_LICENSE_FILE=1701@site-test\nexport LM_PROJECT=site-users\n")
+            setup.write_text("unset SNPSLMD_LICENSE_FILE LM_LICENSE_FILE\n"
+                             "export CHECKPOINT_EDA_LICENSE_SETUP=" + str(license_setup) + "\n")
+            with workspace.locked():
+                workspace.push()
+                code = workspace.run(["bash", "-lc",
+                    'unset SNPSLMD_LICENSE_FILE LM_LICENSE_FILE; '
+                    'source automations/checkpoint_loop/vcs-env.sh && '
+                    'printf "%s\\n" "$SNPSLMD_LICENSE_FILE" "$LM_PROJECT" '
+                    '> automations/checkpoint_loop/runs/license.txt'])
+                workspace.fetch()
+            self.assertEqual(code, 0)
+            self.assertEqual((local / eda.RUNS / "license.txt").read_text(), "1701@site-test\nsite-users\n")
+
+    @unittest.skipUnless(shutil.which("rsync"), "rsync required")
+    def test_missing_explicit_license_setup_fails_before_running_command(self):
+        with self.workspace() as (workspace, local, _, output):
+            Path(workspace.config.setup).write_text(
+                "export CHECKPOINT_EDA_LICENSE_SETUP=/nonexistent/checkpoint-license.sh\n")
+            with workspace.locked():
+                workspace.push()
+                code = workspace.run(["bash", "-c", "echo MUST_NOT_RUN"])
+            self.assertNotEqual(code, 0)
+            self.assertNotIn("\nMUST_NOT_RUN\n", "".join(output))
+
     def test_invalid_remote_config_and_workdir_rejected(self):
         for key, value in (("CHECKPOINT_EDA_HOST", "-oProxyCommand=bad"),
                            ("CHECKPOINT_EDA_ROOT", "/scratch/jfx/../"),

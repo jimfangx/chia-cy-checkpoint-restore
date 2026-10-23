@@ -1,6 +1,7 @@
 # Rocket checkpoint image implementation and build
 
-Current invocation: `automations/checkpoint_loop/runs/aws-f2/iteration175/`.
+Current build preparation: `automations/checkpoint_loop/runs/aws-f2/iteration176/checkpoint-build/`.
+Original hardware baseline and initial synthesis: `automations/checkpoint_loop/runs/aws-f2/iteration175/`.
 This document is a proposed implementation sequence, not an image receipt.
 The stock Rocket public image is baseline-only. The existing
 `BankedStateAccess.scala` has explicit client ports but no generated Rocket
@@ -59,7 +60,12 @@ server for the actual F2 part passes; source hash, DCP and reports are in
 `local-build-receipt.json` and `cut-vivado/`. The behavioral testbench covers
 accepting-edge freeze, delayed acknowledgements, capture/publication stalls,
 missing/faulting owners, lost freeze, target-cycle drift, premature release,
-explicit abort and recovery. Required EDA VCS execution is blocked by the
-actual SP2 `Cannot find license file` failure (255); no behavioral pass is
-claimed. Restore the native site license environment, then run the saved
-EDA verification command before connecting this component to the full design.
+explicit abort and recovery. Fresh iteration-176 EDA VCS SP2 compilation and
+simulation pass all **82** checks, with native logs in `cut-vcs/`. The site
+license setup `/tools/flexlm/flexlm.sh` is loaded by `vcs-env.sh` when needed;
+the original iteration-175 missing-license failure remains unchanged.
+Build admission still requires the complete network and owner integration.
+Iteration 176 also repeats native localhost synthesis: **56 LUTs / 74 registers**
+for the same 16-owner F2-device component. The new DCP, Tcl and reports are in
+`iteration176/cut-vivado/`; `iteration176/summary.json` binds source snapshots,
+build artifacts and EDA logs. No full-image build or AFI request has started.

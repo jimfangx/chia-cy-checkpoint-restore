@@ -59,8 +59,19 @@ def verify(root):
         reject("cleanup-unconfirmed", "resources-after-cleanup.json", still_running)
         source = Path(driver["sources"][0]["snapshot"]).relative_to(fixture)
         reject("driver-source-changed", source, lambda data: data + b"\n// tampered offline copy\n")
+        native = baseline["native_manager_logs"]["runworkload"]["path"]
+        reject("empty-native-manager-log", native, lambda data: b"")
+        reject("native-manager-enables-metasim", native,
+               lambda data: data.replace(b"'metasimulation_enabled': False",
+                                         b"'metasimulation_enabled': True"))
+        reject("native-workload-completion-missing", native,
+               lambda data: data.replace(b"FireSim Simulation Exited Successfully", b"workload interrupted"))
+        reject("checkpoint-build-uses-remote-host", "checkpoint-build/config_build.yaml",
+               lambda data: data.replace(b"- localhost", b"- remote-build-host"))
+        reject("checkpoint-build-recipe-drift", "checkpoint-build/config_build_recipes.yaml",
+               lambda data: data.replace(b"fpga_frequency: 140", b"fpga_frequency: 150"))
         audit(fixture)
-    require(len(rejected) == 9, "missing negative audit cases")
+    require(len(rejected) == 14, "missing negative audit cases")
     return dict(status="passed", scope="offline evidence auditor tamper tests only",
                 original_hardware_evidence_unchanged=True, rejected=rejected)
 
