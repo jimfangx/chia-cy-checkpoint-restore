@@ -537,9 +537,19 @@ acceptance is supported by real artifacts and verification commands. Include
 commands as raw argv arrays with backend f2 or eda (use bash -c for manager scripts,
 and bash -lc with vcs-env.sh sourced last for EDA scripts),
 with cwd relative to the Chipyard root. Never report a test as passing unless
-it actually ran. If a required AWS/F2 or VCS tool, runtime dependency, license, or library is missing,
-report blocked with the exact missing dependency. Otherwise report in_progress
-and continue next turn. Include full paths to individual nonempty artifact files,
+it actually ran. Diagnose failed checks from the underlying compiler/runtime log,
+not just the wrapper exception. Attempt routine dependency recovery on the
+appropriate host using available permissions before reporting blocked: inspect
+compiler paths and linker scripts, repair missing matching runtime/development
+packages when permitted, or use a compatible private installation. Missing GMP
+headers or sanitizer libraries are repairable setup issues when access exists.
+Keep ASan/UBSan and the full regression scope enabled; do not hide failures by
+changing ABI, copying incompatible runtime libraries, or omitting checks.
+Report blocked only when a concrete external dependency cannot be resolved
+with available access (such as missing privileges, credentials, quota, network
+or license access), recording attempted repairs and the actual error. If useful
+implementation or recovery work remains possible, report in_progress and
+continue next turn. Include full paths to individual nonempty artifact files,
 not directories; the controller validates each reported path as a file.
 """
 

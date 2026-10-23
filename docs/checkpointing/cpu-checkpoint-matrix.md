@@ -10,9 +10,30 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 
 | Family | F2 workload / custom capture image | FPGA Level-1 to EDA metasim | FPGA Level-2 finite RTL replay | Live RTL / rolling hardware recovery |
 | --- | --- | --- | --- | --- |
-| Rocket (all four harts) | baseline verified: real F2, slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress (cut + bank/MMIO/DMA transport components synthesized, not integrated) | pending | pending | pending |
+| Rocket (all four harts) | baseline verified: real F2, slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress (generated storage endpoint, NASTI/stream Widget and host transport components; whole-image integration pending) | pending | pending | pending |
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
+
+Iteration 178 adds generated real-register/RAM endpoint readout and freeze,
+global NASTI/StreamToHostCPU transport and a native MMIO/stream capture driver.
+EDA VCS passes **571** endpoint checks / **53** reads, **73** NASTI adapter
+checks and **133** complete Widget checks / five fixture frames. Native
+ASan/UBSan host capture passes **1,384** checks, including cumulative-frame
+drain recovery, corruption/truncation, incompatible manifests and frozen
+publication. Full checkpoint Scala passes **40** tests; Widget Scala passes
+four. Full required FCFS native/VCS regression passes with system GMP and
+sanitizer libraries; the earlier missing-runtime block is resolved.
+Local native Vivado 2025.2 synthesizes the generated endpoint at **138 LUTs /
+67 registers** and the complete Widget at **1,878 LUTs / 756 registers** for
+`xcvu47p-fsvh2892-2-e`. Estimated setup slack is **+6.298 / +4.432 ns** at
+140 MHz; both DCPs and reports are retained. This is out-of-context component
+synthesis, with full-image P&R and physical capture still pending.
+Per-component source/generated hashes, cut labels, exact compiler commands
+and raw native logs are cataloged by
+`automations/checkpoint_loop/runs/aws-f2/iteration178/summary.json`.
+Generated banks still reject real Rocket synchronous/readwrite RAM pipelines,
+unchunked wide/deep storage and unretargeted annotations explicitly. No
+FPGA-produced image/trace or CPU live comparison was created this iteration.
 
 Iteration 177 component evidence: fresh EDA VCS SP2 passes **1,294** checks,
 five successful publications, **36** bank requests and DMA/MMIO backpressure.

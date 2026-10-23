@@ -148,3 +148,9 @@ excluded from checkpoint commits. Console output and rotating `runs/loop.log*`
 show prompts, tool calls and results; `runs/verification.log*` records remote
 checks. Rotation retains six 16 MiB backups without truncating acceptance
 inputs. Ephemeral Codex turns recover from repository history and saved state.
+
+When a build dependency fails, inspect its underlying compiler/linker log and
+attempt ordinary recovery with available host permissions before declaring an
+external block. Keep sanitizers and required regressions enabled. Missing native
+runtime/development packages are setup work when they can be installed; only
+unresolvable access/dependency failures should stop the loop as blocked.

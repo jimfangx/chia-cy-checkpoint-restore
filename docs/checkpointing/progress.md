@@ -20,11 +20,13 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 177,
-**in_progress**. The new synthesized bank/MMIO/DMA transport component is
-described in [fpga-capture-transport.md](fpga-capture-transport.md). It is not yet
-wired into the Rocket image; complete FPGA state capture and migration remain
-pending. The bring-up baseline below is retained hardware evidence.
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 178,
+**in_progress**. Generated register/RAM bank endpoints, a global FireSim
+NASTI/stream Widget and a native host capture session now extend the synthesized
+transport; see [fpga-capture-transport.md](fpga-capture-transport.md). They still
+need complete Rocket/FAME/memory/host integration. No checkpoint-enabled AFI,
+FPGA-origin checkpoint, CPU migration or sustained live CPU acceptance is
+claimed. The bring-up baseline below is retained hardware evidence.
 
 On October 23 the
 existing manager successfully launched one tagged `f2.6xlarge`, instance
@@ -86,10 +88,123 @@ Report individual nonempty files, including actual native manager logs and
 `results-workload/.../uartlog`, instead of directories. Keep original
 iteration-175 artifacts and failed-license receipts unchanged.
 
+## Iteration 178: generated storage, real control/stream adapter and host capture
+
+The previous sanitizer feedback is resolved and independently rerun on EDA:
+full ASan/UBSan plus fresh VCS FCFS passes **46** continuations, **296** MMIO
+calls, **138** pre-edge owner comparisons, eight malformed fresh processes and
+**2,972** rejection checks per backend. System GCC/GMP/sanitizer provenance is
+retained in `runs/aws-f2/iteration178/fcfs-system-regressions-m2o3tz1m/`.
+All **283** checkpoint Python tests pass on EDA; all **40** loop tests pass
+on the local manager's existing Chia/Ray environment. A remote loop-discovery
+diagnostic is retained: EDA Python 3.9 lacks Ray (and current Chia needs a
+newer Python). This is not a VCS or sanitizer block; no checks were removed.
+
+`GeneratedStateBankAccess` now specializes a complete lowered hierarchy per
+instance, binds independently named simulator/semantic inventories to real
+registers/RAMs, gates functional resets/updates/writes with the accepting-edge
+freeze and latches bank responses independently of subsequent abort/release.
+Stale/incomplete bindings and unsupported state fail before hardware is
+returned. Synchronous/readwrite RAM pipelines, wide/deep unchunked objects,
+opaque/derived-clock/analog state, target side effects and unretargeted
+annotations remain explicit unsupported cases; only derived CombinationalPath
+cache annotations are invalidated/recomputed. Full checkpoint Scala scope:
+**40 tests**, four suites. EDA public-port endpoint checks cover all 16 fixture
+words three times, functional reset/write freeze, delayed/held responses,
+invalid selectors and capture reuse. These are finite component checks.
+
+`CheckpointCaptureWidget` connects the transport to real 32-bit NASTI and
+512-bit StreamToHostCPU, with separate AW/W arrival, held responses and
+malformed-access/burst errors. It is a global Widget because its host clock
+must continue during simulator freeze. Its C++ `checkpoint_capture_t` binds
+actual FireSim MMIO/StreamEngine calls to a strict host session that verifies
+manifest, complete framing/CRC, selectors, cut and hardware readback before
+exposing bytes; freeze remains held through external publication. Host-owner
+capture and canonical CPU image publication are not implied by this class.
+
+An initial sanitizer test exposed premature drain acknowledgement after an
+empty nonblocking DMA pull. The fix counts every hardware-accepted frame
+across captures/aborts, counts every host-consumed frame, and requires exact
+equality plus producer quiescence before clearing invalid stream history.
+Unknown transfer counts require coordinated reset. Earlier failed test logs
+remain unchanged. Final host ASan/UBSan checks: **1,384**, against a fresh
+VCS transport stream (**1,294** transport checks and **39** strict decoder
+negatives). EDA adapter/Widget checks: **73 / 133**, with five actual fixture
+frames. Widget Scala checks: **4**. Evidence, commands, frozen generated/source
+inputs and native logs are under `runs/aws-f2/iteration178/`; the final
+`summary.json` catalogs individual files and keeps original remote paths.
+
+The new exact-Rocket configs reuse the installed
+`checkpoint-f2-rocket-selfcheck-175.json`, initialized YAMLs, disabled metasim,
+one `f2.6xlarge`, tag `checkpoint-f2-rocket-capture-178`, and
+ExternallyProvisioned `[localhost]` with invocation-local `build-host/`.
+The earlier unused `checkpoint-build/` preparation named a nonexistent workload;
+retain it as diagnostic and use **`checkpoint-build-installed-workload/`**.
+Fresh AWS identity/type access and tagged inventory succeed; no runtime
+instance or AFI was launched. Existing controller commits were pushed FireSim
+first (`9d729e59`), then Chipyard (`37604207`); remote tips independently agree.
+The successful Chipyard push again could not update its local read-only
+tracking ref; no history or plan files were staged/committed by this agent.
+
+Next: register the global Widget and its stream in FPGATop; generate complete
+independent simulator/semantic mappings and descriptor ROMs; support the real
+Rocket RAM/width/annotation cases; connect all generated/FAME/channel/FASED,
+functional-memory and host-owner freeze/capture. Then perform localhost full
+image synthesis/P&R/AFI creation, deploy to F2, capture the four active cuts,
+and prove independent fresh complete readback, FPGA-reference continuation,
+finite replay, sustained live RTL/debug waveforms and rolling recovery.
+The bank/Widget native Vivado runs are component synthesis, not a Rocket AFI.
+Both complete successfully on localhost Vivado 2025.2 for the actual F2 part:
+bank endpoint **138 LUTs / 67 registers**, Widget **1,878 LUTs / 756 registers**;
+estimated post-synthesis setup slack **+6.298 / +4.432 ns** at 140 MHz.
+`components-vivado-CUPhQl/source-binding.json` independently matches synthesis
+inputs to the EDA-generated-file hashes. DCPs, native reports and the complete
+command log are retained. Final scoped inventory has no runtime instances or
+native Vivado/Java jobs. Fresh final endpoint/cut VCS checks pass **571 / 82**;
+the final endpoint receipt matches current generator/spec/testbench/runner
+sources. No worker or background LLM work remains after central integration.
+The final combined local Scala invocation also passes **44/44** tests across
+five suites, with all generated evidence in its fresh `scala-reverify-*/`
+workspace. The final independent EDA evidence audit passes **98**
+source/artifact hash checks in `evidence-audit-kgmvzvrq/audit.json`.
+Keep the retained earlier failed trials separate.
+
+## EDA dependency recovery after stopped iteration 177
+
+The FCFS dependency block is **resolved**. EDA's GCC 11.5 linker scripts named
+missing ASan/UBSan runtime files. Passwordless sudo was available, so recovery
+installed Rocky's matching `libasan-11.5.0-14.el9` and
+`libubsan-11.5.0-14.el9`. The next VCS link exposed the private GMP workaround's
+static archive before the referencing objects. Installed matching system
+`gmp-devel-6.2.0-13.el9` (and its `gmp-c++` dependency); system GMP runtime was
+already present. No compiler, Conda, HDL or acceptance scope was changed.
+Use native EDA system headers/shared GMP and source `vcs-env.sh` last. Do not
+source the old `eda-gmp-WxqXPP/setup.sh` by default: its static-library search
+path causes the VCS archive-order failure. That earlier private build remains
+retained evidence, not the current environment requirement.
+
+The **full** native ASan/UBSan plus fresh VCS FCFS regression passes:
+46 fresh continuations, 296 matched MMIO calls, 138 pre-edge owner comparisons,
+eight malformed fresh processes, and 2,972 rejection checks on **each** backend.
+`ldd` confirms the native executable loads `libasan.so.6` and `libubsan.so.1`.
+The native/VCS build logs, exact command, package versions/install log, runtime
+library paths, checksums and summary are under
+`runs/aws-f2/iteration177/fcfs-system-deps-recovery-o2_ehox6/` relative to the loop.
+The ASan-fixed/private-GMP VCS failure remains separately preserved in
+`fcfs-sanitizer-recovery-7whvv8z9/`; original stopped-iteration logs are unchanged.
+All 40 current loop tests pass locally. The agent prompt now requires diagnosis
+and routine dependency repair using available access before declaring an
+external block; keep all sanitizers and required regressions enabled.
+
+Saved state remains iteration 177 / hardware milestone in_progress; normal
+restart starts iteration 178. No controller acceptance was advanced manually.
+This verifies the retained component regression, not complete Rocket hardware
+checkpoint capture, which still requires the implementation work below.
+
 ## Iteration 177: synthesized bank/MMIO/DMA transport component
 
-Hardware milestone remains **in_progress**; the required retained FCFS
-regression is currently **blocked** on EDA's missing native sanitizer runtime:
+Hardware milestone remains **in_progress**. At the original iteration-177
+stop, the required FCFS regression failed on EDA's missing native sanitizer runtime:
 `/usr/bin/ld: cannot find /usr/lib64/libasan.so.6.0.0`. Do not omit that regression
 or claim CPU acceptance. Exact failing `/usr/bin/g++ ... -fsanitize=address,undefined
 ... -lgmp` argv and native output are in
@@ -131,10 +246,13 @@ All **283** Python tests pass on EDA Python 3.9 after replacing the unavailable
 pass. The retained FCFS script first failed on missing `gmp.h` (`gmp-devel`
 is absent). A private matching GMP 6.2.0 source build and its full `make check`
 pass under `eda-gmp-WxqXPP/`, with archive hash/configuration/native logs. No
-system or Conda files were changed. For recovery source its `setup.sh`, then
-`vcs-env.sh` LAST; FCFS then reaches the linker and fails on the missing ASan
-runtime above. Initial Python-3.9/header failures and the stopped broad
-dependency probe are retained separately. No regression scope was reduced.
+system or Conda files were changed during that original turn. Its `setup.sh`
+supplied the private headers/archive, after which FCFS reached the linker and
+failed on the missing ASan runtime above. This was the original stopped-turn
+state, not the current recovery procedure; the subsequent
+system-package recovery above resolves it and the private archive-order issue.
+Initial Python-3.9/header failures and the stopped broad dependency probe are
+retained separately. No regression scope was reduced.
 
 Fresh manager/AWS access succeeds. New isolated exact-Rocket checkpoint
 configs in `checkpoint-build/` use ExternallyProvisioned `[localhost]`, local

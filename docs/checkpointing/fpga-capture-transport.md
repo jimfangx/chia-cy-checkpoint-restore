@@ -5,6 +5,25 @@ Iteration 177 adds `CheckpointCaptureTransport.sv`, connected to the existing
 fixture, **not a CheckpointBridge integrated into the Rocket FPGA image**.
 The exact CPU recipe and its initialized manager configs remain unchanged.
 
+Iteration 178 adds `GeneratedStateBankAccess`, `CheckpointCaptureWidget` and
+native `checkpoint_capture_t`/`checkpoint_capture_session_t`. Generated storage
+and the real FireSim control/stream interfaces now have independent component
+verification. FPGATop registration, complete Rocket ownership/mapping and
+physical checkpoint-image deployment are still required; these classes do not
+enable CPU admission by themselves.
+
+The opt-in LowForm generator checks the entire current input inventory before
+specializing modules per instance. It reads actual registers and added logical
+asynchronous RAM ports, gates functional reset/update/write with `ckpt_freeze`,
+and returns registered responses held until consumption, even after release or
+abort. Dedicated `ckpt_reset` is independent of functional reset. State wider
+than 64 bits/deeper than 65,535 words, synchronous/readwrite RAM pipelines,
+opaque/derived-clock/analog state, side-effecting statements and annotations
+without explicit clone/rename support reject. Derived CombinationalPath caches
+are invalidated and recomputed. The generated simulator and semantic StateIDs
+remain separate. The fixture verifies 16 storage words; no whole-CPU coverage
+is inferred.
+
 The controller accepts a capture only while idle, freezes on the accepting
 edge, waits for every declared owner, and reads logical bank words through
 request/response handshakes. Descriptors come from an immutable generated ROM:
@@ -48,6 +67,26 @@ addresses reject. Command values are exact, not composable bit masks.
 | `0x24` | read | complemented running CRC32C |
 | `0x40` … `0x5c` | read | manifest SHA-256, least-significant 32-bit word first |
 
+The global Widget wraps this request/response adapter in actual 32-bit FireSim
+NASTI, independently buffers AW/W and holds all responses. It allocates a
+256-byte control region and a real 512-bit StreamToHostCPU. Its clock continues
+during the common freeze. Invalid/alignment/width/strobe/burst operations return
+SLVERR without forwarding side effects. It adds these Widget-only registers:
+
+| Address | Operation | Meaning |
+| --- | --- | --- |
+| `0x60` | read | bit 0 invalid shared stream; bit 1 lifetime frame-count overflow |
+| `0x64` | write | exact `1`: acknowledge drain, only if producer quiescent and host count equals produced count |
+| `0x68`, `0x6c` | read | cumulative accepted DMA frame count; low read latches a coherent high half |
+| `0x70`, `0x74` | read/write | host cumulative consumed/discarded frame count for drain acknowledgement |
+
+The produced counter survives capture, publication and abort, saturating with
+sticky failure on overflow. Only a coordinated endpoint/stream reset clears
+its epoch. An empty nonblocking pull does not establish drain completion;
+the host must consume/discard every accepted frame and provide the exact
+count. A new start stays blocked until acknowledgement succeeds. Shared
+stream queues are not reset by a transport abort.
+
 DMA frames are 64 bytes, little-endian at each integer field. `dma_last` marks
 only the trailer. A generated manifest hash must be nonzero. The stream is a
 transport envelope, independent of canonical checkpoint container formats.
@@ -79,9 +118,16 @@ authenticate provenance or establish complete state ownership.
 compatibility, cut labels, word order, selectors, widths, padding, reserved
 bits and CRC before returning any state. Its Level-2 adapter produces the
 existing canonical `.rtlckpt` representation. This does not implement Level-1
-ownership or an actual PCIe driver. The eventual host driver must snapshot all
-software/memory owners, validate both independent images and trace, atomically
-publish without overwriting valid history, and check publication acknowledgement.
+ownership. The new C++ driver uses actual MMIO and StreamEngine calls, with
+page-aligned bounded nonblocking transfers, independently supplied immutable
+descriptor metadata, complete frame/CRC/cut/count validation and an explicit
+post-publication release. Raw state bytes are exposed only after validation.
+Transfer faults poison the session; abort drains against the cumulative
+hardware frame count. Unknown consumed byte counts require coordinated reset.
+The global coordinator must still snapshot all software/memory owners,
+validate both independent images and trace, atomically publish without
+overwriting valid history, and then authorize release. The new driver retains
+the default unsupported aggregate checkpoint schema.
 
 Fresh EDA verification (source the remote build environment first, then
 `vcs-env.sh` last):
@@ -110,9 +156,18 @@ register-to-register setup slack is +4.816 ns; this is not routed F2 timing.
 The HDK setup must be sourced from its own repository directory. Run through
 the local F2 helper with backend `f2`; never synthesize on EDA.
 
-Next: generate and audit complete independent simulator/semantic bank bindings,
-implement synthesized register/RAM endpoints and global write/reset/token
-freeze, integrate real FireSim MMIO and DMA stream widgets, and join complete
+Fresh iteration-178 runners (all VCS on EDA) are
+`verify_generated_bank_vcs`, `verify_checkpoint_widget_vcs` and
+`verify_fpga_capture_host` in `tools.checkpoint_formats.tests`. Generated inputs
+come from `GeneratedStateBankAccessSpec` and `CheckpointCaptureWidgetSpec`;
+native localhost synthesis uses `capture_components_synth.tcl`. Each runner
+retains exact sources/generated artifacts, raw commands and native logs under
+loop `runs/`. No fixture image is relabeled as FPGA origin.
+
+Next: insert generated access into the real compiler flow with complete
+independent simulator/semantic mappings and descriptor ROMs, support the real
+Rocket memory/width/annotation cases, connect global write/reset/token freeze,
+register the global Widget and its stream in FPGATop, and join complete
 functional-memory/FASED/host ownership. Then build the exact checkpoint-enabled
 Rocket recipe on localhost, create/bind AFI/AGFI and driver manifests, deploy
 and capture actual F2 execution at every required cut. FPGA-reference
