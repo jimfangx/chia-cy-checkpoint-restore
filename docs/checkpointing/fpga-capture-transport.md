@@ -1,5 +1,38 @@
 # FPGA capture transport component
 
+Iteration 186 extends the separate-clock bank generator to multiple direct
+functional input clocks. Functional registers, RAM read/write ports and
+materialized synchronous pipelines retain their distinct clocks. Child inputs
+must trace directly to parent inputs. `functional_clock_domains` binds every
+module/instance clock port to its root input and is independently reconstructed
+from emitted wiring when constructing descriptors. Missing or altered clock
+provenance rejects. Multiple clocks without a separate transport endpoint,
+derived/gated clocks, opaque owners and asynchronous resets remain unsupported.
+
+This is a wiring/freeze contract. The caller still must establish a stable
+all-owner freeze in every domain before reads and hold it until responses drain;
+this generator does not implement a CDC acknowledgement or a common CPU cut.
+The new `MultipleFunctionalClocksSpec` emits 9 entries / 15 words with swapped
+repeated children and RAMs read and written in different domains. The new EDA
+check exercises independent/coincident functional clocks, stopped-clock and
+adversarial frozen-clock captures, resets, backpressure, post-release execution
+and first-word corruption with full debug waveforms:
+
+```bash
+source automations/checkpoint_loop/vcs-env.sh
+python3 -m tools.checkpoint_formats.tests.verify_multiple_clocks_vcs \
+  --generated automations/checkpoint_loop/runs/aws-f2/iteration186/scala/bank/multiple-clocks \
+  --out automations/checkpoint_loop/runs/aws-f2/iteration186/multiple-clocks-vcs
+```
+
+Native synthesis uses `synth_clocked_effects` with that generated directory and
+constrains both functional inputs and `ckpt_clock` at 140 MHz. Run only on this
+manager after native F2 HDK setup. `audit_multiple_clocks` independently checks
+immutable VCS/native input agreement, every recorded word/domain label, the
+functional schedule, corruption stop, native DCP identity and all three clock
+constraints. Component evidence does not establish a Rocket FPGA image or
+hardware capture; complete integration, AFI and physical migration remain pending.
+
 Iteration 185 adds `separateAccessClock = true` to generated bank access. The
 root endpoint then uses a dedicated `ckpt_clock` while all functional storage
 and synchronous RAM read owners keep their original clocks. The descriptor

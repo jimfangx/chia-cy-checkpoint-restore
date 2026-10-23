@@ -10,9 +10,24 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 
 | Family | F2 workload / custom capture image | FPGA Level-1 to EDA metasim | FPGA Level-2 finite RTL replay | Live RTL / rolling hardware recovery |
 | --- | --- | --- | --- | --- |
-| Rocket (all four harts) | baseline verified: real F2, slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress (MMIO/CPU-DMA Widget, banks, actual retained DTLB and D-cache data array; complete Rocket integration pending) | pending | pending | pending |
+| Rocket (all four harts) | baseline verified: real F2, slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress (MMIO/CPU-DMA Widget, banks, explicit direct clock domains, actual retained DTLB and D-cache data array; complete Rocket integration pending) | pending | pending | pending |
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
+
+Iteration 186 adds explicit multiple direct functional clock domains to the
+separate-transport-clock bank generator, with independently checked per-instance
+root-clock provenance. EDA VCS checks all 15 words at each of four component cuts
+against unchanged original RTL and a functional-input model, including swapped
+children, split-clock RAMs, reset/write freeze, independent clock activity,
+response backpressure and frozen first-word corruption rejection. **5,483**
+checks pass across **352** functional steps; all four cuts retain complete
+per-domain edge labels and full VCD. Native localhost OOC synthesis uses **181
+LUTs / 79 registers**, with all three clocks constrained at 140 MHz; this is
+component evidence only. Complete Rocket/gated-clock/FAME/
+memory/host integration, checkpoint-image P&R/AFI, FPGA-produced paired images
+and real traces, all four active quad-hart cuts, CPU restores/finite/live
+comparison and rolling F2 recovery remain **pending**. Individual receipts and
+commands are under `automations/checkpoint_loop/runs/aws-f2/iteration186/`.
 
 Iteration 185 adds a separate always-running bank response clock and validates
 the actual retained Rocket D-cache data array: **64 512-byte RAMs + 64 read-data

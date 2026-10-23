@@ -20,13 +20,13 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 185,
-**in_progress**. Generated banks have an explicit separate transport-clock
-option, with checked clock/freeze provenance. The retained Rocket D-cache data
-array passes complete EDA bank readout with its functional clock stopped and
-native localhost component synthesis. Complete Rocket/FAME/memory/host
-integration, custom image/AFI, FPGA-origin checkpoints and CPU migration remain
-pending. See [fpga-capture-transport.md](fpga-capture-transport.md).
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 186,
+**in_progress**. Generated banks now accept explicitly traced multiple direct
+functional clock domains with a separate transport endpoint. Per-instance
+root-clock provenance is checked against actual emitted wiring. Complete
+Rocket/FAME/memory/host integration, custom image/AFI, FPGA-origin checkpoints
+and CPU migration remain pending. See
+[fpga-capture-transport.md](fpga-capture-transport.md).
 
 On October 23 the
 existing manager successfully launched one tagged `f2.6xlarge`, instance
@@ -87,6 +87,71 @@ pending the complete state network, bridge and host-owner implementation.
 Report individual nonempty files, including actual native manager logs and
 `results-workload/.../uartlog`, instead of directories. Keep original
 iteration-175 artifacts and failed-license receipts unchanged.
+
+## Iteration 186: explicit multiple direct functional clock domains
+
+`GeneratedStateBankAccess` supports multiple direct functional input clocks only
+with `separateAccessClock = true`. Registers, RAM ports and materialized
+synchronous pipelines keep their original clocks; child clocks must connect
+directly to a parent input. The binding records every functional clock port's
+root input, including swapped repeated children. Generation checks that
+specialization preserved this topology, and descriptor construction independently
+reconstructs it from the emitted circuit. Missing/reordered/changed provenance
+rejects. Derived/gated clocks, asynchronous resets and opaque owners still
+reject; no clock-domain handshake or common CPU cut is inferred. Callers must
+establish and hold freeze for all domains before access until responses drain.
+
+The new two-domain fixture has repeated swapped children, split-clock RAM
+read/write ports, independent reset/register owners and synchronous read-data
+owners: **9 entries / 15 words per cut**. Fresh EDA VCS passes **5,483**
+checks across **352** functional steps (**237 / 235** domain edges), complete
+15-word cuts at **6 / 43 / 126 / 223**, **180** response-stall cycles and
+**154** frozen adversarial edges per domain. All words and outputs match
+unchanged original RTL and an independent functional-input model. First-word
+corruption stops frozen before any completed read. Full debug VCD is retained.
+Native localhost Vivado 2025.2 OOC synthesis for the F2 part uses **181 LUTs /
+79 registers**, estimated setup slack **+6.298 ns** with all three clocks
+constrained at 140 MHz. This is component synthesis, not whole-image P&R/AFI.
+
+All **69 Scala / 286 checkpoint Python / 40 loop tests** pass, as does the full
+retained initialized/synchronous/wide-deep bank, top/network, Widget/transport/
+host/cut and native/VCS ASan/UBSan FCFS scope. FCFS retains **46** fresh
+continuations, **138** pre-edge owner comparisons, **296** matching MMIO calls,
+eight malformed fresh processes and **2,972** rejections per backend.
+Independent EDA audits verify every recorded new-fixture word/domain label
+and **48** immutable VCS/native evidence files; all **23** new receipt-metadata
+corruptions reject. Retained complete data-array/wide-deep/top audits pass,
+including **16** data-array metadata and **14** top evidence-tamper rejections.
+Results and independent evidence audits are recorded under
+`automations/checkpoint_loop/runs/aws-f2/iteration186/`; the final
+`summary.json` and `verification-commands.json` catalog executed checks and
+individual immutable receipts. Initial Scala fixture assertions used the
+pre-lowering reserved instance names `left` / `right`; the diagnostic logs are
+preserved, and the corrected test binds actual `left_` / `right_` names.
+
+Fresh AWS identity/type access succeeds. The initialized manager/AWS setup and
+exact Rocket recipe remain in use. Generated invocation overrides select disabled metasim, one tagged f2.6xlarge
+and ExternallyProvisioned `[localhost]`. No custom image, AFI, F2 capture,
+`.fsckpt`, `.rtlckpt` or hardware boundary trace is claimed this iteration.
+The retained exact-recipe donor remains the immutable iteration-184 FIRRTL,
+with its original hash/path preserved in `generation-provenance.json`. Final
+inventory confirms no owned runtime instance or native Vivado/Java build job.
+A read-only account AFI inventory now observes the unrelated MegaBoom request
+`afi-0cf1067195094a7f9` / `agfi-0545f60fbeffe7b02` available; it was not operated
+on as a loop resource. No AFI request was made by this iteration.
+
+Existing controller checkpoints were published FireSim first (`2f9b42dd`), then
+Chipyard (`58c88f47`); independently queried remote tips agree. Chipyard's local
+tracking-ref update reports a read-only filesystem after the successful push.
+The controller retains responsibility for local commits and subsequent pushes.
+
+Next: integrate actual gated/opaque clock owners and complete the simulator
+bank network without freezing MMIO/DMA/control; bind semantic pre-FAME state
+and common-cut functional-memory/host owners. Full Rocket localhost image
+synthesis/P&R, AFI/deployment, four active quad-hart hardware cuts, independent
+zero-edge CPU restores, finite/live CPU comparison and rolling F2 recovery
+remain pending. Native subagent startup failed before a worker started; all
+work remained in this central turn, with no outstanding delegated LLM work.
 
 ## Iteration 185: transport-clock bank endpoint and retained Rocket D-cache RAM
 

@@ -16,6 +16,7 @@ import zipfile
 from tools.checkpoint_formats.codec import require
 from tools.checkpoint_formats.tests.verify_clocked_effects_vcs import GENERATED, ROOT, SOURCES, sha
 from tools.checkpoint_formats.tests.verify_independent_clock_vcs import SOURCES as INDEPENDENT_SOURCES
+from tools.checkpoint_formats.tests.verify_multiple_clocks_vcs import SOURCES as MULTICLOCK_SOURCES
 
 
 def main():
@@ -30,21 +31,23 @@ def main():
     base.mkdir(parents=True, exist_ok=True)
     out = Path(tempfile.mkdtemp(prefix='clocked-vivado-', dir=base))
     for label, source, names in [('generated', args.generated.resolve(), GENERATED),
-                                  ('sources', ROOT, (*dict.fromkeys((*SOURCES, *INDEPENDENT_SOURCES)),
+                                  ('sources', ROOT, (*dict.fromkeys((*SOURCES, *INDEPENDENT_SOURCES, *MULTICLOCK_SOURCES)),
                                     'tools/checkpoint_formats/tests/synth_clocked_effects.py'))]:
         for name in names:
             target = out / label / name; target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source / name, target)
     generated = out / 'generated'
     root = json.loads((generated / 'generated-bank-manifest.json').read_text())['root_module']
-    require(root in ('EffectsStorage', 'DTLB', 'DCacheDataArray'), 'unexpected synthesis root')
+    require(root in ('EffectsStorage', 'DTLB', 'DCacheDataArray', 'MultiClockStorage'), 'unexpected synthesis root')
+    clocks = ('clock_a', 'clock_b', 'ckpt_clock') if root == 'MultiClockStorage' else ('clock',)
+    constraints = '\n'.join(f'create_clock -period 7.142857 [get_ports {clock}]' for clock in clocks)
     script = out / 'synth.tcl'
     script.write_text(f'''set_param general.maxThreads 4
 create_project -in_memory -part xcvu47p-fsvh2892-2-e
 read_verilog -sv {{{generated / 'generated-bank.sv'}}}
 synth_design -top {root} -part xcvu47p-fsvh2892-2-e -mode out_of_context
-create_clock -period 7.142857 [get_ports clock]
-if {{[llength [get_ports -quiet ckpt_clock]]}} {{ create_clock -period 7.142857 [get_ports ckpt_clock] }}
+{constraints}
+{'' if root == 'MultiClockStorage' else 'if {[llength [get_ports -quiet ckpt_clock]]} { create_clock -period 7.142857 [get_ports ckpt_clock] }'}
 opt_design
 report_utilization -file {{{out / 'utilization.rpt'}}}
 report_timing_summary -file {{{out / 'timing.rpt'}}}
