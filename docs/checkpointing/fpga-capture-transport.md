@@ -12,6 +12,48 @@ verification. FPGATop registration, complete Rocket ownership/mapping and
 physical checkpoint-image deployment are still required; these classes do not
 enable CPU admission by themselves.
 
+Iteration 179 adds `CheckpointCaptureDescriptors.fromGenerated`: complete
+ordered bindings and both reference/instrumented circuit hashes are checked
+against the independent inventory before one immutable descriptor set is
+constructed. `CheckpointCaptureDescriptorROM` returns invalid all-zero outputs
+for every out-of-range 32-bit ordinal. When Widget parameters include this
+descriptor set, its hash/count must match the transport and its internal ROM
+drives descriptor inputs; external descriptor pins have no authority in this
+mode. The existing external-descriptor mode remains a component interface.
+
+The same immutable descriptors generate host `checkpoint_capture_manifest_t`
+metadata (including exact little-endian digest bytes) and the actual
+`checkpoint_capture_t` registry constructor. Headers retain binding SHA256,
+StateIDs, MMIO base, stream allocation and transport source hashes. This joins
+transport/driver compatibility; it does not supply functional-memory or host
+snapshots, complete CPU ownership, or automatic checkpoint publication.
+
+`verify_generated_capture_network_vcs` checks actual generated banks connected
+to that ROM and Widget. No handwritten bank-data or descriptor source supplies
+the captured state. An independent functional-input oracle checks every word
+through reset/write freeze, DMA stalls, missing fixture owners and abort/reuse.
+Three cuts pass **1,014** checks, **48** bank reads, **49** decoder negatives
+and **2,940** ASan/UBSan host checks per cut. The exact generated C++ initializer
+validates the real VCS streams independently. Deliberate semantic bit corruption
+stops at the first state word at **C=30**, frozen before publication. This is
+finite component checking, not live CPU comparison. Full component VCD,
+canonical VCS-origin fixture images and original source/command receipts are in
+`runs/aws-f2/iteration179/network-vcs-final/generated-network-0fzl_g1v/`
+(relative to the loop). The native localhost bank/Widget-with-ROM synthesis
+reports **138 / 1,725 LUTs**, **67 / 692 registers**, and estimated setup slack
+**+6.298 / +4.425 ns** at 140 MHz for the F2 part. Full Rocket synthesis/P&R,
+AFI creation, deployment and hardware capture remain pending.
+
+After elaborating `CheckpointCaptureDescriptorsSpec` with
+`-Dcheckpoint.widget.out=DIR`, run on EDA:
+
+```bash
+source automations/checkpoint_loop/vcs-env.sh
+python3 -m tools.checkpoint_formats.tests.verify_generated_capture_network_vcs \
+  --generated DIR/generated-network \
+  --out automations/checkpoint_loop/runs/aws-f2/iteration179/network-reverify
+```
+
 The opt-in LowForm generator checks the entire current input inventory before
 specializing modules per instance. It reads actual registers and added logical
 asynchronous RAM ports, gates functional reset/update/write with `ckpt_freeze`,
@@ -51,8 +93,8 @@ therefore prevents reuse rather than contaminating a later snapshot. The
 bank must latch everything needed to return that response before accepting
 its request. Premature publication reports an MMIO error and fails frozen.
 
-The MMIO interface is a single-request adapter protocol with a backpressured
-response. It still needs a real FireSim control-bus adapter. Register addresses
+The transport's MMIO interface is a single-request protocol with a backpressured
+response; the global Widget adapts it to real FireSim NASTI. Register addresses
 are byte offsets, all transfers are 32 bits, and writes to read-only/unaligned
 addresses reject. Command values are exact, not composable bit masks.
 

@@ -10,9 +10,29 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 
 | Family | F2 workload / custom capture image | FPGA Level-1 to EDA metasim | FPGA Level-2 finite RTL replay | Live RTL / rolling hardware recovery |
 | --- | --- | --- | --- | --- |
-| Rocket (all four harts) | baseline verified: real F2, slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress (generated storage endpoint, NASTI/stream Widget and host transport components; whole-image integration pending) | pending | pending | pending |
+| Rocket (all four harts) | baseline verified: real F2, slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress (generated banks, manifest-bound ROM, NASTI/DMA Widget and matching host metadata pass finite component integration; whole-image integration pending) | pending | pending | pending |
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
+
+Iteration 179 joins actual generated register/RAM banks to an immutable,
+manifest-bound descriptor ROM and the real NASTI/DMA Widget. The ROM and host
+C++ metadata share one checked complete binding; generated constructors compile
+against production registry/driver types. Fresh EDA VCS passes **1,014** network
+checks, **48** bank reads and **82** DMA stall cycles at component cuts
+**C=30 / 60 / 134**. Each 16-word stream passes **49** decoder negatives and
+**2,940** ASan/UBSan host checks. A semantic bit flip stops at the first state
+word at **C=30**, frozen before publication. Missing fixture-owner rejection
+and counted abort/reuse pass. Full component waveforms are retained.
+All **48** Scala, **283** checkpoint Python and **40** local loop tests pass;
+retained full FCFS ASan/UBSan/VCS and bank/Widget/host/cut regressions pass.
+Local Vivado synthesizes the generated bank (**138 LUTs / 67 registers**) and
+Widget with ROM (**1,725 LUTs / 692 registers**), with estimated setup slack
+**+6.298 / +4.425 ns** at 140 MHz. This is out-of-context component synthesis.
+Receipts and exact per-cut commands are under
+`automations/checkpoint_loop/runs/aws-f2/iteration179/`, including
+`network-vcs-final/generated-network-0fzl_g1v/summary.json` and
+`retained-lig9qsoz/summary.json`. No checkpoint-enabled AFI, F2 capture, complete
+CPU restore/replay, live shadow or rolling hardware recovery is claimed.
 
 Iteration 178 adds generated real-register/RAM endpoint readout and freeze,
 global NASTI/StreamToHostCPU transport and a native MMIO/stream capture driver.

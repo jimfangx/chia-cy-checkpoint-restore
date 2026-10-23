@@ -20,11 +20,12 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 178,
-**in_progress**. Generated register/RAM bank endpoints, a global FireSim
-NASTI/stream Widget and a native host capture session now extend the synthesized
-transport; see [fpga-capture-transport.md](fpga-capture-transport.md). They still
-need complete Rocket/FAME/memory/host integration. No checkpoint-enabled AFI,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 179,
+**in_progress**. Manifest-bound descriptor ROMs and matching generated C++
+metadata now join generated register/RAM banks to the real NASTI/DMA Widget
+in a checked finite component network; see
+[fpga-capture-transport.md](fpga-capture-transport.md). They still
+need FPGATop registration and complete Rocket/FAME/memory/host integration. No checkpoint-enabled AFI,
 FPGA-origin checkpoint, CPU migration or sustained live CPU acceptance is
 claimed. The bring-up baseline below is retained hardware evidence.
 
@@ -87,6 +88,81 @@ pending the complete state network, bridge and host-owner implementation.
 Report individual nonempty files, including actual native manager logs and
 `results-workload/.../uartlog`, instead of directories. Keep original
 iteration-175 artifacts and failed-license receipts unchanged.
+
+## Iteration 179: manifest-bound ROM and generated-storage-to-DMA network
+
+`CheckpointCaptureDescriptors.fromGenerated` validates the complete independent
+inventory, generated bank bindings and exact instrumented circuit before
+constructing immutable descriptors. ROM lookup rejects invalid 32-bit ordinals
+without truncating them into valid entries. The same descriptors generate the
+host manifest initializer, little-endian digest bytes and the actual
+`checkpoint_capture_t` registry constructor. Generated-ROM mode checks the
+transport's hash/count and ignores external descriptor inputs. External-ROM
+component mode remains compatible; neither mode grants CPU admission.
+
+Fresh EDA VCS SP2 joins **actual generated storage**, the immutable ROM,
+NASTI Widget and DMA stream. Public functional inputs independently predict
+all **16 words / 9 entries** at component cuts **C=30 / 60 / 134**. The network
+passes **1,014** checks, **48** bank reads and **82** stalled DMA cycles, holds
+freeze against functional reset/writes, rejects a missing fixture owner and
+recovers after counted abort/drain. Every stream passes **49** decoder negatives
+and **2,940** native ASan/UBSan host checks. The generated constructor compiles
+against production registry/driver headers; the exact generated C++ initializer
+also independently validates all three streams. Component `.rtlckpt` images
+are explicitly **VCS-origin fixtures**, not F2 or CPU capture evidence.
+Deliberately flipping an actual bank-response bit stops the independent oracle
+at its first divergent word, **C=30**, with freeze held and no publication.
+This checks component state comparison, not CPU boundary-output comparison.
+The final network receipt is `network-vcs-final/generated-network-0fzl_g1v/summary.json`;
+full component visibility is retained in `network.vcd` beside it.
+
+Full Scala scope passes **48** tests in six suites. Retained EDA checks pass
+all **283** Python tests, generated-bank and existing Widget/transport/host
+regressions, the **82** cut-controller checks, and full FCFS native ASan/UBSan
+plus VCS (**46** continuations, **296** MMIO calls, **138** pre-edge owner
+comparisons, eight malformed fresh processes and **2,972** rejection checks
+per backend). All **40** local loop tests pass. The initial ROM probe used
+pruned internal ports; its corrected independently emitted probe checks every
+row and invalid alias. An initial backpressure testbench active-region race
+was fixed by moving readiness changes after sampling. Original failed logs
+remain intact. SP2 returned zero after the initial intentional `$fatal`;
+the final checker uses a process-exit-only DPI function to return **1** on
+failure, and the runner requires both the first-word diagnostic and that
+nonzero exit. This function never reads/writes DUT state or advances time.
+
+Native localhost Vivado 2025.2 synthesizes the actual generated bank and the
+Widget **with its internal ROM** for `xcvu47p-fsvh2892-2-e`: **138 LUTs / 67
+registers**, and **1,725 LUTs / 692 registers**, respectively. Estimated setup
+slack is **+6.298 / +4.425 ns** at 140 MHz; these are separate out-of-context
+components, not routed Rocket timing or an AFI. DCPs and native reports are in
+`runs/aws-f2/iteration179/components-vivado-6BI0vY/` (relative to the loop).
+
+Fresh AWS identity/type access passes. The new isolated exact-Rocket invocation
+reuses the installed self-checking workload and initialized manager YAMLs,
+with tag `checkpoint-f2-rocket-capture-179`, disabled metasim, one `f2.6xlarge`
+and ExternallyProvisioned `[localhost]`. No runtime or AFI was launched.
+Final scoped inventory confirms no runtime instance or native Vivado/Java job.
+Existing controller checkpoints were published FireSim first (`6c1b277c`),
+then Chipyard (`3b5cb16e`); independent remote tips agree. The successful
+Chipyard push again could not update its local read-only tracking ref.
+No plan, conda, archive, staging or local commit changes were made by this turn.
+Managed delegation failed before creating any worker; all implementation and
+verification were coordinated directly by the central agent.
+
+Evidence, exact raw commands, immutable source/generated inputs and original
+remote paths are under `automations/checkpoint_loop/runs/aws-f2/iteration179/`.
+`summary.json` catalogs individual nonempty artifacts and runnable commands;
+fresh EDA `audit-c9r6vh90/audit.json` independently verifies **43** files,
+current source hashes, all cut receipts, native DCP archive contents and
+the final inventory. The earlier arbitrary DCP-size audit assertion was
+replaced by archive CRC, actual top/part/OOC metadata and netlist/state checks.
+Next: register the global Widget/stream in FPGATop; support real Rocket
+synchronous/readwrite RAM pipelines, wide/deep state and annotation translation;
+generate complete independent simulator/semantic mappings; freeze/capture every
+FAME/channel/FASED, functional-memory and host owner. Full localhost image
+synthesis/P&R/AFI, F2 deployment and four active hardware cuts, FPGA-reference
+comparison, independent complete zero-edge restores, finite CPU replay,
+sustained live RTL/debug waveforms and rolling hardware recovery remain pending.
 
 ## Iteration 178: generated storage, real control/stream adapter and host capture
 
