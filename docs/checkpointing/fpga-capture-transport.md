@@ -1,5 +1,39 @@
 # FPGA capture transport component
 
+Iteration 180 adds opt-in `CheckpointCaptureTopKey` / `CheckpointCaptureTopBinding`.
+FPGATop registers the Widget on its real control interconnect and appends its
+stream after existing bridge streams before constructing the CPU stream
+engine. The binding executes after SimWrapper and bridge module construction,
+in the parent hardware context. A generated descriptor ROM is mandatory;
+owner, counter and bank ports have no default acknowledgements or tieoffs.
+Missing hardware connections fail FIRRTL initialization checking. Stock
+recipes keep capture disabled and complete CPU ownership remains unsupported.
+
+`CheckpointCaptureTopSpec` emits an explicit generated-storage fixture in the
+real FPGATop, alongside an existing diagnostic bridge stream. The EDA runner
+`verify_checkpoint_top_vcs` uses only public MMIO/AXI4 and functional ports.
+All **7,858** checks pass on **33** words at **C=109 / 167 / 305**, including
+**660** stalled DMA cycles, **1,926** frozen edges, a full two-frame stream
+FIFO, missing owners, reset/write freeze, abort/drain/reuse and independent
+access to the original stream. Each cut passes **66** decoder negatives and
+**5,532** ASan/UBSan host checks. The complete top-generated checkpoint registry
+constructor compiles against production headers. An actual bank-response bit
+flip stops at the first data word at **C=109** while frozen. Full fixture
+waveforms, source/generated hashes and raw logs are under
+`runs/aws-f2/iteration180/top-vcs-corrected/checkpoint-top-yxwt2f1i/`
+(relative to the loop). Native Vivado synthesizes this integrated fixture
+FPGATop at **3,528 LUTs / 1,383 registers**, estimated setup slack **+4.282 ns**
+at 140 MHz. This is out-of-context fixture synthesis, not a Rocket image.
+
+After elaborating `CheckpointCaptureTopSpec` with
+`-Dcheckpoint.widget.out=DIR`, run on EDA with `vcs-env.sh` sourced last:
+
+```bash
+python3 -m tools.checkpoint_formats.tests.verify_checkpoint_top_vcs \
+  --generated DIR/top/enabled \
+  --out automations/checkpoint_loop/runs/aws-f2/iteration180/top-reverify
+```
+
 Iteration 177 adds `CheckpointCaptureTransport.sv`, connected to the existing
 `CheckpointCaptureCut.sv`. This is a synthesized component with an EDA VCS
 fixture, **not a CheckpointBridge integrated into the Rocket FPGA image**.
@@ -206,10 +240,10 @@ native localhost synthesis uses `capture_components_synth.tcl`. Each runner
 retains exact sources/generated artifacts, raw commands and native logs under
 loop `runs/`. No fixture image is relabeled as FPGA origin.
 
-Next: insert generated access into the real compiler flow with complete
+Next: connect the registered FPGATop binding to the real compiler flow with complete
 independent simulator/semantic mappings and descriptor ROMs, support the real
 Rocket memory/width/annotation cases, connect global write/reset/token freeze,
-register the global Widget and its stream in FPGATop, and join complete
+and join complete
 functional-memory/FASED/host ownership. Then build the exact checkpoint-enabled
 Rocket recipe on localhost, create/bind AFI/AGFI and driver manifests, deploy
 and capture actual F2 execution at every required cut. FPGA-reference

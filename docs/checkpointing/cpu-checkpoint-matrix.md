@@ -10,9 +10,27 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 
 | Family | F2 workload / custom capture image | FPGA Level-1 to EDA metasim | FPGA Level-2 finite RTL replay | Live RTL / rolling hardware recovery |
 | --- | --- | --- | --- | --- |
-| Rocket (all four harts) | baseline verified: real F2, slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress (generated banks, manifest-bound ROM, NASTI/DMA Widget and matching host metadata pass finite component integration; whole-image integration pending) | pending | pending | pending |
+| Rocket (all four harts) | baseline verified: real F2, slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress (global Widget/stream registered in FPGATop; generated banks pass real MMIO/CPU-DMA fixture integration; complete Rocket integration pending) | pending | pending | pending |
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
+
+Iteration 180 registers the global manifest-bound Widget in FPGATop's actual
+MMIO interconnect and CPU DMA stream engine, preserving existing bridge stream
+indices. Unbound ROMs/ports reject. Fresh EDA VCS passes **7,858** checks on
+**33** generated fixture words at **C=109 / 167 / 305**, with **660** stalled
+DMA cycles and **1,926** frozen edges. Missing owners, full stream queues,
+reset/write freeze, abort/drain/reuse and first-data-word corruption rejection
+pass. Each cut passes **66** decoder negatives and **5,532** ASan/UBSan host
+checks; the actual top-generated constructor compiles. Full fixture VCD is
+retained. All **52** Scala / **283** checkpoint Python / **40** loop tests and
+retained FCFS, bank, Widget, transport/host and cut regressions pass.
+Native localhost Vivado synthesizes the integrated fixture FPGATop at
+**3,528 LUTs / 1,383 registers**, estimated setup slack **+4.282 ns** at
+140 MHz. This is out-of-context fixture synthesis. Commands, per-cut
+receipts/hashes and native logs are cataloged by
+`automations/checkpoint_loop/runs/aws-f2/iteration180/summary.json`.
+No checkpoint-enabled AFI, hardware-origin CPU image/trace, CPU restore,
+finite/live CPU comparison or rolling F2 recovery is claimed.
 
 Iteration 179 joins actual generated register/RAM banks to an immutable,
 manifest-bound descriptor ROM and the real NASTI/DMA Widget. The ROM and host

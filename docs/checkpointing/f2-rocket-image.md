@@ -1,12 +1,19 @@
 # Rocket checkpoint image implementation and build
 
-Current build preparation: `automations/checkpoint_loop/runs/aws-f2/iteration176/checkpoint-build/`.
+Current build preparation: `automations/checkpoint_loop/runs/aws-f2/iteration180/checkpoint-build/`.
 Original hardware baseline and initial synthesis: `automations/checkpoint_loop/runs/aws-f2/iteration175/`.
 This document is a proposed implementation sequence, not an image receipt.
 The stock Rocket public image is baseline-only. The existing
 `BankedStateAccess.scala` has explicit client ports but no generated Rocket
 bindings; `make/checkpoint.mk` currently admits only a VCS FCFS profile.
 Setting that profile on an F2/Rocket build must continue to reject.
+
+Iteration 180 registers an explicit manifest-bound global Widget/CPU DMA
+stream in FPGATop and verifies generated fixture register/RAM capture through
+the actual MMIO interconnect and stream engine. It remains disabled in this
+Rocket recipe: complete CPU compiler mappings, freeze and memory/host owners
+are still required. Fixture out-of-context synthesis is not a CPU image build.
+See [fpga-capture-transport.md](fpga-capture-transport.md).
 
 Preserve the exact Rocket recipe in `checkpoint-build/config_build_recipes.yaml`:
 `f2`, project `firesim`, design `FireSim`, QuadRocket target config,

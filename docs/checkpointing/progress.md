@@ -20,12 +20,12 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 179,
-**in_progress**. Manifest-bound descriptor ROMs and matching generated C++
-metadata now join generated register/RAM banks to the real NASTI/DMA Widget
-in a checked finite component network; see
-[fpga-capture-transport.md](fpga-capture-transport.md). They still
-need FPGATop registration and complete Rocket/FAME/memory/host integration. No checkpoint-enabled AFI,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 180,
+**in_progress**. FPGATop now registers the manifest-bound global capture
+Widget in its actual MMIO interconnect and CPU DMA stream engine, after the
+existing bridge streams. Generated fixture register/RAM state passes this
+integrated path; see [fpga-capture-transport.md](fpga-capture-transport.md).
+Complete Rocket/FAME/memory/host integration remains pending. No checkpoint-enabled AFI,
 FPGA-origin checkpoint, CPU migration or sustained live CPU acceptance is
 claimed. The bring-up baseline below is retained hardware evidence.
 
@@ -88,6 +88,74 @@ pending the complete state network, bridge and host-owner implementation.
 Report individual nonempty files, including actual native manager logs and
 `results-workload/.../uartlog`, instead of directories. Keep original
 iteration-175 artifacts and failed-license receipts unchanged.
+
+## Iteration 180: FPGATop registration and actual CPU DMA queues
+
+`CheckpointCaptureTopKey` is disabled in stock recipes. An explicit binding
+must provide immutable generated descriptors and wire all bank, cut-counter
+and owner ports in FPGATopImp's module context. There are no default owner
+acknowledgements. Missing ROM metadata rejects at construction; missing
+hardware connections reject during FIRRTL initialization checking. The Widget
+uses an InModuleBody sideband port, preserving its standalone RTL interface.
+FPGATop appends this global stream after target bridges, creates the normal
+stream-engine metadata/driver constructor, and checks endpoint membership.
+This extension does not grant CPU checkpoint admission.
+
+Fresh EDA VCS SP2 tests actual generated 64-bit register and 32-word RAM state
+through FPGATop's NASTI interconnect, the global Widget and CPUManagedStreamEngine
+AXI4 buffers/FIFOs. Public functional inputs independently predict all **33
+words** at fixture cuts **C=109 / 167 / 305**. All **7,858** checks pass,
+including **660** stalled DMA cycles, **1,926** frozen edges, a full two-frame
+FIFO, functional reset/writes during freeze, the existing stream retaining
+index zero and usable data, missing-owner rejection, abort/drain and capture
+reuse. Each stream passes **66** decoder negatives and **5,532** ASan/UBSan
+host checks; the actual top-generated registry constructor compiles against
+production headers. Corrupting an actual bank-response bit stops at the first
+data word at **C=109**, frozen before publication. Full fixture visibility is
+retained in `top.vcd`. Fixture `.rtlckpt` files are explicitly VCS-origin.
+
+All **52** Scala tests, **283** checkpoint Python tests and **40** local loop
+tests pass. The previous generated-bank/ROM network still passes **1,014**
+checks; retained bank, Widget, transport/host, **82** cut-controller and full
+FCFS ASan/UBSan plus VCS checks pass. FCFS retains **46** fresh continuations,
+**296** MMIO calls, **138** pre-edge owner comparisons, eight malformed fresh
+processes and **2,972** rejection checks per backend. Initial compile errors,+a negative-test Diplomacy scope leak and a W-before-AW testbench deadlock are
+preserved under this iteration; the corrected complete checks pass. The
+testbench offers both channels independently because the real interconnect
+needs AW routing before it can accept W.
+
+Native localhost Vivado 2025.2 synthesizes the integrated **fixture** FPGATop
+for `xcvu47p-fsvh2892-2-e`: **3,528 LUTs / 1,383 registers**, estimated setup
+slack **+4.282 ns** at 140 MHz. DCP and native reports are in
+`runs/aws-f2/iteration180/top-vivado-uMoTxd/` (relative to the loop).
+This is out-of-context synthesis, not Rocket synthesis/P&R or an AFI.
+
+Fresh AWS identity/type access passes. Isolated exact-Rocket configs reuse
+the initialized manager files and installed self-checking workload, with
+tag `checkpoint-f2-rocket-capture-180`, disabled metasim, one `f2.6xlarge`
+and ExternallyProvisioned `[localhost]`. No runtime or AFI was launched.
+Existing controller checkpoints were pushed FireSim first (`2b625e40`), then
+Chipyard (`e0fefc47`); independent remote tips agree. Chipyard's successful
+remote push again could not update its local read-only tracking ref.
+Managed delegation failed before creating any worker; all work was done by
+the central agent. Plans, conda files and the legacy archive were preserved;
+no staging or local commits were performed.
+
+Evidence and exact commands: `automations/checkpoint_loop/runs/aws-f2/iteration180/summary.json`.
+The passing top receipt is `top-vcs-corrected/checkpoint-top-yxwt2f1i/summary.json`;
+retained regressions are in `retained-pkwfe6xs/`. Original EDA paths remain in
+the native receipts. Fresh EDA `audit-abim2m10/audit.json` independently
+verifies **38** evidence files, current sources/generated inputs, all cut
+receipts, native DCP CRC/top/part/OOC metadata and final resource inventory.
+The final scoped inventory contains no runtime instance or remaining native
+Vivado/Java job. Next: connect the binding to real compiler-generated
+Rocket simulator/semantic mappings; support synchronous/readwrite RAM
+pipelines, wide/deep objects and annotation translation; freeze and capture
+all FAME/channel/FASED, functional-memory and host state. Full localhost
+image synthesis/P&R/AFI, F2 deployment and four active hardware cuts,
+FPGA-reference continuation, complete independent zero-edge restores, finite
+CPU replay, sustained live RTL/debug waveforms and rolling F2 recovery remain
+pending. Finite fixture capture does not complete these requirements.
 
 ## Iteration 179: manifest-bound ROM and generated-storage-to-DMA network
 
