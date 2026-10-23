@@ -20,7 +20,13 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-bringup-and-baseline`, iteration 176. On October 23 the
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 177,
+**in_progress**. The new synthesized bank/MMIO/DMA transport component is
+described in [fpga-capture-transport.md](fpga-capture-transport.md). It is not yet
+wired into the Rocket image; complete FPGA state capture and migration remain
+pending. The bring-up baseline below is retained hardware evidence.
+
+On October 23 the
 existing manager successfully launched one tagged `f2.6xlarge`, instance
 `i-04b9cc3f81f16b61f`, in `us-west-2`, private IP `192.168.1.203`, using AMI
 `ami-07a164f1a402ab274`. Its AWS tag is
@@ -79,6 +85,68 @@ pending the complete state network, bridge and host-owner implementation.
 Report individual nonempty files, including actual native manager logs and
 `results-workload/.../uartlog`, instead of directories. Keep original
 iteration-175 artifacts and failed-license receipts unchanged.
+
+## Iteration 177: synthesized bank/MMIO/DMA transport component
+
+Hardware milestone remains **in_progress**; the required retained FCFS
+regression is currently **blocked** on EDA's missing native sanitizer runtime:
+`/usr/bin/ld: cannot find /usr/lib64/libasan.so.6.0.0`. Do not omit that regression
+or claim CPU acceptance. Exact failing `/usr/bin/g++ ... -fsanitize=address,undefined
+... -lgmp` argv and native output are in
+`runs/aws-f2/iteration177/fcfs-regression-LLdYDi/native-build.log`.
+
+`CheckpointCaptureTransport.sv` now joins the existing atomic cut component
+to delayed logical bank requests, generated descriptor-ROM inputs, held MMIO
+responses and 512-bit DMA framing. It includes manifest/cut/selector/word
+labels, CRC32C, explicit descriptor/bank/padding failures, held freeze through
+publication and stale accepted-read draining after abort. It still needs real
+Rocket bank endpoints, global generated-state freeze, BridgeModule/control-bus
+and FireSim DMA integration, and complete memory/host owners. Both checkpoint
+levels remain independent. No checkpoint-enabled AFI/image build, F2 capture,
+CPU restore, finite/live CPU comparison, waveforms or rolling hardware
+recovery was performed. See [fpga-capture-transport.md](fpga-capture-transport.md).
+
+Evidence root: `automations/checkpoint_loop/runs/aws-f2/iteration177/`.
+Fresh EDA VCS SP2 transport verification under `transport-verified/` passes
+**1,294** checks, five healthy publications, 36 bank requests, 48 DMA stalls and
+228 MMIO stalls. The strict host codec rejects **39** damaged variants of its
+actual public-port stream before returning state. Its six-word fixture
+`.rtlckpt` is VCS/component-origin, not a hardware CPU checkpoint. Sources,
+manifests, exact argv, checksums and native logs are frozen in that invocation.
+Fresh localhost Vivado 2025.2/HDK setup and component synthesis pass with
+**2,055 LUTs / 423 registers**, estimated +4.816 ns setup slack at 140 MHz.
+This is out-of-context synthesis, not full-image P&R. The first HDK setup
+attempt used the wrong working directory; its log is retained, and the actual
+successful command sources `hdk_setup.sh` from the HDK repository directory.
+The complete native synthesis output is `transport-vivado-command.log`.
+An EDA return sync overwrote `transport-vivado.log` with its older input copy;
+that partial file is retained as diagnostic, not used as completion evidence.
+`eda.py fetch` now uses `rsync --update` to preserve newer local manager logs
+while still receiving new/newer EDA output; a real-rsync regression covers both.
+All six helper tests pass locally and in a fresh EDA invocation, including
+failure-result collection, control-file protection and concurrent log retention.
+
+All **283** Python tests pass on EDA Python 3.9 after replacing the unavailable
+`Path.hardlink_to` test helper with equivalent `os.link`; all **82** cut checks
+pass. The retained FCFS script first failed on missing `gmp.h` (`gmp-devel`
+is absent). A private matching GMP 6.2.0 source build and its full `make check`
+pass under `eda-gmp-WxqXPP/`, with archive hash/configuration/native logs. No
+system or Conda files were changed. For recovery source its `setup.sh`, then
+`vcs-env.sh` LAST; FCFS then reaches the linker and fails on the missing ASan
+runtime above. Initial Python-3.9/header failures and the stopped broad
+dependency probe are retained separately. No regression scope was reduced.
+
+Fresh manager/AWS access succeeds. New isolated exact-Rocket checkpoint
+configs in `checkpoint-build/` use ExternallyProvisioned `[localhost]`, local
+`build-host/`, one `f2.6xlarge`, tag `checkpoint-f2-rocket-capture-177`, disabled
+metasim and no invented AGFI. Final scoped AWS inventory has no instance for
+that tag, reconfirms the previous baseline instance terminated, and records no
+native Vivado/Java job. No AFI request was started. Existing controller-created
+commits were published FireSim first (`355cb7fe`), then Chipyard (`25acc5b5`);
+independent remote tips match. Chipyard's local tracking-ref update again failed
+read-only after its successful remote push. The controller owns subsequent
+staging/commits/publication. No worker was successfully started; the native
+subagent startup failed and the central agent performed this increment.
 
 ## Active F2 bring-up recovery
 

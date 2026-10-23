@@ -110,6 +110,31 @@ class EdaTests(unittest.TestCase):
                 self.assertEqual((local / eda.RUNS / "argv.txt").read_text(), argument)
 
     @unittest.skipUnless(shutil.which("rsync"), "rsync required")
+    def test_fetch_preserves_concurrent_manager_evidence_and_returns_new_remote_results(self):
+        with self.workspace() as (workspace, local, remote, _):
+            with workspace.locked():
+                local_log = local / eda.RUNS / "vivado.log"
+                local_log.write_text("synthesis started\n")
+                os.utime(local_log, (1700000000, 1700000000))
+                workspace.push()
+                # The manager continues writing after EDA receives its inputs.
+                local_log.write_text("synthesis started\nsynthesis completed\n")
+                os.utime(local_log, (1700000010, 1700000010))
+                result = remote / eda.RUNS / "fresh-eda.log"
+                result.write_text("new EDA result\n")
+                # Also check updates to an already returned EDA output.
+                local_result = local / eda.RUNS / "updated-eda.log"
+                local_result.write_text("old EDA result\n")
+                os.utime(local_result, (1700000000, 1700000000))
+                remote_result = remote / eda.RUNS / "updated-eda.log"
+                remote_result.write_text("newer EDA result\n")
+                os.utime(remote_result, (1700000010, 1700000010))
+                workspace.fetch()
+                self.assertEqual(local_log.read_text(), "synthesis started\nsynthesis completed\n")
+                self.assertEqual((local / eda.RUNS / "fresh-eda.log").read_text(), "new EDA result\n")
+                self.assertEqual(local_result.read_text(), "newer EDA result\n")
+
+    @unittest.skipUnless(shutil.which("rsync"), "rsync required")
     def test_unrelated_remote_directory_is_not_overwritten(self):
         with self.workspace() as (workspace, _, remote, _):
             remote.mkdir()

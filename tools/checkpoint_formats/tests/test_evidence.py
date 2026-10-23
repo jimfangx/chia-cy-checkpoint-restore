@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -64,7 +65,8 @@ class EvidenceTests(unittest.TestCase):
         alias = self.root / 'alias.json'
         alias.symlink_to(self.paths[0])
         hardlink = self.root / 'hardlink.json'
-        hardlink.hardlink_to(self.paths[0])
+        # EDA's native Python 3.9 predates Path.hardlink_to (Python 3.10).
+        os.link(self.paths[0], hardlink)
         for paths in ([self.paths[0]] * 2, [self.paths[0], alias], [self.paths[0], hardlink]):
             with self.subTest(paths=paths), self.assertRaises(FormatError):
                 self.select(paths)

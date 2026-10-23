@@ -123,11 +123,14 @@ class RemoteWorkspace:
             fcntl.flock(lock, fcntl.LOCK_EX)
             yield
 
-    def rsync(self, excludes: tuple[str, ...], *paths: str, delete: bool = False) -> None:
+    def rsync(self, excludes: tuple[str, ...], *paths: str, delete: bool = False,
+              update: bool = False) -> None:
         command = ["rsync", "-a", "--protect-args", "--stats",
                    "-e", shlex.join(["ssh", *SSH_OPTIONS])]
         if delete:
             command.append("--delete")
+        if update:
+            command.append("--update")
         for pattern in excludes:
             command.extend(["--exclude", pattern])
         self.checked([*command, *paths])
@@ -203,8 +206,12 @@ class RemoteWorkspace:
         return stream(self.command(argv, cwd), self.emit)
 
     def fetch(self) -> None:
+        # F2/Vivado logs may keep growing here while an EDA check is running.
+        # Its input snapshot must not overwrite newer manager-side evidence.
+        # Remote-created and newer remote results still return, including on
+        # simulation failure. Runs use unique paths; never relabel old output.
         self.rsync(CONTROL_EXCLUDES, f"{self.config.host}:{self.config.root}/{RUNS}/",
-                   str(self.root / RUNS) + "/")
+                   str(self.root / RUNS) + "/", update=True)
 
 
 def main() -> int:

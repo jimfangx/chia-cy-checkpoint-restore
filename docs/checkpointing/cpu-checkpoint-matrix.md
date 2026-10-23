@@ -10,9 +10,22 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 
 | Family | F2 workload / custom capture image | FPGA Level-1 to EDA metasim | FPGA Level-2 finite RTL replay | Live RTL / rolling hardware recovery |
 | --- | --- | --- | --- | --- |
-| Rocket (all four harts) | baseline verified: real F2, slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress (cut component synthesized, not integrated) | pending | pending | pending |
+| Rocket (all four harts) | baseline verified: real F2, slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress (cut + bank/MMIO/DMA transport components synthesized, not integrated) | pending | pending | pending |
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
+
+Iteration 177 component evidence: fresh EDA VCS SP2 passes **1,294** checks,
+five successful publications, **36** bank requests and DMA/MMIO backpressure.
+The host decoder rejects **39** corrupt/truncated/incompatible/incomplete
+variants of that actual component stream. Local Vivado 2025.2 synthesizes
+16-owner/1,024-entry transport for the F2 part with **2,055 LUTs / 423 registers**;
+post-synthesis estimated setup slack is **+4.816 ns** at 140 MHz. This is not
+place-and-route, an AFI, a Rocket checkpoint or a hardware-origin CPU restore.
+The new fixture `.rtlckpt` is explicitly component/VCS-origin. All four real
+Rocket cuts, source-FPGA references, independent complete CPU readbacks,
+finite replay, sustained live RTL shadow/waveforms and rolling F2 recovery
+remain **pending**. See [fpga-capture-transport.md](fpga-capture-transport.md)
+for protocol, remaining integration work and executable commands.
 
 ## Historical metasim and component progress
 
