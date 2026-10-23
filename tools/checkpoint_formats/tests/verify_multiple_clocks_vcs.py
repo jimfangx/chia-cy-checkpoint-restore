@@ -48,10 +48,13 @@ def bench(binding, manifest):
                  for row in binding['functional_clock_domains'])
     if static:
         require(forwarded, 'static metadata fixture must retain functional forwarding')
+        invalid = any('invalid_clock' in row for row in binding['functional_clock_domains'])
         for side, name, value in [('left_', 'zero', 0), ('right_', 'one', 1)]:
             for path in (f'{side}.metadata', f'{side}.metadata_out',
                          f'static_{name}.unused', f'static_{name}.forwarded'):
-                expected_domains.append(dict(clock_hierarchy='MultiClockStorage.' + path, constant_clock=value))
+                origin = (dict(invalid_clock=f'MultiClockStorage.static_{name}.unused') if invalid
+                          else dict(constant_clock=value))
+                expected_domains.append(dict(clock_hierarchy='MultiClockStorage.' + path, **origin))
         expected_domains.sort(key=lambda row: row['clock_hierarchy'])
     require(binding['functional_clock_domains'] == expected_domains, 'incomplete clock provenance')
     require(len(binding['state']) == len(manifest['state']) == 9, 'incomplete state')

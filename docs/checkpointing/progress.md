@@ -20,17 +20,19 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 190,
-**in_progress**. Bank clock provenance now distinguishes explicitly tied-off
-metadata pins from root clocks and rejects static origins on every functional
-register, memory port and clocked effect. Descriptors independently reconstruct
-that contract. All **83 Scala / 286 checkpoint Python / 40 loop tests**, the
-full retained EDA regression scope and **11** native component syntheses pass. The whole retained Rocket inventory
-remains **12,099 entries / 619,016 words**; generation now passes the previous
-constant-zero rejection and stops on PeekPoke's invalid dummy `tIO_clock` pin.
-Complete simulator/mapped-primitive/common-cut memory/host integration, custom
-AFI, physical capture and CPU migration remain pending. See
-[fpga-capture-transport.md](fpga-capture-transport.md).
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 191,
+**in_progress**. Explicitly invalid metadata clocks now preserve their exact
+hierarchical origin through transparent routes; every sequential consumer
+still rejects them. All **86 Scala / 286 checkpoint Python / 40 loop tests**
+and the complete retained EDA bank/transport/host/FCFS ASan/UBSan scope pass.
+The new fixture passes **5,483** VCS checks with complete independent word
+readback at four component cuts. All **12** native component syntheses and independent evidence
+audits pass, including **12** invalid-origin semantic corruptions and **23**
+invalid-fixture receipt corruptions. Whole retained Rocket generation clears PeekPoke's dummy
+pin and rejects a computed Clock-typed FAME token value, with no complete bank
+output published. Complete simulator/mapped-primitive/common-cut memory/host
+integration, custom AFI, physical capture and CPU migration remain pending.
+See [fpga-capture-transport.md](fpga-capture-transport.md).
 
 On October 23 the
 existing manager successfully launched one tagged `f2.6xlarge`, instance
@@ -91,6 +93,69 @@ pending the complete state network, bridge and host-owner implementation.
 Report individual nonempty files, including actual native manager logs and
 `results-workload/.../uartlog`, instead of directories. Keep original
 iteration-175 artifacts and failed-license receipts unchanged.
+
+## Iteration 191: explicitly invalid metadata clock origins
+
+`GeneratedStateBankAccess` retains explicit FIRRTL `is invalid` origins in
+`invalid_clock` rows instead of treating the pin as a functional root or
+silently removing it. Routing may pass through concrete aliases, transparent
+casts and repeated child IO. An absent driver still rejects; overlapping
+invalid/connected drivers reject. Registers, memory ports/pipelines, registered
+gate state and clocked effects cannot consume invalid clocks. Descriptors
+reconstruct origins and sequential consumers from the actual specialized
+circuit; changed bindings and rewired consumers with an updated circuit hash
+reject independently.
+
+The repeated-child fixture retains **9 owners / 15 words / 22 clock-port
+routes**, including **8** explicitly invalid metadata routes. All **86 Scala /
+286 checkpoint Python / 40 loop tests** pass. Fresh EDA VCS SP2 passes **5,483**
+checks, **60** word reads at steps **6 / 43 / 126 / 223**, frozen reset/write
+pressure, independent clocks, response backpressure, continuation and first-word
+corruption rejection with full debug VCD. The complete retained EDA bank/top/
+transport/host/FCFS sanitizer regression scope passes. The top separately passes
+**7,858** VCS checks using the native synthesis's exact immutable inputs.
+All **12** native component syntheses pass, including retained FASED (**759
+entries / 99,611 words**). The invalid metadata fixture uses **181 LUTs / 79
+registers**, estimated setup WNS **+6.298 ns** and hold WHS **+0.049 ns** at
+140 MHz. These are OOC component estimates with unconstrained external I/O;
+FASED retains **-0.299 ns** hold slack / **4,102** failing endpoints, and
+whole-image timing closure remains pending.
+
+Independent audits verify all 60 words, 22 routes, complete source/generated
+input identity and native DCPs. A healthy copied control passes before all
+**12** coherently rehashed invalid-origin semantic corruptions reject; all
+**23** invalid-fixture receipt corruptions and retained negative suites reject.
+The original EDA paths remain in receipts. Fresh AWS/localhost inventory records
+no invocation runtime instance or native Vivado/Java build job. No new AFI was
+requested. Commands and immutable receipts are cataloged in
+`runs/aws-f2/iteration191/summary.json` relative to the loop.
+
+Whole retained Rocket generation now clears
+`F1Shim.top.PeekPokeBridgeModule_0.hPort_dummyModule.tIO_clock`. Its exact dummy
+module has no state or internal references to that pin. The next probe exits
+**1** at `F1Shim.top.ClockBridgeModule_0.clockTokenGen.eq(timeToNextEdge_0,
+minStepsToEdge)`. This is a Clock-typed token-data route: FAME consumes its
+`asUInt` value for enable/fired-owner updates, while physical abstract gates
+retain `hostClock`. Computed token provenance remains unsupported; no arbitrary
+data expression has been admitted as a physical clock. Inventory remains
+**12,099 entries / 619,016 words / 21,005,343 logical bits / 2,300 instances**.
+Inputs remain the retained iteration-184 intermediate, not a freshly generated
+whole F2 image. Source excerpts, route analysis, hashes and raw failure are in
+`runs/aws-f2/iteration191/whole-rocket-probe.json` and
+`clock-probe-analysis.json`, relative to the loop.
+
+Next: represent computed Clock-typed token data explicitly while independently
+prohibiting it on sequential clocks; then complete actual simulator/pre-FAME,
+physical primitive and atomic memory/host integration before whole-image
+P&R/AFI and all active hardware cuts. FPGA paired zero-edge CPU restores,
+finite/live comparison and rolling recovery remain pending. Managed worker
+startup failed before a worker began; all work stayed central and no delegated
+requests remain. Both plan input hashes are unchanged. No staging, local
+commits, conda edits or history actions were performed. Existing controller
+checkpoints were pushed FireSim first (`e0737054`), then Chipyard (`29176ba4`);
+remote tips agree. The successful Chipyard remote push retained its read-only
+local tracking-ref update error. The final controller-created checkpoint still
+belongs to the controller's publication flow.
 
 ## Iteration 190: static metadata clock provenance
 

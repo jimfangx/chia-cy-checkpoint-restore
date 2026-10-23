@@ -10,9 +10,32 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 
 | Family | F2 workload / custom capture image | FPGA Level-1 to EDA metasim | FPGA Level-2 finite RTL replay | Live RTL / rolling hardware recovery |
 | --- | --- | --- | --- | --- |
-| Rocket (all four harts) | baseline verified: real F2, slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress (MMIO/CPU-DMA Widget, banks, clock provenance, exact registered-gate/FPGA-constant owners, retained FASED/DTLB/D-cache banks; static metadata clocks explicit; whole-root bank generation now rejects invalid PeekPoke dummy clock) | pending | pending | pending |
+| Rocket (all four harts) | baseline verified: real F2, slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress (MMIO/CPU-DMA Widget, banks, clock provenance, exact registered-gate/FPGA-constant owners, retained FASED/DTLB/D-cache banks; static/invalid metadata clocks explicit; whole-root bank generation now rejects computed Clock-typed FAME token data) | pending | pending | pending |
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
+
+Iteration 191 preserves explicit invalid metadata origins without fabricating
+functional clocks or dropping pins. Independent descriptor checks reject invalid
+origins on storage/RAM/effects, altered bindings and post-generation consumer
+rewiring. All **86 Scala / 286 checkpoint Python / 40 loop tests** and the full
+retained EDA bank/transport/host/FCFS ASan/UBSan scope pass. Fresh EDA VCS checks
+all 15 words at **6 / 43 / 126 / 223**, with **5,483** checks, 60 readouts,
+backpressure, frozen reset/write/clock pressure and first-word corruption stop.
+Full debug VCD is retained. All **12** native component syntheses and final
+independent audits pass, including **12** invalid-origin semantic corruptions
+and **23** receipt corruptions. The invalid fixture uses **181 LUTs / 79
+registers**, estimated WNS **+6.298 ns** / WHS **+0.049 ns** at 140 MHz.
+These are OOC estimates with unconstrained external I/O; FASED retains negative
+hold slack and whole-image timing remains pending. Top VCS passes **7,858**
+checks on exact native-synthesis inputs. This remains component evidence only. The whole retained probe clears
+the invalid PeekPoke dummy clock and exits **1** on computed Clock-typed token
+data from `ClockBridgeModule_0.clockTokenGen.eq(timeToNextEdge_0,
+minStepsToEdge)`. Inventory remains **12,099 entries / 619,016 words**; no
+complete bank output or custom checkpoint AFI is claimed. Raw diagnostic,
+exact inputs, route analysis and final verification catalog are under
+`runs/aws-f2/iteration191/summary.json` relative to the loop. Complete memory/host/physical owners, image P&R/AFI, all active F2
+cuts, paired CPU zero-edge restores, finite/live comparison and rolling
+hardware recovery remain **pending**.
 
 Iteration 190 binds exact zero/one metadata clock pins explicitly without
 inventing functional domains, and independently rejects static clocks feeding

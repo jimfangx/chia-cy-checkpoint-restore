@@ -1,5 +1,40 @@
 # FPGA capture transport component
 
+Iteration 191 adds explicit invalid metadata clock origins. A lowered FIRRTL
+`is invalid` driver stays an exact `invalid_clock` hierarchy string through
+transparent aliases/casts, one-bit IO and repeated children. It cannot become a
+functional root clock, static zero, or gate source. Missing drivers and multiple
+invalid/connected drivers reject. Every register, memory port/pipeline and
+clocked effect is independently checked at generation and descriptor
+reconstruction, including storage-clock rewiring with a refreshed circuit hash.
+No port or owner is removed to support this case.
+
+`MultipleFunctionalClocksSpec` emits `invalid-clocks`: **9 owners / 15 words /
+22 clock-port routes**, eight with explicit invalid provenance. Fresh EDA
+`verify_multiple_clocks_vcs` passes **5,483** checks / 60 word reads across the
+four complete component cuts, with original RTL plus public-input oracles,
+frozen clock/reset/write pressure, backpressure, continuation, debug VCD and
+first-word corruption stop. All **86 Scala / 286 checkpoint Python / 40 loop
+tests**, the full retained EDA sanitizer scope and all **12** native component
+syntheses pass. The invalid metadata fixture uses **181 LUTs / 79 registers**,
+estimated WNS **+6.298 ns** / WHS **+0.049 ns** at 140 MHz (OOC; external
+I/O unconstrained). Complete image timing remains pending; FASED retains
+negative hold slack. Independent audits verify all words/routes/source/DCPs.
+`verify_invalid_clock_audit` passes a healthy copied control and rejects all
+**12** coherently rehashed invalid-origin corruptions; the receipt suite rejects
+all **23** corruptions. Top VCS passes **7,858** checks on exact immutable native
+inputs. Final receipts and commands: `runs/aws-f2/iteration191/summary.json`.
+
+The whole retained Rocket probe clears the PeekPoke dummy pin. Its dummy module
+has no internal use of `tIO_clock`. The next rejection is a computed
+Clock-typed FAME token-data value from
+`ClockBridgeModule_0.clockTokenGen.eq(timeToNextEdge_0, minStepsToEdge)`.
+That route feeds `asUInt` enable/fired-owner data; it is not admitted as a
+functional clock. Complete bank output, simulator/physical/common-cut ownership,
+checkpoint image P&R/AFI, actual hardware capture and CPU migration remain
+pending. Retained-input hashes, raw probe failure, module excerpt and route
+analysis are under `runs/aws-f2/iteration191/` relative to the loop.
+
 Iteration 190 adds explicit static metadata clock provenance. Exact one-bit
 zero/one constants can pass through concrete clock aliases, casts, IO cells and
 repeated hierarchy, with `constant_clock` binding rows instead of invented root
