@@ -20,11 +20,12 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 180,
-**in_progress**. FPGATop now registers the manifest-bound global capture
-Widget in its actual MMIO interconnect and CPU DMA stream engine, after the
-existing bridge streams. Generated fixture register/RAM state passes this
-integrated path; see [fpga-capture-transport.md](fpga-capture-transport.md).
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 181,
+**in_progress**. Generated banks now expose and freeze synchronous RAM
+address/data pipeline owners, verified against unchanged passthrough RTL and
+an independent public-input oracle. FPGATop retains its actual MMIO/CPU DMA
+fixture checks. New execution audits bind private VCS/native synthesis
+snapshots; see [fpga-capture-transport.md](fpga-capture-transport.md).
 Complete Rocket/FAME/memory/host integration remains pending. No checkpoint-enabled AFI,
 FPGA-origin checkpoint, CPU migration or sustained live CPU acceptance is
 claimed. The bring-up baseline below is retained hardware evidence.
@@ -88,6 +89,65 @@ pending the complete state network, bridge and host-owner implementation.
 Report individual nonempty files, including actual native manager logs and
 `results-workload/.../uartlog`, instead of directories. Keep original
 iteration-175 artifacts and failed-license receipts unchanged.
+
+## Iteration 181: synchronous RAM owners and immutable execution audits
+
+`GeneratedStateBankAccess` materializes the exact FIRRTL passthrough memory
+pipeline owners already present in both independent inventories. New/undefined
+readers retain address state; old readers and old/undefined readwriters retain
+data state. RW data updates on enabled write edges, matching the passthrough
+emitter. Distinct physical register names bind back to unchanged logical
+StateIDs. Pipeline updates and RAM writes honor accepting-edge freeze; held
+responses survive abort/release. RW-new policies, collisions, unretargeted
+annotations, wide/deep state and derived clocks still reject explicitly.
+
+Fresh EDA VCS SP2 passes **21,970** checks, **454** reads, **1,816** response
+stall cycles and ten complete 45-word fixture cuts. Five RAM modes match
+unchanged reference RTL and an independent oracle over **2,905** observed
+edges / **202** functional edges. Full debug VCD is retained. Initial Scala
+trials and a reference trial using generic memory-delay lowering failed;
+the corrected reference uses the inventoried passthrough configuration.
+Original failed logs remain separate diagnostics under this iteration.
+
+All **54** Scala, **283** checkpoint Python and **40** loop tests pass. Fresh
+bank/Widget/transport-host/cut and full FCFS ASan/UBSan/VCS pass: 46 fresh
+continuations, 138 pre-edge comparisons, 296 matching MMIO calls, eight
+malformed fresh processes and 2,972 rejections per native/VCS backend.
+The ROM/Widget network retains 1,014 checks and three cuts. FPGATop retains
+7,858 checks at **C=109 / 167 / 305**, 66 decoder negatives and 5,532 sanitized
+host checks per cut, and first-word semantic rejection.
+
+Native localhost Vivado 2025.2 synthesizes the synchronous endpoint at
+**133 LUTs / 32 registers**, estimated setup slack **+6.087 ns** at 140 MHz;
+the integrated fixture top remains **3,528 LUTs / 1,383 registers**, **+4.282 ns**.
+Both are out-of-context component results, not Rocket image P&R or an AFI.
+The iteration-180 controller audit compared saved VCS execution with a later
+regenerated `FPGATop.v`; historical evidence remains unchanged. New durable
+`synth_checkpoint_top` / `audit_checkpoint_top` helpers require identical private
+VCS/native inputs and independently check current sources, actual execution,
+all cuts, native DCP CRC/top/part/OOC metadata and final resources. Fresh EDA
+audit passes; **14** evidence tamper cases reject, including DCP damage and
+wrong native identity with updated outer hashes. The synchronous/native and
+full retained evidence audit also passes. Exact commands and hashes are in
+`automations/checkpoint_loop/runs/aws-f2/iteration181/summary.json`.
+
+Fresh AWS identity/type access passes. Isolated exact-Rocket configs reuse
+initialized inputs and the installed workload with disabled metasim, one
+`f2.6xlarge`, tag `checkpoint-f2-rocket-capture-181`, and ExternallyProvisioned
+`[localhost]`. No runtime or AFI was launched. Final inventory reports no
+instances or native Vivado/Java jobs; existing account AFIs were observed
+read-only and left untouched. Existing controller checkpoints were pushed
+FireSim first (`1ed84c04`), then Chipyard (`b1751aa3`); remote tips agree.
+Chipyard's successful remote push could not update its read-only tracking ref.
+Delegation failed before creating any worker; all work was central. Plans,
+conda files and the legacy archive were preserved without staging or commits.
+
+Next: real Rocket compiler/FAME mappings, wide/deep state and annotation
+translation, complete channel/FASED/functional-memory/host freeze and capture,
+then full localhost image P&R/AFI and F2 deployment. Four hardware cuts,
+FPGA-reference continuation, complete independent zero-edge CPU restores,
+finite replay, sustained live RTL/debug waves and rolling F2 recovery remain
+pending. Component acceptance does not complete those requirements.
 
 ## Iteration 180: FPGATop registration and actual CPU DMA queues
 

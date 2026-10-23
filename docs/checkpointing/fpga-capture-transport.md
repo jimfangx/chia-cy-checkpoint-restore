@@ -1,5 +1,39 @@
 # FPGA capture transport component
 
+Iteration 181 materializes synchronous memory pipeline owners already present
+in both inventories: saved addresses for new/undefined readers, saved data for
+old readers and old/undefined readwriters. RW data updates on enabled write
+edges too, matching the actual passthrough emitter. Explicit physical pipeline
+names bind to unchanged logical StateIDs. Pipeline updates and RAM writes
+freeze together. Unsupported RW-new semantics and identifier collisions reject.
+
+`SynchronousStateBankSpec` emits unchanged reference RTL with the inventoried
+passthrough configuration and instrumented banks. Fresh EDA VCS passes
+**21,970** checks, **454** reads, **1,816** response-stall cycles and ten complete
+45-word fixture cuts. Every output matches that reference and an independent
+public-input oracle over **2,905** observed edges / **202** functional edges.
+Full debug VCD is retained. Native F2-part OOC synthesis passes at **133 LUTs /
+32 registers**, estimated setup slack **+6.087 ns** at 140 MHz. Evidence lives
+under `runs/aws-f2/iteration181/synchronous-vcs/synchronous-bank-m05mtez8/` and
+`runs/aws-f2/iteration181/synchronous-vivado-ody0cfps/` (relative to the loop).
+This is component evidence; complete Rocket hardware capture remains pending.
+
+New `synth_checkpoint_top` / `audit_checkpoint_top` helpers preserve private
+per-execution inputs and require exact VCS/native synthesis agreement. A later
+mutable elaboration cannot substitute for actual compiled inputs. Audits check
+current sources, execution, all cuts, sanitizer/negative logs, compile arguments,
+native DCP CRC/identity and resource inventory. Fresh EDA audit passes and all
+**14** `verify_checkpoint_top_audit` tamper cases reject. Historical iteration-180
+receipts and its failed mutable-output audit remain unchanged.
+
+After full Scala elaboration, run on EDA with `vcs-env.sh` sourced last:
+
+```bash
+python3 -m tools.checkpoint_formats.tests.verify_synchronous_bank_vcs \
+  --generated automations/checkpoint_loop/runs/aws-f2/iteration181/scala/bank/synchronous \
+  --out automations/checkpoint_loop/runs/aws-f2/iteration181/synchronous-reverify
+```
+
 Iteration 180 adds opt-in `CheckpointCaptureTopKey` / `CheckpointCaptureTopBinding`.
 FPGATop registers the Widget on its real control interconnect and appends its
 stream after existing bridge streams before constructing the CPU stream
@@ -93,7 +127,7 @@ specializing modules per instance. It reads actual registers and added logical
 asynchronous RAM ports, gates functional reset/update/write with `ckpt_freeze`,
 and returns registered responses held until consumption, even after release or
 abort. Dedicated `ckpt_reset` is independent of functional reset. State wider
-than 64 bits/deeper than 65,535 words, synchronous/readwrite RAM pipelines,
+than 64 bits/deeper than 65,535 words, unsupported readwrite RAM policies,
 opaque/derived-clock/analog state, side-effecting statements and annotations
 without explicit clone/rename support reject. Derived CombinationalPath caches
 are invalidated and recomputed. The generated simulator and semantic StateIDs

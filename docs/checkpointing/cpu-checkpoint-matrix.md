@@ -10,9 +10,25 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 
 | Family | F2 workload / custom capture image | FPGA Level-1 to EDA metasim | FPGA Level-2 finite RTL replay | Live RTL / rolling hardware recovery |
 | --- | --- | --- | --- | --- |
-| Rocket (all four harts) | baseline verified: real F2, slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress (global Widget/stream registered in FPGATop; generated banks pass real MMIO/CPU-DMA fixture integration; complete Rocket integration pending) | pending | pending | pending |
+| Rocket (all four harts) | baseline verified: real F2, slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress (global MMIO/CPU-DMA Widget and synchronous RAM pipeline banks pass fixture checks; complete Rocket integration pending) | pending | pending | pending |
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
+
+Iteration 181 adds complete synchronous RAM address/data pipeline owners to
+generated bank capture. Fresh EDA VCS SP2 passes **21,970** checks, **454** reads,
+ten complete 45-word fixture cuts and **2,905** observed edges / **202** functional
+edges against unchanged passthrough reference RTL plus an independent oracle.
+Native localhost OOC synthesis passes at **133 LUTs / 32 registers**, estimated
+setup slack **+6.087 ns** at 140 MHz; full fixture VCD and native DCP are retained.
+All **54** Scala / **283** checkpoint Python / **40** loop tests and complete
+retained FCFS/bank/Widget/transport-host/cut/network/top scope pass. Independent
+EDA audits bind private VCS/native synthesis inputs, complete cuts, native DCP
+identity and final resource inventory; all **14** evidence-tamper cases reject.
+The earlier mutable-generated-file audit failure is preserved historically.
+Exact commands, individual files and hashes are cataloged in
+`automations/checkpoint_loop/runs/aws-f2/iteration181/summary.json`.
+Full Rocket source integration/image P&R/AFI/deployment, FPGA-origin captures,
+CPU restores, finite/live CPU comparison and rolling recovery remain pending.
 
 Iteration 180 registers the global manifest-bound Widget in FPGATop's actual
 MMIO interconnect and CPU DMA stream engine, preserving existing bridge stream
