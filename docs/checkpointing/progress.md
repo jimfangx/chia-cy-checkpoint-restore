@@ -20,14 +20,14 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 183,
-**in_progress**. Generated banks now support explicit 64-bit chunking of wide
-logical state and transfer depths above 65,535. Logical StateIDs/shapes remain
-independent of flattened transport descriptors. The EDA wide/deep fixture and
-native localhost synthesis pass; complete Rocket/FAME/memory/host integration,
-checkpoint-enabled AFI, FPGA-origin checkpoints and CPU migration remain pending.
-The bring-up baseline below is retained hardware evidence. See
-[fpga-capture-transport.md](fpga-capture-transport.md).
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 184,
+**in_progress**. Generated banks now freeze synchronous print/stop/verification
+effects, accept clockless stateless helpers, validate child clock wiring and
+preserve specialized modules under an explicit no-dedup annotation policy.
+The retained exact Rocket DTLB subtree passes fresh EDA complete bank readout
+and native localhost component synthesis. Complete Rocket/FAME/memory/host
+integration, custom image/AFI, FPGA-origin checkpoints and CPU migration remain
+pending. See [fpga-capture-transport.md](fpga-capture-transport.md).
 
 On October 23 the
 existing manager successfully launched one tagged `f2.6xlarge`, instance
@@ -88,6 +88,56 @@ pending the complete state network, bridge and host-owner implementation.
 Report individual nonempty files, including actual native manager logs and
 `results-workload/.../uartlog`, instead of directories. Keep original
 iteration-175 artifacts and failed-license receipts unchanged.
+
+## Iteration 184: synchronous effects and actual Rocket DTLB bank integration
+
+The bank generator gates synchronous printf/stop/verification enables with the
+storage freeze and rejects derived effect/child clocks and analog state.
+Clockless stateless helpers route the network without inventing clock owners.
+Explicit `NoCircuitDedupAnnotation`, bound into annotation-policy hashes,
+prevents resolver deduplication from invalidating specialized clone contracts.
+
+All **64 Scala / 286 checkpoint Python / 40 loop tests** pass. Fresh EDA VCS SP2
+captures every one of the actual retained Rocket DTLB's **101** register words
+at **C=2 / 39 / 132** through public bank ports: **28,918** checks, **303** reads,
+**1,212** stalled response cycles and **173** functional edges. Every output and
+state word matches independently emitted original RTL. Full healthy VCD and
+bank-word logs remain separate from the first-word corruption run, which exits
+1 frozen at C=2 before any completed read. The effects fixture passes **226**
+checks, verifies **116** actual live printf messages with none frozen, preserves
+released stop and immediate-assertion reporting, and rejects semantic corruption.
+Native localhost Vivado OOC DTLB synthesis uses **3,084 LUTs / 1,859 registers**,
+estimated setup slack **+4.450 ns** at 140 MHz; effects storage uses **42 LUTs /
+20 registers**. The input is the hash-bound retained exact-recipe
+`post-sim-mapping.fir`, not newly generated full Rocket or FPGA state.
+
+The complete retained initialized/synchronous/wide-deep bank, FPGATop/network,
+Widget/transport/host/cut and FCFS native/VCS ASan/UBSan scopes pass. FCFS retains
+46 fresh continuations, 138 pre-edge owner comparisons, 296 matching MMIO calls,
+eight malformed processes and 2,972 rejections per backend. Independent new-component audits verify 52 effects and 44 DTLB files, including
+identical VCS/native generated inputs. Retained wide/deep and top audits verify
+107 / 92 files and each rejects all 14 evidence-tamper cases. Final inventory
+confirms no owned active run instance or native Vivado/Java build job.
+Raw compiler/runtime logs, full waveforms, source snapshots and exact commands are under
+`automations/checkpoint_loop/runs/aws-f2/iteration184/`.
+Initial Scala/parser/dedup trials, VCS obsolete-initializer/reserved-name errors
+and the immediate-assertion policy test failure are retained as diagnostics.
+
+Fresh AWS identity/type access passes. Isolated initialized-manager overrides
+use the exact Rocket recipe, disabled metasim, one f2.6xlarge, dedicated tag
+`checkpoint-f2-rocket-capture-184` and ExternallyProvisioned `[localhost]`.
+No F2 instance or AFI job was launched. Existing controller checkpoints were
+published FireSim first (`4b74c3ac`), then Chipyard (`f6cc3017`); the successful
+Chipyard push retains its read-only tracking-ref diagnostic. Managed delegation
+failed before creating a worker; all implementation stayed central.
+Plans, conda and legacy archive were preserved without staging or local commits.
+
+Next: integrate the actual Rocket/FAME multi-clock/opaque-clock/annotation
+contracts and complete simulator/channel/FASED/functional-memory/host ownership
+with the top binding; build/P&R the full checkpoint-enabled image on localhost,
+create AFI, deploy and capture all four active quad-hart cuts. Full zero-edge
+CPU restores, finite replay, sustained live RTL and rolling FPGA recovery remain
+pending. Component bank readout and synthesis do not establish those criteria.
 
 ## Iteration 183: wide/deep storage and versioned transport reconstruction
 

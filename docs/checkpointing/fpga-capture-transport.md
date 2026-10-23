@@ -1,5 +1,35 @@
 # FPGA capture transport component
 
+Iteration 184 adds a synchronous effect contract: `printf`, `stop` and FIRRTL
+verification retain their original clock/predicate/reporting behavior, with
+enables ANDed with `!ckpt_freeze`. Direct input clocks are required; derived
+effect clocks, asynchronous/opaque state and analog attachments still reject.
+A child clock must be driven directly by its parent's single clock. Stateless
+clockless modules can route the combinational bank network; they cannot hide
+independent clock domains. `NoCircuitDedupAnnotation` preserves instance clones
+through resolution and is included in the checked annotation-policy hashes.
+
+Fresh EDA VCS checks the retained exact Rocket recipe's actual DTLB subtree
+(17 specialized modules, 101 state words): three complete bank captures at
+**C=2 / 39 / 132**, **28,918** checks, **303** reads and **1,212** response-stall
+cycles. Every public output and every captured register matches independently
+emitted original RTL across **173** functional edges. The independent oracle
+reads reference storage; only synthesized public bank ports supply the capture.
+Full VCD, bank words and first-word corruption rejection are retained. A separate
+effects fixture checks accepting-edge reset/effect freeze, **116** actual
+functional print messages, stop after release and the immediate assertion's
+original reporting policy. Its negative observer terminates after that report;
+it does not reinterpret an immediate assertion as a fatal stop.
+
+Native localhost Vivado 2025.2 OOC synthesis of the DTLB bank uses **3,084 LUTs /
+1,859 registers**, estimated setup slack **+4.450 ns** at 140 MHz. The effects
+bank uses **42 LUTs / 20 registers**. These are component checks from a retained
+recipe intermediate, not fresh full-Rocket elaboration, a custom AFI, physical
+capture or CPU migration. Exact commands and provenance live under
+`automations/checkpoint_loop/runs/aws-f2/iteration184/`; both hardware checkpoint
+levels, traces, four workload cuts, CPU restores/live comparison and rolling
+F2 history remain pending.
+
 Iteration 183 adds wide/deep generated bank mapping. A logical state entry keeps
 its StateID, width and depth. For `chunks = ceil(width / 64)`, physical address
 `a * chunks + c` selects bits `[64*c +: min(64, width - 64*c)]` of logical address
@@ -218,7 +248,7 @@ asynchronous RAM ports, gates functional reset/update/write with `ckpt_freeze`,
 and returns registered responses held until consumption, even after release or
 abort. Dedicated `ckpt_reset` is independent of functional reset. State wider
 than 64 bits/deeper than 65,535 words, unsupported readwrite RAM policies,
-opaque/derived-clock/analog state, side-effecting statements and annotations
+opaque/derived-clock/analog state and annotations
 outside the explicit contracts above reject. Derived CombinationalPath caches
 are invalidated and recomputed. The generated simulator and semantic StateIDs
 remain separate. The fixture verifies 16 storage words; no whole-CPU coverage

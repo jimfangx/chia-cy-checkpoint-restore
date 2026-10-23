@@ -10,9 +10,24 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 
 | Family | F2 workload / custom capture image | FPGA Level-1 to EDA metasim | FPGA Level-2 finite RTL replay | Live RTL / rolling hardware recovery |
 | --- | --- | --- | --- | --- |
-| Rocket (all four harts) | baseline verified: real F2, slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress (MMIO/CPU-DMA Widget, synchronous/initialized and wide/deep bank fixtures; complete Rocket integration pending) | pending | pending | pending |
+| Rocket (all four harts) | baseline verified: real F2, slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress (MMIO/CPU-DMA Widget, bank fixtures and actual retained Rocket DTLB subtree; complete Rocket integration pending) | pending | pending | pending |
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
+
+Iteration 184 validates the actual retained Rocket DTLB subtree (17 specialized
+modules / 101 register words) through generated public bank readout and native
+localhost OOC synthesis. Complete cuts **C=2 / 39 / 132** pass **28,918** EDA VCS
+checks / **303** reads / **1,212** response-stall cycles against independent
+original RTL, with full VCD and first-word corruption stopped frozen at C=2.
+A separate effects fixture checks print/stop/assertion freeze and release.
+Native DTLB synthesis uses **3,084 LUTs / 1,859 registers**, estimated setup
+slack **+4.450 ns** at 140 MHz. This is a retained-recipe component, not a new
+Rocket image or hardware capture. Exact commands, per-cut words/hashes and
+original-source provenance are under
+`automations/checkpoint_loop/runs/aws-f2/iteration184/summary.json`.
+Both FPGA-produced image levels and boundary trace, every required active
+quad-hart cut, complete zero-edge CPU restores, finite/live CPU execution and
+rolling F2 recovery remain **pending**.
 
 Iteration 183 adds versioned wide/deep generated bank mapping, complete EDA
 fixture readout/reconstruction through production MMIO/DMA, and native localhost
