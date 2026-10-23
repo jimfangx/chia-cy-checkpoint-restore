@@ -20,14 +20,14 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 188,
-**in_progress**. Exact MIDAS registered-enable clock gates now have banked
-readout with independently reconstructed gate-chain provenance and preserved
-posedge/delta-cycle behavior. Conditional RAM clocks require the exact same
-port enable. The retained Rocket FASED subtree elaborates with 759 entries /
-99,611 transfer words. Validation is recorded below. Complete simulator,
-mapped-primitive, common-cut memory/host integration, custom AFI, physical
-capture and CPU migration remain pending. See
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 189,
+**in_progress**. Exact FPGA `plusarg_reader` synthesis constants now have an
+explicit preparation/instance-provenance contract, distinct from metasim
+init-only registers. The whole retained Rocket input inventories 12,099 entries /
+619,016 words, but complete bank generation still rejects FPGATop's constant-zero
+bridge clock pins. This is an actual compiler rejection, not hardware coverage.
+Complete simulator/mapped-primitive/common-cut memory/host integration, custom
+AFI, physical capture and CPU migration remain pending. See
 [fpga-capture-transport.md](fpga-capture-transport.md).
 
 On October 23 the
@@ -89,6 +89,69 @@ pending the complete state network, bridge and host-owner implementation.
 Report individual nonempty files, including actual native manager logs and
 `results-workload/.../uartlog`, instead of directories. Keep original
 iteration-175 artifacts and failed-license receipts unchanged.
+
+## Iteration 189: exact FPGA synthesis constants and whole-Rocket probe
+
+`GeneratedSynthesisConstantAdapter.prepare` explicitly selects the exact
+source-hashed Rocket plusarg model's `SYNTHESIS` branch before inventory.
+It validates WIDTH/DEFAULT/FORMAT/signature/source/circuit identity, materializes
+the real constant and binds every instance to the original circuit and model.
+Specialized annotations remain checked through descriptor construction, which
+rejects dropped/changed metadata and altered storage/output implementations.
+The default metasim inventory retains its independent `myplus` register and
+opaque-bank rejection. No metasim donor is silently converted to FPGA state.
+
+Fresh EDA VCS SP2 checks the independently emitted original Verilog with
+`+define+SYNTHESIS` and conflicting `+checkpoint_constant=99`: **608 checks**,
+**173 functional edges**, full reads at **2 / 39 / 132**, response backpressure,
+frozen resets/inputs, healthy completion and full VCD. Semantic corruption stops
+at the first frozen word at C=2. All **80 Scala / 286 checkpoint Python / 40 loop
+tests** and the complete retained EDA bank/top/transport/host/FCFS ASan/UBSan
+scope pass. The emitter's own resource side effect was fixed to keep the retained
+Verilog under `runs/`; its diagnostic and the initial missing probe-helper
+compiler error remain preserved.
+
+The first independent top audit rejected two different elaborations: a Scala
+regeneration changed the global widget namespace (`_2` versus `_1`) in both
+the RTL and generated host header. No comparison was relaxed. Fresh EDA top
+VCS now consumes the latest native synthesis's immutable `generated-snapshots`
+after checking every input hash; `eda-suite.sh` uses this same selection for
+reverification. The original failed audit and both original receipts remain
+unchanged (`top-input-mismatch.json` records the exact differing file hashes).
+
+All ten native localhost component synthesis checks pass, including retained
+FASED and the new synthesis-constant component (**84 LUTs / 66 registers**,
+estimated setup WNS **+6.232 ns**, hold WHS **+0.067 ns** at 140 MHz).
+These are OOC component estimates with unconstrained external I/O, not a
+whole-image timing result. Final AWS/localhost inventory confirms no invocation
+runtime instance or native Vivado/Java job; no new runtime or AFI was requested.
+The final full independent EDA audit passes, including all **16** new constant
+receipt/semantic corruptions and the retained bank/top/host/clock/gate audits.
+Its functional-input oracle independently reconstructs counter values
+**0 / 2,750,501 / 9,494,105** at the three component cuts. Commands, immutable
+execution receipts, native DCPs, complete debug VCDs and failed diagnostics are
+cataloged by `runs/aws-f2/iteration189/summary.json` relative to the loop.
+
+The explicit whole-root diagnostic inventories **12,099 entries / 619,016
+transfer words / 21,005,343 logical bits / 2,300 instances**, including seven
+source-bound synthesis-constant instances. It then **fails**, exit 1:
+`Generated checkpoint bank unsupported: derived, gated, or undriven clock/child
+clock at F1Shim.top.UInt<1>("h0")`. FPGATop ties bridge target-clock metadata
+pins to zero; no port/state was dropped to bypass the resolver. Raw command,
+failure, source hashes and prepared inputs are in
+`runs/aws-f2/iteration189/whole-rocket-probe.json` and its linked log. This input
+is the immutable retained iteration-184 exact-recipe intermediate, not freshly
+generated complete checkpoint hardware. Next: distinguish and validate unused
+static clock pins without accepting hidden constant-clock storage, then finish
+the real simulator/boundary integration and complete memory/host/primitive owners.
+
+Managed worker startup failed before a worker began; all work stayed central.
+Only controller-created checkpoints were pushed: FireSim `ae00311c`, then
+Chipyard `5c561701`; remote tips agree. The Chipyard tracking-ref update failed
+read-only after its remote push succeeded. Plans remain read-only, no staging,
+local commits, reset/clean or conda edits. Full image P&R/AFI, actual FPGA paired
+capture, CPU zero-edge restores, finite/live comparison and rolling F2 recovery
+remain pending; the milestone remains **in_progress**.
 
 ## Iteration 188: exact registered clock-gate owners and real FASED banks
 

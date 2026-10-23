@@ -10,9 +10,31 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 
 | Family | F2 workload / custom capture image | FPGA Level-1 to EDA metasim | FPGA Level-2 finite RTL replay | Live RTL / rolling hardware recovery |
 | --- | --- | --- | --- | --- |
-| Rocket (all four harts) | baseline verified: real F2, slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress (MMIO/CPU-DMA Widget, banks, transparent hierarchical clocks, exact registered-gate owners, retained FASED/DTLB/D-cache banks; complete Rocket integration pending) | pending | pending | pending |
+| Rocket (all four harts) | baseline verified: real F2, slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress (MMIO/CPU-DMA Widget, banks, clock provenance, exact registered-gate/FPGA-constant owners, retained FASED/DTLB/D-cache banks; whole-root bank generation rejects tied-off bridge clock pins) | pending | pending | pending |
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
+
+Iteration 189 explicitly materializes the exact source-bound FPGA plusarg
+`SYNTHESIS` constants, retaining original-circuit/parameter provenance through
+inventory and instance-specialized descriptors. Metasim `myplus` owners remain
+independent. Fresh EDA VCS original-model comparison passes **608 checks**,
+**173 functional edges**, complete component reads at **2 / 39 / 132** and
+first-word semantic corruption rejection, with full debug VCD. All **80 Scala /
+286 checkpoint Python / 40 loop tests** and the full retained EDA FCFS/fixture/
+host ASan/UBSan scope pass. All ten native localhost component synthesis checks
+pass; the new constant component uses **84 LUTs / 66 registers**, estimated
+setup WNS **+6.232 ns** / hold WHS **+0.067 ns** (OOC, unconstrained external I/O;
+not whole-image timing closure). Independent EDA audits pass, including all
+**16** new receipt/semantic corruptions; the top fixture uses exactly the native
+synthesis's immutable generated inputs after an initial elaboration mismatch
+was correctly rejected. The whole retained exact-recipe source inventories
+**12,099 entries / 619,016 transfer words**, then bank generation **fails** on
+FPGATop's constant-zero bridge target-clock pins. Inventory is not synthesized
+coverage. Raw failure, prepared manifests and commands are under
+`automations/checkpoint_loop/runs/aws-f2/iteration189/`. Complete generated and
+physical primitive mapping/common-cut memory/host coverage, image P&R/AFI,
+actual quad-hart FPGA capture, paired zero-edge CPU restores, finite/live
+comparison and rolling F2 recovery remain **pending**.
 
 Iteration 188 implements exact registered-enable gate ownership and conditional
 RAM-clock guard validation. The retained exact-recipe FASED subtree now emits

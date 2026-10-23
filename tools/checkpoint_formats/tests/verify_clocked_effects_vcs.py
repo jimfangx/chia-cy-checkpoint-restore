@@ -25,6 +25,7 @@ GENERATED = ('generated-bank-input.fir', 'generated-bank.fir', 'generated-bank.s
              'reference.sv', 'generated-bank-manifest.json', 'generated-bank-binding.json')
 SOURCES = ('sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedStateBankAccess.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedClockGateAdapter.scala',
+    'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedSynthesisConstantAdapter.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedStateBankAnnotations.scala',
            'sims/firesim/sim/midas/src/test/scala/midas/checkpoint/ClockedEffectsStateBankSpec.scala',
            'tools/checkpoint_formats/tests/verify_clocked_effects_vcs.py',
@@ -68,8 +69,12 @@ def bench(directory, binding, manifest):
         original = 'original.' + row['hierarchy'].removeprefix(root + '.')
         captures.append(f'read_word({row["bank"]}, {row["slot"]}, $unsigned({original}), {index});')
     effects = root == 'EffectsStorage'
-    adverse = 'eventEnable=1; fault=1;' if effects else 'io_sfence_valid=1; io_sfence_bits_rs1=1; io_sfence_bits_addr=0;'
-    restore = 'fault=0; eventEnable=0;' if effects else 'io_sfence_valid=0;'
+    constant = root == 'SynthesisConstantStorage'
+    if constant:
+        output_checks.append('check(fixed === 9\'d341, "exact FPGA synthesis default despite process plusarg");')
+    adverse = ('data=17\'h1abcd;' if constant else 'eventEnable=1; fault=1;' if effects else
+               'io_sfence_valid=1; io_sfence_bits_rs1=1; io_sfence_bits_addr=0;')
+    restore = 'data=0;' if constant else 'fault=0; eventEnable=0;' if effects else 'io_sfence_valid=0;'
     event_drive = 'eventEnable=(i%3==0);' if effects else ''
     fault_trial = """if ($test$plusargs("functional_stop") || $test$plusargs("functional_assert")) begin
     ckpt_freeze=1; fault=1; eventEnable=$test$plusargs("functional_assert");
@@ -108,6 +113,7 @@ endtask
 task tick;
   begin
     $display("EFFECTS_TICK frozen=%0d cycle=%0d",ckpt_freeze,edges);
+    {'if (!ckpt_freeze) $display("SYNTHESIS_CONSTANT_INPUT cycle=%0d reset=%0d data=%0d",edges,reset,data);' if constant else ''}
     #5; clock=1;
     if (!ckpt_freeze) begin if (!fault_test) reference_clock=1; edges++; end
     #1; clock=0; reference_clock=0; #4;
@@ -177,7 +183,11 @@ def main():
     require(base.is_relative_to(ROOT / 'automations/checkpoint_loop/runs'), 'evidence outside runs')
     base.mkdir(parents=True, exist_ok=True)
     out = Path(tempfile.mkdtemp(prefix='clocked-effects-', dir=base))
-    for label, source, names in [('generated', args.generated.resolve(), GENERATED), ('sources', ROOT, SOURCES)]:
+    constant = (args.generated / 'plusarg_reader.v').is_file()
+    generated_names = (*GENERATED, 'plusarg_reader.v', 'original-input.fir', 'original-annotations.json',
+                       'prepared-annotations.json') if constant else GENERATED
+    source_names = (*SOURCES, 'sims/firesim/sim/midas/src/test/scala/midas/checkpoint/SynthesisConstantBankSpec.scala') if constant else SOURCES
+    for label, source, names in [('generated', args.generated.resolve(), generated_names), ('sources', ROOT, source_names)]:
         for name in names:
             target = out / label / name
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -204,10 +214,12 @@ def main():
     code, _ = run([toolchain.VCS, '-full64', '-sverilog', '-timescale=1ns/1ps', '-Mupdate',
                    '-debug_access+all', '+vcs+initreg+random', '-top', 'checkpoint_effects_tb',
                    '-Mdir=' + str(out / 'csrc'), '-o', out / 'simv', snapshots / 'generated-bank.sv',
-                   snapshots / 'reference.sv', out / 'bench.sv', out / 'sources' / SOURCES[-1]], out, 'compile.log')
+                   snapshots / 'reference.sv', out / 'bench.sv', out / 'sources' / SOURCES[-1],
+                   *(['+define+SYNTHESIS', snapshots / 'plusarg_reader.v'] if constant else [])], out, 'compile.log')
     require(code == 0, f'VCS compile failed: {out / "compile.log"}')
     healthy = out / 'healthy'; healthy.mkdir()
-    code, text = run([out / 'simv', '-no_save', '+vcs+initreg+0'], healthy, 'run.log')
+    extra_args = ['+checkpoint_constant=99'] if constant else []
+    code, text = run([out / 'simv', '-no_save', '+vcs+initreg+0', *extra_args], healthy, 'run.log')
     match = re.search(r'CLOCKED_EFFECTS_PASS root=(\w+) checks=(\d+) edges=(\d+) reads=(\d+) stalls=(\d+)', text)
     require(code == 0 and match is not None, f'VCS simulation failed: {healthy / "run.log"}')
     require(int(match[3]) == 173 and int(match[4]) == len(binding['state']) * 3 and
@@ -223,7 +235,7 @@ def main():
     if match[1] == 'EffectsStorage':
         require(effect_count == 116, 'functional printf lost or duplicated')
     negative = out / 'semantic-negative'; negative.mkdir()
-    code, bad = run([out / 'simv', '-no_save', '+vcs+initreg+0', '+semantic_corrupt'], negative, 'run.log')
+    code, bad = run([out / 'simv', '-no_save', '+vcs+initreg+0', '+semantic_corrupt', *extra_args], negative, 'run.log')
     require(code == 1 and 'EFFECTS_FIRST_MISMATCH cycle=2 reads=0 frozen=1 state index=0' in bad and
             'CLOCKED_EFFECTS_PASS' not in bad, 'semantic corruption failed to stop at first frozen word')
     effect_negatives = []

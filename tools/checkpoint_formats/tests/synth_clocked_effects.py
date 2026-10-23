@@ -32,15 +32,20 @@ def main():
     base.mkdir(parents=True, exist_ok=True)
     out = Path(tempfile.mkdtemp(prefix='clocked-vivado-', dir=base))
     is_gate = (args.generated / 'AbstractClockGate.v').is_file()
-    for label, source, names in [('generated', args.generated.resolve(), GATE_GENERATED if is_gate else GENERATED),
+    is_constant = (args.generated / 'plusarg_reader.v').is_file()
+    generated_names = ((*GENERATED, 'plusarg_reader.v', 'original-input.fir', 'original-annotations.json',
+                        'prepared-annotations.json') if is_constant else GATE_GENERATED if is_gate else GENERATED)
+    for label, source, names in [('generated', args.generated.resolve(), generated_names),
                                   ('sources', ROOT, (*dict.fromkeys((*SOURCES, *INDEPENDENT_SOURCES, *MULTICLOCK_SOURCES, *GATE_SOURCES)),
-                                    'tools/checkpoint_formats/tests/synth_clocked_effects.py'))]:
+                                    'tools/checkpoint_formats/tests/synth_clocked_effects.py',
+                                    'sims/firesim/sim/midas/src/test/scala/midas/checkpoint/SynthesisConstantBankSpec.scala'))]:
         for name in names:
             target = out / label / name; target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source / name, target)
     generated = out / 'generated'
     root = json.loads((generated / 'generated-bank-manifest.json').read_text())['root_module']
-    require(root in ('EffectsStorage', 'DTLB', 'DCacheDataArray', 'MultiClockStorage', 'GateStorage'), 'unexpected synthesis root')
+    require(root in ('EffectsStorage', 'DTLB', 'DCacheDataArray', 'MultiClockStorage', 'GateStorage',
+                     'SynthesisConstantStorage'), 'unexpected synthesis root')
     clocks = ('clock_a', 'clock_b', 'ckpt_clock') if root == 'MultiClockStorage' else ('clock',)
     constraints = '\n'.join(f'create_clock -period 7.142857 [get_ports {clock}]' for clock in clocks)
     gate_constraints = '''if {[llength [get_pins -quiet gate/O]] != 1} { error "missing registered gate output" }

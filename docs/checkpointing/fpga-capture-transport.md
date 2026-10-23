@@ -1,5 +1,43 @@
 # FPGA capture transport component
 
+Iteration 189 adds `GeneratedSynthesisConstantAdapter.prepare`, an explicit
+FPGA-only preparation step **before** simulator inventory and bank generation.
+It accepts only the exact source-hashed Rocket `plusarg_reader` model, exact
+output signature and WIDTH/DEFAULT/FORMAT parameters. Its `SYNTHESIS` branch
+is a constant; its non-synthesis `myplus` register remains a separate metasim
+owner. The default inventory and opaque-owner rejection are unchanged.
+
+Preparation materializes the actual synthesis constant and retains a
+`SynthesisPlusArgConstantAnnotation` with source hash, original circuit hash
+and parameters. Simulator manifests bind every repeated instance explicitly.
+Bank specialization clones that annotation; descriptor construction checks
+the translated annotation hash and reconstructs each actual constant output,
+rejecting changed, dropped, duplicated or hidden owners. Keep the returned
+annotations with the circuit; never apply this preparation to a metasim donor.
+FPGA-to-metasim mapping of these different primitive implementations still
+requires explicit integration before CPU restore can be accepted.
+
+The new `SynthesisConstantBankSpec` emits an original reference with opaque
+plusarg instances plus their separately retained, exact Verilog source.
+`verify_clocked_effects_vcs` compiles that original model with
+`+define+SYNTHESIS` on EDA, runs with a conflicting `+checkpoint_constant=99`,
+and compares its default 341, functional execution and complete bank cuts.
+`audit_synthesis_constant` separately reconstructs every captured counter word
+from public functional inputs, checks native/EDA source identity and DCP, and
+`verify_synthesis_constant_audit` exercises receipt/semantic corruption.
+
+An explicit `midas/Test/runMain midas.checkpoint.RetainedRocketBankProbe`
+probe inventories the complete reachable retained exact-recipe circuit after
+this preparation: **12,099 entries / 619,016 transfer words / 21,005,343 logical
+bits / 2,300 instances**. Seven plusarg instances have explicit constant
+provenance. **Whole-root bank generation fails** at the constant-zero bridge
+clock pins wired by FPGATop; the resolver currently requires root input/gate
+clock provenance. Do not drop these ports or infer hidden-state coverage.
+The failing raw command, input manifests and compiler diagnostic are retained
+under `runs/aws-f2/iteration189/` relative to the loop. This is a source-bound
+inventory and component increment, not complete synthesized Rocket banks,
+a custom AFI, physical checkpoint capture or CPU migration acceptance.
+
 Iteration 188 adds a source-bound adapter for the exact MIDAS
 `DefineAbstractClockGate.impl`. Its enable register updates on posedge I;
 its output remains `I & enable`, including delta-cycle pulses when enable
