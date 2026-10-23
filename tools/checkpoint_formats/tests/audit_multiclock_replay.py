@@ -1,4 +1,5 @@
 """Audit original component state recurrence, images, event labels and VCS waves."""
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import json
 from pathlib import Path
@@ -138,7 +139,7 @@ def audit(summary_path):
     pids = []
     def native_log(path, argv=None, exit_code=0):
         text = path.read_text()
-        require('Y-2026.03-SP1_Full64' in text and text.rstrip().endswith('exit=' + str(exit_code)), 'missing actual native VCS execution')
+        require(_toolchain.VCS_VERSION in text and text.rstrip().endswith('exit=' + str(exit_code)), 'missing actual native VCS execution')
         if argv is not None:
             require(json.loads(text.split('argv=', 1)[1].splitlines()[0]) == argv, 'changed original native argv')
         pid = re.findall(r'fresh_process_pid=(\d+)', text)
@@ -163,8 +164,8 @@ def audit(summary_path):
             require(ckpt['event_phase']['rising_edges'][c] == sum(row['before'][c] == 0 and row['clock_levels'][c] == 1 for row in preceding),
                     'checkpoint lost an independent clock count')
         build = cut['build_command']
-        require(build[0] == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs' and '-full64' in build and
-                build[build.index('-cc') + 1] == '/usr/bin/gcc-13' and build[build.index('-cpp') + 1] == '/usr/bin/g++-13',
+        require(build[0] == _toolchain.VCS and '-full64' in build and
+                build[build.index('-cc') + 1] == _toolchain.CC and build[build.index('-cpp') + 1] == _toolchain.CXX,
                 'incompatible native compiler configuration')
         native_log(case / 'build.log', build)
         text = native_log(case / 'run.log', cut['argv'])

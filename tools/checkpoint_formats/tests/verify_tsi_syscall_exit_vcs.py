@@ -3,6 +3,7 @@
 Independent byte oracle plus installed FESVR dispatch differential. This does
 not admit a session, polling caller, complete HTIF context or CPU Level 1.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 import json
@@ -239,8 +240,8 @@ def audit(path):
     vcs_command=command_map[str(out/'vcs-build.log')]['argv']
     require(vcs_command[:2]==['bash','-lc'] and vcs_command[2].startswith(ENVIRONMENT),'unbound VCS environment')
     vcs=shlex.split(vcs_command[2][len(ENVIRONMENT):])
-    require(vcs[0]=='/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs' and '-full64' in vcs and
-            vcs[vcs.index('-cc')+1]=='/usr/bin/gcc-13' and vcs[vcs.index('-cpp')+1]=='/usr/bin/g++-13', 'wrong VCS/compiler configuration')
+    require(vcs[0]==_toolchain.VCS and '-full64' in vcs and
+            vcs[vcs.index('-cc')+1]==_toolchain.CC and vcs[vcs.index('-cpp')+1]==_toolchain.CXX, 'wrong VCS/compiler configuration')
     for c in r['commands']:
         log=Path(c['log']).read_text()
         require(log.rstrip().endswith('exit='+str(c['expected_exit'])), 'syscall process unfinished')
@@ -257,7 +258,7 @@ def main():
     p.add_argument('--recipe-build-identity',type=Path); a=p.parse_args()
     if a.audit: print(json.dumps(audit(a.audit),indent=2)); return
     require(a.out and a.out.resolve().is_relative_to(ROOT/'automations/checkpoint_loop/runs'), 'need runs output')
-    require(os.environ.get('VCS_HOME')=='/ecad/tools/synopsys/vcs/Y-2026.03-SP1' and os.environ.get('CXX')=='/usr/bin/g++-13', 'source vcs-env LAST')
+    require(os.environ.get('VCS_HOME')==_toolchain.VCS_HOME and os.environ.get('CXX')==_toolchain.CXX, 'source vcs-env LAST')
     a.out.resolve().mkdir(parents=True,exist_ok=True); out=Path(tempfile.mkdtemp(prefix='invocation-',dir=a.out.resolve()))
     source,sv=[TESTS/n for n in ('tsi_syscall_exit_fesvr.cc','tsi_syscall_exit_fesvr_tb.sv')]; alloc=TESTS/'tsi_terminal_allocations.cc'
     inputs=[Path(__file__),source,sv,alloc,PROVIDER,PROVIDER.with_suffix('.h'),

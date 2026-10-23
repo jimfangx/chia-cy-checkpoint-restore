@@ -1,4 +1,5 @@
 """Production functional-memory preparation/sealing; synthetic component scope."""
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import json
 import os
@@ -22,8 +23,8 @@ def main():
     parser.add_argument('--rocket-header', type=Path, required=True)
     a = parser.parse_args()
     require(a.out.resolve().is_relative_to(ROOT / 'automations/checkpoint_loop/runs'), 'need runs output')
-    require(os.environ.get('VCS_HOME') == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1' and
-            os.environ.get('CXX') == '/usr/bin/g++-13', 'source vcs-env LAST')
+    require(os.environ.get('VCS_HOME') == _toolchain.VCS_HOME and
+            os.environ.get('CXX') == _toolchain.CXX, 'source vcs-env LAST')
     header = a.rocket_header.resolve()
     require('.mem = AXI4Config{16, 34, 64}' in header.read_text() and
             '.mem_num_channels = 1' in header.read_text(), 'need exact Rocket memory geometry')

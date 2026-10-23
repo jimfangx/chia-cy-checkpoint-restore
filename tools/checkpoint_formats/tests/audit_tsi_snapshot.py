@@ -1,4 +1,5 @@
 """Independent bytes, owner membership, native process and source handoff audit."""
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import copy
 import itertools
@@ -65,7 +66,7 @@ def audit(path, report=None):
     identity_path = r['recipe_build_identity']; require(identity_path in bindings, 'unbound snapshot recipe')
     require(file_sha(identity_path) == bindings[identity_path]['sha256'], 'snapshot recipe changed')
     identity = json.loads(Path(identity_path).read_text())
-    require(identity['htif_lifecycle_provider_linked'] and identity['vcs_home'] == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'snapshot recipe provider')
+    require(identity['htif_lifecycle_provider_linked'] and identity['vcs_home'] == _toolchain.VCS_HOME, 'snapshot recipe provider')
     for p,h in identity['sources_sha256'].items():
         if p in bindings: require(bindings[p]['sha256'] == h, 'snapshot recipe/source mismatch')
     archive = Path(identity['native_binary']).parent/'checkpoint-fesvr/lifecycle/libfesvr-checkpoint.a'
@@ -109,7 +110,7 @@ def audit(path, report=None):
     for name in ('native-build','vcs-build'):
         c = commands.get(str(out/(name+'.log'))); require(c is not None, 'missing snapshot build'); command(c)
         args = shlex.split(c['argv'][2]); require(any(str(out/'libfesvr-checkpoint.a') in s for s in args), 'snapshot archive absent')
-        if name == 'vcs-build': require('/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs' in args and '-full64' in args, 'snapshot VCS release')
+        if name == 'vcs-build': require(_toolchain.VCS in args and '-full64' in args, 'snapshot VCS release')
     require(used == set(commands), 'unclassified snapshot command')
     return dict(status='passed', processes=4, owners=16, owner_readbacks=128, raw_rejections=64,
                 invalid_rejections=128, load_rejections=128, allocation_failures=allocation_failures,

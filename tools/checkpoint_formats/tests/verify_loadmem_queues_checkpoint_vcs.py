@@ -3,6 +3,7 @@
 The independent byte/queue oracle covers partial write drains, ordered requests
 and responses. Component labels are not Rocket target cycles or HTIF restores.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 from collections import deque
 import json
@@ -149,8 +150,8 @@ def main():
     if args.audit: print(json.dumps(audit(args.audit), indent=2)); return
     require(args.out is not None and args.out.resolve().is_relative_to(ROOT / 'automations/checkpoint_loop/runs'),
             'queue diagnostics must be under runs')
-    require(os.environ.get('VCS_HOME') == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1' and
-            os.environ.get('CXX') == '/usr/bin/g++-13', 'source vcs-env.sh LAST')
+    require(os.environ.get('VCS_HOME') == _toolchain.VCS_HOME and
+            os.environ.get('CXX') == _toolchain.CXX, 'source vcs-env.sh LAST')
     args.out.resolve().mkdir(parents=True, exist_ok=True)
     out = Path(tempfile.mkdtemp(prefix='invocation-', dir=args.out.resolve()))
     sources = [TESTS / 'loadmem_queues_checkpoint.cc']

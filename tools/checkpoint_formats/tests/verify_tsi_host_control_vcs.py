@@ -3,6 +3,7 @@
 An independent original-loop oracle checks every completed transition and word.
 Component operation labels are not Rocket target cycles or CPU acceptance.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import json
 import os
@@ -137,8 +138,8 @@ def main():
     if a.audit: print(json.dumps(audit(a.audit),indent=2)); return
     require(a.out is not None and a.out.resolve().is_relative_to(ROOT/'automations/checkpoint_loop/runs'),
             'diagnostics must be under runs')
-    require(os.environ.get('VCS_HOME')=='/ecad/tools/synopsys/vcs/Y-2026.03-SP1' and
-            os.environ.get('CXX')=='/usr/bin/g++-13','source vcs-env.sh LAST')
+    require(os.environ.get('VCS_HOME')==_toolchain.VCS_HOME and
+            os.environ.get('CXX')==_toolchain.CXX,'source vcs-env.sh LAST')
     parent=a.fesvr_summary.resolve() if a.fesvr_summary else None
     if parent: require(audit_fesvr(parent)['actual_fesvr_complete_host_checks']==68,'need complete actual images')
     a.out.resolve().mkdir(parents=True,exist_ok=True)

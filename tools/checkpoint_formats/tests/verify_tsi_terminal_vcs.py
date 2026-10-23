@@ -2,6 +2,7 @@
 
 This does not certify a coherent CPU cut, target-cycle replay or CPU admission.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import json
 import os
@@ -173,7 +174,7 @@ def main():
     if args.audit:
         print(json.dumps(audit(args.audit), indent=2)); return
     require(args.out and args.out.resolve().is_relative_to(ROOT/'automations/checkpoint_loop/runs'), 'need runs destination')
-    require(os.environ.get('VCS_HOME') == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1' and os.environ.get('CXX') == '/usr/bin/g++-13', 'source vcs-env LAST')
+    require(os.environ.get('VCS_HOME') == _toolchain.VCS_HOME and os.environ.get('CXX') == _toolchain.CXX, 'source vcs-env LAST')
     args.out.resolve().mkdir(parents=True, exist_ok=True)
     out = Path(tempfile.mkdtemp(prefix='invocation-', dir=args.out.resolve()))
     source = TESTS/'tsi_terminal_checkpoint.cc'; sv = TESTS/'tsi_terminal_checkpoint_tb.sv'

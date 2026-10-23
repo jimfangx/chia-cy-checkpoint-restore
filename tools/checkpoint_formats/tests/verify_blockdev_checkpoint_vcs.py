@@ -3,6 +3,7 @@
 The MMIO service is a deterministic component fixture. Its cycle labels are
 fixture labels, not captured Rocket target cycles; no CPU acceptance is inferred.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import json
 import os
@@ -114,8 +115,8 @@ def main():
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--prepared', action='store_true')
     args = parser.parse_args()
-    require(os.environ['VCS_HOME'] == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'source vcs-env.sh LAST')
-    require(os.environ['CXX'] == '/usr/bin/g++-13', 'keep GCC/G++ 13')
+    require(os.environ['VCS_HOME'] == _toolchain.VCS_HOME, 'source vcs-env.sh LAST')
+    require(os.environ['CXX'] == _toolchain.CXX, 'keep GCC/G++ 13')
     args.out.resolve().mkdir(parents=True, exist_ok=True)
     out = Path(tempfile.mkdtemp(prefix='native-', dir=args.out.resolve()))
     header = args.rocket_header.resolve()

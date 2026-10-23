@@ -1,4 +1,5 @@
 """Actual pthread dispatcher bootstrap; fixture MMIO/RTL, no full restart."""
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import json
 import os
@@ -19,7 +20,7 @@ def main():
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
     out = args.out.resolve(); out.mkdir(parents=True, exist_ok=True)
-    require(os.environ['VCS_HOME'] == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'source vcs-env.sh LAST')
+    require(os.environ['VCS_HOME'] == _toolchain.VCS_HOME, 'source vcs-env.sh LAST')
     sources = [TESTS/'dispatcher_checkpoint.cc', *[CC/p for p in (
         'core/simif.cc', 'core/simulation.cc', 'core/widget_registry.cc', 'core/widget.cc',
         'core/stream_engine.cc', 'core/bridge_driver.cc', 'core/driver_boundary_diagnostic.cc',

@@ -5,7 +5,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 source "$ROOT_DIR/env.sh"
 source "$ROOT_DIR/sims/firesim/env.sh"
-source "$ROOT_DIR/automations/checkpoint_loop/vcs-env.sh"
+# This host manages AWS F2. VCS and its licenses stay on EDA; f2.py sources
+# sourceme-manager.sh only for manager-side commands.
 set -u
 
 # The Chia checkout is a sibling of this Chipyard checkout on this machine.

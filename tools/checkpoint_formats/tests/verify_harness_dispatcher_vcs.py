@@ -3,6 +3,7 @@
 This verifies publication and input refresh at the low-clock cut. It does not
 load .fsckpt or certify the production FCFS driver/full runtime.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import json
 import os
@@ -29,7 +30,7 @@ def main():
     parser.add_argument('--aggregate', action='store_true', help='bound fixture-profile .fsckpt and all-owner prevalidation')
     parser.add_argument('--creator-reservation', action='store_true', help='prepare on the reserved eventual driver under the pre-edge hold')
     args=parser.parse_args();out=args.out.resolve();out.mkdir(parents=True,exist_ok=True)
-    require(os.environ['VCS_HOME']=='/ecad/tools/synopsys/vcs/Y-2026.03-SP1','source vcs-env.sh LAST')
+    require(os.environ['VCS_HOME']==_toolchain.VCS_HOME,'source vcs-env.sh LAST')
     generated=args.build.resolve()/'f2/f2-midasexamples-InventoryFixture-NoConfig-DefaultF2Config'
     verilog=ROOT/'sims/firesim/sim/midas/src/main/verilog';cc=ROOT/'sims/firesim/sim/midas/src/main/cc'
     manifest=json.loads((generated/'FireSim-generated.simulator-state.json').read_text())

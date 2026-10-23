@@ -1,4 +1,5 @@
 """Actual simulation_t base lifecycle continuation; no whole FireSim restart."""
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import json
 import os
@@ -42,8 +43,8 @@ def main():
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
     out = args.out.resolve(); out.mkdir(parents=True, exist_ok=True)
-    require(os.environ['VCS_HOME'] == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'source vcs-env.sh LAST')
-    require(os.environ['CXX'] == '/usr/bin/g++-13', 'keep system GCC/G++ 13')
+    require(os.environ['VCS_HOME'] == _toolchain.VCS_HOME, 'source vcs-env.sh LAST')
+    require(os.environ['CXX'] == _toolchain.CXX, 'keep system GCC/G++ 13')
     sources = [TESTS / 'simulation_checkpoint.cc', *[CC / path for path in (
         'core/simulation.cc', 'core/widget_registry.cc', 'core/widget.cc',
         'core/stream_engine.cc', 'core/bridge_driver.cc', 'bridges/master.cc',

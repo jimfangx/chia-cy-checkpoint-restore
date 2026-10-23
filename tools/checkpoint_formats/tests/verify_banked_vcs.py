@@ -4,6 +4,7 @@ Source both repository environments and vcs-env.sh LAST before running.
 Diagnostics and generated bindings are written only under --out.
 """
 
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import hashlib
 import json
@@ -164,7 +165,7 @@ def main():
     build, out = args.build.resolve(), args.out.resolve()
     out.mkdir(parents=True, exist_ok=True)
     vcs = Path(os.environ["VCS_HOME"]) / "bin/vcs"
-    require(str(vcs) == "/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs", "source vcs-env.sh LAST")
+    require(str(vcs) == _toolchain.VCS, "source vcs-env.sh LAST")
     make = ["make", "DESIGN=InventoryBankedFixture", "TARGET_CONFIG=NoConfig", "PLATFORM_CONFIG=DefaultF2Config",
             "SEMANTIC_CHECKPOINT_ROOT=InventoryBankedFixture.dut", f"BUILD_DIR={build}"]
     sim_dir = ROOT / "sims/firesim/sim"

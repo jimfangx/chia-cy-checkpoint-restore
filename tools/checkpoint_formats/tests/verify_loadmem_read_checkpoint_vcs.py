@@ -3,6 +3,7 @@
 An independent original-loop oracle audits complete owner/queue readback and
 every continuation. These component cuts do not establish CPU acceptance.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import json
 import os
@@ -175,8 +176,8 @@ def main():
         print(json.dumps(audit(args.audit), indent=2)); return
     require(args.out is not None and args.out.resolve().is_relative_to(ROOT / 'automations/checkpoint_loop/runs'),
             'diagnostics must be under checkpoint runs')
-    require(os.environ.get('VCS_HOME') == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1' and
-            os.environ.get('CXX') == '/usr/bin/g++-13', 'source vcs-env.sh LAST')
+    require(os.environ.get('VCS_HOME') == _toolchain.VCS_HOME and
+            os.environ.get('CXX') == _toolchain.CXX, 'source vcs-env.sh LAST')
     args.out.resolve().mkdir(parents=True, exist_ok=True)
     out = Path(tempfile.mkdtemp(prefix='invocation-', dir=args.out.resolve()))
     sources = [TESTS / 'loadmem_read_checkpoint.cc']

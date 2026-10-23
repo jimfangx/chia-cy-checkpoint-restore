@@ -5,6 +5,7 @@ profiles remain rejected until their complete runtime owners have been audited.
 The manager resolves TARGET_PROJECT_MAKEFRAG relative to the FireSim directory,
 whereas a direct Make invocation runs in its sim subdirectory.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import hashlib
 import json
@@ -64,7 +65,7 @@ def native_build_command(settings, build, goal, *, semantic_root=None, htif_sour
         require(type(semantic_root) is str and semantic_root, 'explicit pre-FAME root required')
         args += ['SEMANTIC_BRIDGE_CHECKPOINT_ROOT=' + semantic_root]
     if goal == 'vcs':
-        args += ['VCS=/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs -full64',
+        args += ['VCS=' + _toolchain.VCS + ' -full64',
                  'VCS_FLAGS=-Mupdate', 'VCS_FORCE_REBUILD=1']
     args += [goal]
     cache = build.parent / 'coursier-cache'

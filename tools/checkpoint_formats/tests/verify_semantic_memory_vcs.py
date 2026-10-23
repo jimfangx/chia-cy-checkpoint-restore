@@ -3,6 +3,7 @@
 This is compiler/component evidence, not a CPU acceptance test. Source env.sh,
 sims/firesim/env.sh and vcs-env.sh LAST before invoking this module.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import copy
 import hashlib
@@ -73,7 +74,7 @@ def main():
     build, out = args.build.resolve(), args.out.resolve()
     out.mkdir(parents=True, exist_ok=True)
     vcs = Path(os.environ['VCS_HOME']) / 'bin/vcs'
-    require(str(vcs) == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs', 'source vcs-env.sh LAST')
+    require(str(vcs) == _toolchain.VCS, 'source vcs-env.sh LAST')
     make = ['make', f'DESIGN={DESIGN}', 'TARGET_CONFIG=NoConfig', 'PLATFORM_CONFIG=DefaultF2Config',
             f'SEMANTIC_CHECKPOINT_ROOT={DESIGN}.dut', f'BUILD_DIR={build}']
     sim_dir = ROOT / 'sims/firesim/sim'

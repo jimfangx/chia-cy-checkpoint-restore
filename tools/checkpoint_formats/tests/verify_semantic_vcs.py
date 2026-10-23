@@ -4,6 +4,7 @@ Run from Chipyard root after sourcing env.sh, sims/firesim/env.sh, and
 automations/checkpoint_loop/vcs-env.sh LAST. All diagnostics go under --out.
 """
 
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import copy
 import json
@@ -71,7 +72,7 @@ def main():
     build, out = args.build.resolve(), args.out.resolve()
     out.mkdir(parents=True, exist_ok=True)
     vcs = Path(os.environ["VCS_HOME"]) / "bin/vcs"
-    require(str(vcs) == "/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs", "source vcs-env.sh LAST")
+    require(str(vcs) == _toolchain.VCS, "source vcs-env.sh LAST")
     design = "ForwardedClockInventoryFixture" if args.forwarded_clocks else "InventoryFixture"
     root_option = "SEMANTIC_BRIDGE_CHECKPOINT_ROOT" if args.forwarded_clocks else "SEMANTIC_CHECKPOINT_ROOT"
     configuration = design + "-NoConfig-DefaultF2Config"

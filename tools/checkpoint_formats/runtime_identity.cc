@@ -82,15 +82,18 @@ std::map<std::string,std::array<uint8_t,32>> elf_records(const std::vector<uint8
 }
 
 void checkpoint_vcs_runtime_warmup() {
-  constexpr const char *release="/ecad/tools/synopsys/vcs/Y-2026.03-SP1";
   const char *home=std::getenv("VCS_HOME");
-  require(home && std::string(home)==release, "unsupported VCS_HOME for diagnostic warmup");
+  require(home && (std::string(home)=="/ecad/tools/synopsys/vcs/Y-2026.03-SP1" ||
+                   std::string(home)=="/tools/Synopsys/vcs/Y-2026.03-SP2"),
+          "unsupported VCS_HOME for diagnostic warmup");
+  static const std::string release=home;
+  require(std::string(home)==release, "unsupported VCS_HOME for diagnostic warmup");
   // VCS opens these tables on its first diagnostic (including healthy $finish).
   // Load exact absolute files, never an environment-selected search-path alias.
   // Do not close them: capture and fresh restore must retain the same ELF set
   // through finalization. current_identity() hashes both files and dependencies;
   // no library is excluded and no identity is refreshed after construction.
-  static const auto handles=[release] {
+  static const auto handles=[] {
     std::array<void *,2> result{};
     unsigned i=0;
     for(const char *name:{"liberrindex.so", "libsystemcerror.so"}) {

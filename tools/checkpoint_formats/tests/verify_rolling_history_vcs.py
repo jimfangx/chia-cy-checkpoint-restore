@@ -5,6 +5,7 @@ periodic capture runtime. SIGSTOP is an external late worker-stall injection.
 This establishes retained-image replay/host detection, not full M5 acceptance.
 Run after sourcing vcs-env.sh LAST. All new evidence is written under --out.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import hashlib
 import json
@@ -98,7 +99,7 @@ def main():
     parser.add_argument('--production', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
-    require(os.environ.get('VCS_HOME') == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'source vcs-env.sh LAST')
+    require(os.environ.get('VCS_HOME') == _toolchain.VCS_HOME, 'source vcs-env.sh LAST')
     production = args.production.resolve()
     args.out.mkdir(parents=True, exist_ok=True)
     out = Path(tempfile.mkdtemp(prefix='invocation-', dir=args.out.resolve()))

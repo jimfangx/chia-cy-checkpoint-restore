@@ -4,6 +4,7 @@ Source both env.sh files then vcs-env.sh LAST. Checks sanitized native execution
 and fresh VCS DPI processes against an independent byte/transaction scoreboard.
 All diagnostic files are written to --out under checkpoint_loop/runs.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import json
 import os
@@ -101,9 +102,9 @@ def main():
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=True)
     vcs = Path(os.environ["VCS_HOME"]) / "bin/vcs"
-    require(str(vcs) == "/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs", "source vcs-env.sh LAST")
+    require(str(vcs) == _toolchain.VCS, "source vcs-env.sh LAST")
     cxx = os.environ["CXX"]
-    require(cxx == "/usr/bin/g++-13", "keep CXX from vcs-env.sh")
+    require(cxx == _toolchain.CXX, "keep CXX from vcs-env.sh")
     sources = [TESTS / "memory_checkpoint.cc", CC / "emul/mm.cc"]
     native = out / "memory-native"
     run([cxx, "-std=c++17", "-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter",

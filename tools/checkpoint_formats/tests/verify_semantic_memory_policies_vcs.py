@@ -5,6 +5,7 @@ capture state/trace, then restore into independent ordinary VCS processes.
 The undefined-reader policy is checked here because GG resolves that policy
 to read-first; unchanged-hierarchy metasim mapping must reject that change.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import hashlib
 import json
@@ -24,7 +25,7 @@ def main():
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=True)
     vcs = Path(os.environ['VCS_HOME']) / 'bin/vcs'
-    require(str(vcs) == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs', 'source vcs-env.sh LAST')
+    require(str(vcs) == _toolchain.VCS, 'source vcs-env.sh LAST')
     ops = [(1, 1, i, 0x100 + i) for i in range(5)]
     ops += [(1, 0, i, 0) for i in range(5)]
     ops += [(0, 0, 2, 0)] * 3

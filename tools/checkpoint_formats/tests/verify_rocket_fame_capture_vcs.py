@@ -3,6 +3,7 @@
 Run after sourcing both environments and vcs-env.sh LAST. Each invocation owns
 a new metasim build and full 16-GiB four-hart run; no CPU Level-1 admission.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import json
 import os
@@ -32,7 +33,7 @@ def main():
     parser.add_argument('--cuts', default='100,700000,900000,3250000')
     parser.add_argument('--events', type=int, default=64)
     args = parser.parse_args()
-    require(os.environ.get('VCS_HOME') == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'source vcs-env.sh LAST')
+    require(os.environ.get('VCS_HOME') == _toolchain.VCS_HOME, 'source vcs-env.sh LAST')
     require(args.out.resolve().is_relative_to(ROOT / 'automations/checkpoint_loop/runs'), 'capture diagnostics belong under runs')
     args.out.mkdir(parents=True, exist_ok=True)
     out = Path(tempfile.mkdtemp(prefix='invocation-', dir=args.out.resolve()))

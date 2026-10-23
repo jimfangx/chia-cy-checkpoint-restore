@@ -1,4 +1,5 @@
 """ASan/UBSan public consumer differential check against the Python oracle."""
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import copy
 import hashlib
@@ -27,7 +28,7 @@ def main():
                                     runtime['native_build_hash'],counter['hierarchy'])
     prepare_durable_loader(runtime,generated,layout,out)
     source=ROOT/'tools/checkpoint_formats'
-    run([os.environ.get('CXX','/usr/bin/g++-13'),'-std=c++20','-g','-fsanitize=address,undefined',
+    run([os.environ.get('CXX',_toolchain.CXX),'-std=c++20','-g','-fsanitize=address,undefined',
          '-fno-omit-frame-pointer','-no-pie',f'-I{out}',source/'durable_restore.cc',
          source/'tests/durable_restore_native.cc','-lcrypto','-o',out/'verify'],out/'build.log')
     build=aggregate.build_identity(runtime,generated,layout,out/'verify');doc['build']=build

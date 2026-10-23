@@ -4,6 +4,7 @@ Replay actual captured HOST inputs to the complete generated RTL. Host native
 owners/harness/driver continuations are outside this component test; this is
 not a fresh whole FireSim .fsckpt restart. Source vcs-env.sh LAST.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import json
 import os
@@ -144,7 +145,7 @@ def main():
     out, build=args.out.resolve(),args.build.resolve()
     out.mkdir(parents=True,exist_ok=True)
     vcs=Path(os.environ['VCS_HOME'])/'bin/vcs'
-    require(str(vcs)=='/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs','source vcs-env.sh LAST')
+    require(str(vcs)==_toolchain.VCS,'source vcs-env.sh LAST')
     native_rejections=verify_native(out)
     make=['make','DESIGN=InventoryFixture','TARGET_CONFIG=NoConfig','PLATFORM_CONFIG=DefaultF2Config',
           'SEMANTIC_CHECKPOINT_ROOT=InventoryFixture.dut','SIMULATOR_CHECKPOINT_INVENTORY=FPGATop',f'BUILD_DIR={build}']

@@ -3,6 +3,7 @@
 Suspended stack teardown must release device allocations and duplicated file
 descriptors. These resource checks grant no complete CPU checkpoint admission.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import json
 import os
@@ -71,8 +72,8 @@ def main():
     args = parser.parse_args()
     if args.audit:
         print(json.dumps(audit(args.audit), indent=2)); return
-    require(os.environ.get('VCS_HOME') == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1' and
-            os.environ.get('CXX') == '/usr/bin/g++-13', 'source vcs-env.sh LAST')
+    require(os.environ.get('VCS_HOME') == _toolchain.VCS_HOME and
+            os.environ.get('CXX') == _toolchain.CXX, 'source vcs-env.sh LAST')
     require(args.out and args.out.resolve().is_relative_to(ROOT/'automations/checkpoint_loop/runs'),
             'diagnostics must be under runs')
     args.out.resolve().mkdir(parents=True, exist_ok=True)

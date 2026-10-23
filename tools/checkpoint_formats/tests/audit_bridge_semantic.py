@@ -3,6 +3,7 @@
 This is the complete pre-edge M6 prerequisite audit, not live-shadow acceptance.
 The invocation must archive the native Make metadata beside its executable.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import hashlib
 import json
@@ -39,8 +40,8 @@ def audit_native_archive(out):
     metadata = out / 'production-build-metadata'
     inputs, runtime, generated, layout, archived_build = [load(metadata / (name + '.json')) for name in
         ('native-build-inputs', 'runtime-manifest', 'generated-manifest', 'harness-layout', 'aggregate-build')]
-    require(inputs['compiler'] == '/usr/bin/g++-13'
-            and inputs['vcs_home'] == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1'
+    require(inputs['compiler'] == _toolchain.CXX
+            and inputs['vcs_home'] == _toolchain.VCS_HOME
             and inputs['make_profile'] == 'fcfs-fased-v1', 'unaudited production toolchain/profile')
     require(hashlib.sha256(canonical(inputs)).hexdigest() == runtime['native_build_hash']
             and inputs['generated_build'] == layout['generated_build_hash'], 'native metadata binding mismatch')

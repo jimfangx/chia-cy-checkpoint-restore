@@ -1,9 +1,25 @@
 # CPU checkpoint matrix
 
+## Current AWS F2 hardware acceptance (October 23, 2026)
+
+Actual F2 checkpoint capture is required. See [aws-f2-workflow.md](aws-f2-workflow.md).
+The older results below are retained metasim/component evidence and do not
+establish FPGA capture or FPGA-to-VCS migration. The new Rocket public-image
+baseline ran on real F2 hardware and passed; see [aws-f2-bringup.md](aws-f2-bringup.md).
+Checkpoint-enabled images and hardware-origin checkpoint migration remain separate.
+
+| Family | F2 workload / custom capture image | FPGA Level-1 to EDA metasim | FPGA Level-2 finite RTL replay | Live RTL / rolling hardware recovery |
+| --- | --- | --- | --- | --- |
+| Rocket (all four harts) | baseline verified: real F2, slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress (cut component synthesized, not integrated) | pending | pending | pending |
+| BOOM (speculative/in-flight) | pending | pending | pending | pending |
+| Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
+
+## Historical metasim and component progress
+
 Current milestone: M11 Rocket, iteration 175, **in_progress**. Rocket Level 2
 passes complete captured ChipTop finite replay at four tested cuts. Complete
-Level-1 CPU continuation remains pending. Physical FPGA validation, standalone
-Shuttle and ASIC power are outside this matrix. The verified FCFS evidence remains in its existing docs.
+Level-1 CPU continuation remains pending. These historical entries did not validate physical FPGA capture. Standalone
+Shuttle and ASIC power remain outside scope. The verified FCFS evidence remains in its existing docs.
 
 | Family / existing recipe | Level 1 | Level 2 | Workload evidence |
 | --- | --- | --- | --- |

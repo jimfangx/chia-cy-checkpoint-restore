@@ -1,4 +1,5 @@
 """Prepared production scheduler/run-loop continuations; component scope."""
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import json
 import os
@@ -22,8 +23,8 @@ def main():
     p.add_argument('--out', required=True, type=Path)
     a = p.parse_args()
     require(a.out.resolve().is_relative_to(ROOT / 'automations/checkpoint_loop/runs'), 'need runs output')
-    require(os.environ.get('VCS_HOME') == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1' and
-            os.environ.get('CXX') == '/usr/bin/g++-13', 'source vcs-env LAST')
+    require(os.environ.get('VCS_HOME') == _toolchain.VCS_HOME and
+            os.environ.get('CXX') == _toolchain.CXX, 'source vcs-env LAST')
     a.out.resolve().mkdir(parents=True, exist_ok=True)
     out = Path(tempfile.mkdtemp(prefix='invocation-', dir=a.out.resolve()))
     sources = [TESTS / 'control_publication.cc', CC / 'core/systematic_scheduler.cc', CC / 'core/bridge_run_loop.cc']

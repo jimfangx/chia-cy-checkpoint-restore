@@ -2,6 +2,7 @@
 
 This component check has no services and cannot certify complete CPU/HTIF state.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import json
 import os
@@ -57,8 +58,8 @@ def main():
     if args.audit:print(json.dumps(audit(args.audit),indent=2));return
     require(args.out is not None and args.transport_summary is not None and
             args.out.resolve().is_relative_to(ROOT/'automations/checkpoint_loop/runs'),'need runs output and actual transport summary')
-    require(os.environ.get('VCS_HOME')=='/ecad/tools/synopsys/vcs/Y-2026.03-SP1' and
-            os.environ.get('CXX')=='/usr/bin/g++-13','source vcs-env.sh LAST')
+    require(os.environ.get('VCS_HOME')==_toolchain.VCS_HOME and
+            os.environ.get('CXX')==_toolchain.CXX,'source vcs-env.sh LAST')
     parent=args.transport_summary.resolve();require(audit_transport(parent)['actual_bridge_control_readbacks']==24,'need actual images')
     args.out.resolve().mkdir(parents=True,exist_ok=True);out=Path(tempfile.mkdtemp(prefix='invocation-',dir=args.out.resolve()))
     source=TESTS/'tsi_bridge_actual_checkpoint.cc';sv=TESTS/'tsi_bridge_actual_checkpoint_tb.sv'

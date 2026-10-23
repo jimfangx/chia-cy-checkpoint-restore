@@ -1,4 +1,5 @@
 """Actual Make/profile/CLI rejection checks, preserving compiled inventory."""
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import hashlib
 import json
@@ -17,7 +18,7 @@ def main():
     args = parser.parse_args()
     production = args.production.resolve()
     out = args.out.resolve(); out.mkdir(parents=True, exist_ok=True)
-    require(os.environ['VCS_HOME'] == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'source vcs-env.sh LAST')
+    require(os.environ['VCS_HOME'] == _toolchain.VCS_HOME, 'source vcs-env.sh LAST')
     inputs = json.loads((production/'native-build-inputs.json').read_text())
     require(inputs['make_profile'] == 'fcfs-fased-v1', 'requires a real normal Make build')
     source = Path(next(name for name in inputs['sources'] if name.endswith('FireSim-generated.const.h')))

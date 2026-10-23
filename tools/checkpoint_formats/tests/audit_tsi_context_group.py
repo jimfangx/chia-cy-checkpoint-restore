@@ -3,6 +3,7 @@
 Uses retained, separately executed fifteen-owner parent bytes, without importing
 production adapters or the context suite's scenario/continuation generator.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import copy
 import json
@@ -87,7 +88,7 @@ def audit(path, report=None):
         require(lines[0] == 'cwd='+str(out) and json.loads(lines[1][5:]) == c['argv'] and lines[2].startswith('fresh_process_pid=') and int(lines[2].split('=')[1]) > 0, 'actual native process binding')
         require(lines[-1] == 'exit=0' and c['argv'][:2] == ['bash', '-lc'] and
                 'source /scratch/jfx/chia-cy-checkpoint-restore/automations/checkpoint_loop/vcs-env.sh && ' in c['argv'][2], 'native exit/environment')
-        if '/bin/vcs ' in c['argv'][2]: require('/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs -full64' in c['argv'][2], 'VCS release')
+        if '/bin/vcs ' in c['argv'][2]: require(_toolchain.VCS + ' -full64' in c['argv'][2], 'VCS release')
         require(not any(x in text for x in ('ERROR: AddressSanitizer', 'runtime error:', 'LeakSanitizer: detected')), 'sanitizer error')
         return text
     comparisons = operations = 0

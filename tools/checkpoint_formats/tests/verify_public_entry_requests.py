@@ -1,4 +1,5 @@
 """Fail-closed public requests against the full generated production-entry VCS build."""
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import hashlib
 import json
@@ -38,7 +39,7 @@ def main():
     for i, request in enumerate(options):
         log = out/f'public-{i}.log'
         text = run([*common, *request], log, out, expected=1)
-        require('Y-2026.03-SP1_Full64' in text and 'FS_CHECKPOINT_ENTRY_ERROR' in text,
+        require(_toolchain.VCS_VERSION in text and 'FS_CHECKPOINT_ENTRY_ERROR' in text,
                 'request did not explicitly fail in the pinned VCS release')
         if i < 2: require('runtime identity: unsupported argument:' in text, 'test capability enabled public API')
         else: require('Level-1 checkpoint' in text, 'malformed/conflicting request escaped parsing')

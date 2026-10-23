@@ -4,6 +4,7 @@ Source both env.sh files, then vcs-env.sh LAST. All diagnostics go to --out.
 Fresh native ASan/UBSan and VCS DPI processes compare every component edge and
 every captured byte against an independent Python AXI/byte scoreboard.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import json
 import os
@@ -147,7 +148,7 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     vcs = Path(os.environ["VCS_HOME"]) / "bin/vcs"
     cxx = os.environ["CXX"]
-    require(str(vcs) == "/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs" and cxx == "/usr/bin/g++-13",
+    require(str(vcs) == _toolchain.VCS and cxx == _toolchain.CXX,
             "source vcs-env.sh LAST and keep its compiler settings")
     sources = [TESTS / "mmio_checkpoint.cc", CC / "emul/mmio.cc", CC / "emul/mm.cc"]
     native = out / "mmio-native"

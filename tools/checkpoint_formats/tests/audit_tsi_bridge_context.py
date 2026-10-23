@@ -1,4 +1,5 @@
 """Independent complete-owner/serial-boundary audit of production bridge imports."""
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import copy
 import json
@@ -32,7 +33,7 @@ def audit(path, report=None):
     require({b['snapshot'] for b in bindings.values()} == {str(p) for p in (out/'sources').iterdir()}, 'bridge snapshots membership')
     binding = json.loads((out/'build-binding.json').read_text())
     require(binding['sources'] == {b['path']:b['sha256'] for b in r['source_inputs']} and
-            binding['cxx'] == '/usr/bin/g++-13' and binding['vcs_home'] == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'bridge build binding')
+            binding['cxx'] == _toolchain.CXX and binding['vcs_home'] == _toolchain.VCS_HOME, 'bridge build binding')
     build = bytes.fromhex(file_sha(out/'build-binding.json'))
     require(r['build_sha256'] == build.hex() and (out/'build.sha256').read_bytes() == build, 'bridge build digest')
     parent = Path(r['context_summary']); require(file_sha(parent) == r['context_sha256'], 'bridge parent changed')

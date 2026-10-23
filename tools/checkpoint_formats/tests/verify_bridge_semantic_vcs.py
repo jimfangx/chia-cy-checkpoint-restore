@@ -4,6 +4,7 @@ The clean process verifies every semantic word before any target edge. --live
 then checks a sustained restored shadow and exact first output divergence.
 Source both repository environments and vcs-env.sh LAST before invoking.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import hashlib
 import json
@@ -31,7 +32,7 @@ def main():
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--live', action='store_true', help='also run restored schema-2 lockstep and state corruption')
     args = parser.parse_args()
-    require(os.environ.get('VCS_HOME') == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'source vcs-env.sh LAST')
+    require(os.environ.get('VCS_HOME') == _toolchain.VCS_HOME, 'source vcs-env.sh LAST')
     args.out.mkdir(parents=True, exist_ok=True)
     out = Path(tempfile.mkdtemp(prefix='invocation-', dir=args.out.resolve()))
     print('BRIDGE_SEMANTIC_VCS_OUTPUT ' + str(out), flush=True)

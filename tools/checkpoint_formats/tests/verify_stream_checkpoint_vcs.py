@@ -5,6 +5,7 @@ in fresh VCS DPI processes. The queue service is a fixture, not generated
 stream hardware or full FireSim continuation. No acceptance is inferred from
 the fixture clock edges or its independently snapshotted queue buffers.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import json
 import os
@@ -85,8 +86,8 @@ def main():
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
     out = args.out.resolve(); out.mkdir(parents=True, exist_ok=True)
-    require(os.environ['VCS_HOME'] == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'source vcs-env.sh LAST')
-    require(os.environ['CXX'] == '/usr/bin/g++-13', 'keep GCC/G++ 13')
+    require(os.environ['VCS_HOME'] == _toolchain.VCS_HOME, 'source vcs-env.sh LAST')
+    require(os.environ['CXX'] == _toolchain.CXX, 'keep GCC/G++ 13')
     sources = [TESTS/'stream_checkpoint.cc', CC/'core/stream_engine.cc', CC/'bridges/cpu_managed_stream.cc']
     native, simv = out/'stream-native', out/'stream-simv'
     run([os.environ['CXX'], '-std=c++17', '-Wall', '-Wextra', '-Wno-unused-parameter', '-Werror',

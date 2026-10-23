@@ -1,4 +1,5 @@
 """Actual FASED host owner continuation; no whole FireSim runtime restoration."""
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import json
 import os
@@ -108,8 +109,8 @@ def main():
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
     out = args.out.resolve(); out.mkdir(parents=True, exist_ok=True)
-    require(os.environ['VCS_HOME'] == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'source vcs-env.sh LAST')
-    require(os.environ['CXX'] == '/usr/bin/g++-13', 'keep GCC/G++ 13')
+    require(os.environ['VCS_HOME'] == _toolchain.VCS_HOME, 'source vcs-env.sh LAST')
+    require(os.environ['CXX'] == _toolchain.CXX, 'keep GCC/G++ 13')
     sources = [TESTS / 'fased_checkpoint.cc', CC / 'core/widget.cc', CC / 'core/address_map.cc',
                CC / 'bridges/fased_memory_timing_model.cc']
     native, simv = out / 'fased-native', out / 'fased-simv'

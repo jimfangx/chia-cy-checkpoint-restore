@@ -3,6 +3,7 @@
 Host DPI outputs are recorded/replayed. No native/dispatcher restore or whole
 .fsckpt restart is implied. Source both environments and vcs-env.sh LAST.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import json
 import os
@@ -42,7 +43,7 @@ def main():
     args=parser.parse_args(); out=args.out.resolve(); out.mkdir(parents=True,exist_ok=True)
     build=args.build.resolve(); simdir=ROOT/'sims/firesim/sim'
     vcs=Path(os.environ['VCS_HOME'])/'bin/vcs'
-    require(str(vcs)=='/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs','source vcs-env.sh LAST')
+    require(str(vcs)==_toolchain.VCS,'source vcs-env.sh LAST')
     generated=build/'f2/f2-midasexamples-InventoryFixture-NoConfig-DefaultF2Config'
     make=['make','DESIGN=InventoryFixture','TARGET_CONFIG=NoConfig','PLATFORM_CONFIG=DefaultF2Config',
           'SEMANTIC_CHECKPOINT_ROOT=InventoryFixture.dut','SIMULATOR_CHECKPOINT_INVENTORY=FPGATop',f'BUILD_DIR={build}']

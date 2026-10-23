@@ -5,6 +5,7 @@ in DPI at each hook. Captures retain explicit unsupported owners and are never
 loaded as full checkpoints. Compare full generated-state observations and
 completion counts to uninterrupted runs so the hook cannot add target edges.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import hashlib
 import json
@@ -64,8 +65,8 @@ def main():
     args = parser.parse_args()
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=True)
-    require(os.environ['VCS_HOME'] == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'source vcs-env.sh last')
-    require(os.environ['CXX'] == '/usr/bin/g++-13', 'keep system GCC/G++ 13')
+    require(os.environ['VCS_HOME'] == _toolchain.VCS_HOME, 'source vcs-env.sh last')
+    require(os.environ['CXX'] == _toolchain.CXX, 'keep system GCC/G++ 13')
     native = out / 'boundary-native'
     run([os.environ['CXX'], '-std=c++20', '-Wall', '-Wextra', '-Werror', '-g', '-no-pie',
          '-fsanitize=address,undefined', '-fno-omit-frame-pointer', f'-I{CC}',

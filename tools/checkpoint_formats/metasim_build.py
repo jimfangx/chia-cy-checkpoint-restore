@@ -4,6 +4,7 @@ No historical captures or test fixtures are build inputs. This profile remains
 deliberately restricted; native membership/schema is checked again by every
 capture and by all-owner restore preparation before any load or clock edge.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import hashlib
 import json
@@ -169,8 +170,8 @@ def main():
     args = parser.parse_args()
     require(args.profile == PROFILE, 'unsupported checkpoint Make profile')
     require(args.driver_name == 'AXI4Fuzzer-checkpoint', 'checkpoint build requires a separate binary name')
-    require(os.environ.get('VCS_HOME') == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1' and
-            os.environ.get('CXX') == '/usr/bin/g++-13' and os.environ.get('CC') == '/usr/bin/gcc-13',
+    require(os.environ.get('VCS_HOME') == _toolchain.VCS_HOME and
+            os.environ.get('CXX') == _toolchain.CXX and os.environ.get('CC') == _toolchain.CC,
             'source vcs-env.sh LAST; preserve its VCS and compiler setup')
     require(args.vcs_flags.strip() in ('', '-Mupdate'), 'unsupported checkpoint VCS flags')
     require(not re.search(r'\b(?:DEBUG|FSDB|GATE_LEVEL_SIM)\b', args.cflags),

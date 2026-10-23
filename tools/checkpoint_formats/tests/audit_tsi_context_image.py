@@ -1,4 +1,5 @@
 """Independent bound-image bytes, complete-owner continuation and receipt audit."""
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import copy
 import json
@@ -55,7 +56,7 @@ def audit(path, report=None):
     binding = json.loads((out/'build-binding.json').read_text())
     require(binding['recipe_identity_sha256'] == file_sha(identity_path) and
             binding['sources'] == {b['path']:b['sha256'] for b in r['source_inputs']} and
-            binding['cxx'] == '/usr/bin/g++-13' and binding['vcs_home'] == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'image build binding')
+            binding['cxx'] == _toolchain.CXX and binding['vcs_home'] == _toolchain.VCS_HOME, 'image build binding')
     build = bytes.fromhex(file_sha(out/'build-binding.json'))
     require(build.hex() == r['build_sha256'] and (out/'build.sha256').read_bytes() == build, 'image build digest')
     require(set(r['artifact_sha256']) == {str(p) for p in out.rglob('*') if p.is_file() and p != path}, 'image artifact membership')
@@ -151,7 +152,7 @@ def audit(path, report=None):
         c = commands[str(out/(name+'.log'))]; command(c); args = shlex.split(c['argv'][2])
         require(any(str(out/'libfesvr-checkpoint.a') in s for s in args), 'image build provider missing')
         if name == 'native-build': require('-fsanitize=address,undefined' in args, 'image sanitizer build missing')
-        else: require('/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs' in args and '-full64' in args, 'image VCS release')
+        else: require(_toolchain.VCS in args and '-full64' in args, 'image VCS release')
     require(used == set(commands), 'unclassified image commands')
     return dict(status='passed', captures=len(r['captures']), fresh_restores=len(r['restores']),
                 complete_owner_comparisons=comparisons, host_operations=operations, invalid_processes=len(r['invalids']),

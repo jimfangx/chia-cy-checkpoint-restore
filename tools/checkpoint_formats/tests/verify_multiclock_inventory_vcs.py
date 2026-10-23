@@ -5,6 +5,7 @@ then independently read back all words with every clock low and zero edges.
 Values are diagnostic patterns, not a workload checkpoint or a replay trace.
 Run with both environments sourced and vcs-env.sh LAST.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import hashlib
 import json
@@ -25,7 +26,7 @@ def main():
     parser.add_argument('--base', type=Path, required=True, help='Prefix of compiler-emitted .semantic-* files.')
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
-    require(os.environ.get('VCS_HOME') == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'source vcs-env.sh LAST')
+    require(os.environ.get('VCS_HOME') == _toolchain.VCS_HOME, 'source vcs-env.sh LAST')
     args.out.mkdir(parents=True, exist_ok=True)
     out = Path(tempfile.mkdtemp(prefix='invocation-', dir=args.out.resolve()))
     temporary = out / 'vcs-tmp'; temporary.mkdir(); os.environ['TMPDIR'] = str(temporary)
@@ -106,7 +107,7 @@ def main():
                 '+pattern=' + str(path), '+baseline=' + str(baseline_path), *options]
         text = run(argv, out / (name + '.log'))
         require(f'PASS: inventory probe words={len(words)} clocks={len(clocks)} edges=0' in text and
-                'Y-2026.03-SP1_Full64' in text, 'incomplete native ownership probe')
+                _toolchain.VCS_VERSION in text, 'incomplete native ownership probe')
         require(text.count('RESTORE: deposited') == (0 if '+invalid' in options else 1), 'invalid probe partially deposited')
         results.append(dict(name=name, argv=[str(a) for a in argv], log=str(out / (name + '.log'))))
     paths = list(inputs.values()) + [bench, loader, Path(__file__).resolve(),

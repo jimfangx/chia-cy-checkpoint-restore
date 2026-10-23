@@ -3,6 +3,7 @@
 PTRACE_SEIZE/INTERRUPT parks only the VCS main thread, leaving the independent
 monitor runnable. There is no test injection code or watchdog in the verifier.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import ctypes
 import hashlib
@@ -29,7 +30,7 @@ def main():
                         help='Completed initial live run; remaining history regressions may run independently')
     parser.add_argument('--reference-production',type=Path,required=True)
     parser.add_argument('--out',type=Path,required=True); args=parser.parse_args()
-    require(os.environ.get('VCS_HOME')=='/ecad/tools/synopsys/vcs/Y-2026.03-SP1','source vcs-env.sh LAST')
+    require(os.environ.get('VCS_HOME')==_toolchain.VCS_HOME,'source vcs-env.sh LAST')
     production=args.production.resolve()
     sources=json.loads((production/'native-build-inputs.json').read_text())['sources']
     require(all(hashlib.sha256((ROOT/p).read_bytes()).hexdigest()==h for p,h in sources.items()),

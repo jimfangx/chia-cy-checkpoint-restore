@@ -4,6 +4,7 @@ An independent oracle checks complete state, polling MMIO, sticky termination
 and full buffered CSV. Fixture labels and deterministic wall time do not grant
 Rocket CPU checkpoint or ordinary CPU RTL replay acceptance.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import hashlib
 import json
@@ -89,8 +90,8 @@ def main():
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--prepared', action='store_true')
     args = parser.parse_args()
-    require(os.environ['VCS_HOME'] == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'source vcs-env.sh LAST')
-    require(os.environ['CXX'] == '/usr/bin/g++-13', 'keep GCC/G++ 13')
+    require(os.environ['VCS_HOME'] == _toolchain.VCS_HOME, 'source vcs-env.sh LAST')
+    require(os.environ['CXX'] == _toolchain.CXX, 'keep GCC/G++ 13')
     args.out.resolve().mkdir(parents=True, exist_ok=True)
     out = Path(tempfile.mkdtemp(prefix='native-', dir=args.out.resolve()))
     header = args.rocket_header.resolve()

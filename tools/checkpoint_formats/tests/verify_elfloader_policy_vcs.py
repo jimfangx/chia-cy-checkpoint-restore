@@ -1,4 +1,5 @@
 """Check scoped loader policy providers in native sanitizers and native VCS."""
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import json
 import os
@@ -46,7 +47,7 @@ def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--out',type=Path);p.add_argument('--audit',type=Path);a=p.parse_args()
     if a.audit:print(json.dumps(audit(a.audit),indent=2));return
     require(a.out and a.out.resolve().is_relative_to(ROOT/'automations/checkpoint_loop/runs'),'need runs destination')
-    require(os.environ.get('VCS_HOME')=='/ecad/tools/synopsys/vcs/Y-2026.03-SP1' and os.environ.get('CXX')=='/usr/bin/g++-13','source vcs-env LAST')
+    require(os.environ.get('VCS_HOME')==_toolchain.VCS_HOME and os.environ.get('CXX')==_toolchain.CXX,'source vcs-env LAST')
     a.out.resolve().mkdir(parents=True,exist_ok=True);out=Path(tempfile.mkdtemp(prefix='invocation-',dir=a.out.resolve()))
     source=TESTS/'elfloader_policy.cc';sv=TESTS/'elfloader_policy_tb.sv';library=FESVR/'lib/libfesvr.a'
     inputs=[source,sv,Path(__file__),TESTS/'elfloader_resource_checks.h',library,*overlay_inputs(),

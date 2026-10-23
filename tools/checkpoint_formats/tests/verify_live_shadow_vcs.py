@@ -4,6 +4,7 @@ Run after the complete verify_semantic_vcs scope; --reference is its output.
 Each case launches two independent VCS processes concurrently. No captured
 trace is passed to either process, and the authority waits for each ACK.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import hashlib
 import json
@@ -57,7 +58,7 @@ def main():
         parser.add_argument('--' + name, type=Path, required=True)
     parser.add_argument('--rounds', type=int, default=1024)
     args = parser.parse_args()
-    require(os.environ.get('VCS_HOME') == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'source vcs-env.sh LAST')
+    require(os.environ.get('VCS_HOME') == _toolchain.VCS_HOME, 'source vcs-env.sh LAST')
     require(1024 <= args.rounds <= 1000000, 'sustained verification requires at least 1024 rounds')
     args.out.mkdir(parents=True, exist_ok=True)
     out = Path(tempfile.mkdtemp(prefix='invocation-', dir=args.out.resolve()))

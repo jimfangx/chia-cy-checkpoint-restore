@@ -3,6 +3,7 @@
 Fresh destinations restore the explicit component and project its installed
 exit/stop behavior; they do not restore the session, poll caller or CPU.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 import json
@@ -180,7 +181,7 @@ def main():
     if a.audit:
         print(json.dumps(audit(a.audit), indent=2)); return
     require(a.out and a.out.resolve().is_relative_to(ROOT/'automations/checkpoint_loop/runs'), 'need runs output')
-    require(os.environ.get('VCS_HOME') == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1' and os.environ.get('CXX') == '/usr/bin/g++-13', 'source vcs-env LAST')
+    require(os.environ.get('VCS_HOME') == _toolchain.VCS_HOME and os.environ.get('CXX') == _toolchain.CXX, 'source vcs-env LAST')
     a.out.resolve().mkdir(parents=True, exist_ok=True)
     out = Path(tempfile.mkdtemp(prefix='invocation-', dir=a.out.resolve()))
     source, sv = (TESTS/n for n in ('tsi_htif_exit_fesvr.cc', 'tsi_htif_exit_fesvr_tb.sv'))

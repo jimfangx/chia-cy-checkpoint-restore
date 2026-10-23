@@ -2,6 +2,7 @@
 
 The serial device is a component MMIO fixture. This is not CPU acceptance.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 import json
@@ -31,8 +32,8 @@ def main():
     p.add_argument('--recipe-build-identity', type=Path, required=True)
     a = p.parse_args()
     require(a.out.resolve().is_relative_to(ROOT/'automations/checkpoint_loop/runs'), 'need runs output')
-    require(os.environ.get('VCS_HOME') == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1' and
-            os.environ.get('CXX') == '/usr/bin/g++-13', 'source vcs-env LAST')
+    require(os.environ.get('VCS_HOME') == _toolchain.VCS_HOME and
+            os.environ.get('CXX') == _toolchain.CXX, 'source vcs-env LAST')
     parent = a.context_summary.resolve(); parent_audit(parent)
     r = json.loads(parent.read_text()); host = json.loads(Path(r['host_summary']).read_text())
     polling = Path(host['polling_summary']).parent

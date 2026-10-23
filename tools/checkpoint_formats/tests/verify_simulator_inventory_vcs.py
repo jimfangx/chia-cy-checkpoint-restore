@@ -4,6 +4,7 @@ Source both repository env.sh files, then vcs-env.sh LAST before invoking.
 This is not full checkpoint/restart acceptance: diagnostics cannot be restored.
 """
 
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import json
 import os
@@ -24,7 +25,7 @@ def main():
     build, out = args.build.resolve(), args.out.resolve()
     out.mkdir(parents=True, exist_ok=True)
     vcs = Path(os.environ["VCS_HOME"]) / "bin/vcs"
-    require(str(vcs) == "/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs", "source vcs-env.sh LAST")
+    require(str(vcs) == _toolchain.VCS, "source vcs-env.sh LAST")
     sim_dir = ROOT / "sims/firesim/sim"
     make = ["make", "DESIGN=InventoryFixture", "TARGET_CONFIG=NoConfig", "PLATFORM_CONFIG=DefaultF2Config",
             "SEMANTIC_CHECKPOINT_ROOT=InventoryFixture.dut", "SIMULATOR_CHECKPOINT_INVENTORY=FPGATop",

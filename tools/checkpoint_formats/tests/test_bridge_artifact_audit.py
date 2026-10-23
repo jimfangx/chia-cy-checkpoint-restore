@@ -1,3 +1,4 @@
+from tools.checkpoint_formats import toolchain as _toolchain
 import copy
 import hashlib
 from pathlib import Path
@@ -20,7 +21,7 @@ class BridgeArtifactAuditTests(unittest.TestCase):
         self.executable.write_bytes((self.out / 'simv').read_bytes())
         self.source = self.out / 'actual-native-source.cc'
         self.source.write_text('native implementation')
-        self.inputs = dict(compiler='/usr/bin/g++-13', vcs_home='/ecad/tools/synopsys/vcs/Y-2026.03-SP1',
+        self.inputs = dict(compiler=_toolchain.CXX, vcs_home=_toolchain.VCS_HOME,
                            make_profile='fcfs-fased-v1', generated_build=self.layout['generated_build_hash'],
                            sources={str(self.source): hashlib.sha256(self.source.read_bytes()).hexdigest()})
         self.runtime = packed.runtime_manifest(old['profile'], self.generated, self.layout,

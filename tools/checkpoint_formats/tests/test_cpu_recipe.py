@@ -1,3 +1,4 @@
+from tools.checkpoint_formats import toolchain as _toolchain
 import tempfile
 from pathlib import Path
 import shlex
@@ -27,7 +28,7 @@ class CPURecipeTest(unittest.TestCase):
             for field in FIELDS:
                 value = settings['resolved_makefrag'] if field == 'TARGET_PROJECT_MAKEFRAG' else settings['settings'][field]
                 self.assertIn(field + '=' + value, argv)
-            self.assertIn('VCS=/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs -full64', argv)
+            self.assertIn('VCS=' + _toolchain.VCS + ' -full64', argv)
             self.assertIn('VCS_FORCE_REBUILD=1', argv)
             self.assertNotIn('FS_CHECKPOINT_PROFILE=fcfs-fased-v1', argv)
 

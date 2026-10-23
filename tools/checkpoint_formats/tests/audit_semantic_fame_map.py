@@ -1,4 +1,5 @@
 """Recheck every artifact, original word and fresh native storage probe."""
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import hashlib
 import json
@@ -53,7 +54,7 @@ def audit(path):
         require((directory / 'complete.txt').read_text().splitlines() == rows, 'native loader omits/changes original word')
         build = (directory / 'build.log').read_text()
         require(json.loads(build.split('argv=', 1)[1].splitlines()[0]) == native['build_command'] and
-                native['build_command'][0] == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs' and
+                native['build_command'][0] == _toolchain.VCS and
                 '-full64' in native['build_command'] and build.rstrip().endswith('exit=0'), 'missing pinned native build')
         require([c['name'] for c in native['cases']] == ['complete', 'corrupt', 'missing', 'duplicate', 'unknown', 'width'],
                 'reduced native negative/corruption scope')
@@ -65,7 +66,7 @@ def audit(path):
             log = Path(case['log']).read_text()
             require(Path(case['log']).parent == directory and
                     json.loads(log.split('argv=', 1)[1].splitlines()[0]) == case['argv'] and
-                    log.rstrip().endswith('exit=0') and 'Y-2026.03-SP1_Full64' in log and
+                    log.rstrip().endswith('exit=0') and _toolchain.VCS_VERSION in log and
                     f"PASS: {native['kind']} semantic map words={len(expected)} edges=0" in log, 'incomplete native readback')
             require(log.count('RESTORE: deposited') == (1 if case['name'] in ('complete', 'corrupt') else 0),
                     'invalid native image partially deposited')

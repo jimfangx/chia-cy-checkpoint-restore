@@ -4,6 +4,7 @@ An up-to-date Make result is insufficient: the selected successful log must
 contain the actual pinned VCS invocation. All native translation units, compiler
 dependencies, linked libraries and generated artifacts are bound to that run.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import json
 import os
 from pathlib import Path
@@ -15,7 +16,7 @@ from .codec import require
 from .cpu_recipe import ROOT, recipe_settings
 from .evidence import file_sha
 
-VCS_HOME = '/ecad/tools/synopsys/vcs/Y-2026.03-SP1'
+VCS_HOME = _toolchain.VCS_HOME
 
 
 def vcs_invocation(log, binary):
@@ -33,8 +34,8 @@ def vcs_invocation(log, binary):
 
 def record_build(recipe, build, log, destination, *, semantic_event_capture=False):
     require(os.environ.get('VCS_HOME') == VCS_HOME and
-            os.environ.get('CC') == '/usr/bin/gcc-13' and
-            os.environ.get('CXX') == '/usr/bin/g++-13', 'source vcs-env.sh LAST')
+            os.environ.get('CC') == _toolchain.CC and
+            os.environ.get('CXX') == _toolchain.CXX, 'source vcs-env.sh LAST')
     build = Path(build).resolve()
     binary = build / 'FireSim'
     require(binary.is_file(), 'missing native CPU executable')

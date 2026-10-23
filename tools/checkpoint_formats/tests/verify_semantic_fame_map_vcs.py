@@ -3,6 +3,7 @@
 Diagnostic values only: no workload checkpoint, coherent event cut or replay.
 Source both repository environments and vcs-env.sh LAST before invoking.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import hashlib
 import json
@@ -111,7 +112,7 @@ def probe(out, kind, paths, text, docs):
         elif name != 'complete': argv += ['+invalid']
         log = run(argv, directory / (name + '.log'), cwd=directory)
         require(f'PASS: {kind} semantic map words={len(valid)} edges=0' in log
-                and 'Y-2026.03-SP1_Full64' in log, 'incomplete native map probe')
+                and _toolchain.VCS_VERSION in log, 'incomplete native map probe')
         require(log.count('RESTORE: deposited') == (1 if name in ('complete', 'corrupt') else 0),
                 'partial invalid restore')
         require(name != 'corrupt' or 'semantic readback mismatch' in log, 'missed actual storage fault')
@@ -124,7 +125,7 @@ def main():
     parser.add_argument('--base', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
-    require(os.environ.get('VCS_HOME') == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'source vcs-env.sh LAST')
+    require(os.environ.get('VCS_HOME') == _toolchain.VCS_HOME, 'source vcs-env.sh LAST')
     args.out.mkdir(parents=True, exist_ok=True)
     out = Path(tempfile.mkdtemp(prefix='invocation-', dir=args.out.resolve()))
     temporary = out / 'vcs-tmp'; temporary.mkdir(); os.environ['TMPDIR'] = str(temporary)

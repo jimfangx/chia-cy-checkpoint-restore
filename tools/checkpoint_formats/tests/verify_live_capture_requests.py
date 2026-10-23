@@ -1,4 +1,5 @@
 """Actual VCS live-capture dispatch and publication failure checks."""
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import hashlib
 import json
@@ -15,7 +16,7 @@ def main():
     parser.add_argument('--production',type=Path,required=True)
     parser.add_argument('--out',type=Path,required=True); args=parser.parse_args()
     production=args.production.resolve(); out=args.out.resolve(); out.mkdir(parents=True,exist_ok=True)
-    require(os.environ['VCS_HOME']=='/ecad/tools/synopsys/vcs/Y-2026.03-SP1','source vcs-env.sh LAST')
+    require(os.environ['VCS_HOME']==_toolchain.VCS_HOME,'source vcs-env.sh LAST')
     summary=json.loads((production/'summary.json').read_text())
     require(summary['native_live_capture_verified'] and len(summary['cases'])==5,'incomplete live continuations')
     sources=json.loads((production/'native-build-inputs.json').read_text())['sources']

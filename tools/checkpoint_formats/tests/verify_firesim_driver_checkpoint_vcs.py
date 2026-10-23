@@ -3,6 +3,7 @@
 These are completed host-operation fixtures, not coherent CPU checkpoint cuts.
 Every invocation retains original native bytes; rechecks allocate new paths.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import json
 import os
@@ -183,8 +184,8 @@ def main():
     if args.audit:
         print(json.dumps(audit(args.audit), indent=2)); return
     require(args.out is not None, 'out required')
-    require(os.environ.get('VCS_HOME') == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1' and
-            os.environ.get('CXX') == '/usr/bin/g++-13', 'source vcs-env.sh LAST')
+    require(os.environ.get('VCS_HOME') == _toolchain.VCS_HOME and
+            os.environ.get('CXX') == _toolchain.CXX, 'source vcs-env.sh LAST')
     args.out.resolve().mkdir(parents=True, exist_ok=True)
     out = Path(tempfile.mkdtemp(prefix='invocation-', dir=args.out.resolve()))
     sources = [TESTS / 'firesim_driver_checkpoint.cc', TESTS / 'firesim_driver_heartbeat_clock.cc', *[CC / p for p in (

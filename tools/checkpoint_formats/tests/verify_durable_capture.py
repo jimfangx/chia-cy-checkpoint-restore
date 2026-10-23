@@ -1,4 +1,5 @@
 """Sanitized complete live collector oracle and fail-closed adapter checks."""
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import copy
 import hashlib
@@ -58,7 +59,7 @@ def main():
     prepare_harness_loader(layout,case)
     source=ROOT/'tools/checkpoint_formats'
     cc=ROOT/'sims/firesim/sim/midas/src/main/cc'
-    require(os.environ['VCS_HOME']=='/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'source vcs-env.sh LAST')
+    require(os.environ['VCS_HOME']==_toolchain.VCS_HOME, 'source vcs-env.sh LAST')
     run([os.environ['CXX'],'-std=c++20','-g','-fsanitize=address,undefined','-fno-omit-frame-pointer',
          '-no-pie',f'-I{case}',f'-I{cc}',f'-I{os.environ["VCS_HOME"]}/include',
          source/'durable_capture.cc',source/'tests/durable_capture_native.cc','-o',case/'verify'],case/'build.log')

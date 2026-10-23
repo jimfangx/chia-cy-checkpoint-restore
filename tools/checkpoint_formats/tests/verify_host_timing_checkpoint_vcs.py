@@ -3,6 +3,7 @@
 Source both env.sh files and vcs-env.sh LAST. An independent MT19937-64 Python
 oracle checks every delay/commit and all engine words over repeated twists.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import json
 import os
@@ -75,9 +76,9 @@ def main():
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=True)
     vcs = Path(os.environ["VCS_HOME"]) / "bin/vcs"
-    require(str(vcs) == "/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs", "source vcs-env.sh LAST")
+    require(str(vcs) == _toolchain.VCS, "source vcs-env.sh LAST")
     cxx = os.environ["CXX"]
-    require(cxx == "/usr/bin/g++-13", "keep CXX from vcs-env.sh")
+    require(cxx == _toolchain.CXX, "keep CXX from vcs-env.sh")
     sources = [TESTS / "host_timing_checkpoint.cc", CC / "emul/host_timing.cc"]
     native = out / "host-timing-native"
     run([cxx, "-std=c++17", "-Wall", "-Wextra", "-Werror", "-g", "-no-pie",

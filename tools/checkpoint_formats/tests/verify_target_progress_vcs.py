@@ -5,6 +5,7 @@ at cycle 600000 and suppresses the fuzzer's response input. Production polling
 and detection use the audited register, never the observer or port activity.
 Run this scope alone: the control file belongs to this production executable.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import hashlib
 import json
@@ -24,7 +25,7 @@ def main():
     for name in ('production','live-history','reference-production','out'):
         parser.add_argument('--'+name,type=Path,required=True)
     args=parser.parse_args()
-    require(os.environ.get('VCS_HOME')=='/ecad/tools/synopsys/vcs/Y-2026.03-SP1','source vcs-env.sh LAST')
+    require(os.environ.get('VCS_HOME')==_toolchain.VCS_HOME,'source vcs-env.sh LAST')
     production=args.production.resolve()
     inputs=json.loads((production/'native-build-inputs.json').read_text())
     require(all(hashlib.sha256((ROOT/p).read_bytes()).hexdigest()==h for p,h in inputs['sources'].items()),

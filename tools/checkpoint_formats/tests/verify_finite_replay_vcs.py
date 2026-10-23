@@ -4,6 +4,7 @@
 complete freshly run M2 verifier output. Every replay child is ordinary VCS.
 Source both repository environments, then vcs-env.sh LAST.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import hashlib
 import json
@@ -232,7 +233,7 @@ def main():
     for name in ('production', 'fixture', 'build', 'out'):
         parser.add_argument('--'+name, type=Path, required=True)
     args = parser.parse_args()
-    require(os.environ.get('VCS_HOME') == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'source vcs-env.sh LAST')
+    require(os.environ.get('VCS_HOME') == _toolchain.VCS_HOME, 'source vcs-env.sh LAST')
     args.out.mkdir(parents=True, exist_ok=True)
     out = Path(tempfile.mkdtemp(prefix='invocation-', dir=args.out.resolve()))
     (args.out/'latest.json').write_bytes(canonical(dict(output=str(out))))

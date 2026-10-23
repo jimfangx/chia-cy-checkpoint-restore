@@ -5,6 +5,7 @@ with a deterministic MMIO/clock fixture. Compare all bus operations, responses,
 GMP values and completed-call flags to an independent Python oracle. Full
 production metasim regressions separately retain unsupported-owner rejection.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import json
 import os
@@ -113,8 +114,8 @@ def main():
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
     out = args.out.resolve(); out.mkdir(parents=True, exist_ok=True)
-    require(os.environ['VCS_HOME'] == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'source vcs-env.sh LAST')
-    require(os.environ['CXX'] == '/usr/bin/g++-13', 'keep GCC/G++ 13')
+    require(os.environ['VCS_HOME'] == _toolchain.VCS_HOME, 'source vcs-env.sh LAST')
+    require(os.environ['CXX'] == _toolchain.CXX, 'keep GCC/G++ 13')
     sources = [TESTS / 'widget_checkpoint.cc', CC / 'core/widget.cc',
                *[CC / f'bridges/{name}.cc' for name in ('master', 'clock', 'loadmem', 'reset_pulse', 'peek_poke')]]
     native, simv = out / 'widget-native', out / 'widget-simv'

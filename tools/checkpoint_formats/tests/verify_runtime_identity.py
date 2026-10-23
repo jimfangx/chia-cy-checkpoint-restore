@@ -1,4 +1,5 @@
 """Native ASan/UBSan runtime compatibility against an independent SHA256 oracle."""
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import hashlib
 import json
@@ -16,7 +17,7 @@ def main():
     out=args.out.resolve();out.mkdir(parents=True,exist_ok=True)
     cc=ROOT/'sims/firesim/sim/midas/src/main/cc'
     source=ROOT/'tools/checkpoint_formats'
-    compiler=os.environ.get('CXX','/usr/bin/g++-13')
+    compiler=os.environ.get('CXX',_toolchain.CXX)
     run([compiler,'-std=c++20','-g','-fsanitize=address,undefined','-fno-omit-frame-pointer','-no-pie',
          f'-I{cc}',source/'runtime_identity.cc',source/'tests/runtime_identity_native.cc',
          '-lcrypto','-ldl','-o',out/'verify'],out/'build.log')
@@ -99,7 +100,7 @@ def main():
         path=string();digest=data[pos:pos+32];pos+=32
         require(hashlib.sha256(Path(path).read_bytes()).digest()==digest,'warm ELF hash differs from oracle')
         warm_paths.append(path)
-    tables=[f'/ecad/tools/synopsys/vcs/Y-2026.03-SP1/linux64/lib/{name}'
+    tables=[f'{_toolchain.VCS_HOME}/linux64/lib/{name}'
             for name in ('liberrindex.so','libsystemcerror.so')]
     require(pos==len(data) and set(warm_paths)==set(paths)|set(tables),
             'warmup did not bind exactly the audited tables and original ELF set')

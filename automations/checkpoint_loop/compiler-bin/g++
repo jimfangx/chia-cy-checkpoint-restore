@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-exec /usr/bin/g++-13 "$@"
+exec "${CXX:?source vcs-env.sh before linking}" "$@"

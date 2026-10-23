@@ -21,6 +21,8 @@ from typing import Any
 import ray
 
 from chia.base.ChiaFunction import ChiaFunction, get
+from eda import EdaConfig, RemoteWorkspace
+from f2 import F2Manager
 from milestones import LEGACY_MILESTONE_ORDER, MILESTONES, Milestone
 
 
@@ -29,7 +31,6 @@ FIRE = ROOT / "sims" / "firesim"
 HERE = Path(__file__).resolve().parent
 SCHEMA = HERE / "report.schema.json"
 DEFAULT_RUNS = HERE / "runs"
-VCS = Path("/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs")
 LOG_BYTES = 16 * 1024 * 1024
 LOG_BACKUPS = 6
 STREAM_CHUNK_CHARS = 64 * 1024
@@ -162,8 +163,7 @@ def codex_iteration(prompt: str, schema: str, report_path: str, log_path: str,
         "--output-schema", schema, "--output-last-message", report_path,
     ]
     if sandbox == "workspace-write":
-        # VCS/FlexNet requires direct outbound TCP; keep workspace filesystem
-        # restrictions while allowing license checkout inside agent commands.
+        # The agent needs SSH to EDA for exploratory VCS checks.
         command.extend([
             "-c", 'default_permissions="checkpoint"',
             "-c", 'permissions.checkpoint.extends=":workspace"',
@@ -215,38 +215,87 @@ def checked_workdir(relative: str) -> Path:
 
 @ChiaFunction(resources={"verification": 1.0})
 def verify(commands: list[dict[str, Any]], log_path: str) -> list[dict[str, Any]]:
-    """Execute checks in a separate Chia node and stream full tool logs."""
+    """Coordinate EDA verification from a separate Chia node."""
     log = BoundedLog(Path(log_path))
-    results = []
     try:
-        for check in commands:
-            argv = check["argv"]
-            if not argv or not all(isinstance(arg, str) for arg in argv):
-                raise ValueError("verification argv must be a nonempty string list")
-            cwd = checked_workdir(check["cwd"])
-            log.show(f"[verification] {check['purpose']}\n")
-            log.show(f"[verification command] cwd={cwd} argv={json.dumps(argv)}\n")
-            try:
-                with subprocess.Popen(
-                    argv, cwd=cwd, stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT, text=True, encoding="utf-8",
-                    errors="replace", bufsize=1,
-                ) as process:
-                    assert process.stdout is not None
-                    for line in iter(lambda: process.stdout.readline(STREAM_CHUNK_CHARS), ""):
-                        log.show(f"[verification log] {line}")
-                    returncode = process.wait()
-            except OSError as exc:
-                returncode = 127
-                log.show(f"[verification error] {exc}\n")
-            log.show(f"[verification result] exit={returncode}\n")
-            results.append({"purpose": check["purpose"], "argv": argv,
-                            "cwd": check["cwd"], "returncode": returncode})
-            if returncode:
-                break
-        return results
+        return run_verification(commands, log)
     finally:
         log.close()
+
+
+def run_verification(commands: list[dict[str, Any]], log: BoundedLog) -> list[dict[str, Any]]:
+    results = []
+    workspace = RemoteWorkspace(root=ROOT, emit=log.show)
+    manager = F2Manager(root=ROOT, emit=log.show)
+    for check in commands:
+        checked_workdir(check["cwd"])
+        execution = check.get("execution", "eda")
+        if execution == "eda":
+            workspace.command(check["argv"], check["cwd"])
+        elif execution == "f2":
+            manager.command(check["argv"], check["cwd"])
+        elif execution != "local" or check["argv"] != ["git", "diff", "--check"]:
+            raise ValueError("invalid verification backend; only controller whitespace checks run locally")
+    with workspace.locked():
+        eda_current = False
+        for check in commands:
+            argv = check["argv"]
+            cwd = checked_workdir(check["cwd"])
+            execution = check.get("execution", "eda")
+            log.show(f"[verification] {check['purpose']}\n")
+            log.show(f"[verification command] backend={execution} cwd={cwd} argv={json.dumps(argv)}\n")
+            fetch_error = None
+            try:
+                if execution == "eda":
+                    if not eda_current:
+                        workspace.preflight()
+                        workspace.push()
+                        eda_current = True
+                    try:
+                        returncode = workspace.run(argv, check["cwd"])
+                    finally:
+                        # Each EDA result must arrive before a subsequent F2
+                        # check; a later FPGA capture must be synced back to EDA.
+                        try:
+                            workspace.fetch()
+                        except (OSError, RuntimeError) as exc:
+                            fetch_error = str(exc)
+                elif execution == "f2":
+                    returncode = manager.run(argv, check["cwd"])
+                    eda_current = False
+                else:
+                    returncode = run_local_check(argv, cwd, log)
+            except (OSError, RuntimeError) as exc:
+                returncode = 127
+                log.show(f"[verification error] {exc}\n")
+            log.show(f"[verification result] backend={execution} exit={returncode}\n")
+            results.append({"purpose": check["purpose"], "argv": argv,
+                            "cwd": check["cwd"], "returncode": returncode,
+                            "backend": execution,
+                            "host": workspace.config.host if execution == "eda" else "local-manager"})
+            if execution == "eda":
+                results[-1]["remote_argv"] = workspace.mapped_argv(argv)
+                results[-1]["remote_cwd"] = workspace.config.root + "/" + check["cwd"]
+            if fetch_error:
+                log.show(f"[verification artifact error] {fetch_error}\n")
+                results.append({"purpose": "Return EDA verification artifacts", "argv": [],
+                                "cwd": ".", "returncode": 127, "backend": "eda",
+                                "host": workspace.config.host})
+            if returncode or fetch_error:
+                break
+    return results
+
+
+def run_local_check(argv: list[str], cwd: Path, log: BoundedLog) -> int:
+    with subprocess.Popen(
+        argv, cwd=cwd, stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT, text=True, encoding="utf-8",
+        errors="replace", bufsize=1,
+    ) as process:
+        assert process.stdout is not None
+        for line in iter(lambda: process.stdout.readline(STREAM_CHUNK_CHARS), ""):
+            log.show(f"[verification log] {line}")
+        return process.wait()
 
 
 def git(repo: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess[bytes]:
@@ -331,10 +380,14 @@ def load_state(path: Path) -> dict[str, Any]:
             len(set(previous_order)) != len(previous_order) or
             type(index) is not int or not 0 <= index <= len(previous_order)):
         raise ValueError("invalid saved milestone order or index")
-    completed = set(previous_order[:index])
+    historical_completed = state.get("completed_milestones", [])
+    if not isinstance(historical_completed, list) or any(not isinstance(n, str) for n in historical_completed):
+        raise ValueError("invalid saved completed milestones")
+    completed = set(previous_order[:index]) | set(historical_completed)
     state["milestone_index"] = next(
         (i for i, name in enumerate(order) if name not in completed), len(order))
     state["milestone_order"] = order
+    state["completed_milestones"] = sorted(completed)
     # Old runs stored path -> fingerprint maps. Keep only the excluded paths;
     # their contents can change freely without blocking resume or checkpoints.
     for name, paths in state["baseline"].items():
@@ -348,16 +401,35 @@ def load_state(path: Path) -> dict[str, Any]:
 
 def make_prompt(milestone: Milestone, iteration: int, state: dict[str, Any],
                 verification_log: Path) -> str:
+    eda = EdaConfig.from_env()
     return f"""Implement the current milestone of the FireSim checkpoint/restore plan.
 
 Read the sections of {ROOT / 'plan_agent.md'} and {ROOT / 'plan_human.md'}
 relevant to this milestone before editing. Re-read the top of plan_agent.md
 on every iteration and apply its current user priorities. plan_agent.md takes
 precedence over older instructions in plan_human.md and historical progress.
-The endpoint is untransformed pre-FAME RTL VCS guided by a concurrently running,
-checkpoint-restored metasim. Physical FPGA validation is deferred. Synthesis,
-formal RTL-to-cell mapping, gate replay and power analysis are outside scope;
-do not launch their tools or make their historical checks prerequisites.
+Capture checkpoints from an actual running AWS F2 FPGA. Migrate that hardware
+state into fresh EDA VCS metasim and clean pre-FAME RTL, including sustained
+restored-metasim-guided RTL execution. FPGA implementation, image builds and
+physical hardware acceptance are required now. ASIC synthesis, formal RTL-to-cell
+mapping, gate replay and power analysis remain outside scope.
+
+You are the central implementation agent for this Chia-managed Codex turn.
+The user explicitly authorizes as many subagents as needed, within the runtime's
+available capacity; there is no additional task-specific subagent limit.
+All LLM requests, delegation/follow-up requests and results must go through you.
+Use native managed subagent tools under this central turn. Only you initiate
+and coordinate delegation; workers request additional help through you and
+return their results to you. Do not start independent codex exec sessions,
+direct LLM API calls, separate Chia LLM jobs or detached model processes.
+Keep the central turn alive until every delegated LLM request has finished.
+Collect and integrate worker results, resolve conflicts, and wait for or cancel
+and join any remaining workers before returning. Only you return the final
+required JSON report; workers must not write controller state or final-report
+files. No subagent or background LLM request may outlive your final response.
+Chia relies on completion of this central invocation to know that the LLM call
+is finished. Pass this coordination rule and the task constraints to each worker.
+
 The old loop is archived at {ROOT / 'automations/checkpoint_loop_legacy_asic'};
 treat that archive and its plans as read-only historical inputs.
 Read {ROOT / 'docs/checkpointing/progress.md'}.
@@ -378,23 +450,72 @@ Iteration: {iteration}
 Previous feedback: {state.get('feedback', '(none)')}
 Full previous verification log: {verification_log}
 
-Use VCS metasim and ordinary clean RTL VCS on this machine. Source
-{ROOT / 'env.sh'} and {FIRE / 'env.sh'} when a build needs them, then source
-{HERE / 'vcs-env.sh'} LAST in every VCS build, simulation, or license-check
-shell, including bash -lc verification commands. This sources the license
-setup from CHECKPOINT_LICENSE_SETUP (default /ecad/tools/vlsi.bashrc) and pins VCS_HOME,
-PATH, 64-bit mode, system GCC/G++ 13, and the conda library path.
-Keep CC/CXX and VCS_CC from that setup: Conda GCC 15 rejects implicit
-function declarations in VCS-generated C. The helper also supplies gcc on
-PATH for VCS's internal generated-C compiler and g++ for its linker.
-VCS is {VCS}; use -full64.
-When reusing a VCS build directory from an older release, use VCS_FLAGS=-Mupdate
-for the first Make build so VCS regenerates its cached C build Makefile.
-An absolute bin/vcs path alone does not override an older VCS_HOME set by
-login-shell initialization. Use this release for new checks even if saved
-reports or historical logs name an older version.
-There is no FPGA. Keep FPGA capture/transport code
-synthesizable and test it through metasim, but do not claim FPGA validation.
+All VCS compilation, simulation, metasimulation and VCS verification MUST run
+on SSH host {eda.host}, in the dedicated mirror {eda.root}. Codex, source edits
+and git checkpoints stay here. For exploratory checks use this local helper:
+python {HERE / 'eda.py'} --cwd . -- bash -lc 'source automations/checkpoint_loop/vcs-env.sh && <check>'
+The helper syncs source (including git metadata and dirty files) and run inputs,
+uses the EDA login-shell licenses, and returns run artifacts even on failure.
+It never copies local env.sh or conda environments over EDA's native setup.
+Report backend="eda" for ALL VCS checks (also the default for older reports).
+Report backend="f2" for AWS/FireSim manager, FPGA deployment, workload execution,
+capture and manager-side audits. Both backends take raw command argv, not helper
+or SSH wrappers. cwd is relative to Chipyard. Local absolute workspace paths in
+EDA argv are mapped to the remote root. The controller executes commands in
+reported order and exchanges artifacts between the F2 manager and EDA.
+Use workspace-relative paths in scripts and put ALL generated evidence beneath
+automations/checkpoint_loop/runs/ so it is returned here before artifact checks.
+Report artifacts as local paths under {ROOT}; preserve original remote paths
+inside receipts. Do not rewrite historical evidence to appear freshly verified.
+Remote VCS is {eda.vcs}; use -full64. Source vcs-env.sh LAST after any native
+EDA build setup, including inside nested bash -lc commands. EDA licenses are
+already sourced; do not source the former /ecad license setup. If necessary,
+CHECKPOINT_EDA_SETUP names an additional REMOTE build environment script.
+Old verification harnesses may pin SP1, /ecad, or Ubuntu compiler paths. Port
+active build/runtime checks to the real SP2 toolchain, preserving exact
+provenance and validation; never falsify old receipts or weaken acceptance.
+Regenerate host-specific cached builds and binaries; use VCS_FLAGS=-Mupdate
+when regenerating VCS cached Makefiles. Missing remote build dependencies must
+be reported with their actual failing commands, not inferred from local tools.
+
+Use this checkout as the local AWS FireSim manager; read
+{ROOT / 'docs/checkpointing/aws-f2-workflow.md'} and the linked official guide.
+For exploratory manager/hardware work:
+python {HERE / 'f2.py'} check
+python {HERE / 'f2.py'} run --cwd sims/firesim/deploy -- firesim <task> <isolated config flags>
+f2.py sources sourceme-manager.sh with noninteractive key setup skipped; Fabric
+uses ~/firesim.pem. CHECKPOINT_F2_SETUP can source additional local manager setup.
+The user has already generated the four manager YAMLs in {FIRE / 'deploy'}
+and run aws configure. Reuse that setup; do not rerun managerinit, aws configure
+or account bootstrap. Generate invocation overrides with f2.py prepare from
+those existing files: one AWS f2.6xlarge run host, a dedicated checkpoint-f2-*
+tag, metasimulation_enabled=false and the exact CPU recipe (add its existing
+staging recipe if absent from the user's build recipes). Preserve custom inputs.
+Vivado synthesis/place-and-route and bitstream builds MUST run on THIS server,
+not EDA or an EC2 build farm. Use build-farm-recipes/externally_provisioned.yaml
+with build_farm_hosts=[localhost] and a local build directory. The helper enforces
+this in generated configs. Reuse native Vivado and check the required F2 HDK
+version and FireSim's localhost SSH access when building. Do not launch z1d
+build instances. AWS is used for F2 runtime and AFI services. Existing AWS
+configuration is established setup; report concrete API errors if encountered.
+Do not clone/reset this implementation.
+Public AGFIs are baseline-only. Implement actual synthesizable freeze/banked
+state access and MMIO/DMA/host capture, build a checkpoint-enabled F2 image,
+deploy it, then checkpoint active FPGA execution. Metasim capture, VCS backdoors,
+or public-image boot cannot satisfy new hardware checkpoints. FPGA synthesis
+with Vivado is allowed and required when hardware changes. Persist driver/image
+source hashes, instance ID/type/region, loaded slot/AGFI, target cycles, DMA and
+host receipts, workload and checkpoint hashes, complete state and comparison logs.
+The FireSim manager returns run-farm results locally; configure workload outputs
+to collect checkpoint/trace files and copy acceptance evidence into runs/ before
+EDA verification. Retain native manager logs and AFI build outputs with provenance.
+Use only this loop's tagged AWS run farm; record instance/AFI IDs and local build
+jobs/work directories. Collect artifacts before scoped run-farm teardown. The
+localhost build host and this manager must never be terminated. Preserve native
+build results and in-progress AFI IDs across turns. Local build worktrees are
+excluded from EDA sync; copy only required capture/restore inputs outside them.
+If AWS access, quota, AMI, networking, SSH keys or account setup blocks hardware,
+report the actual dependency; never substitute metasim for F2 acceptance.
 
 Preserve target-cycle semantics and fail explicitly on unsupported state.
 Keep Level-1 simulator and Level-2 semantic checkpoints independent. Validate
@@ -410,9 +531,10 @@ reduce the test scope or skip a check to save memory or disk.
 
 Return the required JSON report. Set status to ready only when the milestone's
 acceptance is supported by real artifacts and verification commands. Include
-commands as argv arrays (use bash -lc when environment sourcing is needed),
+commands as raw argv arrays with backend f2 or eda (use bash -c for manager scripts,
+and bash -lc with vcs-env.sh sourced last for EDA scripts),
 with cwd relative to the Chipyard root. Never report a test as passing unless
-it actually ran. If a required VCS tool, runtime dependency, license, or library is missing,
+it actually ran. If a required AWS/F2 or VCS tool, runtime dependency, license, or library is missing,
 report blocked with the exact missing dependency. Otherwise report in_progress
 and continue next turn. Include full paths to all created artifacts.
 """
@@ -430,17 +552,25 @@ def validated_artifacts(report: dict[str, Any], milestone: Milestone) -> list[st
 def verification_plan(report: dict[str, Any], milestone: Milestone) -> list[dict[str, Any]]:
     commands = [
         {"purpose": "FireSim whitespace check", "cwd": "sims/firesim",
-         "argv": ["git", "diff", "--check"]},
+         "argv": ["git", "diff", "--check"], "execution": "local"},
         {"purpose": "Chipyard whitespace check", "cwd": ".",
-         "argv": ["git", "diff", "--check"]},
+         "argv": ["git", "diff", "--check"], "execution": "local"},
     ]
-    commands.extend(report.get("verification_commands", []))
+    for check in report.get("verification_commands", []):
+        backend = check.get("backend", "eda")
+        if backend not in ("eda", "f2"):
+            raise ValueError("verification backend must be eda or f2")
+        commands.append({**check, "execution": backend})
     if report.get("status") == "ready" and not report.get("verification_commands"):
         raise ValueError("ready report requires independent verification commands")
     if report.get("status") == "ready" and milestone.needs_vcs:
-        command_text = json.dumps(report.get("verification_commands", [])).lower()
+        command_text = json.dumps([check["argv"] for check in commands
+                                   if check.get("execution") == "eda"]).lower()
         if "vcs" not in command_text and "simv" not in command_text:
-            raise ValueError("ready report for this milestone requires a VCS command")
+            raise ValueError("ready report for this milestone requires an EDA VCS command")
+    if report.get("status") == "ready" and milestone.needs_f2:
+        if not any(check.get("execution") == "f2" for check in commands):
+            raise ValueError("ready report for this milestone requires AWS F2 verification")
     return commands
 
 
@@ -457,17 +587,29 @@ def main() -> int:
                         help="Codex sandbox (default: workspace-write); approvals are never prompted")
     parser.add_argument("--max-iterations", type=int, default=0,
                         help="Optional operational stop for a trial run; 0 runs until done")
-    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--dry-run", action="store_true", help="print routing/milestones without network or state changes")
+    parser.add_argument("--check-backends", action="store_true",
+                        help="check AWS F2 manager and EDA access without launching resources")
     args = parser.parse_args()
     runs = args.runs.resolve()
-    if not VCS.is_file() or not shutil.which("codex"):
-        raise RuntimeError("VCS or Codex executable is missing")
-    if args.dry_run:
+    if not shutil.which("codex"):
+        raise RuntimeError("local Codex executable is missing")
+    try:
+        workspace = RemoteWorkspace()
+        if args.check_backends:
+            if F2Manager().preflight():
+                return 2
+            workspace.preflight()
+    except (OSError, RuntimeError, ValueError) as exc:
+        print(f"[loop startup error] {exc}", file=sys.stderr)
+        return 2
+    if args.dry_run or args.check_backends:
         print(f"Chipyard: {ROOT}\nFireSim: {FIRE}\nChia: {ray.__version__}")
-        print(f"VCS: {VCS}\nCodex: {shutil.which('codex')}")
+        print(f"EDA: {workspace.config.host}:{workspace.config.root}")
+        print(f"Remote VCS: {workspace.config.vcs}\nCodex: {shutil.which('codex')}")
         for item in MILESTONES:
             print(f"{item.name}: {item.acceptance}")
-        print("Physical FPGA validation: deferred because this machine has no FPGA")
+        print("Capture: actual AWS F2 FPGA; restore/replay: EDA VCS; FPGA acceptance is required")
         return 0
 
     state_path = runs / "state.json"
@@ -526,7 +668,10 @@ def main() -> int:
             state["feedback"] = feedback or report.get("summary", "")
             if not feedback and report.get("status") == "ready":
                 print(f"[milestone verified] {milestone.name}", flush=True)
-                state["milestone_index"] += 1
+                completed = set(state.get("completed_milestones", [])) | {milestone.name}
+                state["completed_milestones"] = sorted(completed)
+                state["milestone_index"] = next(
+                    (i for i, item in enumerate(MILESTONES) if item.name not in completed), len(MILESTONES))
                 state["feedback"] = ""
             elif report.get("status") == "blocked":
                 print(f"[milestone blocked] {milestone.name}: {report.get('evidence')}", flush=True)
@@ -536,7 +681,7 @@ def main() -> int:
                 print(f"[loop feedback] {state['feedback']}", flush=True)
             save_state(state_path, state)
         print("[loop complete] all configured milestones verified")
-        print("[deferred] FPGA bring-up requires hardware")
+        print("[scope complete] AWS F2 capture and FPGA-to-EDA checkpoint migration verified")
         return 0
     finally:
         ray.shutdown()

@@ -5,6 +5,7 @@ Retained-history admission happens after the live run; public live commit and
 production watchdog sampling are not established by this verifier.
 Source env.sh, FireSim env.sh, then vcs-env.sh LAST.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import hashlib
 import json
@@ -29,7 +30,7 @@ def main():
     parser.add_argument('--initial-capture', type=Path,
                         help='Recheck an already completed identical initial live run; run every remaining check afresh')
     args = parser.parse_args()
-    require(os.environ.get('VCS_HOME') == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'source vcs-env.sh LAST')
+    require(os.environ.get('VCS_HOME') == _toolchain.VCS_HOME, 'source vcs-env.sh LAST')
     production = args.production.resolve()
     sources = json.loads((production/'native-build-inputs.json').read_text())['sources']
     require(all(hashlib.sha256((ROOT/p).read_bytes()).hexdigest() == h for p, h in sources.items()),
@@ -74,7 +75,7 @@ def main():
             text = (directory/'run.log').read_text()
             recorded = next(line[5:] for line in text.splitlines() if line.startswith('argv='))
             require(json.loads(recorded) == [str(a) for a in argv] and text.endswith('exit=0\n') and
-                    'Y-2026.03-SP1_Full64' in text, 'reused run is incomplete or has different inputs')
+                    _toolchain.VCS_VERSION in text, 'reused run is incomplete or has different inputs')
         else:
             text = run(argv, directory/'run.log', directory)
         require('*** PASSED ***' in text and 'Target Cycles Emulated: 774628\n' in text,

@@ -5,6 +5,7 @@ under the shared history lock; the verifier never commits or prunes them.
 Watchdog injection/sampling is still external to the production simulator.
 Source env.sh, FireSim env.sh and vcs-env.sh LAST.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import hashlib
 import json
@@ -34,7 +35,7 @@ def main():
     parser.add_argument('--target-watchdog-cycles',type=int,default=0,
                         help='Also monitor audited completed response transactions')
     args = parser.parse_args()
-    require(os.environ.get('VCS_HOME') == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'source vcs-env.sh LAST')
+    require(os.environ.get('VCS_HOME') == _toolchain.VCS_HOME, 'source vcs-env.sh LAST')
     production = args.production.resolve()
     sources = json.loads((production/'native-build-inputs.json').read_text())['sources']
     require(all(hashlib.sha256((ROOT/p).read_bytes()).hexdigest() == h for p, h in sources.items()),

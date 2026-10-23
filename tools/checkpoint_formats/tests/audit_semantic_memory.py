@@ -1,4 +1,5 @@
 """Audit original native memory images, readback benches, traces and logs."""
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import hashlib
 import json
@@ -47,7 +48,7 @@ def check_replay(case, manifest, boundary, configuration, rows, fields, cycle, w
             'finite replay omits boundary outputs')
     log = (case / 'run.log').read_text()
     require(f'RESTORE: deposited {words} semantic words before first DUT edge' in log
-            and 'Y-2026.03-SP1_Full64' in log, 'missing native pinned-release readback')
+            and _toolchain.VCS_VERSION in log, 'missing native pinned-release readback')
     pids = re.findall(r'fresh_process_pid=(\d+)', log)
     require(len(pids) == 1, 'missing/ambiguous fresh native process')
     require((case / 'simv').stat().st_size > 0 and (case / 'replay.vcd').stat().st_size > 0, 'missing native binary/waveform')

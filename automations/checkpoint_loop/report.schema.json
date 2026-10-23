@@ -14,8 +14,9 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["purpose", "cwd", "argv"],
+        "required": ["purpose", "cwd", "argv", "backend"],
         "properties": {
+          "backend": {"type": "string", "enum": ["eda", "f2"], "description": "eda for all VCS; f2 for local FireSim manager/AWS hardware commands; defaults to eda"},
           "purpose": {"type": "string"},
           "cwd": {"type": "string"},
           "argv": {"type": "array", "minItems": 1, "items": {"type": "string"}}

@@ -1,4 +1,5 @@
 """Independent archived-state/process audit for aggregate worker admission."""
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import copy
 import itertools
@@ -31,7 +32,7 @@ def audit(path, report=None):
     for version, identity_path in r['identities'].items():
         require(identity_path in bindings and file_sha(identity_path) == bindings[identity_path]['sha256'], 'unbound thread recipe')
         identity = json.loads(Path(identity_path).read_text())
-        require(identity['htif_lifecycle_provider_linked'] and identity['vcs_home'] == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'wrong thread recipe provider')
+        require(identity['htif_lifecycle_provider_linked'] and identity['vcs_home'] == _toolchain.VCS_HOME, 'wrong thread recipe provider')
         archive = Path(identity['native_binary']).parent/'checkpoint-fesvr/lifecycle/libfesvr-checkpoint.a'
         require(str(archive) in bindings and file_sha(archive) == file_sha(out/version/'libfesvr-checkpoint.a'), 'thread archive differs from recipe')
         if version == 'current':
@@ -98,7 +99,7 @@ def audit(path, report=None):
             c = commands[str(out/version/(name+'.log'))]; command(c)
             args = shlex.split(c['argv'][2]); library = str(out/version/'libfesvr-checkpoint.a')
             require(any(library in token for token in args), 'thread build omitted archive')
-            if name == 'vcs-build': require('/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs' in args and '-full64' in args, 'thread VCS release')
+            if name == 'vcs-build': require(_toolchain.VCS in args and '-full64' in args, 'thread VCS release')
     require(used == set(commands), 'unclassified thread command')
     return dict(status='passed', current_admission_cases=360, prior_provider_witnesses=300 if 'prior' in versions else 0,
                 prior_shared_pending_controls=60 if 'prior' in versions else 0,

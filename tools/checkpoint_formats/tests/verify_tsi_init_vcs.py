@@ -3,6 +3,7 @@
 Independent ordered-access oracle; fixture labels are not CPU target cycles.
 Every VCS shell sources vcs-env last. Complete HTIF/CPU restore stays pending.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import json
 import os
@@ -222,8 +223,8 @@ def main():
         print(json.dumps(audit(a.audit), indent=2)); return
     require(a.out is not None and a.serial_summary is not None and
             a.out.resolve().is_relative_to(ROOT/'automations/checkpoint_loop/runs'), 'need runs output and actual serial summary')
-    require(os.environ.get('VCS_HOME') == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1' and
-            os.environ.get('CXX') == '/usr/bin/g++-13', 'source vcs-env.sh LAST')
+    require(os.environ.get('VCS_HOME') == _toolchain.VCS_HOME and
+            os.environ.get('CXX') == _toolchain.CXX, 'source vcs-env.sh LAST')
     parent = a.serial_summary.resolve()
     require(audit_serial(parent)['actual_serial_images'] == 384, 'need current actual serial captures')
     for backend in ('native', 'vcs-dpi'):

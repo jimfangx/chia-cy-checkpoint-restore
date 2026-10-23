@@ -1,4 +1,5 @@
 """Concrete production FCFS component, native sanitizers and fresh VCS DPI."""
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import json
 import os
@@ -56,8 +57,8 @@ def main():
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
     out = args.out.resolve(); out.mkdir(parents=True, exist_ok=True)
-    require(os.environ['VCS_HOME'] == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'source vcs-env.sh LAST')
-    require(os.environ['CXX'] == '/usr/bin/g++-13', 'keep GCC/G++ 13')
+    require(os.environ['VCS_HOME'] == _toolchain.VCS_HOME, 'source vcs-env.sh LAST')
+    require(os.environ['CXX'] == _toolchain.CXX, 'keep GCC/G++ 13')
     sources = [TESTS / 'fcfs_checkpoint.cc', *[CC / p for p in (
         'core/simulation.cc', 'core/widget_registry.cc', 'core/widget.cc',
         'core/stream_engine.cc', 'core/bridge_driver.cc', 'core/address_map.cc',

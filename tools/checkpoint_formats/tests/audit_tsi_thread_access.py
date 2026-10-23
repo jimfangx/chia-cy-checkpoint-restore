@@ -1,4 +1,5 @@
 """Independent owner-byte and process audit of TSI foreign-thread rejection."""
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import copy
 import itertools
@@ -50,7 +51,7 @@ def audit(path, report=None):
     identity_path = r['recipe_build_identity']; require(identity_path in bindings, 'unbound access recipe')
     require(file_sha(identity_path) == bindings[identity_path]['sha256'], 'access recipe changed')
     identity = json.loads(Path(identity_path).read_text())
-    require(identity['htif_lifecycle_provider_linked'] and identity['vcs_home'] == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'wrong access recipe')
+    require(identity['htif_lifecycle_provider_linked'] and identity['vcs_home'] == _toolchain.VCS_HOME, 'wrong access recipe')
     for p,h in identity['sources_sha256'].items():
         if p in bindings: require(bindings[p]['sha256'] == h, 'access recipe/source mismatch')
     archive = Path(identity['native_binary']).parent/'checkpoint-fesvr/lifecycle/libfesvr-checkpoint.a'
@@ -121,7 +122,7 @@ def audit(path, report=None):
         require(str(out/(name+'.log')) in commands, 'missing access build command')
         c = commands[str(out/(name+'.log'))]; command(c); args = shlex.split(c['argv'][2])
         require(any(str(out/'libfesvr-checkpoint.a') in token for token in args), 'access build omitted recipe archive')
-        if name == 'vcs-build': require('/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs' in args and '-full64' in args, 'access VCS release')
+        if name == 'vcs-build': require(_toolchain.VCS in args and '-full64' in args, 'access VCS release')
     require(used == set(commands), 'unclassified access commands')
     return dict(status='passed', foreign_entries=len(expected), operations=len(operations), boundaries=2,
                 backends=2, level1_verified=False, level2_verified=False)

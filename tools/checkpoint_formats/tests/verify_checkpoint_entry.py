@@ -3,6 +3,7 @@
 Platform/registry/driver are observers, not generated-state restore evidence.
 Run with env.sh, FireSim env.sh, then vcs-env.sh LAST.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import hashlib
 import json
@@ -21,8 +22,8 @@ def main():
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     out = Path(tempfile.mkdtemp(prefix='invocation-', dir=args.out.resolve()))
-    require(os.environ['VCS_HOME'] == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'source vcs-env.sh LAST')
-    require(os.environ['CXX'] == '/usr/bin/g++-13', 'preserve VCS compiler setup')
+    require(os.environ['VCS_HOME'] == _toolchain.VCS_HOME, 'source vcs-env.sh LAST')
+    require(os.environ['CXX'] == _toolchain.CXX, 'preserve VCS compiler setup')
     cc = ROOT/'sims/firesim/sim/midas/src/main/cc'
     tests = Path(__file__).resolve().parent
     header = tests/'checkpoint_entry_fixture.h'
@@ -150,7 +151,7 @@ def main():
         for label, options, code, error, phase in cases:
             log = directory/f'{label}.log'
             text = run([*prefix, *options], log, directory, expected=code)
-            if backend == 'vcs': require('Y-2026.03-SP1_Full64' in text, 'wrong VCS release')
+            if backend == 'vcs': require(_toolchain.VCS_VERSION in text, 'wrong VCS release')
             if error: require(error in text and 'FIXTURE_RETURN' not in text, 'failure returned to VCS/driver')
             if code or phase == 'restore': require('FIXTURE_RUN' not in text, 'rejected/reserved entry advanced target')
             if phase in ('parse', 'authorize'): require('FIXTURE_PLATFORM' not in text, 'early rejection constructed platform')

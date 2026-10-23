@@ -2,6 +2,7 @@
 
 This owns process-local context resources; it does not restore CPU checkpoints.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import json
 import os
@@ -23,8 +24,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
-    require(os.environ.get('VCS_HOME') == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1' and
-            os.environ.get('CXX') == '/usr/bin/g++-13', 'source vcs-env.sh LAST')
+    require(os.environ.get('VCS_HOME') == _toolchain.VCS_HOME and
+            os.environ.get('CXX') == _toolchain.CXX, 'source vcs-env.sh LAST')
     destination = args.out.resolve()
     require(destination.is_relative_to(ROOT / 'automations/checkpoint_loop/runs'), 'diagnostics must be under runs')
     destination.mkdir(parents=True, exist_ok=True)

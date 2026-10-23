@@ -3,6 +3,7 @@
 This does not restore sessions/descriptors, signals, outer callers or CPU state.
 All cut labels are explicit host-operation indices, never target cycles.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 import json
@@ -339,8 +340,8 @@ def audit(path):
         require(c['divergence'] in text, 'semantic fault not detected at first unconsumed boundary')
     require(set(commands) == used, 'extra or missing polling native command')
     build = shlex.split(commands[str(out/'vcs-build.log')]['argv'][2][len(ENVIRONMENT):])
-    require(build[0] == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs' and '-full64' in build and
-            build[build.index('-cc')+1] == '/usr/bin/gcc-13' and build[build.index('-cpp')+1] == '/usr/bin/g++-13', 'wrong VCS/compiler')
+    require(build[0] == _toolchain.VCS and '-full64' in build and
+            build[build.index('-cc')+1] == _toolchain.CC and build[build.index('-cpp')+1] == _toolchain.CXX, 'wrong VCS/compiler')
     return dict(status='passed', scenarios=len(SPECS), cuts=sum(len(case(s)['states']) for s in SPECS),
                 fresh_restores=len(expected), owner_readbacks=readbacks, host_operations=operations,
                 invalid_processes=len(r['invalids']), semantic_first_divergences=len(r['faults']),
@@ -354,7 +355,7 @@ def main():
     p.add_argument('--recipe-build-identity', type=Path); a = p.parse_args()
     if a.audit: print(json.dumps(audit(a.audit), indent=2)); return
     require(a.out and a.out.resolve().is_relative_to(ROOT/'automations/checkpoint_loop/runs'), 'need runs output')
-    require(os.environ.get('VCS_HOME') == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1' and os.environ.get('CXX') == '/usr/bin/g++-13', 'source vcs-env LAST')
+    require(os.environ.get('VCS_HOME') == _toolchain.VCS_HOME and os.environ.get('CXX') == _toolchain.CXX, 'source vcs-env LAST')
     a.out.resolve().mkdir(parents=True, exist_ok=True); out = Path(tempfile.mkdtemp(prefix='invocation-', dir=a.out.resolve()))
     idle_rounds = 2
     case = lambda spec: scenario(*spec, idle_rounds)

@@ -1,4 +1,5 @@
 """Public scheduling, diagnostic-free capture/restart, and fail-closed VCS checks."""
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import concurrent.futures
 import hashlib
@@ -25,7 +26,7 @@ def main():
     args = parser.parse_args()
     production = args.production.resolve()
     out = args.out.resolve(); out.mkdir(parents=True, exist_ok=True)
-    require(os.environ['VCS_HOME'] == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'source vcs-env.sh LAST')
+    require(os.environ['VCS_HOME'] == _toolchain.VCS_HOME, 'source vcs-env.sh LAST')
     summary = json.loads((production/'summary.json').read_text())
     require(summary['public_durable_capture_enabled'] and len(summary['cases']) == 5,
             'incomplete public continuations')

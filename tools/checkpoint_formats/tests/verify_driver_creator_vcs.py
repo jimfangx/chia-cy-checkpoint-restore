@@ -2,6 +2,7 @@
 
 Exercises both legacy paths and both reserved paths without claiming CPU restore.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 import json
@@ -23,8 +24,8 @@ def main():
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--build', type=Path, required=True)
     a = parser.parse_args()
-    require(os.environ.get('VCS_HOME') == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1' and
-            os.environ.get('CXX') == '/usr/bin/g++-13', 'source vcs-env LAST')
+    require(os.environ.get('VCS_HOME') == _toolchain.VCS_HOME and
+            os.environ.get('CXX') == _toolchain.CXX, 'source vcs-env LAST')
     require(a.out.resolve().is_relative_to(ROOT/'automations/checkpoint_loop/runs'), 'need runs output')
     a.out.resolve().mkdir(parents=True, exist_ok=True)
     out = Path(tempfile.mkdtemp(prefix='invocation-', dir=a.out.resolve()))

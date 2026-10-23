@@ -4,6 +4,7 @@ Inject faults into a private header copy, preserving production source. Require
 the first incorrect response to fail before it is acknowledged. Fixture labels
 here are host response boundaries, never Rocket target cycles.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import json
 import os
@@ -108,8 +109,8 @@ def main():
     if args.audit: print(json.dumps(audit(args.audit),indent=2)); return
     require(args.out is not None and args.out.resolve().is_relative_to(ROOT/'automations/checkpoint_loop/runs'),
             'transport fault diagnostics must be under runs')
-    require(os.environ.get('VCS_HOME') == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1' and
-            os.environ.get('CXX') == '/usr/bin/g++-13', 'source vcs-env.sh LAST')
+    require(os.environ.get('VCS_HOME') == _toolchain.VCS_HOME and
+            os.environ.get('CXX') == _toolchain.CXX, 'source vcs-env.sh LAST')
     args.out.resolve().mkdir(parents=True,exist_ok=True)
     out = Path(tempfile.mkdtemp(prefix='invocation-',dir=args.out.resolve()))
     sources=[TESTS/'loadmem_transport.cc',STUBS/'fesvr/firesim_tsi.cc',STUBS/'fesvr/owned_fesvr_tsi.cc',

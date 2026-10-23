@@ -2,6 +2,7 @@
 
 Component evidence only; session/caller/thread/process/CPU admission is pending.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
@@ -199,8 +200,8 @@ def audit(path):
     for command in r['commands']:
         require(Path(command['log']).read_text().rstrip().endswith('exit='+str(command['returncode'])), 'signal build/run did not finish')
     vcs = next(c for c in r['commands'] if c['log'] == str(out/'vcs-build.log'))['argv']
-    require(vcs[0] == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs' and '-full64' in vcs and
-            vcs[vcs.index('-cc')+1] == '/usr/bin/gcc-13' and vcs[vcs.index('-cpp')+1] == '/usr/bin/g++-13',
+    require(vcs[0] == _toolchain.VCS and '-full64' in vcs and
+            vcs[vcs.index('-cc')+1] == _toolchain.CC and vcs[vcs.index('-cpp')+1] == _toolchain.CXX,
             'wrong signal VCS/compiler configuration')
     return dict(status='passed', fresh_processes=len(expected),
                 captures=sum(c['mode']=='capture' for c in expected),
@@ -223,7 +224,7 @@ def main():
     a = p.parse_args()
     if a.audit: print(json.dumps(audit(a.audit), indent=2)); return
     require(a.out and a.out.resolve().is_relative_to(ROOT/'automations/checkpoint_loop/runs'), 'need runs output')
-    require(os.environ.get('VCS_HOME') == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1' and os.environ.get('CXX') == '/usr/bin/g++-13', 'source vcs-env LAST')
+    require(os.environ.get('VCS_HOME') == _toolchain.VCS_HOME and os.environ.get('CXX') == _toolchain.CXX, 'source vcs-env LAST')
     a.out.resolve().mkdir(parents=True, exist_ok=True); out = Path(tempfile.mkdtemp(prefix='invocation-', dir=a.out.resolve()))
     source, sv = [TESTS/n for n in ('tsi_htif_signal_fesvr.cc', 'tsi_htif_signal_fesvr_tb.sv')]
     inputs = [source, sv, Path(__file__), PROVIDER, PROVIDER.with_suffix('.h'),

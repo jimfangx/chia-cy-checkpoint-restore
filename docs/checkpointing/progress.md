@@ -1,20 +1,111 @@
 # Checkpointing progress
 
-Current user priority (October 13, 2026): implement and verify complete
-Level-1 and Level-2 checkpoint/restore for the existing Rocket, BOOM and
-Shuttle + Saturn recipes in `sims/firesim-staging/sample_config_build_recipes.yaml`.
-Standalone Shuttle is excluded because no recipe exists. Physical FPGA
-validation and ASIC power are deferred. Follow the detailed current instructions
-at the top of `plan_agent.md` and the appended M11-M13 loop milestones.
-Rocket Level-2 finite replay passes; complete Rocket Level 1 remains in progress.
-BOOM and Shuttle + Saturn remain pending; no complete CPU milestone is accepted.
-Preserve the verified iteration-81 FCFS state and evidence below; resume without resetting saved loop progress.
+Delegation instruction from the user: the central implementation agent may use
+as many subagents as needed within runtime capacity. All LLM/delegation and
+follow-up requests and results must go through that central agent, using native
+managed subagent tools. Workers request further help through the central agent;
+do not launch independent Codex sessions, direct LLM API calls or detached Chia
+LLM jobs. The central agent must collect results and wait for, or cancel and join,
+all workers before its final JSON report. No delegated LLM work may outlive the
+central turn: Chia uses that turn's completion to detect the end of the LLM call.
+Preserve this instruction in subsequent progress updates.
+
+Current user priority (October 23, 2026): actual AWS F2 FPGA capture and
+FPGA-to-EDA checkpoint migration. Follow the current top of `plan_agent.md`
+and [aws-f2-workflow.md](aws-f2-workflow.md). Reuse the four initialized manager YAMLs and the already configured AWS setup.
+Build bitstreams on this server with ExternallyProvisioned localhost; do not
+launch EC2 build hosts or build on EDA. Run a real single-node Rocket F2 workload, then implement/build/deploy complete
+capture hardware and validate FPGA-produced Level-1/Level-2 images in fresh
+EDA VCS, including finite replay, rolling recovery and sustained live RTL.
+FPGA synthesis/image builds and physical acceptance are required. ASIC
+mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
+
+Active milestone: `F2-bringup-and-baseline`, iteration 175. On October 23 the
+existing manager successfully launched one tagged `f2.6xlarge`, instance
+`i-04b9cc3f81f16b61f`, in `us-west-2`, private IP `192.168.1.203`, using AMI
+`ami-07a164f1a402ab274`. Its AWS tag is
+`fsimcluster=checkpoint-f2-rocket-baseline-175`. The actual FPGA self-test
+passed at **44,104,832 target cycles**, with slot 0 independently reporting
+loaded/error-free `agfi-0c5eedfce0e568971`. Deployed driver/ELF hashes match
+the saved bytes. Artifacts were collected, then scoped manager teardown
+completed; AWS independently confirms **terminated**. No owned runtime
+instance or native Vivado/Java build job remains. Full FPGA checkpoint
+capture remains pending. See [aws-f2-bringup.md](aws-f2-bringup.md).
+The new cut component's required EDA VCS check is **blocked**: actual SP2
+compilation returns 255, `Cannot find license file`. Both license variables
+are empty in the EDA login shell; no additional `CHECKPOINT_EDA_SETUP` is set.
+No behavioral VCS simulation of this component has run. Preserve the FPGA
+baseline pass separately from this unresolved verification dependency.
+Retain the verified FCFS/component history and the original receipts below as
+historical metasim/component evidence, not proof of FPGA capture.
 
 Loop instruction: publish implementation checkpoint commits to GitHub, FireSim
 first and then Chipyard. Follow [github-publication.md](github-publication.md)
 and preserve this instruction when updating progress.
 
-Current milestone: M11-rocket-level1-level2, iteration 175, in progress.
+## Active F2 bring-up recovery
+
+Evidence root: `automations/checkpoint_loop/runs/aws-f2/iteration175/`.
+The `baseline/manager-commands.json` contains exact raw manager commands and
+source-config hashes. Runtime uses one Rocket node, public
+`agfi-0c5eedfce0e568971`, and `metasimulation_enabled: false`.
+`instance.json`, `aws-identity.json`, `aws-region.txt`, and
+`resources-running.json` independently record AWS identity and resources.
+The first broad inventory used the wrong tag key (`firesim`); use the corrected
+`f2_inventory.py`, which queries FireSim's actual `fsimcluster` key. Its result
+is an inventory, never a target-pass receipt.
+
+`launchrunfarm.log` and `infrasetup.log` retain actual manager output; copy the
+corresponding native deploy logs into this evidence root before cleanup.
+The installed workload is `checkpoint-f2-rocket-selfcheck-175.json`; its JSON
+and input directory are symlinked from deploy/workloads into this evidence
+root. Retained ELF hash/bytes are in `workload-provenance.json`. Independent
+fresh compiler/Spike checks pass the healthy four-hart workload and all four
+corruption variants in `workload-fresh/`; this is workload validation only.
+All 37 loop/config/inventory unit tests pass in `test-loop-all.log`.
+`baseline-audit.json` cross-checks actual runtime, independent identities,
+loaded image, deployed hashes, target PASS and final cleanup. Nine offline
+evidence forgeries reject in `baseline-audit-negatives.json`.
+
+Local build prerequisites: native Vivado 2025.2; F2 HDK `80b34d3`, shell
+`0x10212415`; actual `hdk_setup.sh -s` version/environment check passes.
+This check omits shell downloads and is not a bitstream build.
+Fabric and default-key localhost SSH pass. A separate OpenSSH check with only
+`~/firesim.pem` failed public-key authentication; it does not prevent Fabric
+from using the existing default localhost key. Preserve both diagnostics.
+Generated `checkpoint-build/` configs select ExternallyProvisioned localhost,
+an invocation-local build directory, and an empty HWDB (no invented image).
+The existing banked module is a component prototype, not a connected Rocket
+capture network. New `CheckpointCaptureCut.sv` starts the owner-acknowledged
+atomic cut implementation. Native Vivado OOC synthesis on this server for
+the real F2 device passes with 16 owners (56 LUTs, 74 registers), with source
+hash and DCP/reports in `local-build-receipt.json` and `cut-vivado/`.
+EDA source/input migration sync completed. VCS SP2 fails before parsing with
+`Cannot find license file` (exit 255); the testbench did not execute.
+Exact command and stdout: `cut-vcs/compile-retry.log`,
+`cut-vcs/command.stdout`, `cut-vcs/compile-returncode.txt`. The native login
+environment and focused setup search are retained in
+`cut-vcs/license-environment.log` and `cut-vcs/license-candidates.log`.
+Resume by enabling the site's actual native license setup (optionally through
+`CHECKPOINT_EDA_SETUP`), then rerun the raw EDA command in
+`verification-commands.json`; source `vcs-env.sh` last. Do not use old `/ecad`
+settings or substitute local simulation. The helper initially fetched an older
+copy of its redirected transcript; subsequent transport transcripts use
+`runs/loop.log-eda-*` (excluded from fetch) and compiler stdout is recorded
+directly on EDA. The actual compiler failure is preserved, not inferred.
+This component is not integrated; no full checkpoint-image synthesis/P&R,
+AFI creation or capture is claimed. See [f2-rocket-image.md](f2-rocket-image.md)
+for remaining build admission work.
+
+Existing controller-created commits were pushed FireSim first, then Chipyard;
+both reported `Everything up-to-date`. Chipyard's local tracking-ref update
+failed read-only, so preserve the push log and do not rewrite history.
+The supplied `runs/verification.log` was absent on this migrated checkout;
+historical summaries are not newly audited acceptance evidence.
+
+## Historical metasim/component work (retained)
+
+Historical milestone: M11-rocket-level1-level2, iteration 175, in progress.
 Prepared/sealed publication now covers the private-memory/disconnected blockdev
 owner. Preparation owns all queues, trackers, disk bytes and a positioned libc
 stream. Guarded allocation-free `noexcept` publication swaps resources and

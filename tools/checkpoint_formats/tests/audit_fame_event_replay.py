@@ -1,4 +1,5 @@
 """Independent retained artifact audit for complete Rocket semantic event replay."""
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import json
 from pathlib import Path
@@ -67,9 +68,9 @@ def audit(report, capture_log=None):
                         {k: p['width'] for k, p in ports.items() if p['direction'] == direction},
                         'incomplete native CPU boundary signals')
         require('-full64' in case['build_command'] and case['build_command'][0] ==
-                '/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs', 'wrong ordinary CPU replay build')
+                _toolchain.VCS, 'wrong ordinary CPU replay build')
         log = (directory / 'run.log').read_text()
-        require('Y-2026.03-SP1_Full64' in log and f'ZERO_EDGE_READBACK words={total} edges=0' in log and 'exit=0' in log,
+        require(_toolchain.VCS_VERSION in log and f'ZERO_EDGE_READBACK words={total} edges=0' in log and 'exit=0' in log,
                 'incomplete native CPU zero-edge readback')
         matches = re.findall(r'MATCH event=(\d+) cycle=(\d+) outputs=(\d+)', log)
         require(matches == [(str(r['event_index']), str(r['cycle']), str(len(r['outputs']))) for r in trace['records']] and
@@ -92,7 +93,7 @@ def audit(report, capture_log=None):
         samples += len(trace['records']); negatives += len(case['native_invalid']) + len(case['invalid_images'])
     if capture_log:
         log = Path(capture_log).read_text()
-        require('Y-2026.03-SP1_Full64' in log and '*** PASSED *** after 3329794 cycles' in log and
+        require(_toolchain.VCS_VERSION in log and '*** PASSED *** after 3329794 cycles' in log and
                 'CAPTURE_COMPLETE' in log and log.rstrip().endswith('exit=0'), 'incomplete native four-hart capture run')
         require(log.count(f'FAME_CAPTURE_PRE_EDGE_READBACK words={total}') == len(summary['cuts']),
                 'missing full pre-edge source-state audits')

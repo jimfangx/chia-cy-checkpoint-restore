@@ -1,7 +1,7 @@
 """Checkpoint/restore, finite replay and restored-metasim-guided RTL work.
 
-Physical FPGA bring-up is deferred. Milestone names retain historical labels
-so legacy state can migrate without restarting completed checkpoint work.
+AWS F2 hardware capture is required. Historical milestone names are retained
+only for completed component work; new F2 names require fresh hardware evidence.
 """
 
 from dataclasses import dataclass
@@ -14,10 +14,11 @@ class Milestone:
     acceptance: str
     required_files: tuple[str, ...] = ()
     needs_vcs: bool = False
+    needs_f2: bool = False
 
 
 CPU_LIVE_TASK = (
-    " Restore a matching Level-1 and Level-2 pair into fresh metasim and original "
+    " Restore a matching FPGA-produced Level-1 and Level-2 pair into fresh metasim and original "
     "pre-FAME RTL VCS processes at the same logical target cut. Keep restored "
     "metasim running as the environment authority, drive clean RTL with its live "
     "target-boundary inputs, compare every output before acknowledging each edge, "
@@ -128,106 +129,87 @@ MILESTONES = (
         needs_vcs=True,
     ),
     Milestone(
-        'M11-rocket-level1-level2',
-        'Implement and validate both Level-1 and Level-2 checkpoint/restore for Rocket,'
-        ' using existing recipe firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3 from '
-        'sims/firesim-staging/sample_config_build_recipes.yaml. Re-read the current '
-        'instructions at the top of plan_agent.md. Use exact recipe build settings in '
-        'VCS metasim without building an FPGA bitstream. Audit and implement all '
-        'CPU/configuration-specific simulator, bridge, host-driver and semantic DUT '
-        'state owners; do not assume fcfs-fased-v1 support applies. Test real '
-        'self-checking CPU workloads at early, warmed-cache, outstanding-memory and '
-        'late cuts. For Rocket exercise all four cores; for BOOM speculative/in-flight '
-        'execution; for Shuttle + Saturn actual vector compute and vector memory '
-        'operations with in-flight vector state. Restore Level 1 in fresh metasim and '
-        'independently restore Level 2 in fresh pre-FAME ordinary RTL VCS, read back '
-        'complete state before any edge, and compare captured target-cycle behavior. '
-        'Add invalid-image/build/state-owner rejection and first-divergence corruption '
-        'cases, preserve existing regressions, and record exact artifacts and '
-        'executable native VCS checks in docs/checkpointing/cpu-checkpoint-matrix.md. '
-        'Standalone Shuttle and physical FPGA validation are outside the '
-        'current task.' + CPU_LIVE_TASK,
-        'The exact Rocket recipe passes independently audited complete Level-1 '
-        'fresh-process metasim continuation against an uninterrupted workload run, and '
-        'complete Level-2 zero-edge state readback plus finite captured-trace replay in'
-        ' ordinary RTL VCS. All sampled outputs and transaction timing match at '
-        'original target-cycle labels across the required active-workload cuts. '
-        'Required malformed/incompatible/incomplete images reject before partial '
-        'restore, and actual semantic corruption is detected at its first divergent '
-        'boundary. Per-recipe/per-level evidence records workload hashes, exact state '
-        'ownership and build settings, tested cuts, native VCS commands and results. '
-        'Fixture-only, FCFS-only, boot-only, idle-only and scalar-only Saturn tests '
-        'cannot satisfy this milestone.' + CPU_LIVE_ACCEPTANCE,
-        ("docs/checkpointing/cpu-checkpoint-matrix.md",),
-        needs_vcs=True,
+        "F2-bringup-and-baseline",
+        "Read docs/checkpointing/aws-f2-workflow.md and the linked official F2 guide. "
+        "Use the existing checkout and the four initialized deploy/config_*.yaml "
+        "files as the manager. AWS has already been configured: do not rerun "
+        "managerinit, aws configure or account bootstrap. Source sourceme-manager.sh "
+        "and use that setup, reporting actual AWS access failures if encountered. "
+        "Generate per-invocation overrides using f2.py; "
+        "launch/reuse one tagged f2.6xlarge, keep metasimulation_enabled false, deploy "
+        "the existing Rocket recipe's public image for baseline bring-up, and run a "
+        "self-checking workload on the real FPGA. Record the exact instance, slot, "
+        "loaded AGFI, recipe, workload bytes/hash and hardware logs. Plan and start "
+        "the checkpoint-enabled image implementation/build on this server for the "
+        "following milestone. Use ExternallyProvisioned localhost for Vivado; never "
+        "launch EC2 build hosts or run bitstream builds on EDA. "
+        "Do not treat a public image or baseline run as checkpoint support.",
+        "A real single-node AWS F2 workload completes with independently recorded "
+        "AWS instance identity, loaded image/slot evidence, workload hash and target "
+        "pass result; metasimulation is disabled in the actual runtime config. "
+        "The manager commands/configs/results and scoped resource cleanup/resume "
+        "inventory are saved locally. AWS credentials or a successful CLI preflight "
+        "alone cannot satisfy bring-up. Missing quota/IAM/AMI/network/key access is "
+        "reported with the exact failing command, without substituting metasim.",
+        ("docs/checkpointing/aws-f2-bringup.md",),
+        needs_f2=True,
     ),
-    Milestone(
-        'M12-boom-level1-level2',
-        'Implement and validate both Level-1 and Level-2 checkpoint/restore for BOOM, '
-        'using existing recipe firesim_boom_singlecore_no_nic_l2_llc4mb_ddr3 from '
-        'sims/firesim-staging/sample_config_build_recipes.yaml. Re-read the current '
-        'instructions at the top of plan_agent.md. Use exact recipe build settings in '
-        'VCS metasim without building an FPGA bitstream. Audit and implement all '
-        'CPU/configuration-specific simulator, bridge, host-driver and semantic DUT '
-        'state owners; do not assume fcfs-fased-v1 support applies. Test real '
-        'self-checking CPU workloads at early, warmed-cache, outstanding-memory and '
-        'late cuts. For Rocket exercise all four cores; for BOOM speculative/in-flight '
-        'execution; for Shuttle + Saturn actual vector compute and vector memory '
-        'operations with in-flight vector state. Restore Level 1 in fresh metasim and '
-        'independently restore Level 2 in fresh pre-FAME ordinary RTL VCS, read back '
-        'complete state before any edge, and compare captured target-cycle behavior. '
-        'Add invalid-image/build/state-owner rejection and first-divergence corruption '
-        'cases, preserve existing regressions, and record exact artifacts and '
-        'executable native VCS checks in docs/checkpointing/cpu-checkpoint-matrix.md. '
-        'Standalone Shuttle and physical FPGA validation are outside the '
-        'current task.' + CPU_LIVE_TASK,
-        'The exact BOOM recipe passes independently audited complete Level-1 '
-        'fresh-process metasim continuation against an uninterrupted workload run, and '
-        'complete Level-2 zero-edge state readback plus finite captured-trace replay in'
-        ' ordinary RTL VCS. All sampled outputs and transaction timing match at '
-        'original target-cycle labels across the required active-workload cuts. '
-        'Required malformed/incompatible/incomplete images reject before partial '
-        'restore, and actual semantic corruption is detected at its first divergent '
-        'boundary. Per-recipe/per-level evidence records workload hashes, exact state '
-        'ownership and build settings, tested cuts, native VCS commands and results. '
-        'Fixture-only, FCFS-only, boot-only, idle-only and scalar-only Saturn tests '
-        'cannot satisfy this milestone.' + CPU_LIVE_ACCEPTANCE,
-        ("docs/checkpointing/cpu-checkpoint-matrix.md",),
-        needs_vcs=True,
-    ),
-    Milestone(
-        'M13-shuttle-saturn-level1-level2',
-        'Implement and validate both Level-1 and Level-2 checkpoint/restore for Shuttle'
-        ' + Saturn, using existing recipe '
-        'firesim_saturn_GENV256D128_shuttle_singlecore_no_nic_l2_llc4mb_ddr3 from '
-        'sims/firesim-staging/sample_config_build_recipes.yaml. Re-read the current '
-        'instructions at the top of plan_agent.md. Use exact recipe build settings in '
-        'VCS metasim without building an FPGA bitstream. Audit and implement all '
-        'CPU/configuration-specific simulator, bridge, host-driver and semantic DUT '
-        'state owners; do not assume fcfs-fased-v1 support applies. Test real '
-        'self-checking CPU workloads at early, warmed-cache, outstanding-memory and '
-        'late cuts. For Rocket exercise all four cores; for BOOM speculative/in-flight '
-        'execution; for Shuttle + Saturn actual vector compute and vector memory '
-        'operations with in-flight vector state. Restore Level 1 in fresh metasim and '
-        'independently restore Level 2 in fresh pre-FAME ordinary RTL VCS, read back '
-        'complete state before any edge, and compare captured target-cycle behavior. '
-        'Add invalid-image/build/state-owner rejection and first-divergence corruption '
-        'cases, preserve existing regressions, and record exact artifacts and '
-        'executable native VCS checks in docs/checkpointing/cpu-checkpoint-matrix.md. '
-        'Standalone Shuttle and physical FPGA validation are outside the '
-        'current task.' + CPU_LIVE_TASK,
-        'The exact Shuttle + Saturn recipe passes independently audited complete '
-        'Level-1 fresh-process metasim continuation against an uninterrupted workload '
-        'run, and complete Level-2 zero-edge state readback plus finite captured-trace '
-        'replay in ordinary RTL VCS. All sampled outputs and transaction timing match '
-        'at original target-cycle labels across the required active-workload cuts. '
-        'Required malformed/incompatible/incomplete images reject before partial '
-        'restore, and actual semantic corruption is detected at its first divergent '
-        'boundary. Per-recipe/per-level evidence records workload hashes, exact state '
-        'ownership and build settings, tested cuts, native VCS commands and results. '
-        'Fixture-only, FCFS-only, boot-only, idle-only and scalar-only Saturn tests '
-        'cannot satisfy this milestone.' + CPU_LIVE_ACCEPTANCE,
-        ("docs/checkpointing/cpu-checkpoint-matrix.md",),
-        needs_vcs=True,
+    *(
+        Milestone(
+            name,
+            "Implement actual AWS F2 checkpoint capture for " + family + ": use existing "
+            "recipe " + recipe + " from sims/firesim-staging/sample_config_build_recipes.yaml. "
+            "Re-read the current plan_agent.md and docs/checkpointing/aws-f2-workflow.md. "
+            "Implement and synthesize banked state readout, an atomic freeze/cut "
+            "controller, CheckpointBridge MMIO/DMA transport, functional-memory and "
+            "host-owner capture as needed; DMA alone cannot expose arbitrary state. "
+            "Reuse the initialized manager/AWS configs. Build the checkpoint-enabled "
+            "FPGA image from this source on the CURRENT server using the "
+            "ExternallyProvisioned localhost build farm and native Vivado, not an "
+            "EC2 build instance or EDA. Bind its "
+            "AFI/AGFI and host driver to exact generated manifests and recipes, deploy "
+            "to a real F2 FPGA and execute a self-checking workload. " + workload +
+            " Capture complete .fsckpt and .rtlckpt plus target-boundary .trace from "
+            "that running hardware through the synthesized transport, at early, "
+            "warmed-cache, outstanding-memory and late cuts. Audit all simulator, "
+            "FAME/token/channel, memory, bridge, host-driver and pre-FAME semantic "
+            "state; preserve timing and atomicity. Compare a continued FPGA reference "
+            "with fresh EDA VCS metasim restored from the actual FPGA .fsckpt before "
+            "any target edge. Independently restore hardware .rtlckpt and replay its "
+            "real trace in fresh untransformed RTL VCS. Exercise corrupt/truncated "
+            "images, incompatible builds, missing owners and semantic corruption. "
+            "Retain existing FCFS/fixture regressions, implement rolling capture on "
+            "F2 and recovery, and record complete per-cut provenance and commands "
+            "in runs/ and docs/checkpointing/cpu-checkpoint-matrix.md. " + CPU_LIVE_TASK,
+            "A checkpoint-enabled image of the exact " + family + " recipe executes "
+            "on an identified AWS F2 FPGA. At every required active-workload cut, "
+            "complete FPGA-captured Level-1 state restores in fresh EDA VCS metasim "
+            "with independently audited zero-edge readback and continuation matching "
+            "the FPGA reference's target behavior and transaction timing. Complete "
+            "FPGA-captured Level-2 state and boundary trace pass independent fresh "
+            "clean-RTL readback and cycle-exact finite replay. Image/driver/build, "
+            "instance/slot/AGFI, workload, transport, state coverage, cycle labels, "
+            "image hashes and negative tests are bound to actual execution logs. "
+            "Periodic FPGA captures retain valid history and reproduce a later "
+            "failure after migration. Public-image boot, VCS backdoors, synthetic "
+            "fixtures and metasim-origin images cannot establish hardware capture. "
+            "Incomplete hardware coverage remains in_progress, never silently omitted. "
+            + CPU_LIVE_ACCEPTANCE,
+            ("docs/checkpointing/cpu-checkpoint-matrix.md",),
+            needs_vcs=True,
+            needs_f2=True,
+        )
+        for name, family, recipe, workload in (
+            ("F2-rocket-checkpoint-migration", "Rocket",
+             "firesim_rocket_quadcore_no_nic_l2_llc4mb_ddr3",
+             "Exercise all four Rocket harts, active caches and memory traffic."),
+            ("F2-boom-checkpoint-migration", "BOOM",
+             "firesim_boom_singlecore_no_nic_l2_llc4mb_ddr3",
+             "Exercise speculative and in-flight BOOM execution and memory traffic."),
+            ("F2-shuttle-saturn-checkpoint-migration", "Shuttle + Saturn",
+             "firesim_saturn_GENV256D128_shuttle_singlecore_no_nic_l2_llc4mb_ddr3",
+             "Exercise actual vector computation and vector loads/stores with "
+             "in-flight Saturn state; scalar-only and standalone Shuttle are insufficient."),
+        )
     ),
 )

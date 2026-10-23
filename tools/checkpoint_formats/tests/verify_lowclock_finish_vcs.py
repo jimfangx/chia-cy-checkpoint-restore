@@ -3,6 +3,7 @@
 Native services are fixtures; this is a terminal clock-scheduling guard, not a
 checkpoint restart. Requires the existing generated InventoryFixture build.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import hashlib
 import json
@@ -75,7 +76,7 @@ bind FPGATop terminal_monitor terminal();
     (out / 'monitor.sv').write_text(monitor)
     (out / 'harness.sv').write_text(f'`include "{constants}"\n`include "{defines}"\n`include "{top}"\n')
     vcs = Path(os.environ['VCS_HOME']) / 'bin/vcs'
-    require(str(vcs) == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs', 'source vcs-env.sh LAST')
+    require(str(vcs) == _toolchain.VCS, 'source vcs-env.sh LAST')
     run([vcs, '-full64', '-sverilog', '+define+VCS', '+define+CLOCK_PERIOD=1',
         '-timescale=1ps/1ps', '-top', 'emul', '-cc', os.environ['CC'], '-cpp', os.environ['CXX'],
         f'-Mdir={out/"csrc"}', '-o', out/'simv', out/'harness.sv', out/'monitor.sv',

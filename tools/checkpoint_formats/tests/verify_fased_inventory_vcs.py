@@ -5,6 +5,7 @@ does not publish .fsckpt: functional memory, drivers and runtime cut/restore are
 still separate requirements. All 10,000 fuzzer transactions and every generated
 RAM word are included, including the target's large independent RAM scoreboard.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import hashlib
 import json
@@ -47,7 +48,7 @@ def main():
     build, out = args.build.resolve(), args.out.resolve()
     out.mkdir(parents=True, exist_ok=True)
     vcs = Path(os.environ["VCS_HOME"]) / "bin/vcs"
-    require(str(vcs) == "/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs", "source vcs-env.sh LAST")
+    require(str(vcs) == _toolchain.VCS, "source vcs-env.sh LAST")
     sim_dir = ROOT / "sims/firesim/sim"
     platform = "FCFS16GBQuadRank_DefaultF1Config"
     make = ["make", "TARGET_PROJECT=fasedtests", "DESIGN=AXI4Fuzzer", "TARGET_CONFIG=FCFSConfig",

@@ -1,4 +1,5 @@
 """Independently audit retained native multi-clock inventory probes only."""
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import hashlib
 import json
@@ -52,13 +53,13 @@ def audit(summary_path):
     for clock in manifest['clock_inputs']:
         port = clock[len(manifest['dut_root']) + 1:]
         require(f'always @(posedge {port}) edges = edges + 1;' in bench, 'native probe omits a clock guard')
-    require(summary['vcs_home'] == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1' and
+    require(summary['vcs_home'] == _toolchain.VCS_HOME and
             summary['build_command'][0] == summary['vcs_home'] + '/bin/vcs' and
             all(flag in summary['build_command'] for flag in ('-full64', '+vpi', '-debug_access+all')),
             'native ownership probe used incompatible compiler settings')
     build = (out / 'build.log').read_text()
     require(json.loads(build.split('argv=', 1)[1].splitlines()[0]) == summary['build_command'] and
-            'Y-2026.03-SP1_Full64' in build and build.rstrip().endswith('exit=0'), 'missing native build provenance')
+            _toolchain.VCS_VERSION in build and build.rstrip().endswith('exit=0'), 'missing native build provenance')
     require({c['name'] for c in summary['cases']} ==
             {'complete', 'corrupt-storage', 'missing-word', 'duplicate-word', 'unknown-word', 'wrong-width'} and
             len(summary['cases']) == 6, 'reduced native inventory probe scope')
@@ -66,7 +67,7 @@ def audit(summary_path):
     for case in summary['cases']:
         log = Path(case['log']).read_text()
         require(Path(case['log']).parent == out and json.loads(log.split('argv=', 1)[1].splitlines()[0]) == case['argv'] and
-                log.rstrip().endswith('exit=0') and 'Y-2026.03-SP1_Full64' in log and
+                log.rstrip().endswith('exit=0') and _toolchain.VCS_VERSION in log and
                 f'PASS: inventory probe words={len(expected)} clocks={len(manifest["clock_inputs"])} edges=0' in log,
                 'missing native full zero-edge readback or changed argv')
         invalid = '+invalid' in case['argv']

@@ -1,4 +1,5 @@
 """Read back real suspended program-loader components in fresh native/VCS processes."""
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import json
 import os
@@ -57,7 +58,7 @@ def main():
     a = p.parse_args()
     if a.audit: print(json.dumps(audit(a.audit),indent=2)); return
     require(a.out and a.integration_summary and a.out.resolve().is_relative_to(ROOT/'automations/checkpoint_loop/runs'), 'need runs output/integration')
-    require(os.environ.get('VCS_HOME') == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1' and os.environ.get('CXX') == '/usr/bin/g++-13', 'source vcs-env LAST')
+    require(os.environ.get('VCS_HOME') == _toolchain.VCS_HOME and os.environ.get('CXX') == _toolchain.CXX, 'source vcs-env LAST')
     parent = a.integration_summary.resolve(); require(integration_audit(parent)['status'] == 'passed','need actual suspended images')
     a.out.resolve().mkdir(parents=True,exist_ok=True); out = Path(tempfile.mkdtemp(prefix='invocation-',dir=a.out.resolve()))
     source = TESTS/'tsi_program_loader_checkpoint.cc'; sv = TESTS/'tsi_program_loader_checkpoint_tb.sv'

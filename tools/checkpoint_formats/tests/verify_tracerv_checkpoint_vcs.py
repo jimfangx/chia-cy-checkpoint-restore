@@ -4,6 +4,7 @@ An independent byte/MMIO oracle uses all four exact Rocket constructor settings.
 Fixture stream queues are separate owners. This cannot certify a CPU restore.
 Every build/runtime VCS shell sources vcs-env.sh last; every invocation is fresh.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import json
 import os
@@ -178,7 +179,7 @@ def main():
     if args.audit:
         print(json.dumps(audit(args.audit), indent=2)); return
     require(args.rocket_header is not None and args.out is not None, 'out/header required')
-    require(os.environ['VCS_HOME'] == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1' and os.environ['CXX'] == '/usr/bin/g++-13',
+    require(os.environ['VCS_HOME'] == _toolchain.VCS_HOME and os.environ['CXX'] == _toolchain.CXX,
             'source vcs-env.sh LAST')
     args.out.resolve().mkdir(parents=True, exist_ok=True)
     out = Path(tempfile.mkdtemp(prefix='invocation-', dir=args.out.resolve()))

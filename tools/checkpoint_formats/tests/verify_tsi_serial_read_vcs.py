@@ -3,6 +3,7 @@
 The Python oracle expands the original serial packet/pop/yield protocol.
 Component operation labels are not Rocket target-cycle checkpoint cuts.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import json
 import os
@@ -157,7 +158,7 @@ def main():
     p=argparse.ArgumentParser(description=__doc__); p.add_argument('--out',type=Path); p.add_argument('--serial-summary',type=Path);p.add_argument('--audit',type=Path);a=p.parse_args()
     if a.audit: print(json.dumps(audit(a.audit),indent=2));return
     require(a.out is not None and a.serial_summary is not None and a.out.resolve().is_relative_to(ROOT/'automations/checkpoint_loop/runs'),'need runs output and actual serial summary')
-    require(os.environ.get('VCS_HOME')=='/ecad/tools/synopsys/vcs/Y-2026.03-SP1' and os.environ.get('CXX')=='/usr/bin/g++-13','source vcs-env.sh LAST')
+    require(os.environ.get('VCS_HOME')==_toolchain.VCS_HOME and os.environ.get('CXX')==_toolchain.CXX,'source vcs-env.sh LAST')
     parent=a.serial_summary.resolve(); require(audit_serial(parent)['actual_serial_images']==384,'need actual serial capture')
     a.out.resolve().mkdir(parents=True,exist_ok=True);out=Path(tempfile.mkdtemp(prefix='invocation-',dir=a.out.resolve()))
     fixture=TESTS/'tsi_serial_read_checkpoint.cc';sv=TESTS/'tsi_serial_read_checkpoint_tb.sv'

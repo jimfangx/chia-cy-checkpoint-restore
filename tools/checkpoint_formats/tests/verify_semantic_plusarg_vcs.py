@@ -6,6 +6,7 @@ with the complete semantic image before any edge. This is component evidence,
 not complete Rocket checkpoint acceptance. Source both environments, then
 vcs-env.sh LAST before invoking this module.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import copy
 import hashlib
@@ -47,7 +48,7 @@ def main():
     require({m['hierarchy']: m['width'] for m in manifest['external_models']} ==
             {'Top.a': 32, 'Top.relay.a': 32, 'Top.b': 1, 'Top.w': 65}, 'changed specialized/nested owners')
     vcs = Path(os.environ['VCS_HOME']) / 'bin/vcs'
-    require(str(vcs) == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs', 'source vcs-env.sh LAST')
+    require(str(vcs) == _toolchain.VCS, 'source vcs-env.sh LAST')
     ops = [(1, 0), (1, 7), (0, 3), (0, 0xffffffff), (0, 2), (0, 0), (0, 19),
            (0, 37), (0, 100), (0, 11), (0, 0), (0, 0x80000000), (0, 9), (0, 17),
            (0, 1), (0, 0), (0, 0x12345678)]

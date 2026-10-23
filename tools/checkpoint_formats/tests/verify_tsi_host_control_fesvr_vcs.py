@@ -2,6 +2,7 @@
 
 These real host calls execute no CPU workload and cannot establish CPU support.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import json
 import os
@@ -127,8 +128,8 @@ def main():
     if a.audit: print(json.dumps(audit(a.audit),indent=2)); return
     require(a.out is not None and a.component_summary is not None and
             a.out.resolve().is_relative_to(ROOT/'automations/checkpoint_loop/runs'),'need runs output and parent summary')
-    require(os.environ.get('VCS_HOME')=='/ecad/tools/synopsys/vcs/Y-2026.03-SP1' and
-            os.environ.get('CXX')=='/usr/bin/g++-13','source vcs-env.sh LAST')
+    require(os.environ.get('VCS_HOME')==_toolchain.VCS_HOME and
+            os.environ.get('CXX')==_toolchain.CXX,'source vcs-env.sh LAST')
     parent=a.component_summary.resolve(); require(audit_owner(parent)['actual_fesvr_fresh_restores']==136,'need actual readbacks')
     a.out.resolve().mkdir(parents=True,exist_ok=True); out=Path(tempfile.mkdtemp(prefix='invocation-',dir=a.out.resolve()))
     elf=out/'polling.elf'; elf.write_bytes(polling_elf())

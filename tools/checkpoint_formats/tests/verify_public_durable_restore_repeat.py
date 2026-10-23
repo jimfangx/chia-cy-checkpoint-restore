@@ -1,4 +1,5 @@
 """Repeat all public VCS rejections against a completed full production run."""
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import hashlib
 import json
@@ -16,7 +17,7 @@ def main():
     parser.add_argument('--production', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
-    require(os.environ['VCS_HOME'] == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1',
+    require(os.environ['VCS_HOME'] == _toolchain.VCS_HOME,
             'source vcs-env.sh LAST')
     production, out = args.production.resolve(), args.out.resolve()
     out.mkdir(parents=True, exist_ok=True)

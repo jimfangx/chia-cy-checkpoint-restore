@@ -2,6 +2,7 @@
 
 Run every case in a fresh ASan/UBSan process. Keep earlier artifacts intact.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import hashlib
 import json
@@ -31,7 +32,7 @@ def main():
     prepare_durable_loader(manifest, generated, layout, out)
     source = ROOT/'tools/checkpoint_formats'
     cc = ROOT/'sims/firesim/sim/midas/src/main/cc'
-    run([os.environ.get('CXX', '/usr/bin/g++-13'), '-std=c++20', '-g', '-no-pie',
+    run([os.environ.get('CXX', _toolchain.CXX), '-std=c++20', '-g', '-no-pie',
          '-fsanitize=address,undefined', '-fno-omit-frame-pointer', f'-I{out}', f'-I{cc}',
          source/'durable_restore.cc', source/'durable_history.cc', source/'tests/durable_history_native.cc',
          '-lcrypto', *['-Wl,--wrap='+n for n in ('openat', 'write', 'fsync', 'close', 'linkat', 'renameat', 'unlinkat')],

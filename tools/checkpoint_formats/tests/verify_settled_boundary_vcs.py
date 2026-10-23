@@ -4,6 +4,7 @@ Read every generated RAM word and every audited software owner at a single
 settled rising or falling edge. Compare the complete target token/AXI port sequence and
 FASED target timing with uninterrupted execution. Source vcs-env.sh LAST.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import concurrent.futures
 import hashlib
@@ -97,7 +98,7 @@ def main():
     out, build = args.out.resolve(), args.build.resolve()
     out.mkdir(parents=True, exist_ok=True)
     vcs = Path(os.environ['VCS_HOME']) / 'bin/vcs'
-    require(str(vcs) == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs', 'source vcs-env.sh last')
+    require(str(vcs) == _toolchain.VCS, 'source vcs-env.sh last')
     generated = build / 'f2/f2-fasedtests-AXI4Fuzzer-FCFSConfig-FCFS16GBQuadRank_DefaultF1Config'
     manifest = json.loads((generated / 'FireSim-generated.simulator-state.json').read_text())
     rtl = (generated / 'FireSim-generated.sv').read_text()

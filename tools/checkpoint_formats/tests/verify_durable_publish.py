@@ -1,4 +1,5 @@
 """Native encoder/publication oracle, syscall faults, kills and concurrent I/O."""
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import copy
 import hashlib
@@ -45,7 +46,7 @@ def main():
                                     runtime['native_build_hash'],counter['hierarchy'])
     prepare_durable_loader(runtime,generated,layout,case)
     source=ROOT/'tools/checkpoint_formats'
-    command=[os.environ.get('CXX','/usr/bin/g++-13'),'-std=c++20','-g','-fsanitize=address,undefined',
+    command=[os.environ.get('CXX',_toolchain.CXX),'-std=c++20','-g','-fsanitize=address,undefined',
              '-fno-omit-frame-pointer','-no-pie',f'-I{case}',source/'durable_restore.cc',
              source/'durable_publish.cc',source/'tests/durable_publish_native.cc','-lcrypto',
              *['-Wl,--wrap='+name for name in ('open','openat','write','fsync','close','renameat')],

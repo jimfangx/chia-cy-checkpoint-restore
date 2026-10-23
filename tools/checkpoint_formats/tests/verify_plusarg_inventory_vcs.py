@@ -4,6 +4,7 @@ This verifies generated-RTL ownership and zero-edge fresh-process deposits for
 this external model only. It is not a CPU .fsckpt loader or CPU acceptance.
 Source both env.sh files and vcs-env.sh LAST before running this module.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import copy
 import hashlib
@@ -27,7 +28,7 @@ def main():
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     out = Path(tempfile.mkdtemp(prefix='native-', dir=args.out.resolve()))
-    require(os.environ['VCS_HOME'] == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1', 'source vcs-env.sh LAST')
+    require(os.environ['VCS_HOME'] == _toolchain.VCS_HOME, 'source vcs-env.sh LAST')
     manifest = json.loads(args.inventory.read_text())
     validate_generated_manifest(manifest)
     require(manifest['root_module'] == 'Top' and len(manifest['state']) == 2, 'requires compiler plusarg fixture')

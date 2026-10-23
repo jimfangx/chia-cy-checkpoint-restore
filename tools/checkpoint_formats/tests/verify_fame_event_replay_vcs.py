@@ -3,6 +3,7 @@
 Source both repository environments and vcs-env.sh LAST. Capture is a separate
 native exact-recipe metasim invocation; no Level-1 profile is admitted here.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import copy
 import json
@@ -111,8 +112,8 @@ def main():
     parser.add_argument('--events', type=int, default=64)
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
-    require(os.environ.get('VCS_HOME') == '/ecad/tools/synopsys/vcs/Y-2026.03-SP1' and
-            os.environ.get('CC') == '/usr/bin/gcc-13' and os.environ.get('CXX') == '/usr/bin/g++-13',
+    require(os.environ.get('VCS_HOME') == _toolchain.VCS_HOME and
+            os.environ.get('CC') == _toolchain.CC and os.environ.get('CXX') == _toolchain.CXX,
             'source both environments and vcs-env.sh LAST')
     args.out.mkdir(parents=True, exist_ok=True)
     out = Path(tempfile.mkdtemp(prefix='invocation-', dir=args.out.resolve()))
@@ -150,7 +151,7 @@ def main():
         build = compile_native(case, paths['clean'], case / 'replay.sv', 'event_replay_tb')
         argv = [str(case / 'simv'), '-no_save', '+vcs+initreg+0', '+vcs+initmem+0']
         log = run(argv, case / 'run.log')
-        require('Y-2026.03-SP1_Full64' in log and f'ZERO_EDGE_READBACK words={stats["words"]} edges=0' in log and
+        require(_toolchain.VCS_VERSION in log and f'ZERO_EDGE_READBACK words={stats["words"]} edges=0' in log and
                 log.count('MATCH event=') == args.events and f'acknowledged={args.events}' in log and
                 'PASS: event replay' in log, 'incomplete captured CPU finite replay')
         faults = []

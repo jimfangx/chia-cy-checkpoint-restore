@@ -5,6 +5,7 @@ is independent of issued scheduler credit. Every host-operation boundary,
 including each bridge index and pending credit, is restored in a fresh native
 ASan/UBSan process and a fresh VCS DPI process before its first component edge.
 """
+from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
 import json
 import os
@@ -98,9 +99,9 @@ def main():
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=True)
     vcs = Path(os.environ["VCS_HOME"]) / "bin/vcs"
-    require(str(vcs) == "/ecad/tools/synopsys/vcs/Y-2026.03-SP1/bin/vcs", "source vcs-env.sh LAST")
+    require(str(vcs) == _toolchain.VCS, "source vcs-env.sh LAST")
     cxx = os.environ["CXX"]
-    require(cxx == "/usr/bin/g++-13", "keep CXX from vcs-env.sh")
+    require(cxx == _toolchain.CXX, "keep CXX from vcs-env.sh")
     sources = [TESTS / "stepped_loop_checkpoint.cc", CC / "core/stepped_run_loop.cc",
                CC / "core/systematic_scheduler.cc"]
     native = out / "stepped-loop-native"
