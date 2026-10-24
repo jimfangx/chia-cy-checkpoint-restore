@@ -10,9 +10,24 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 
 | Family | F2 workload / custom capture image | FPGA Level-1 to EDA metasim | FPGA Level-2 finite RTL replay | Live RTL / rolling hardware recovery |
 | --- | --- | --- | --- | --- |
-| Rocket (all four harts) | baseline verified: real F2 slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress: bank/MMIO/DMA fixtures synthesize locally, current exact-recipe bank trial rejects 25 annotation contracts; all seven FPGA plusarg instances have source-checked constant semantics; three physical BUFGCE owners, complete common-cut/memory/host binding and image P&R/AFI remain pending | pending | pending | pending |
+| Rocket (all four harts) | baseline verified: real F2 slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress: bank/MMIO/DMA fixtures synthesize locally, current exact-recipe bank trial rejects 22 annotation contracts; XDC and memory-model labels now translate with provenance; all seven FPGA plusarg instances have source-checked constant semantics; three physical BUFGCE owners, complete common-cut/memory/host binding and image P&R/AFI remain pending | pending | pending | pending |
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
+
+Iteration 198 adds correlated per-instance XDC translation, exact logical-RAM
+memory-model labels and emitted-XDC receipt hashes. Repeated-root constraints
+retain their original physical paths; malformed or altered targets reject.
+113 Scala / 306 checkpoint Python / 40 loop checks and the full retained EDA
+ASan/UBSan scope pass. Native fixture constraints are checked against actual
+cells and retained DCP commands; native OOC uses 125 LUTs / 82 registers.
+Matched-input bank VCS passes 4,669 checks, exact-native-input MMIO/DMA top
+passes 7,858, and six missing/coherently rehashed XDC corruptions reject.
+An initial invalid endpoint trial remains explicitly rejected. The fresh real-recipe bank trial rejects 22 remaining
+annotation classes and emits no accepted Rocket banks. This is compiler and
+component evidence. Full checkpoint image/P&R/AFI, physical primitive/common-cut,
+functional-memory/host ownership, all four active FPGA cuts and complete paired
+CPU zero-edge, finite/live and rolling acceptance remain pending. Commands and
+individual receipts: `runs/aws-f2/iteration198/summary.json` relative to the loop.
 
 Iteration 197 integrates explicit FPGA SYNTHESIS plusarg selection into the
 actual production compiler and emits source-bound original/prepared/emission

@@ -20,27 +20,23 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 197,
-**in_progress**. The production compiler now supports explicit, source-checked
-FPGA plusarg constants through `--simulator-fpga-synthesis-constants`, with
-whole-root inventory and original/prepared/source/emission provenance. Independent
-reconstruction covers four replaced definitions and all seven Rocket instances;
-ordinary metasim plusargs remain unchanged. Final generated-model inventory has
-11,459 entries / 618,247 words / 2,282 instances, with all three physical BUFGCE
-owners still explicitly unsupported. No complete physical coverage is claimed.
-Explicit NoDedup/Inline clone contracts preserve hierarchy and binding; passive
-blackbox output-directory metadata survives the probe. The fresh real recipe
-bank diagnostic now rejects the remaining **25 annotation classes**. Reuse
-iteration-194's localhost checkpoint-build invocation; no duplicate farm or AFI
-request was launched. All **109 Scala / 306 checkpoint Python / 40 loop tests**
-and the full retained EDA ASan/UBSan scope pass. New production-path branch
-checks pass 6,150 comparisons over 3,075 fixture edges; original FPGA-branch and
-ordinary runtime-plusarg behavior are checked separately, with complete debug
-waves and a negative stopping before edge zero. Identical final inputs synthesize
-natively (22 LUTs / 32 registers, OOC only). Complete image/P&R/AFI, physical
-captures and paired finite/live CPU migration remain pending. Current commands,
-individual receipts and acceptance gaps: `runs/aws-f2/iteration197/summary.json`
-relative to the loop. See [fpga-capture-transport.md](fpga-capture-transport.md).
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 198,
+**in_progress**. Bank specialization now translates internal/external XDC
+arguments together under each repeated explicit root, validates concrete
+paths/ports, and retains memory-model labels on exact logical RAMs. Unknown
+contracts remain unsupported. Bank emission receipts bind both actual emitted
+XDC files. The real Rocket production bank diagnostic rejects **22 remaining
+annotation classes**, down from 25; it emits no accepted whole-Rocket bank RTL.
+All **113 Scala / 306 checkpoint Python / 40 loop tests** and the complete
+retained EDA ASan/UBSan scope pass. Final native synthesis (125 LUTs / 82 registers), retained-DCP constraints,
+4,669 bank and 7,858 exact-native-input top VCS checks pass. Six missing or
+coherently rehashed constraint corruptions reject. Receipts are under `runs/aws-f2/iteration198/` relative to the loop.
+The initial native fixture's invalid clock endpoint is rejected despite exit 0;
+its logs/receipt remain diagnostic. Reuse iteration-194's localhost build
+invocation; no duplicate farm or AFI was launched. Full checkpoint-enabled
+image/P&R/AFI, physical cuts, complete memory/host/common-cut ownership and
+paired CPU finite/live migration remain pending. See
+[fpga-capture-transport.md](fpga-capture-transport.md).
 
 On October 23 the
 existing manager successfully launched one tagged `f2.6xlarge`, instance
@@ -101,6 +97,51 @@ pending the complete state network, bridge and host-owner implementation.
 Report individual nonempty files, including actual native manager logs and
 `results-workload/.../uartlog`, instead of directories. Keep original
 iteration-175 artifacts and failed-license receipts unchanged.
+
+## Iteration 198: physical-constraint and memory-label clone contracts
+
+Internal/external XDC targets retain their common explicit root and correlated
+arguments for each concrete clone; nested instance module names are rewritten.
+Global snippets remain singletons. Ground nets/ports, concrete instances and
+instance ports are validated; foreign/unreachable/opaque/mismatched/aggregate
+references and format-count errors reject. External XDC remains its original
+annotation class rather than being silently promoted into emitted constraints.
+Memory-model labels translate onto actual retained logical RAMs, with source,
+translated annotation and mapping provenance. Dropping/changing translated
+labels or constraints rejects descriptor construction. Repeated-root constraints
+produce identical physical paths through the real WriteXDCFile pass before and
+after instrumentation; independent target-pair checks forbid cross-instance
+constraints. The production bank receipt additionally binds exact synthesis and
+implementation XDC bytes, refusing missing/duplicate output files.
+
+The first native trial returned 0 despite Constraints 18-401/18-512 diagnostics
+because the fixture used an input clock as a timing endpoint. It is explicitly
+rejected. The repaired fixture constrains scalar reset paths; the verifier now
+rejects constraint warnings and requires retained DCP commands plus the actual
+DONT_TOUCH cell property. An intermediate verifier inspected only the DCP late
+constraint file; Vivado had correctly stored both commands in its regular XDC.
+That failed verifier run and its DCP remain diagnostic. Validation now inspects
+all DCP XDC members without discarding any constraint requirement.
+
+All 113 Scala tests and complete retained EDA bank/bridge/host/memory/FCFS
+ASan/UBSan, 306 Python and 40 loop tests pass. The matched production-bank
+fixture passes 4,669 checks / 1,025 edges at cuts 2/39/132/900; a corrupt first
+word stops frozen at cycle 2. Exact native-input MMIO/DMA top VCS passes 7,858
+checks. Full debug VCDs remain. Native Vivado 2025.2 OOC synthesis retains
+125 LUTs / 82 registers, setup +6.478 ns / hold +0.081 ns at 140 MHz, with
+external I/O unconstrained. Independent EDA auditing matches all nine generated
+files / 14 sources, validates DCP constraints and rejects six missing or
+coherently rehashed dropped/retargeted/extra XDC cases. Final scoped inventory
+finds no owned F2 instance or native Vivado/Java build job. Actual production compilation
+still exits 1 on 22 unsupported annotation classes: stage/pass/deleted/opaque,
+bridge/channel, dedup/pre-link/target-box and remaining output contracts.
+No full image, AFI request, FPGA checkpoint, CPU restore or rolling/live CPU
+acceptance is established. The existing controller checkpoints were published
+FireSim first then Chipyard; the latter remote update succeeded with the
+read-only local tracking-ref error retained. Both plan inputs remain unchanged.
+Managed-worker startup failed twice before any worker was created; all work
+stayed in the central turn and no delegated job remains. Final receipts and
+raw commands: `runs/aws-f2/iteration198/summary.json` relative to the loop.
 
 ## Iteration 197: production FPGA constants and hierarchy annotation contracts
 

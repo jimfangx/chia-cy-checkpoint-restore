@@ -14,6 +14,7 @@ import shutil
 import socket
 import subprocess
 import tempfile
+import zipfile
 
 from tools.checkpoint_formats import toolchain
 from tools.checkpoint_formats.codec import require
@@ -22,12 +23,16 @@ from tools.checkpoint_formats.native_input_guard import require_live_inputs_unch
 ROOT = Path(__file__).resolve().parents[3]
 NAMES = ('bank-probe-reference.fir', 'bank-probe-state.json', 'bank-probe-instrumented.fir',
          'bank-probe-binding.json', 'bank-probe-descriptors.json', 'bank-probe-emission.json')
+XDC_NAMES = ('bank-probe.synthesis.xdc', 'bank-probe.implementation.xdc')
 SOURCES = ('sims/firesim/sim/midas/src/main/scala/midas/checkpoint/SimulatorBankProbe.scala',
            'tools/checkpoint_formats/native_input_guard.py',
            'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedExternalOwners.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedClockGateAdapter.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedStateBankAccess.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedStateBankAnnotations.scala',
+           'sims/firesim/sim/midas/src/main/scala/midas/passes/WriteXDCFile.scala',
+           'sims/firesim/sim/midas/src/main/scala/midas/ShadowAnnotations.scala',
+           'sims/firesim/sim/midas/targetutils/src/main/scala/midas/xdc/XDCAnnotation.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/stage/GoldenGateCompilerPhase.scala',
            'sims/firesim/sim/midas/src/test/scala/midas/stage/GoldenGateHostPipelineSpec.scala',
            'tools/checkpoint_formats/tests/production_bank_tb.sv',
@@ -48,6 +53,16 @@ def audit_inputs(generated):
     require(set(emission['inputs']) == {'.'+n for n in NAMES[:-1]}, 'incomplete probe input binding')
     for name in NAMES[:-1]:
         require(emission['inputs']['.'+name] == sha(generated/name), 'unbound probe input '+name)
+    require(emission.get('emitted_xdc_sha256') ==
+            {'.synthesis.xdc': sha(generated/XDC_NAMES[0]),
+             '.implementation.xdc': sha(generated/XDC_NAMES[1])}, 'unbound emitted physical constraints')
+    # Independent fixture contract. Hash-consistent dropped or retargeted
+    # constraints must not pass merely by rewriting the emission receipt.
+    expected = ('set_property DONT_TOUCH true [get_cells consumer]',
+                'set_false_path -from [get_ports reset]')
+    for name, line in zip(XDC_NAMES, expected):
+        lines = [s for s in (generated/name).read_text().splitlines() if s and not s.startswith('#')]
+        require(lines == [line], 'physical-constraint target or command changed: '+name)
     manifest = json.loads((generated/'bank-probe-state.json').read_text())
     binding = json.loads((generated/'bank-probe-binding.json').read_text())
     descriptors = json.loads((generated/'bank-probe-descriptors.json').read_text())
@@ -87,7 +102,7 @@ def main():
     base.mkdir(parents=True, exist_ok=True)
     out = Path(tempfile.mkdtemp(prefix='production-bank-', dir=base))
     pinned = []
-    for label, root, names in [('generated', args.generated.resolve(), (*NAMES, 'bank-probe.sv')),
+    for label, root, names in [('generated', args.generated.resolve(), (*NAMES, *XDC_NAMES, 'bank-probe.sv')),
                                ('sources', ROOT, SOURCES)]:
         for name in names:
             target = out/label/name; target.parent.mkdir(parents=True, exist_ok=True)
@@ -135,7 +150,15 @@ def main():
         script.write_text('''set_param general.maxThreads 4
 create_project -in_memory -part xcvu47p-fsvh2892-2-e
 read_verilog -sv generated/bank-probe.sv
+read_xdc generated/bank-probe.synthesis.xdc
+read_xdc generated/bank-probe.implementation.xdc
 synth_design -top HostPipeline -part xcvu47p-fsvh2892-2-e -mode out_of_context
+# Apply the exact compiler-emitted constraints to the actual synthesized
+# hierarchy, then independently check that they hit the intended cell/ports.
+set owner [get_cells -quiet consumer]
+if {[llength $owner] != 1 || ![get_property DONT_TOUCH $owner]} { error "checkpoint XDC missed consumer" }
+if {[llength [get_ports -quiet reset]] != 1 || [llength [get_ports -quiet clock]] != 1} { error "checkpoint XDC port mismatch" }
+puts "PRODUCTION_XDC_PASS consumer=[get_property DONT_TOUCH $owner]"
 create_clock -name functional -period 7.142857 [get_ports clock]
 create_clock -name access -period 7.142857 [get_ports ckpt_clock]
 opt_design
@@ -147,14 +170,23 @@ close_project
 ''')
         text = run(['vivado', '-mode', 'batch', '-source', script, '-log', 'vivado.log',
                     '-journal', 'vivado.jou'], out, 'vivado-command.log')
-        require('PRODUCTION_BANK_SYNTH_PASS' in text and (out/'HostPipeline.dcp').stat().st_size,
+        require(not re.search(r'(?:CRITICAL WARNING|WARNING|ERROR): \[Constraints ', text),
+                'native constraint diagnostic; inspect '+str(out/'vivado-command.log'))
+        require('PRODUCTION_XDC_PASS consumer=1' in text and 'PRODUCTION_BANK_SYNTH_PASS' in text and (out/'HostPipeline.dcp').stat().st_size,
                 'missing synthesized probe')
+        with zipfile.ZipFile(out/'HostPipeline.dcp') as dcp:
+            require(dcp.testzip() is None, 'DCP integrity failure')
+            retained = '\n'.join(dcp.read(name).decode() for name in dcp.namelist()
+                                 if name.endswith('.xdc'))
+            require('set_property DONT_TOUCH true [get_cells consumer]' in retained and
+                    re.search(r'set_false_path[^\n]*-from[^\n]*reset', retained),
+                    'native DCP dropped or changed emitted physical constraints')
     require_live_inputs_unchanged(pinned)
     summary = dict(status='pass', backend='eda' if args.mode == 'vcs' else 'f2',
                    observed_utc=datetime.now(timezone.utc).isoformat(), host=socket.gethostname(),
                    original_root=str(ROOT), scope='production compiler bank probe fixture only',
                    physical_fpga_capture=False, full_rocket_image_build=False, commands=commands,
-                   generated={n: sha(generated/n) for n in (*NAMES, 'bank-probe.sv')},
+                   generated={n: sha(generated/n) for n in (*NAMES, *XDC_NAMES, 'bank-probe.sv')},
                    sources={n: sha(out/'sources'/n) for n in SOURCES},
                    artifacts={str(p.relative_to(out)): sha(p) for p in out.rglob('*')
                               if p.is_file() and p.suffix in ('.log', '.rpt', '.dcp', '.vcd', '.tcl')})

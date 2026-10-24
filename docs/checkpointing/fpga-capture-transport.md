@@ -1,5 +1,34 @@
 # FPGA capture transport component
 
+Iteration 198 preserves physical constraints through bank specialization with
+explicit internal/external XDC contracts. Arguments sharing one explicit root
+are cloned together; nested instance module references are rewritten without
+crossing repeated roots. Ground declarations, concrete instances/ports and
+format counts are validated. Unknown, opaque, foreign, aggregate and malformed
+paths still reject. Global snippets remain singletons and external annotations
+retain their original class. Exact logical-RAM memory-model labels also clone
+with complete annotation/mapping provenance. Real WriteXDCFile output agrees
+with the uninstrumented repeated hierarchy, and altered/dropped annotations
+fail descriptor validation. Both actual emitted XDC files are hash-bound to
+the production bank emission receipt; missing/duplicate files reject.
+
+The native fixture initially used an invalid input-clock endpoint. Its exit-0
+run is explicitly rejected from the real Constraints 18-401/18-512 diagnostics.
+The corrected scalar-reset constraint is checked in every DCP XDC member along
+with the real DONT_TOUCH cell property; native constraint warnings now fail
+verification. A separate failed diagnostic inspected only the late XDC while
+Vivado retained commands in the regular XDC; all raw outputs remain unchanged.
+All 113 Scala / 306 checkpoint Python / 40 loop tests and the complete retained
+EDA ASan/UBSan scope pass. The actual Rocket bank preflight still rejects 22
+annotation classes, with no accepted whole-root bank output. Three physical
+BUFGCE owners, common-cut/memory/host/transport integration and full image
+P&R/AFI/capture/migration remain unsupported or pending. This increment supplies
+compiler/component evidence only. Native OOC uses 125 LUTs / 82 registers, estimated setup +6.478 ns /
+hold +0.081 ns at 140 MHz with unconstrained external I/O. Matching VCS
+passes 4,669 bank / 7,858 exact-native-input top checks with debug VCDs; six
+missing/coherently rehashed XDC cases reject. Per-run native/VCS, corruption
+and provenance receipts are under `runs/aws-f2/iteration198/` relative to the loop.
+
 Iteration 197 adds `--simulator-fpga-synthesis-constants` to the actual Golden
 Gate CLI/backend. It requires exactly one whole-root inventory, rejects
 incompatible semantic tracking and selects only the exact pinned model's FPGA
