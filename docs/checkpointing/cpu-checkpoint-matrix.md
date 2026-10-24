@@ -10,9 +10,24 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 
 | Family | F2 workload / custom capture image | FPGA Level-1 to EDA metasim | FPGA Level-2 finite RTL replay | Live RTL / rolling hardware recovery |
 | --- | --- | --- | --- | --- |
-| Rocket (all four harts) | baseline verified: real F2, slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress (MMIO/CPU-DMA Widget, banks, clock provenance, exact registered-gate/FPGA-constant owners, retained FASED/DTLB/D-cache banks; static/invalid/computed token clock provenance explicit; retained whole-root banks/descriptors emit for all 12,099 entries and native OOC synthesis completes; balanced readout; whole-root OOC WNS -0.287 ns / WHS -0.324 ns, full image timing pending) | pending | pending | pending |
+| Rocket (all four harts) | baseline verified: real F2 slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress: bank/MMIO/DMA fixtures synthesize locally, current exact-recipe bank trial rejects 28 annotation contracts; three physical BUFGCE owners, explicit FPGA plusarg semantics, complete common-cut/memory/host binding and image P&R/AFI remain pending | pending | pending | pending |
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
+
+Iteration 196 fixes reachability-scoped gate admission and emits a source-bound
+external-owner audit. Independent reconstruction covers all 2,293 emitted
+instances: three physical BUFGCEs, seven plusarg-model instances and eleven
+unused external definitions. All physical capture bindings remain unsupported.
+101 Scala / 298 checkpoint Python / 40 loop tests and the full retained EDA
+ASan/UBSan scope pass. The native-model EDA experiment passes (3,658 checks / 682
+phase observations / 256 source edges). The abstract gate produces 73 extra
+positive pulses despite matching settled outputs; it cannot substitute for
+BUFGCE. The fresh production bank trial now fails explicit annotation
+translation (28 classes). No complete image/AFI, F2 checkpoint, paired CPU
+restore, finite/live CPU replay or rolling-hardware status is advanced.
+Commands, scope and evidence: `runs/aws-f2/iteration196/summary.json` relative
+to the loop. The iteration-194 localhost checkpoint-build invocation remains
+available; no duplicate farm or AFI request was launched.
 
 Iteration 195 invokes bank generation after actual production FPGA lowering
 through an explicit, non-deployable diagnostic option. All 97 Scala / 290

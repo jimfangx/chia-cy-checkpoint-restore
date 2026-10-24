@@ -23,6 +23,7 @@ SOURCES = (
     'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedStateBankAccess.scala',
     'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedStateBankAnnotations.scala',
     'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedClockGateAdapter.scala',
+    'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedExternalOwners.scala',
     'sims/firesim/sim/midas/src/main/scala/midas/passes/package.scala',
     'sims/firesim/sim/midas/src/test/scala/midas/checkpoint/RegisteredClockGateBankSpec.scala',
     'tools/checkpoint_formats/tests/verify_registered_gate_vcs.py',

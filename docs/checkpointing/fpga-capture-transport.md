@@ -1,5 +1,29 @@
 # FPGA capture transport component
 
+Iteration 196 separates reachable external owners from unused definitions.
+The exact current ordinary Rocket compiler emits a report bound to its final
+reference and emission identity; independent traversal verifies all 2,293
+instances, three active BUFGCEs, seven active plusarg-model instances and eleven
+unused external definitions. Both abstract-gate definitions are unused. Bank
+preparation now scopes gate admission to reachable modules while preserving
+unknown-annotation rejection and original source hashes. All 101 Scala / 298
+checkpoint Python / 40 loop tests and the complete retained EDA sanitizer scope
+pass. Full bank compilation gets past the dead gate and fails strict explicit
+annotation translation (28 classes), without emitting accepted Rocket banks.
+
+Native Vivado 2025.2's unmodified BUFGCE/glbl models, MIDAS's abstract gate and
+the stock metasim model run together in fresh EDA VCS SP2. Across 256 source
+edges, 682 phase observations and 3,658 checks, physical-model/metasim edge
+counts are 110 while the abstract model has 183: 73 extra positive pulses are
+hidden by settled-output agreement. The SYNC CE latch tracks low phases and
+holds across 170 high-phase CE changes. Wrong expected output stops at edge 4;
+healthy/corrupt full debug VCDs and original model/source hashes are retained.
+This is component-model evidence only. A source-bound primitive/cut mapping,
+explicit FPGA plusarg semantics and complete annotation translation remain
+required, along with production memory/host/live-transport integration,
+whole-image P&R/AFI and actual hardware migration. Current receipts/commands:
+`runs/aws-f2/iteration196/summary.json` relative to the loop.
+
 Iteration 195 adds `--simulator-bank-probe` to the actual post-mapping compiler
 path, after host transforms and FPGA lowering. It generates the complete root's
 bank network and binds pre-bank inventory/reference, instrumented IR, bank

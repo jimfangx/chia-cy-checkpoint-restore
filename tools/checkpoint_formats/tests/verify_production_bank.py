@@ -22,7 +22,10 @@ ROOT = Path(__file__).resolve().parents[3]
 NAMES = ('bank-probe-reference.fir', 'bank-probe-state.json', 'bank-probe-instrumented.fir',
          'bank-probe-binding.json', 'bank-probe-descriptors.json', 'bank-probe-emission.json')
 SOURCES = ('sims/firesim/sim/midas/src/main/scala/midas/checkpoint/SimulatorBankProbe.scala',
+           'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedExternalOwners.scala',
+           'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedClockGateAdapter.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedStateBankAccess.scala',
+           'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedStateBankAnnotations.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/stage/GoldenGateCompilerPhase.scala',
            'sims/firesim/sim/midas/src/test/scala/midas/stage/GoldenGateHostPipelineSpec.scala',
            'tools/checkpoint_formats/tests/production_bank_tb.sv',

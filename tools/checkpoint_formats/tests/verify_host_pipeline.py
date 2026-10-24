@@ -20,10 +20,13 @@ from tools.checkpoint_formats.codec import require
 
 ROOT = Path(__file__).resolve().parents[3]
 GENERATED = ('host-pipeline.sv', 'host-pipeline.fir', 'host-pipeline-manifest.json',
-             'host-pipeline-emission.json', 'original-input.fir', 'discarded-host.sv')
+             'host-pipeline-emission.json', 'host-pipeline-external-owners.json', 'original-input.fir', 'discarded-host.sv')
 SOURCES = ('sims/firesim/sim/midas/src/main/scala/midas/stage/GoldenGateCompilerPhase.scala',
+           'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedExternalOwners.scala',
+           'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/SimulatorStateInventory.scala',
            'sims/firesim/sim/midas/src/test/scala/midas/stage/GoldenGateHostPipelineSpec.scala',
            'tools/checkpoint_formats/tests/host_pipeline_tb.sv',
+           'tools/checkpoint_formats/tests/audit_external_owners.py',
            'tools/checkpoint_formats/tests/checkpoint_generated_network_exit.cc',
            'tools/checkpoint_formats/tests/verify_host_pipeline.py')
 
@@ -55,8 +58,12 @@ def main():
             'unsupported production emission scope/version')
     for field, name in [('emission_reference_sha256', 'host-pipeline.fir'),
                         ('simulator_manifest_sha256', 'host-pipeline-manifest.json'),
+                        ('external_owners_sha256', 'host-pipeline-external-owners.json'),
                         ('emitted_verilog_sha256', 'host-pipeline.sv')]:
         require(binding[field] == sha(generated/name), 'unbound production emission: '+field)
+    from tools.checkpoint_formats.tests.audit_external_owners import audit as audit_external
+    audit_external(generated/'host-pipeline.fir', generated/'host-pipeline-manifest.json',
+                   generated/'host-pipeline-external-owners.json')
     require(manifest['reference_sha256'] == sha(generated/'host-pipeline.fir'), 'unbound storage reference')
     require({(e['hierarchy'], e['width'], e['depth']) for e in manifest['state']} ==
             {('HostPipeline.host_owner', 8, 1), ('HostPipeline.consumer.always_', 8, 1)} and
