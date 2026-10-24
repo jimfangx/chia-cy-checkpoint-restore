@@ -14,6 +14,21 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 222 composes the exact compiler CE endpoint with functional-bank
+and MMIO/DMA transport using a synthesizable descriptor/response router. Bank
+255 is reserved and malformed/aliased descriptors reject. Accepted reads retain
+their endpoint through stalls and abort/drain. Native localhost synthesis uses
+1,867 LUTs / 669 registers, four SYNC BUFGCEs and one falling-edge mask;
+140 MHz OOC setup/hold estimates are +0.593/-0.062 ns. Fresh EDA SP2 passes
+4,912 integrated checks, five complete cuts, seven independently checked state
+words per cut, 36 requests and execution through cycle 320. Standalone routing
+passes 311 checks; runtime, reset, CRC/semantic corruption and independently
+compiled routing faults retain fifteen debug VCDs. This remains **in_progress
+component integration**: production bank/bridge and complete same-cut owners,
+physical CE restore, full image/P&R/AFI and every actual hardware migration
+column remain pending. See [f2-physical-state-router.md](f2-physical-state-router.md)
+and `runs/aws-f2/iteration222/verification-commands.json`.
+
 Iteration 221 adds exact Rocket physical CE StateIDs and a generated bank-255
 readout endpoint, with one bit and one slot per original native gate. It binds
 the source/inventory/topology/CE dependencies and generated endpoint bytes;

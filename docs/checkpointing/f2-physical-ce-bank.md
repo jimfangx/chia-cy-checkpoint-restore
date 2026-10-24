@@ -48,8 +48,10 @@ reset cancellation/recovery and zero functional edges during readout are
 checked. Debug waves and independently compiled inverted-bit fault evidence
 belong under `runs/aws-f2/iteration221/`, alongside exact commands and receipts.
 
-This remains **in_progress component/compiler work**. The endpoint is not yet
-arbitrated into the complete production bank/MMIO/DMA path. Production
+This remains **in_progress component/compiler work**. A separate synthesizable
+[router composition](f2-physical-state-router.md) now connects this endpoint to
+functional-bank/MMIO/DMA components. Complete production arbitration and bridge
+binding remain pending. Production
 `F1Shim.reset`/external writers, physical CE-to-metasim zero-edge restore,
 complete simulator/functional-memory/timing/bridge/host/pre-FAME same-cut
 ownership, production annotations/XDC, full image implementation/AFI and real

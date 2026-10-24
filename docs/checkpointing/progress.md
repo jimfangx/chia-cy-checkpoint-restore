@@ -20,6 +20,64 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 222,
+**in_progress**. `CheckpointPhysicalStateRouter` now composes functional-bank
+and exact compiler-generated physical CE descriptors/responses with the
+physical cut/MMIO/DMA transport. Bank 255 is reserved; invalid descriptors,
+wrong CE shapes/order and functional aliases reject. Accepted reads pin their
+endpoint through stalls, selector changes and abort/drain; a common reset
+cancels routing and all endpoints. See
+[f2-physical-state-router.md](f2-physical-state-router.md).
+
+Fresh EDA SP2 passes **4,912 integrated checks / five complete cuts / 36
+requests / 91 DMA stalls / 108 delayed functional-bank cycles**, with independent
+arithmetic/CRC/descriptor checks for all seven words at cuts **2/19/130/258/302**
+and resumed functional execution through **320**. Standalone routing passes
+**311 checks / six transactions**. Six runtime negatives, seven host-image
+mutations (including physical CE/slot corruption with valid CRCs), five reset
+interruption/recovery phases, a corrupt routing oracle and an independently
+compiled incorrect routing register retain **fifteen full debug VCDs**.
+Independent current-source native/EDA auditing matches **40 inputs / 21
+sources** and rejects **thirteen** evidence/owner substitutions.
+
+All **220 Scala / 309 checkpoint Python / 40 loop tests** pass. The retained
+EDA ASan/UBSan/FCFS/host/bridge/bank/memory scope completes successfully.
+All **thirteen localhost component synthesis scopes** pass. The new composition
+uses **1,867 LUTs / 669 registers**, four generated SYNC BUFGCEs and one
+falling-edge mask; OOC 140 MHz setup/hold estimates are **+0.593/-0.062 ns**.
+Full image implementation timing remains open. Retained standalone CE,
+both physical transport modes, physical cut, top, production bank and wiring
+VCS scopes pass: **2,722 / 4,739 per mode / 1,968 / 7,858 / 4,669 / 1,813**
+checks respectively. Independent Rocket dependency/topology/wiring and all six
+memory-corpus audits pass. Final scoped inventory has no active loop F2
+instance or native Vivado/Java job; final receipts preserve each scope.
+
+This is component integration, not complete production capture admission.
+The exact Rocket production compile still rejects the FASED physical CE owner.
+Bind production simulator-bank arbitration/bridge wiring, `F1Shim.reset` and
+external writers, complete simulator/functional-memory/timing/bridge/host/
+pre-FAME owners and physical CE zero-edge metasim restore before removing that
+guard. Full localhost image/P&R/AFI, active four-hart early/warm/outstanding/late
+FPGA cuts, paired complete independent zero-edge readbacks, finite replay,
+sustained live clean RTL beyond the trace and rolling FPGA failure recovery
+remain required. Reuse iteration194's initialized ExternallyProvisioned localhost
+invocation. No new runtime instance or AFI was created, and this increment
+produced no FPGA checkpoint.
+
+Original launcher-before-emission, native Vivado macro-option and setup-before-
+inventory failures are retained with underlying logs; reruns in dependency order
+and the native fileset define setting recover them. Plans and initialized manager
+inputs retain entry hashes. No staging or commits. Existing controller
+checkpoints were published FireSim first (`b07a487c`), then Chipyard (`0f4ed1bf`),
+with independent remote-tip evidence. The local read-only tracking-ref warning
+did not prevent the remote update. Follow
+[github-publication.md](github-publication.md) for the next controller checkpoint.
+Managed worker startup failed before creation; only the central agent ran and
+no delegated LLM request remains. Exact commands, current receipts and pending
+acceptance are under `runs/aws-f2/iteration222/`.
+
+## Iteration 221 (retained recovery note)
+
 Active milestone: `F2-rocket-checkpoint-migration`, iteration 221,
 **in_progress**. The exact Rocket compiler now emits a read-only physical CE
 bank companion: three distinct physical StateIDs, bank 255 / slots 0-2, one-bit
