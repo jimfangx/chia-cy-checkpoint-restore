@@ -14,6 +14,22 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 195 invokes bank generation after actual production FPGA lowering
+through an explicit, non-deployable diagnostic option. All 97 Scala / 290
+checkpoint Python / 40 loop tests and retained EDA sanitizer regressions pass.
+The production-path bank fixture passes 4,669 EDA VCS checks, reads complete
+state at component cycles 2 / 39 / 132 / 900, continues through 1,025 functional
+edges, and rejects first-word corruption frozen before acknowledgement.
+Identical inputs synthesize natively to 44 LUTs / 26 registers (OOC only).
+Top MMIO/DMA passes 7,858 checks on exact native inputs; final independent EDA
+probe/DCP/top and all 780 dense-word audits pass.
+Fresh exact-Rocket bank compilation **fails** the exact adapter check for
+`AbstractClockGate_0`; it produces no accepted Rocket banks or capture image.
+Physical primitive/annotation contracts, memory/host/common-cut and live
+transport integration, image P&R/AFI, hardware cuts and paired CPU migration
+remain pending. No hardware matrix status is advanced. Commands/evidence:
+`runs/aws-f2/iteration195/summary.json` relative to the loop.
+
 Iteration 194 repairs production post-mapping host-transform propagation and
 binds inventory to the actual emitter state. All 94 Scala / 290 checkpoint
 Python / 40 loop tests and the retained EDA sanitizer scope pass. New EDA VCS

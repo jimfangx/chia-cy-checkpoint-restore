@@ -1,5 +1,42 @@
 # FPGA capture transport component
 
+Iteration 195 adds `--simulator-bank-probe` to the actual post-mapping compiler
+path, after host transforms and FPGA lowering. It generates the complete root's
+bank network and binds pre-bank inventory/reference, instrumented IR, bank
+binding and immutable descriptors to the emitted RTL body. The final emission
+inventory independently includes the response latch and emitter-renamed state.
+Only known compiler bookkeeping bypasses storage-annotation translation;
+unknown contracts, duplicate requests and partial inventory roots reject.
+The probe cannot surround a registered live capture transport. Its external
+ports still require a real common-cut/MMIO binding; every binding explicitly
+marks it non-deployable and requires external runtime ownership. Invoke it
+with an isolated `-td` beneath runs; stock manager recipes/Make remain unchanged.
+
+All 97 Scala / 290 checkpoint Python / 40 loop tests and retained EDA sanitizer
+regressions pass. The production-path bank fixture passes 4,669 EDA VCS checks
+with complete word reads at component cycles 2 / 39 / 132 / 900, reset/clock
+pressure while frozen, held-response backpressure, invalid selectors/unfrozen
+requests and continuation through 1,025 functional edges. Deliberate word
+corruption stops at the first unacknowledged read, cycle 2, while frozen.
+Both runs retain debug VCDs. Identical inputs synthesize locally to 44 LUTs /
+26 registers for the F2 part, estimated OOC WNS +6.435 ns / WHS +0.049 ns;
+external I/O is unconstrained. These remain compiler/component measurements.
+
+Fresh full exact-Rocket compilation from retained target inputs reaches the
+hook and exits 1 on `no exact registered-enable clock-gate adapter for
+AbstractClockGate_0`. The retained ordinary final reference contains that
+definition without any instance; reachability, exact primitive/plusarg semantics
+and remaining annotation contracts require explicit audit. No failing source
+check is weakened. No full Rocket bank output, complete image P&R/AFI, FPGA
+checkpoint, paired CPU migration or live/rolling hardware acceptance is claimed.
+Raw commands/diagnostics and immutable receipts:
+`runs/aws-f2/iteration195/summary.json` relative to the loop.
+The top MMIO/DMA fixture also passes 7,858 checks on exact native synthesis
+inputs. Final independent EDA auditing verifies all probe source/generated/DCP
+identities, each cut's independent accumulator values, the full-recipe failure,
+top transport evidence and all 780 retained dense words. Fresh scoped inventory
+finds no owned runtime instance or remaining native Vivado/Java job.
+
 Iteration 194 repairs the production compiler's discarded post-mapping
 host-transform result. Injected storage, clock wiring and annotations now
 reach the FPGA backend and final emission. Simulator inventory observes the

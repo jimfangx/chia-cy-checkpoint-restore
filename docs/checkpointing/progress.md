@@ -20,24 +20,24 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 194,
-**in_progress**. Fixed the production compiler discarding the post-mapping
-host-transform result, and inventory now observes the actual emitter state.
-A new emission binding links the host/backend circuit, inventory, final
-reference and emitted RTL body. All **94 Scala / 290 checkpoint Python / 40
-loop tests** and the retained EDA bank/transport/host/FCFS ASan/UBSan scope
-pass. The new compiler-path fixture passes **4,100** EDA VCS comparisons over
-**1,025** host edges; the old discarded-transform behavior fails at cycle 1.
-Native localhost fixture synthesis passes (**12 LUTs / 16 registers**).
-Top MMIO/DMA passes **7,858** checks on identical native synthesis inputs;
-independent EDA emission/DCP/top and all **780** dense-word audits pass.
-Fresh exact-recipe Golden Gate compilation from retained target inputs passes:
-**11,466 generated entries / 618,254 words / 2,293 instances**. This ordinary
-recipe run has no semantic-preservation/capture binding; its counts cannot
-replace the retained instrumented probe's inventory or establish hardware
-coverage. Production capture integration, complete physical/memory/host
-ownership, image P&R/AFI, actual FPGA checkpoint capture and paired CPU
-live/rolling acceptance remain pending. See
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 195,
+**in_progress**. Added an explicit diagnostic bank-generation hook after
+production FPGA lowering. Its immutable pre-bank inventory, instrumented IR,
+bank binding and descriptors are bound to the actual emitted RTL body.
+Unknown annotation contracts, partial inventory roots, duplicate requests and
+freezing a live capture transport reject. All **97 Scala / 290 checkpoint
+Python / 40 loop tests** and the retained EDA bank/transport/host/FCFS
+ASan/UBSan scope pass. The new compiler-path bank fixture passes **4,669**
+EDA VCS checks at four complete cuts, continues through **1,025** functional
+edges and stops first-word corruption frozen before acknowledgement. Native
+localhost OOC synthesis of identical bytes uses **44 LUTs / 26 registers**.
+Fresh exact-recipe bank compilation reaches this hook but **fails** the exact
+adapter check for `AbstractClockGate_0`; no Rocket bank/image output is claimed.
+The probe is non-deployable and is not added to manager recipes or stock Make
+outputs. Complete physical/memory/host ownership, live transport/common-cut
+integration, image P&R/AFI, actual FPGA capture and paired CPU live/rolling
+acceptance remain pending. Reuse the iteration-194 checkpoint-build invocation.
+See
 [fpga-capture-transport.md](fpga-capture-transport.md).
 
 On October 23 the
@@ -99,6 +99,58 @@ pending the complete state network, bridge and host-owner implementation.
 Report individual nonempty files, including actual native manager logs and
 `results-workload/.../uartlog`, instead of directories. Keep original
 iteration-175 artifacts and failed-license receipts unchanged.
+
+## Iteration 195: invoke generated banks from the production compiler
+
+`--simulator-bank-probe` invokes `GeneratedStateBankAccess` after production
+host/FPGA lowering, using a separate access clock and the complete root's
+generated-state inventory. Only explicitly recognized compiler bookkeeping
+bypasses storage-annotation translation; unknown annotations still reject.
+Logical bank inputs and final emitted-state inventory remain distinct: the
+latter additionally owns the bank response latch and emitter-renamed state.
+All probe bindings say `deployable_capture_image=false` and require external
+runtime ownership. Use an isolated Golden Gate `-td` under runs; there is no
+stock recipe/Make switch that can contaminate an ordinary cached image.
+
+The real compiler-path fixture retains injected host state and host-clock
+wiring. Fresh EDA VCS SP2 checks every bank word at component cycles
+**2 / 39 / 132 / 900**, invalid selectors/unfrozen requests, four stalled
+response boundaries per read, frozen reset/clock pressure and continued
+functional outputs through 1,025 edges. **4,669** checks / **21** requests
+pass; deliberate word corruption stops at cycle 2, zero completed reads,
+freeze asserted and no acknowledgement. Both runs retain full debug VCDs.
+Native Vivado 2025.2 synthesizes identical bytes for the F2 part to 44 LUTs /
+26 registers, estimated OOC WNS **+6.435 ns** / WHS **+0.049 ns** at 140 MHz;
+external I/O is unconstrained. This is component evidence only.
+
+The exact Rocket recipe freshly runs from retained high-level target inputs
+and reaches the hook, then exits **1**: `no exact registered-enable clock-gate
+adapter for AbstractClockGate_0`. Preserve that native compiler log and target
+input hashes. The retained ordinary final reference has no instance of that
+module; audit reachable definitions, physical BUFGCE/plusarg semantics and all
+remaining annotation contracts before changing adapter admission. Do not
+relax source checks or substitute the old abstract-gate probe for physical
+state. No new checkpoint image, AFI request, runtime launch or FPGA checkpoint
+was produced. Fresh AWS/localhost inventory finds no owned runtime instance or
+remaining native Vivado/Java build job.
+
+All 97 Scala / 290 Python / 40 loop tests and the complete retained EDA
+bank/Widget/host/FCFS ASan/UBSan scope pass. The ordinary host-pipeline fixture
+still passes 4,100 comparisons and rejects discarded circuitry at cycle 1.
+Top MMIO/DMA passes 7,858 checks on the exact native synthesis inputs; the
+independent EDA audit verifies source/generated/DCP identity, all four bank
+cuts, the unsupported full-recipe trial, top evidence and 780 dense words.
+Initial Scala syntax/fixture-construction/duplicate-request failures remain
+in raw logs, followed by the full successful rerun. Managed worker startup
+failed before any worker started; work remained central and no worker exists.
+Existing controller checkpoints were pushed FireSim first (`31fd9c7b`), then
+Chipyard (`c92da583`); independent remote tips agree. The successful Chipyard
+remote push retains its local read-only tracking-ref error. No staging or local
+commits; plans/conda/archive/history remain untouched. Commands, receipts and
+remaining acceptance work: `runs/aws-f2/iteration195/summary.json` relative to
+the loop. Complete image/driver, memory/host/common-cut ownership, four-hart
+hardware captures, independent CPU zero-edge restores, finite/live comparison
+and rolling hardware recovery remain pending.
 
 ## Iteration 194: preserve the production host compiler result
 
