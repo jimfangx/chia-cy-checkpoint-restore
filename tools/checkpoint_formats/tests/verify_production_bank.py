@@ -17,11 +17,13 @@ import tempfile
 
 from tools.checkpoint_formats import toolchain
 from tools.checkpoint_formats.codec import require
+from tools.checkpoint_formats.native_input_guard import require_live_inputs_unchanged
 
 ROOT = Path(__file__).resolve().parents[3]
 NAMES = ('bank-probe-reference.fir', 'bank-probe-state.json', 'bank-probe-instrumented.fir',
          'bank-probe-binding.json', 'bank-probe-descriptors.json', 'bank-probe-emission.json')
 SOURCES = ('sims/firesim/sim/midas/src/main/scala/midas/checkpoint/SimulatorBankProbe.scala',
+           'tools/checkpoint_formats/native_input_guard.py',
            'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedExternalOwners.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedClockGateAdapter.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedStateBankAccess.scala',
@@ -84,11 +86,14 @@ def main():
     require(base.is_relative_to(ROOT/'automations/checkpoint_loop/runs'), 'evidence outside runs')
     base.mkdir(parents=True, exist_ok=True)
     out = Path(tempfile.mkdtemp(prefix='production-bank-', dir=base))
+    pinned = []
     for label, root, names in [('generated', args.generated.resolve(), (*NAMES, 'bank-probe.sv')),
                                ('sources', ROOT, SOURCES)]:
         for name in names:
             target = out/label/name; target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes((root/name).read_bytes())
+            pinned.append(dict(path=str(root/name), sha256=sha(target)))
+    require_live_inputs_unchanged(pinned)
     generated = out/'generated'
     selectors = audit_inputs(generated)
     commands = []
@@ -144,12 +149,13 @@ close_project
                     '-journal', 'vivado.jou'], out, 'vivado-command.log')
         require('PRODUCTION_BANK_SYNTH_PASS' in text and (out/'HostPipeline.dcp').stat().st_size,
                 'missing synthesized probe')
+    require_live_inputs_unchanged(pinned)
     summary = dict(status='pass', backend='eda' if args.mode == 'vcs' else 'f2',
                    observed_utc=datetime.now(timezone.utc).isoformat(), host=socket.gethostname(),
                    original_root=str(ROOT), scope='production compiler bank probe fixture only',
                    physical_fpga_capture=False, full_rocket_image_build=False, commands=commands,
                    generated={n: sha(generated/n) for n in (*NAMES, 'bank-probe.sv')},
-                   sources={n: sha(ROOT/n) for n in SOURCES},
+                   sources={n: sha(out/'sources'/n) for n in SOURCES},
                    artifacts={str(p.relative_to(out)): sha(p) for p in out.rglob('*')
                               if p.is_file() and p.suffix in ('.log', '.rpt', '.dcp', '.vcd', '.tcl')})
     (out/'summary.json').write_text(json.dumps(summary, indent=2)+'\n')

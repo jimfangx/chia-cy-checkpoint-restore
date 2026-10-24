@@ -20,23 +20,27 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 196,
-**in_progress**. Clock-gate admission now follows actual instance reachability;
-an unused abstract-gate definition no longer blocks production bank generation.
-An emitted, source-bound external-owner report independently accounts for all
-2,293 ordinary Rocket instances, including three reachable physical BUFGCEs,
-seven plusarg-model instances and eleven unused external definitions. Physical
-owners remain explicitly unsupported. EDA VCS comparison of the exact native
-Vivado 2025.2 model finds 73 extra abstract-gate positive pulses over 256 source
-edges, despite matching settled outputs; do not substitute the abstract gate
-adapter for physical BUFGCE state. The actual whole-recipe bank trial now
-rejects explicit annotation contracts instead. No full image/AFI or hardware
-checkpoint is claimed. Reuse iteration-194's checkpoint-build invocation.
-All **101 Scala / 298 checkpoint Python / 40 loop tests**, the complete retained
-EDA ASan/UBSan scope and independent source/DCP/waveform audits pass.
-Current commands, individual evidence paths and remaining acceptance are in
-`runs/aws-f2/iteration196/summary.json` relative to the loop. See
-[fpga-capture-transport.md](fpga-capture-transport.md).
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 197,
+**in_progress**. The production compiler now supports explicit, source-checked
+FPGA plusarg constants through `--simulator-fpga-synthesis-constants`, with
+whole-root inventory and original/prepared/source/emission provenance. Independent
+reconstruction covers four replaced definitions and all seven Rocket instances;
+ordinary metasim plusargs remain unchanged. Final generated-model inventory has
+11,459 entries / 618,247 words / 2,282 instances, with all three physical BUFGCE
+owners still explicitly unsupported. No complete physical coverage is claimed.
+Explicit NoDedup/Inline clone contracts preserve hierarchy and binding; passive
+blackbox output-directory metadata survives the probe. The fresh real recipe
+bank diagnostic now rejects the remaining **25 annotation classes**. Reuse
+iteration-194's localhost checkpoint-build invocation; no duplicate farm or AFI
+request was launched. All **109 Scala / 306 checkpoint Python / 40 loop tests**
+and the full retained EDA ASan/UBSan scope pass. New production-path branch
+checks pass 6,150 comparisons over 3,075 fixture edges; original FPGA-branch and
+ordinary runtime-plusarg behavior are checked separately, with complete debug
+waves and a negative stopping before edge zero. Identical final inputs synthesize
+natively (22 LUTs / 32 registers, OOC only). Complete image/P&R/AFI, physical
+captures and paired finite/live CPU migration remain pending. Current commands,
+individual receipts and acceptance gaps: `runs/aws-f2/iteration197/summary.json`
+relative to the loop. See [fpga-capture-transport.md](fpga-capture-transport.md).
 
 On October 23 the
 existing manager successfully launched one tagged `f2.6xlarge`, instance
@@ -97,6 +101,50 @@ pending the complete state network, bridge and host-owner implementation.
 Report individual nonempty files, including actual native manager logs and
 `results-workload/.../uartlog`, instead of directories. Keep original
 iteration-175 artifacts and failed-license receipts unchanged.
+
+## Iteration 197: production FPGA constants and hierarchy annotation contracts
+
+The exact Rocket production run selects the pinned `plusarg_reader.v` SYNTHESIS
+branch explicitly after FPGA lowering. Preparation and final emission receipts
+bind original/prepared references, every source/parameter/definition and all
+repeated instances. An independent parser compares every unchanged definition
+and rejects eight classes of coherently rehashed corruption. Source-selected
+constants are not physical storage; the three active BUFGCE owners remain
+unsupported. The original metasim path retains its seven init-only model words.
+
+NoDedup and legacy circuit/module/exact-instance Inline requests translate to
+all concrete clones and participate in descriptor hashes. Foreign, unreachable,
+opaque and non-instance targets reject. Standard SV emission retains pending
+Inline requests without consuming or flattening the bank hierarchy. Any future
+pass that consumes those requests needs a new complete mapping contract.
+Only the passive blackbox-output directory annotation bypasses translation;
+unknown/deleted/bridge/channel/XDC/memory contracts still reject explicitly.
+The actual full bank compile exits 1 with 25 unsupported classes and emits no
+accepted whole-Rocket bank RTL. Its complete failing native log is retained.
+The final audit rejected an early native probe receipt after a source edit
+occurred during synthesis; its snapshot/hash mismatch remains diagnostic.
+Both new branch and production-bank verifiers now hash their immutable source
+snapshots and reject live generated/source changes before and after execution.
+Affected native and VCS runs are regenerated under `*-guarded/`; old receipts
+are preserved. The first final-audit sync also hit a vanished Git index lock;
+its exit-24 log remains separate from retries. Neither failure is acceptance.
+
+Fresh EDA VCS SP2 checks compare production-selected constants with both the
+unmodified model under SYNTHESIS and ordinary runtime plusargs. Each variant
+passes 2,050 comparisons / 1,025 fixture edges; a wrong component oracle stops
+at cycle 0 with zero acknowledged edges. All runs retain full debug VCDs.
+This is branch/compiler evidence, not CPU checkpoint or semantic-corruption
+acceptance. Native Vivado 2025.2 OOC synthesis of identical inputs uses 22 LUTs /
+32 registers, estimated setup +6.443 ns / hold +0.065 ns at 140 MHz; external I/O
+is unconstrained. Full retained bank/bridge/host/FCFS sanitizers, dense 780-word
+reconstruction, native primitive contracts and exact-native-input MMIO/DMA top
+checks remain in the verification scope. Both source plans are unchanged.
+Existing controller checkpoints were pushed FireSim first, then Chipyard;
+Chipyard's remote update succeeded despite the local tracking-ref write error.
+No worker or native build job remains; scoped inventory finds no owned runtime
+instance. Full image, hardware cuts, complete memory/host/cut ownership,
+independent paired CPU restores, finite/live RTL and rolling FPGA recovery
+remain pending. Commands and immutable receipts: `runs/aws-f2/iteration197/`.
 
 ## Iteration 196: reachable physical-owner audit and native gate contract
 

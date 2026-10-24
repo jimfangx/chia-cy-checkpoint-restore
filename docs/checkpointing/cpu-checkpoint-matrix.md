@@ -10,9 +10,26 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 
 | Family | F2 workload / custom capture image | FPGA Level-1 to EDA metasim | FPGA Level-2 finite RTL replay | Live RTL / rolling hardware recovery |
 | --- | --- | --- | --- | --- |
-| Rocket (all four harts) | baseline verified: real F2 slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress: bank/MMIO/DMA fixtures synthesize locally, current exact-recipe bank trial rejects 28 annotation contracts; three physical BUFGCE owners, explicit FPGA plusarg semantics, complete common-cut/memory/host binding and image P&R/AFI remain pending | pending | pending | pending |
+| Rocket (all four harts) | baseline verified: real F2 slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress: bank/MMIO/DMA fixtures synthesize locally, current exact-recipe bank trial rejects 25 annotation contracts; all seven FPGA plusarg instances have source-checked constant semantics; three physical BUFGCE owners, complete common-cut/memory/host binding and image P&R/AFI remain pending | pending | pending | pending |
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
+
+Iteration 197 integrates explicit FPGA SYNTHESIS plusarg selection into the
+actual production compiler and emits source-bound original/prepared/emission
+receipts. Independent reconstruction covers four definitions / seven instances,
+including each hart's timeout input. Final model inventory has 11,459 entries /
+618,247 words / 2,282 instances; all three physical BUFGCE owners remain
+unsupported. NoDedup/Inline clone contracts and passive output-directory
+preservation reduce the real bank preflight rejection to 25 classes without
+admitting unknown state owners. All 109 Scala / 306 checkpoint Python / 40 loop
+checks and full retained EDA ASan/UBSan scope pass. New branch verification
+passes 6,150 comparisons / 3,075 fixture edges across explicit FPGA, original
+SYNTHESIS and ordinary runtime variants; first wrong-oracle comparison stops
+before edge zero, with debug waves. Identical final inputs synthesize locally
+(22 LUTs / 32 registers, OOC only). These are compiler/component results.
+No checkpoint-enabled full image, F2 capture, CPU restore, finite/live CPU
+replay or rolling hardware acceptance is advanced. Current receipts/commands:
+`runs/aws-f2/iteration197/summary.json` relative to the loop.
 
 Iteration 196 fixes reachability-scoped gate admission and emits a source-bound
 external-owner audit. Independent reconstruction covers all 2,293 emitted

@@ -1,5 +1,45 @@
 # FPGA capture transport component
 
+Iteration 197 adds `--simulator-fpga-synthesis-constants` to the actual Golden
+Gate CLI/backend. It requires exactly one whole-root inventory, rejects
+incompatible semantic tracking and selects only the exact pinned model's FPGA
+branch after native lowering. Ordinary compilation retains runtime-plusarg
+owners. Four provenance sidecars retain original/prepared IR, exact inline
+sources and definition/parameter/repeated-instance records; final emission
+binds them to the emitted RTL. Unknown source bytes and missing/duplicate
+requests/sidecars reject. Combined constant/bank compilation has an actual
+production-path regression; pending NoDedup/Inline targets translate to all
+concrete clones and remain hash-bound without flattening the bank hierarchy.
+Passive blackbox output paths are preserved; unknown contracts still fail.
+Native/VCS branch and production-bank verifiers pin immutable input snapshots,
+reject live source/generated changes across execution, and derive receipt hashes
+from those snapshots. An early receipt with a source edit during synthesis was
+rejected by independent auditing; corrected guarded reruns retain that failure.
+
+Independent parsing of the fresh exact Rocket output reconstructs all seven
+constant instances across four definitions and every unchanged module. Four
+per-hart timeout inputs, UART controls and the custom boot pin select their
+source defaults. Final inventory has 11,459 generated-model entries / 618,247
+words / 2,282 instances; three physical BUFGCEs remain unsupported. The actual
+whole-root bank trial exits 1 on 25 remaining annotation classes, including
+opaque/deleted/bridge/channel/memory/XDC contracts; it emits no accepted banks.
+Complete physical/cut/memory/host/live-transport mapping and image P&R/AFI
+remain pending. This option alone cannot establish a capture image.
+
+All 109 Scala / 306 checkpoint Python / 40 loop tests and full retained EDA
+ASan/UBSan regressions pass. Eight independent corruption test groups reject
+coherently rehashed altered source, values, ownership and unchanged modules.
+Three fresh EDA VCS SP2 variants separately test the production-selected
+constant, the unmodified model under SYNTHESIS and ordinary runtime overrides:
+6,150 output comparisons / 3,075 fixture edges pass. A wrong component oracle
+stops before acknowledging edge zero. Full debug VCDs remain available.
+Identical final inputs synthesize with native Vivado 2025.2 to 22 LUTs /
+32 registers; OOC estimates are setup +6.443 ns / hold +0.065 ns at 140 MHz,
+with external I/O unconstrained. Existing native-input top MMIO/DMA, all dense
+word comparisons, primitive-model and bank/host/FCFS checks remain required.
+No FPGA capture or finite/live CPU acceptance is claimed. Current commands
+and immutable evidence: `runs/aws-f2/iteration197/summary.json` relative to the loop.
+
 Iteration 196 separates reachable external owners from unused definitions.
 The exact current ordinary Rocket compiler emits a report bound to its final
 reference and emission identity; independent traversal verifies all 2,293
