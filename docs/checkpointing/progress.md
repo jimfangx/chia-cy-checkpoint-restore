@@ -20,33 +20,28 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 205,
-**in_progress**. BridgeExtraction now consumes temporary instance markers and
-retains immutable historical circuit/connectivity hashes and bridge identities.
-Repeated bridge-bearing modules and pass reuse are covered. Actual Rocket
-production preflight rejects **5 annotation classes**, down from 6; whole-Rocket
-banks, complete physical state coverage and the checkpoint-enabled image remain
-pending.
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 206,
+**in_progress**. The actual stage now consumes its original input circuit and
+retains immutable circuit/module history. Exact Rocket bank preflight rejects
+**4 annotation classes**, down from 5. Whole-Rocket banks, complete physical
+coverage, checkpoint-enabled image and all CPU hardware migration remain pending.
 
-All **149 Scala / 306 checkpoint Python / 40 loop tests**, full retained EDA
-ASan/UBSan/FCFS scope, localhost Vivado bank/top OOC synthesis and independent
-EDA audit pass. VCS checks: 4,669 bank / 7,858 MMIO-DMA top / 21,970 synchronous
-policy. Twenty-five new extraction corruptions reject alongside every retained
-history/context/XDC/policy/target-box case. Full FPGA capture and paired CPU
-zero-edge/finite/live/rolling migration remain pending. Commands and individual
-files: `runs/aws-f2/iteration205/summary.json`; see
-[fpga-capture-transport.md](fpga-capture-transport.md).
+All **153 Scala / 306 checkpoint Python / 40 loop tests**, full retained EDA
+ASan/UBSan/FCFS scope, localhost bank/top OOC synthesis and independent EDA
+audit pass. VCS: 4,669 bank / 7,858 MMIO-DMA top / 21,970 synchronous-policy
+checks. Fourteen new input-circuit corruptions reject alongside every retained
+negative. Commands and individual files: `runs/aws-f2/iteration206/summary.json`;
+see [fpga-capture-transport.md](fpga-capture-transport.md).
 
-Existing controller checkpoints were published FireSim first (`0724e2c4`), then
-Chipyard (`3bf3bd4f`); independent remote tips agree. Chipyard's local tracking
+Existing controller checkpoints were published FireSim first (`55d40027`), then
+Chipyard (`a841a366`); independent remote tips agree. Chipyard's local tracking
 ref update warned read-only after the successful remote push. Current edits
-await the loop controller's checkpoint/publication; follow
-[github-publication.md](github-publication.md). AWS access checks pass; final
-scoped inventory has no owned F2 instance or native Vivado/Java job. No new AFI
-was requested. Managed-worker startup failed before creation; the central agent
-completed the work, and no worker remains. Plans are unchanged, with no agent
-staging or commits. Initial fixture compile/expectation failures remain under
-`runs/aws-f2/iteration205/`; corrected full-suite logs establish the passes.
+await controller checkpoint/publication; follow
+[github-publication.md](github-publication.md). AWS checks pass, no owned F2
+instance or native Vivado/Java job remains, and no new AFI was requested.
+The initial inherited-context worker startup failed; a fresh-context managed
+review completed, and all delegated work was joined before final reporting.
+Plans are unchanged, with no agent staging or commits.
 
 On October 23 the
 existing manager successfully launched one tagged `f2.6xlarge`, instance
@@ -6810,3 +6805,70 @@ finite replay, sustained live RTL beyond the trace window and rolling hardware
 recovery remain pending. Reuse iteration-194's localhost invocation. Final
 scoped inventory has no owned F2 instance or native Vivado/Java job; no new AFI
 request was made.
+
+## Iteration 205: retained recovery note
+
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 205,
+**in_progress**. BridgeExtraction now consumes temporary instance markers and
+retains immutable historical circuit/connectivity hashes and bridge identities.
+Repeated bridge-bearing modules and pass reuse are covered. Actual Rocket
+production preflight rejects **5 annotation classes**, down from 6; whole-Rocket
+banks, complete physical state coverage and the checkpoint-enabled image remain
+pending.
+
+All **149 Scala / 306 checkpoint Python / 40 loop tests**, full retained EDA
+ASan/UBSan/FCFS scope, localhost Vivado bank/top OOC synthesis and independent
+EDA audit pass. VCS checks: 4,669 bank / 7,858 MMIO-DMA top / 21,970 synchronous
+policy. Twenty-five new extraction corruptions reject alongside every retained
+history/context/XDC/policy/target-box case. Full FPGA capture and paired CPU
+zero-edge/finite/live/rolling migration remain pending. Commands and individual
+files: `runs/aws-f2/iteration205/summary.json`; see
+[fpga-capture-transport.md](fpga-capture-transport.md).
+
+Existing controller checkpoints were published FireSim first (`0724e2c4`), then
+Chipyard (`3bf3bd4f`); independent remote tips agree. Chipyard's local tracking
+ref update warned read-only after the successful remote push. Current edits
+await the loop controller's checkpoint/publication; follow
+[github-publication.md](github-publication.md). AWS access checks pass; final
+scoped inventory has no owned F2 instance or native Vivado/Java job. No new AFI
+was requested. Managed-worker startup failed before creation; the central agent
+completed the work, and no worker remains. Plans are unchanged, with no agent
+staging or commits. Initial fixture compile/expectation failures remain under
+`runs/aws-f2/iteration205/`; corrected full-suite logs establish the passes.
+
+
+## Iteration 206: consumed stage circuit identity
+
+Iteration 206 consumes the original FirrtlCircuitAnnotation at the actual
+Golden Gate stage entry. Its immutable receipt retains the complete serialized
+input-circuit SHA-256, original circuit name and ordered module identities.
+Live circuit annotations remain unsupported at the bank boundary. FIRRTL's
+outer DeletedWrapper can retain the original input as nested deleted history
+after compilation; it is never admitted as bank state. Missing or
+multiple stage inputs and already-consumed receipts reject; bank context and
+both final-emission boundaries reject dropped, changed or reordered history.
+The production-backend fixture uses the same stage consumer and saves the full
+historical input. Independent auditing specifies that circuit separately and
+rejects **14** missing or coherently rehashed input/history corruptions.
+Actual exact-Rocket production preflight rejects **4 annotation classes**, down
+from 5; no accepted whole-Rocket bank RTL is emitted.
+
+All **153 Scala / 306 checkpoint Python / 40 loop tests** and the full retained
+EDA ASan/UBSan/FCFS/bank/memory/bridge/host scope pass. Native localhost Vivado
+2025.2 bank and MMIO/DMA-top OOC synthesis pass. EDA SP2 VCS passes 4,669 bank /
+7,858 exact-native-top / 21,970 synchronous-policy checks with debug waveforms.
+Independent audit matches seventeen generated files / twenty-three sources;
+all prior extraction/pre-link/dedup/context/target-box/XDC/policy negatives remain.
+Bank use is 125 LUTs / 82 registers, estimated setup +6.435 ns / hold +0.054 ns
+at 140 MHz, with external I/O unconstrained. Commands and individual receipts:
+`runs/aws-f2/iteration206/summary.json` relative to the loop.
+
+This is compiler/component evidence. Remaining annotation contracts are
+RunFirrtlTransformAnnotation, UnrecognizedAnnotation, BlackBoxInlineAnno and
+GoldenGateOutputFileAnnotation. Three physical BUFGCE owners, complete common
+cut/memory/timing/bridge/host/pre-FAME integration, full localhost image/P&R/AFI,
+all-hart early/warm/outstanding/late FPGA captures, paired CPU zero-edge restores,
+finite replay, sustained live RTL beyond the trace window and rolling hardware
+recovery remain pending. Reuse iteration-194's localhost invocation. AWS access
+checks pass; scoped inventory has no owned F2 instance or native Vivado/Java
+job. No new AFI was requested. Both read-only plan hashes are unchanged.

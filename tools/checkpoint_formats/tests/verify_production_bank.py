@@ -27,7 +27,8 @@ XDC_NAMES = ('bank-probe.synthesis.xdc', 'bank-probe.implementation.xdc')
 PRELINK_HISTORY_NAMES = ('pre-link-input.fir', 'pre-link-output.fir')
 BRIDGE_HISTORY_NAMES = ('bridge-extraction-input.fir', 'bridge-extraction-promoted.fir',
                         'bridge-extraction-output.fir', 'bridge-extraction-connectivity.json')
-HISTORY_NAMES = (*PRELINK_HISTORY_NAMES, *BRIDGE_HISTORY_NAMES)
+INPUT_CIRCUIT_NAMES = ('compiler-input.fir',)
+HISTORY_NAMES = (*PRELINK_HISTORY_NAMES, *BRIDGE_HISTORY_NAMES, *INPUT_CIRCUIT_NAMES)
 SOURCES = ('sims/firesim/sim/midas/src/main/scala/midas/checkpoint/SimulatorBankProbe.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/SimulatorBankProbeContext.scala',
            'tools/checkpoint_formats/native_input_guard.py',
@@ -87,6 +88,30 @@ def audit_inputs(generated):
              annotation_class='firrtl.stage.FirrtlFileAnnotation', file='historical-fixture.fir')),
         dict(kind='deleted_input', value=dict(producer='firrtl.options.phases.GetIncludes',
              annotation_class='firrtl.options.InputAnnotationFileAnnotation', file='historical-fixture.anno.json'))]
+    # The stage consumes exactly one original input circuit, independently of
+    # the mapped simulator later banked. Derive its receipt from complete,
+    # independently specified input text; a coherently rehashed substitution
+    # must fail even if the final bank RTL is unchanged.
+    input_circuit = '''FIRRTL version 1.2.0
+circuit HistoricalInput :
+  module Worker :
+    input clock : Clock
+    output count : UInt<8>
+    reg count_reg : UInt<8>, clock with :
+      reset => (UInt<1>("h0"), count_reg)
+    count_reg <= add(count_reg, UInt<8>("h1"))
+    count <= count_reg
+  module HistoricalInput :
+    input clock : Clock
+    output count : UInt<8>
+    inst worker of Worker
+    worker.clock <= clock
+    count <= worker.count'''
+    require(' '.join((generated/INPUT_CIRCUIT_NAMES[0]).read_text().split()) == ' '.join(input_circuit.split()),
+            'consumed compiler input circuit changed')
+    expected_rows.append(dict(kind='golden_gate_input_circuit', value=dict(
+        producer='midas.stage.GoldenGateCompilerPhase', circuit='HistoricalInput',
+        circuit_sha256=sha(generated/INPUT_CIRCUIT_NAMES[0]), modules=['Worker', 'HistoricalInput'])))
     # Independent historical pass oracle. The names and repeated instances
     # come from the actual pass invocation, never the current bank hierarchy.
     # Check both complete circuit texts before trusting the event's hashes.
