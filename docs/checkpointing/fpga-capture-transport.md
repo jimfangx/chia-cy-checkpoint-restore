@@ -1,5 +1,33 @@
 # FPGA capture transport component
 
+Iteration 194 repairs the production compiler's discarded post-mapping
+host-transform result. Injected storage, clock wiring and annotations now
+reach the FPGA backend and final emission. Simulator inventory observes the
+actual emitter-prepared state; `.simulator-emission.json` binds host/backend
+IR, final emission-state serialization, manifest and emitted RTL body before
+blackbox append. These hashes describe generated RTL and still require
+external runtime and complete image/driver ownership. Make tracks the new
+binding as an inventory output.
+
+The same production path is tested with observable injected state and a real
+host-clock sink. All 94 Scala checks pass. EDA VCS passes 4,100 public-output
+comparisons over 1,025 host edges, including reset, overflow and unrelated
+clock pressure; old discarded-transform behavior fails at cycle 1. Full debug
+VCDs are retained. Native Vivado synthesizes identical generated inputs for
+the F2 part (12 LUTs / 16 registers; estimated OOC WNS +6.441 ns / WHS +0.073 ns,
+external I/O unconstrained). Fresh full Golden Gate compilation of the exact
+Rocket recipe from retained target inputs inventories 11,466 entries / 618,254
+words / 2,293 instances. This ordinary recipe compilation lacks semantic
+preservation and capture integration; it does not replace the retained
+instrumented inventory or establish physical coverage. Instance-connector
+serialization in the actual emission-state reference is diagnostic IR, not
+FIRRTL parser input. Complete bank/common-cut/physical-memory/host binding,
+image P&R/AFI, hardware checkpoint capture and CPU migration remain pending.
+Top MMIO/DMA passes 7,858 checks using the exact native inputs. Independent
+EDA emission/DCP/top and all 780 dense-word audits pass. No invocation F2
+instance or native Vivado/Java build job remains.
+Commands and receipts: `runs/aws-f2/iteration194/summary.json` relative to the loop.
+
 Iteration 193 replaces module-local serial priority muxes with masked,
 balanced two-input reductions. Selectors remain globally unique and checked
 before specialization; a miss produces zero, including stateless children.

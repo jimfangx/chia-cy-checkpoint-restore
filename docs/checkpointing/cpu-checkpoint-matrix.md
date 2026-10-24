@@ -14,6 +14,20 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 194 repairs production post-mapping host-transform propagation and
+binds inventory to the actual emitter state. All 94 Scala / 290 checkpoint
+Python / 40 loop tests and the retained EDA sanitizer scope pass. New EDA VCS
+performs 4,100 output comparisons over 1,025 host edges and detects discarded
+host circuitry at cycle 1; identical fixture inputs synthesize natively.
+Top MMIO/DMA passes 7,858 checks using exact native inputs; independent EDA
+emission/DCP/top audits and all 780 dense-word reconstructions pass.
+Fresh exact-recipe compiler emission inventories 11,466 entries / 618,254
+words / 2,293 instances from retained target inputs. This ordinary compilation
+has no semantic-preservation/capture binding and is distinct from the retained
+instrumented probe. No AFI, physical checkpoint, CPU restore or live/rolling
+hardware status is advanced. Commands/evidence:
+`runs/aws-f2/iteration194/summary.json` relative to the loop.
+
 Iteration 193 adds balanced masked state readout and a dense 260-owner fixture.
 All **90 Scala / 290 checkpoint Python / 40 loop tests**, complete retained EDA
 ASan/UBSan scope, **13,558** dense checks / **780** word reads and top MMIO/DMA

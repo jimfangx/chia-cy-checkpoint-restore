@@ -20,18 +20,25 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 193,
-**in_progress**. Generated bank readout now uses masked balanced reductions;
-the largest retained module replaces 198 priority muxes with eight OR stages.
-All **90 Scala / 290 checkpoint Python / 40 loop tests**, full retained EDA
-ASan/UBSan scope, **13,558** dense checks / **780** complete word reads and top
-MMIO/DMA **7,858** checks pass. All **15** native OOC synthesis commands and
-independent evidence audits complete. Whole-root estimated WNS **-0.287 ns** /
-WHS **-0.324 ns** does not establish complete image closure. A parallel-worker
-shutdown exception remains preserved despite the successful parent/DCP.
-Complete physical/common-cut memory/host integration, production binding,
-image P&R/AFI, actual FPGA capture and paired CPU live/rolling acceptance
-remain pending. See [fpga-capture-transport.md](fpga-capture-transport.md).
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 194,
+**in_progress**. Fixed the production compiler discarding the post-mapping
+host-transform result, and inventory now observes the actual emitter state.
+A new emission binding links the host/backend circuit, inventory, final
+reference and emitted RTL body. All **94 Scala / 290 checkpoint Python / 40
+loop tests** and the retained EDA bank/transport/host/FCFS ASan/UBSan scope
+pass. The new compiler-path fixture passes **4,100** EDA VCS comparisons over
+**1,025** host edges; the old discarded-transform behavior fails at cycle 1.
+Native localhost fixture synthesis passes (**12 LUTs / 16 registers**).
+Top MMIO/DMA passes **7,858** checks on identical native synthesis inputs;
+independent EDA emission/DCP/top and all **780** dense-word audits pass.
+Fresh exact-recipe Golden Gate compilation from retained target inputs passes:
+**11,466 generated entries / 618,254 words / 2,293 instances**. This ordinary
+recipe run has no semantic-preservation/capture binding; its counts cannot
+replace the retained instrumented probe's inventory or establish hardware
+coverage. Production capture integration, complete physical/memory/host
+ownership, image P&R/AFI, actual FPGA checkpoint capture and paired CPU
+live/rolling acceptance remain pending. See
+[fpga-capture-transport.md](fpga-capture-transport.md).
 
 On October 23 the
 existing manager successfully launched one tagged `f2.6xlarge`, instance
@@ -92,6 +99,52 @@ pending the complete state network, bridge and host-owner implementation.
 Report individual nonempty files, including actual native manager logs and
 `results-workload/.../uartlog`, instead of directories. Keep original
 iteration-175 artifacts and failed-license receipts unchanged.
+
+## Iteration 194: preserve the production host compiler result
+
+`GoldenGateCompilerPhase` now carries the post-mapping host-transform return
+value into FPGA backend lowering and emission. Previously it executed that
+compiler but reused the earlier simulator, losing injected circuitry and
+clock wiring. The same production entry is exercised with a real added state
+owner and host-clock sink, emitted keyword renaming, inventory opt-out
+identity and a deliberately failing host transform. Inventory observes the
+emitter's own prepared state instead of replaying its lowering passes.
+
+`SIMULATOR_CHECKPOINT_INVENTORY` also emits `.simulator-emission.json`; Make
+tracks that output. Its hashes bind the host-transformed/backend circuits,
+actual emission-state serialization, generated manifest and **emitted RTL
+body before blackbox resources are appended**. It retains
+`scope=generated_rtl_only` / `external_runtime_required=true`. VerilogPrep's
+instance-connector diagnostic serialization is not FIRRTL parser input; do not
+silently parse/reconstruct it as another circuit or call it complete runtime
+state. Full image/driver and external-resource binding remains future work.
+
+New EDA VCS compares functional outputs against a public-input model across
+1,025 host edges, repeated reset, width wraparound and 3,075 unrelated-clock
+edges, retaining debug VCDs. The deliberately discarded-transform circuit
+stops at cycle 1. Native Vivado 2025.2 synthesizes the same immutable generated
+bytes for the F2 part: 12 LUTs / 16 registers, OOC estimated WNS +6.441 ns /
+WHS +0.073 ns; external I/O is unconstrained. Initial test-fixture wiring,
+width-text and diagnostic-parser failures remain in raw logs.
+
+Fresh full Golden Gate compilation uses the exact Rocket target/platform
+configuration with retained high-level target FIRRTL/annotation bytes, whose
+hashes are preserved. All 11,466 generated entries / 618,254 transfer words /
+2,293 instances are inventoried from actual final emission. This is ordinary
+source compilation without semantic preservation or a capture binding, not a
+fresh instrumented image, FPGA checkpoint or physical primitive mapping.
+Native managed delegation failed at startup; all work was performed centrally.
+Top MMIO/DMA passes 7,858 checks on exact native-synthesis inputs. Independent
+EDA audits pass for complete immutable compiler inputs, emission hashes, native
+DCP identity, top evidence and 780 dense public-input words. Scoped inventory
+records no invocation runtime instance or native Vivado/Java job. The initial
+EDA audit could not access excluded generated-src inputs; exact input snapshots
+were copied beneath runs and independently hashed on EDA before the audit passed.
+Existing controller checkpoints were pushed FireSim first (170a4e33), then
+Chipyard (be1b6449); remote tips agree. The successful Chipyard push again
+could not update its local read-only tracking ref; the raw error is retained.
+Exact commands and evidence catalog: `runs/aws-f2/iteration194/summary.json`
+relative to the loop. Plans remain read-only; no staging or local commits.
 
 ## Iteration 193: balanced generated-state readout
 
