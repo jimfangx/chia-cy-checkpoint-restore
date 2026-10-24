@@ -14,6 +14,24 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 216 connects the physical cut to the descriptor/bank/MMIO/DMA
+transport through a deferred post-stop acknowledgement and holds external
+owners until physical release completes. Fresh EDA SP2 passes 4,739 checks,
+five complete component cuts 2/19/130/258/302, 88 DMA stalls, 128 delayed-bank
+cycles and accepted-read abort/drain recovery through 320 functional cycles.
+Independent host arithmetic/CRC checks cover every state word; six runtime
+negatives, four host integrity mutations and ten evidence substitutions reject.
+Seven full debug VCDs are
+retained. Native localhost OOC synthesis retains four SYNC gates and one
+falling-edge mask, using 1,810 LUTs / 660 registers; setup slack is +0.545 ns
+at 140 MHz, while unplaced hold slack remains -0.062 ns. Implementation timing
+and the actual image are pending. The exact Rocket compiler still rejects
+`F1Shim.top.FASEDMemoryTimingModel_0.gate`; the new component has not removed
+that guard or generated a complete clock/owner binding. All FPGA-origin CPU
+restore, finite/live and rolling entries above remain pending.
+See [f2-physical-capture-transport.md](f2-physical-capture-transport.md) and
+`runs/aws-f2/iteration216/verification-commands.json`.
+
 Iteration 215 adds a synthesized common-clock physical-cut component,
 retaining native SYNC BUFGCEs and a falling-edge common mask. It samples the
 unmasked logical CE vector after stopping, rejects missing-owner/CE/cycle drift

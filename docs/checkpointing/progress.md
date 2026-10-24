@@ -20,6 +20,62 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 216,
+**in_progress**. Added `CheckpointPhysicalCaptureTransport.sv`, connecting the
+physical common-low-phase sampler to descriptor/bank/MMIO/DMA transport.
+`CheckpointCaptureCut.DEFERRED_CUT=1` samples the settled target label only after
+all owners acknowledge; its default preserves accepting-edge behavior. External
+owners stay held through registered physical release. Physical faults suppress
+transfers and remain stopped after host abort; healthy accepted-read aborts
+drain before a later capture. See
+[f2-physical-capture-transport.md](f2-physical-capture-transport.md).
+
+Fresh native localhost OOC synthesis retains four native SYNC gates and exactly
+one falling-edge mask register: **1,810 LUTs / 660 registers**, estimated 140 MHz
+setup slack **+0.545 ns**, unplaced hold slack **-0.062 ns**. Full implementation
+timing is pending. EDA SP2 VCS passes **4,739 checks**, five complete component
+cuts **2/19/130/258/302**, 88 DMA stalls, 128 delayed-bank cycles and one
+accepted-read abort/drain followed by a healthy capture through 320 functional
+cycles. Independent host arithmetic/CRC audits cover every banked word and
+label. Six runtime negative cases, including failed physical release and corrupt
+CE readback, plus four host integrity cases including semantic corruption with
+valid recomputed CRC, reject. Seven full debug VCDs are retained. Ten native/EDA evidence substitutions,
+including coherent source rehash and altered models/waves, reject with all 162
+original evidence files preserved. These are
+component results, not CPU semantic-corruption or hardware checkpoint acceptance.
+
+All **207 Scala / 309 checkpoint Python / 40 loop tests** and the complete
+retained EDA ASan/UBSan/FCFS/host/bank/memory/bridge suite pass. Nine native
+component synthesis checks pass. The exact Rocket compiler still explicitly
+rejects `F1Shim.top.FASEDMemoryTimingModel_0.gate`; its complete generated physical
+clock/CE/state ownership binding, memory/timing/bridge/host/pre-FAME common cut,
+localhost full image/P&R/AFI, active four-hart hardware cuts and paired CPU
+zero-edge/finite/live/rolling hardware migration remain pending. The initialized
+iteration194 ExternallyProvisioned localhost invocation is retained. No new
+instance or AFI is requested.
+
+Managed worker startup failed before creation; only the central agent ran and
+no worker remains. Existing controller checkpoints were pushed FireSim first
+(`b98ec73c`), then Chipyard (`75b2c0fb`); independent remote tips match despite
+the read-only local Chipyard remote-tracking ref warning. Current edits remain
+for the controller to stage/commit. Plans and all four initialized manager
+configs retain entry hashes. Follow
+[github-publication.md](github-publication.md).
+
+The first integrated VCS trial found a test-oracle error during the deliberately
+aborted fifth transfer; its original failing log is retained. The corrected
+oracle also independently checks CRC and arithmetic state. A synthesis trial
+was explicitly rejected as source-stale during release-hold review; the final
+native synthesis and VCS use matching final sources. Diagnostic logs, exact
+commands, native/EDA receipts and remaining blockers are under
+`runs/aws-f2/iteration216/`. `verification-commands.json`, `summary.json`,
+`final-audit.json`, `physical-audit.json`, `production-audit.json` and
+`remaining-blockers.json` locate the complete evidence. Final scoped AWS/native
+inventory finds no active loop runtime, Vivado or Java job. Do not relabel
+component state as an FPGA capture.
+
+## Iteration 215 (retained recovery note)
+
 Active milestone: `F2-rocket-checkpoint-migration`, iteration 215,
 **in_progress**. Added a synthesizable common-clock physical cut component,
 `CheckpointPhysicalClockCut.sv`, retaining the native default-SYNC BUFGCEs.

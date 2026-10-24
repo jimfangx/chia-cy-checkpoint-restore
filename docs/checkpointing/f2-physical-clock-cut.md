@@ -1,5 +1,10 @@
 # Physical common-clock cut component
 
+Iteration 216 connects this component to the descriptor/bank/MMIO/DMA
+transport with a deferred post-stop label and coordinated release. See
+[f2-physical-capture-transport.md](f2-physical-capture-transport.md). Production
+Rocket clock/owner integration and its compiler guard remain pending.
+
 Iteration 215 adds `CheckpointPhysicalClockCut.sv`. This component is not yet
 connected to the Rocket compiler, bank network or CheckpointBridge. The strict
 physical BUFGCE rejection remains necessary. Component synthesis/simulation
