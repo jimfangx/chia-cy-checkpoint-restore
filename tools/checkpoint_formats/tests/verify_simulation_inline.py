@@ -21,7 +21,7 @@ def sha(path):
 def audit(generated):
     generated = Path(generated)
     doc = json.loads((generated / 'receipt.json').read_text())
-    assert doc['version'] == 1 and doc['producer'] == 'midas.passes.ResolveSimulationInline'
+    assert doc['version'] == 2 and doc['producer'] == 'midas.passes.ResolveSimulationInline'
     assert doc['circuit'] == 'InlineFixture'
     for key, name in [('input_sha256', 'input.fir'), ('output_sha256', 'output.fir'),
                       ('input_annotations_sha256', 'input-annotations.json'),
@@ -34,6 +34,21 @@ def audit(generated):
     after = json.loads((generated / 'output-annotations.json').read_text())
     assert before.count(request) == before.count(inline) == 1
     assert not any(a.get('class') in (request['class'], inline['class']) for a in after)
+    protected = 'firrtl.transforms.NoDedupAnnotation'
+    assert sorted(a['target'] for a in before if a['class'] == protected) == [
+        '~InlineFixture|InlineFixture', '~InlineFixture|Leaf']
+    assert [a['target'] for a in after if a['class'] == protected] == ['~InlineFixture|InlineFixture']
+    # Reconstruct definition serialization from the bound pre-inline FIRRTL,
+    # independently of the producer's retirement decision and hashes.
+    source = (generated / 'input.fir').read_text()
+    definitions = {}
+    for match in re.finditer(r'^  module (\w+) :.*?(?=^  (?:extmodule|module) |\Z)', source, re.M | re.S):
+        text = '\n'.join(line[2:] if line.startswith('  ') else line
+                         for line in match.group().splitlines()).rstrip('\n')
+        definitions[match[1]] = hashlib.sha256(text.encode()).hexdigest()
+    assert doc['no_dedup'] == [
+        dict(target='~InlineFixture|InlineFixture', definition_sha256=definitions['InlineFixture'], action='preserved'),
+        dict(target='~InlineFixture|Leaf', definition_sha256=definitions['Leaf'], action='retired')]
     touches = [a['target'] for a in after if a['class'] == 'firrtl.transforms.DontTouchAnnotation']
     assert sorted(touches) == ['~InlineFixture|InlineFixture>left_time', '~InlineFixture|InlineFixture>right_time']
     expected = []
@@ -45,13 +60,14 @@ def audit(generated):
     assert sorted(doc['storage'], key=lambda r: r['from']) == sorted(expected, key=lambda r: r['from'])
     assert isinstance(doc['renames'], str) and doc['renames']
     assert set(doc) == {'version', 'producer', 'circuit', 'request', 'inline_annotations', 'storage', 'renames',
-                        'input_sha256', 'output_sha256', 'input_annotations_sha256', 'output_annotations_sha256'}
+                        'input_sha256', 'output_sha256', 'input_annotations_sha256', 'output_annotations_sha256', 'no_dedup'}
     output = (generated / 'output.fir').read_text()
     assert 'inst left of Leaf' not in output and 'inst right of Leaf' not in output
     for inst in ('left', 'right'):
         assert re.search(r'\breg ' + inst + r'_time : UInt<8>', output)
         assert re.search(r'\bmem ' + inst + r'_ram :', output)
     return dict(storage_instances=len(expected), repeated_registers=2, repeated_memories=2,
+                retired_no_dedup=1, preserved_no_dedup=1,
                 receipt_sha256=sha(generated / 'receipt.json'))
 
 
@@ -108,7 +124,9 @@ def main():
     import copy
     import shutil
     for name in ('request', 'missing-word', 'alias', 'shape', 'target', 'input-hash', 'output-hash', 'schema',
-                 'annotation-hash', 'empty-renames', 'stale-input', 'stale-output', 'stale-annotation'):
+                 'annotation-hash', 'empty-renames', 'stale-input', 'stale-output', 'stale-annotation',
+                 'missing-no-dedup', 'changed-retirement', 'definition-hash', 'duplicate-protection',
+                 'foreign-protection', 'drop-surviving-protection', 'retain-deleted-protection'):
         test = out / 'negative' / name
         shutil.copytree(generated, test)
         doc = copy.deepcopy(original)
@@ -122,6 +140,21 @@ def main():
         elif name == 'schema': doc['deployable_capture_image'] = True
         elif name == 'annotation-hash': doc['output_annotations_sha256'] = '0' * 64
         elif name == 'empty-renames': doc['renames'] = ''
+        elif name == 'missing-no-dedup': doc.pop('no_dedup')
+        elif name == 'changed-retirement': doc['no_dedup'][0]['action'] = 'retired'
+        elif name == 'definition-hash': doc['no_dedup'][1]['definition_sha256'] = '0' * 64
+        elif name == 'duplicate-protection': doc['no_dedup'].append(doc['no_dedup'][0])
+        elif name == 'foreign-protection': doc['no_dedup'][1]['target'] = '~Other|Leaf'
+        elif name in ('drop-surviving-protection', 'retain-deleted-protection'):
+            path = test / 'output-annotations.json'
+            annotations = json.loads(path.read_text())
+            if name == 'drop-surviving-protection':
+                annotations = [a for a in annotations if a['class'] != 'firrtl.transforms.NoDedupAnnotation']
+            else:
+                annotations.append(dict(class_='firrtl.transforms.NoDedupAnnotation', target='~InlineFixture|Leaf'))
+                annotations[-1]['class'] = annotations[-1].pop('class_')
+            path.write_text(json.dumps(annotations))
+            doc['output_annotations_sha256'] = sha(path)
         elif name.startswith('stale-'):
             filename = {'stale-input': 'input.fir', 'stale-output': 'output.fir',
                         'stale-annotation': 'output-annotations.json'}[name]
@@ -129,7 +162,7 @@ def main():
         (test / 'receipt.json').write_text(json.dumps(doc))
         try:
             audit(test)
-        except AssertionError:
+        except (AssertionError, KeyError):
             rejected.append(name)
         else:
             raise AssertionError('accepted inline corruption: ' + name)

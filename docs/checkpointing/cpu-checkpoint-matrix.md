@@ -10,9 +10,36 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 
 | Family | F2 workload / custom capture image | FPGA Level-1 to EDA metasim | FPGA Level-2 finite RTL replay | Live RTL / rolling hardware recovery |
 | --- | --- | --- | --- | --- |
-| Rocket (all four harts) | baseline verified: real F2 slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress: bank/MMIO/DMA fixtures synthesize locally, current exact-recipe bank trial enforces 2,120 typed dedup groups and passes exact native BUFGCE XDC pin contracts and rejects unreachable NoDedup on Nasti2AXI4IdentityModule; physical CE-latch/common-cut ownership remains unsupported; post-mapping InlineInstances runs before inventory/banking with complete concrete register/RAM rename provenance; exact stage emitter policy and retired abstract clock-gate source have immutable final-emission/history provenance; passive generated headers/defines retain exact-byte emission provenance; stage input retains immutable circuit/module history; consumed bridge extraction retains immutable circuit/connectivity history; consumed pre-link requests retain immutable circuit/mapping history; deduplication-history and target-box instance paths, global memory policies, consumed-input/channel-frequency context, XDC and memory-model labels translate with provenance; all seven FPGA plusarg instances have source-checked constant semantics; three physical BUFGCE owners, complete common-cut/memory/host binding and image P&R/AFI remain pending | pending | pending | pending |
+| Rocket (all four harts) | baseline verified: real F2 slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress: bank/MMIO/DMA fixtures synthesize locally, current exact-recipe bank trial enforces 2,120 typed dedup groups and passes exact native BUFGCE XDC pin contracts and retires only NoDedup definitions removed by actual native inlining; the next exact-recipe failure is the stream-engine FIFO RAM-style XDC contract; physical CE-latch/common-cut ownership remains unsupported; post-mapping InlineInstances runs before inventory/banking with complete concrete register/RAM rename provenance; exact stage emitter policy and retired abstract clock-gate source have immutable final-emission/history provenance; passive generated headers/defines retain exact-byte emission provenance; stage input retains immutable circuit/module history; consumed bridge extraction retains immutable circuit/connectivity history; consumed pre-link requests retain immutable circuit/mapping history; deduplication-history and target-box instance paths, global memory policies, consumed-input/channel-frequency context, XDC and memory-model labels translate with provenance; all seven FPGA plusarg instances have source-checked constant semantics; three physical BUFGCE owners, complete common-cut/memory/host binding and image P&R/AFI remain pending | pending | pending | pending |
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
+
+Iteration 212 consumes NoDedup protection at the actual native inline pass:
+only removed definitions retire, surviving protection remains, and stale/foreign/
+duplicate input targets reject. Version-2 history binds exact original definition
+hashes and retirement actions alongside complete storage/native-rename evidence.
+The independent audit reconstructs definition hashes and rejects dropped surviving
+or revived removed protection even with coherent annotation hashes.
+
+The exact Rocket build passes its unreachable NoDedup barrier, then rejects an
+external `midas.targetutils.xdc.XDCAnnotation` RAM target in the stream engine's
+`TRACERVBRIDGEMODULE_0_to_cpu_stream_outgoingQueueIO_q:Queue_56>ram`. Next: exact
+RAM-style XDC memory/cell selection through banking and downstream emission;
+physical CE-latch/common-cut and complete memory/timing/bridge/host/pre-FAME
+ownership also remain pending. Full image/AFI, hardware cuts and every FPGA-to-CPU
+zero-edge/finite/live/rolling acceptance entry remain pending.
+
+All 195 Scala / 309 checkpoint Python / 40 loop tests, full retained EDA
+ASan/UBSan/FCFS scope and native OOC checks pass. Inline native/EDA receipts
+match 7 files / 9 sources; 2,016 VCS comparisons / 512 fixture cycles and 20
+corruption rejections pass, with debug VCD. Native inline synthesis retains
+63 LUTs / 16 registers plus distributed RAM. Stateful partial inlining retains
+an explicit rejection of FIRRTL 1.6's surviving-instance rename alias; stateless
+partial and circuit/module selections pass. Retained physical/bank/top checks
+and provenance audits pass. This is compiler/component evidence only.
+Commands/receipts: `runs/aws-f2/iteration212/summary.json`; actual compiler
+failure: `runs/aws-f2/iteration212/remaining-blockers.json`.
+See [f2-inline-constraints.md](f2-inline-constraints.md).
 
 Iteration 211 adds a source-free default-SYNC BUFGCE public-pin/cell contract,
 with correlated specialization through shared physical leaves and real downstream
