@@ -20,6 +20,65 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 220,
+**in_progress**. `CheckpointPhysicalCaptureTransport` now connects directly to
+the compiler's hierarchy-preserving native clock mask/CE network, using its new
+external-network parameter and mask output. A real compiler-generated
+three-gate fixture connects this path to the bank/MMIO/DMA transport with no
+duplicate gates. Reset now directly asserts DMA abort, fixing a complete
+unpublished stream that could otherwise lose invalidation when reset removed
+`freeze`. See [f2-generated-clock-transport.md](f2-generated-clock-transport.md).
+
+Fresh EDA SP2 execution passes **4,739 checks in each network mode**, complete
+cuts **2/19/130/258/302**, 88 DMA stalls, 128 delayed-bank cycles, accepted-read
+abort/drain recovery and continuation through 320 functional cycles. Independent
+host arithmetic/CRC oracles check every word; six runtime and four host integrity
+negatives remain. Both modes pass five additional reset interruptions: freeze,
+outstanding response, stalled data, unpublished completion and physical release.
+Each recovers a fresh complete cut and resumes to cycle 64. Both retain twelve
+full debug VCDs. Removing only the reset-abort term reproduces the first expected
+unpublished-stream divergence in an independently compiled EDA fault injection.
+
+Native localhost generated-network synthesis retains four SYNC BUFGCEs and one
+falling-edge mask register: **1,779 LUTs / 660 registers**, estimated 140 MHz
+setup **+0.545 ns**, unplaced hold **-0.062 ns**. Full image timing closure is
+pending. All **218 Scala / 309 checkpoint Python / 40 loop tests**, the complete
+retained EDA ASan/UBSan/FCFS/host/bank/memory/bridge scope, and all **eleven**
+native component synthesis scopes pass. Fresh top, production bank, physical
+cut and wiring VCS retain **7,858 / 4,669 / 1,968 / 1,813** checks. Independent
+Rocket clock topology/wiring/original-CE and six memory-corpus audits pass;
+physical/transport/production evidence corruption audits retain their scope.
+
+This binds reset only in the explicit common-reset fixture. Production
+`F1Shim.reset`, other external writers, complete simulator/memory/timing/bridge/
+host/pre-FAME owners and physical CE StateIDs/zero-edge restore adapters remain
+unbound. Exact Rocket production banking still explicitly rejects the FASED
+BUFGCE owner. Do not deploy the fixture. Full localhost image/P&R/AFI, active
+four-hart early/warm/outstanding/late hardware cuts, independent paired zero-edge
+restores, finite replay, sustained live clean RTL beyond trace and rolling
+hardware failure migration remain pending. Reuse iteration194's initialized
+ExternallyProvisioned localhost invocation. No new runtime instance, AFI or
+FPGA-produced checkpoint was requested or claimed; final inventory has no live
+loop instances or native Vivado/Java jobs.
+
+The initial EDA fixture compilation had a forward-declared `network_ce` error;
+its declaration was corrected, both affected native snapshots were regenerated,
+and both full execution scopes pass. The diagnostic launcher's initially
+missing script dependency was recovered. Original failures remain in iteration220.
+Exact commands, current-source receipts and pending requirements are in
+`runs/aws-f2/iteration220/verification-commands.json`, `summary.json`,
+`final-audit.json` and `remaining-blockers.json`.
+
+Managed worker startup failed before creation; only the central agent ran and
+no delegated LLM request remains. Existing controller checkpoints were published
+FireSim first (`1c40186b`), then Chipyard (`92d5c41f`); independent remote tips
+match. The local read-only tracking-ref warning did not prevent the Chipyard
+remote update. Plans and the four initialized manager inputs retain entry
+hashes. No staging or local commits. Follow
+[github-publication.md](github-publication.md) for the controller's next checkpoint.
+
+## Iteration 219 (retained recovery note)
+
 Active milestone: `F2-rocket-checkpoint-migration`, iteration 219,
 **in_progress**. The exact Rocket compiler now emits original, unmasked CE
 combinational dependency prerequisites alongside the separate physical wiring

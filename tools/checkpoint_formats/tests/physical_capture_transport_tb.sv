@@ -4,13 +4,25 @@ module physical_capture_transport_tb;
   import "DPI-C" function void checkpoint_network_fail();
   reg clock=0, reset=1;
   always #5 clock=!clock;
+`ifdef GENERATED_TRANSPORT_NETWORK
+  wire [63:0] target_cycle;
+  wire [31:0] state[0:2];
+`else
   reg [63:0] target_cycle=0;
   reg [31:0] state[0:2];
+`endif
   wire [2:0] logical_ce=reset ? 7 : {target_cycle[1]^target_cycle[0],target_cycle[2],!target_cycle[0]};
+`ifdef GENERATED_TRANSPORT_NETWORK
+  wire [2:0] network_ce;
+`endif
   reg [2:0] ce_fault=0;
   reg [63:0] cycle_fault=0;
+  `ifdef GENERATED_TRANSPORT_NETWORK
+  wire [2:0] ce=network_ce ^ ce_fault;
+`else
   wire [2:0] ce=logical_ce ^ ce_fault;
-  wire root_clock, freeze, physical_stopped, physical_read_enable, physical_failed;
+`endif
+  wire root_clock, clock_mask, freeze, physical_stopped, physical_read_enable, physical_failed;
   wire [2:0] gate_clock, captured_ce, physical_error;
   wire [63:0] physical_cut_cycle;
   reg [3:0] owner_present=15, owner_frozen=0, owner_error=0;
@@ -34,15 +46,25 @@ module physical_capture_transport_tb;
   reg dma_ready=0;
   wire [511:0] dma_data;
   localparam [255:0] HASH=256'h0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef;
+`ifdef GENERATED_TRANSPORT_NETWORK
+  PhysicalTransportNetwork network(.clock(clock),.reset(reset),.target_cycle(target_cycle),
+    .state0(state[0]),.state1(state[1]),.state2(state[2]),
+    .checkpoint_physical_mask(clock_mask),.checkpoint_physical_logical_ce(network_ce));
+  localparam EXTERNAL_NETWORK=1;
+`else
+  localparam EXTERNAL_NETWORK=0;
+`endif
   // Corruption inputs are deliberately outside the trusted functional owner.
-  CheckpointPhysicalCaptureTransport #(.OWNERS(4),.GATES(3),.ENTRIES(3),.MANIFEST_SHA256(HASH)) dut(
+  CheckpointPhysicalCaptureTransport #(.OWNERS(4),.GATES(3),.ENTRIES(3),.EXTERNAL_CLOCK_NETWORK(EXTERNAL_NETWORK),.MANIFEST_SHA256(HASH)) dut(
     .target_cycle(target_cycle ^ cycle_fault), .*);
+`ifndef GENERATED_TRANSPORT_NETWORK
   always @(posedge root_clock) if(reset) target_cycle<=0; else target_cycle<=target_cycle+1;
   genvar g;
   generate for(g=0;g<3;g=g+1) begin : functional
     always @(posedge gate_clock[g]) if(reset) state[g]<=g+1;
       else state[g]<=(state[g]*33)^(target_cycle+g);
   end endgenerate
+`endif
   integer checks=0, step=0, cuts=0, frames=0, words=0, dma_stalls=0, requests=0, delays=0;
   integer owner_delay=0, bank_delay=0, pending=0, held=0, aborts=0;
   reg hold_bank=0, hold_dma=0, lose_owner=0;
@@ -52,7 +74,7 @@ module physical_capture_transport_tb;
   reg [511:0] stalled_data;
   reg was_stalled=0;
   integer fd=0;
-  string fault, frames_path;
+  string fault, frames_path, reset_at;
   reg corrupt=0;
   task check(input bit ok, input string reason);
     checks++;
@@ -152,7 +174,9 @@ module physical_capture_transport_tb;
     dma_ready=!hold_dma && step%5==0;
     bank_request_ready=!pending && !bank_response_valid && step%3!=0;
   end
-  always @(posedge clock) if(!reset) begin
+  always @(posedge clock) if(reset) begin
+    pending<=0; bank_response_valid<=0; was_stalled<=0;
+  end else begin
     if(bank_request_valid && bank_request_ready) begin
       check(physical_read_enable && owner_frozen==15,"bank reads require complete physical/global cut");
       check(!pending && !bank_response_valid,"one outstanding bank request");
@@ -191,10 +215,51 @@ module physical_capture_transport_tb;
   end
   initial begin
     if(!$value$plusargs("fault=%s",fault)) fault="";
+    if(!$value$plusargs("reset_at=%s",reset_at)) reset_at="";
     corrupt=$test$plusargs("corrupt");
     if($value$plusargs("frames=%s",frames_path)) begin fd=$fopen(frames_path,"w"); check(fd!=0,"frame log opened"); end
     $dumpfile("physical-transport.vcd"); $dumpvars(0,physical_capture_transport_tb);
     #120; repeat(3) tick; @(negedge clock); #1; reset=0;
+    if(reset_at!="") begin
+      frames=0; words=0;
+      // Stall accepted bank reads or DMA data to reset at the actual hazard.
+      if(reset_at=="response") hold_bank=1;
+      if(reset_at=="data") hold_dma=1;
+      command(1,0);
+      if(reset_at!="freeze") begin
+        while(!physical_read_enable) tick;
+        saved_cycle=expected_cycle; saved_ce=logical_ce;
+        for(integer i=0;i<3;i++) saved_state[i]=expected_state[i];
+      end
+      if(reset_at=="freeze") begin while(!physical_stopped) tick; end
+      else if(reset_at=="response") begin while(!pending) tick; end
+      else if(reset_at=="data") begin
+        // Allow the header, then hold a data frame under backpressure.
+        hold_dma=0;
+        while(dut.transport.state!=5) tick;
+        hold_dma=1;
+        while(dut.transport.state!=6) tick;
+      end else if(reset_at=="publish" || reset_at=="release") begin
+        while(frames<7) tick;
+        repeat(3) tick;
+        check(dut.transport.cut_complete,"reset test reached complete unpublished cut");
+        if(reset_at=="release") command(2,0);
+      end else check(0,"unknown reset phase");
+      // Assert between source edges, including while a completed stream has
+      // dropped read_enable. The host must see invalidation immediately.
+      #1; reset=1; #1;
+      check(dma_abort && !dma_valid && !bank_request_valid && !mmio_ready &&
+            !physical_read_enable,"reset combinationally invalidates unpublished stream");
+      repeat(4) tick;
+      check(!physical_stopped && !physical_failed && !freeze && !pending &&
+            !bank_response_valid && !mmio_response_valid,"common reset clears all capture and endpoint state");
+      @(negedge clock); #1; reset=0; hold_bank=0; hold_dma=0;
+      frames=0; words=0; cuts=0;
+      snapshot(17);
+      while(target_cycle<64) tick;
+      $display("PHYSICAL_TRANSPORT_RESET_PASS phase=%s recovered_cuts=%0d cycles=%0d checks=%0d",reset_at,cuts,target_cycle,checks);
+      $finish;
+    end
     snapshot(0); snapshot(17); snapshot(128); snapshot(256);
     // Cancel a cut with an accepted bank request, then drain its old response
     // before starting the next cut. Previously complete streams remain intact.

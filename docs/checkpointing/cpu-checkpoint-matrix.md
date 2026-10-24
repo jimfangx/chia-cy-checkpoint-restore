@@ -14,6 +14,21 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 220 connects the compiler-generated native clock mask/CE network to
+physical bank/MMIO/DMA transport without duplicate gates. Reset directly
+invalidates unpublished DMA streams. Fresh native generated-network synthesis
+uses 1,779 LUTs / 660 registers; OOC setup/hold estimates are +0.545/-0.062 ns
+at 140 MHz. Both network modes pass 4,739 EDA checks, five complete cuts, the
+retained fault/CRC/backpressure scope and five reset interruptions with fresh
+capture recovery. Removing only reset invalidation reproduces the expected
+publication failure. Twelve debug VCDs remain per mode. This is **in_progress**
+component integration: the fixture's common reset does not bind production
+`F1Shim.reset` or complete external writers. The physical bank guard, complete
+owner/bank/restore binding, full image/P&R/AFI and every actual FPGA capture and
+migration column remain pending. See
+[f2-generated-clock-transport.md](f2-generated-clock-transport.md) and
+`runs/aws-f2/iteration220/verification-commands.json`.
+
 Iteration 219 adds complete original-CE dependency prerequisites to that probe.
 The three actual Rocket gates have 27/179/179 clocked-state terminals (207
 distinct owners), all bound to inventory StateIDs and clock consumers. The

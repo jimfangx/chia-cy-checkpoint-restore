@@ -17,6 +17,8 @@ import tempfile
 from tools.checkpoint_formats import toolchain
 from tools.checkpoint_formats.codec import require
 from tools.checkpoint_formats.fpga_transport import crc32c, field
+from tools.checkpoint_formats.tests.audit_physical_clock_wiring import audit as audit_wiring
+from tools.checkpoint_formats.tests.audit_physical_clock_dependencies import audit as audit_dependencies
 
 ROOT = Path(__file__).resolve().parents[3]
 RUNS = ROOT / 'automations/checkpoint_loop/runs'
@@ -25,7 +27,19 @@ RTL = tuple(VERILOG+n+'.sv' for n in ('CheckpointCaptureCut', 'CheckpointCapture
             'CheckpointPhysicalClockCut', 'CheckpointPhysicalCaptureTransport'))
 TB = 'tools/checkpoint_formats/tests/physical_capture_transport_tb.sv'
 EXIT = 'tools/checkpoint_formats/tests/checkpoint_generated_network_exit.cc'
-SOURCES = (*RTL, TB, EXIT, 'tools/checkpoint_formats/tests/verify_physical_capture_transport.py')
+NETWORK_SOURCES = (
+    'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/PhysicalClockCutWiring.scala',
+    'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/PhysicalClockCutPlan.scala',
+    'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/PhysicalClockCutDependencies.scala',
+    'sims/firesim/sim/midas/src/test/scala/midas/checkpoint/PhysicalClockCaptureNetworkSpec.scala',
+    'tools/checkpoint_formats/tests/audit_physical_clock_wiring.py',
+    'tools/checkpoint_formats/tests/audit_physical_clock_plan.py',
+    'tools/checkpoint_formats/tests/audit_physical_clock_dependencies.py')
+SOURCES = (*RTL, TB, EXIT, 'tools/checkpoint_formats/tests/verify_physical_capture_transport.py', *NETWORK_SOURCES)
+NETWORK_FILES = ('reference.fir', 'manifest.json', 'physical-clock-plan.json',
+    'physical-clock-wiring.fir', 'physical-clock-wiring.json', 'physical-clock-wiring.sv',
+    'physical-clock-wiring-emission.json', 'physical-clock-dependencies.json')
+RESET_PHASES = ['freeze', 'response', 'data', 'publish', 'release']
 FIXTURE = '''module PhysicalTransportSynthesisFixture(
   input wire clock, reset,
   input wire [3:0] owner_present, owner_frozen, owner_error,
@@ -37,7 +51,7 @@ FIXTURE = '''module PhysicalTransportSynthesisFixture(
   output wire dma_valid, dma_last, dma_abort, freeze,
   output wire [511:0] dma_data
 );
-  wire root_clock;
+  wire root_clock, clock_mask;
   wire [2:0] gate_clock, captured_ce;
   reg [63:0] target_cycle;
   reg [31:0] state0, state1, state2;
@@ -95,6 +109,49 @@ puts "PHYSICAL_TRANSPORT_SYNTH_PASS gates=4 falling_edge_registers=1"
 '''
 
 
+
+def fixture(external):
+    if not external:
+        return FIXTURE
+    result = FIXTURE.replace('.GATES(3),.OWNERS(4),.ENTRIES(3),',
+        '.GATES(3),.OWNERS(4),.ENTRIES(3),.EXTERNAL_CLOCK_NETWORK(1),')
+    result = result.replace('  reg [63:0] target_cycle;', '  wire [63:0] target_cycle;').replace(
+        '  reg [31:0] state0, state1, state2;', '  wire [31:0] state0, state1, state2;')
+    result = result.replace("  wire [2:0] ce=reset ? 3'b111 : {target_cycle[1]^target_cycle[0],target_cycle[2],!target_cycle[0]};", '  wire [2:0] ce;')
+    start = result.index('  always @(posedge root_clock)')
+    end = result.index('  always @(posedge clock)', start)
+    result = result[:start] + """  PhysicalTransportNetwork network(.clock(clock),.reset(reset),.target_cycle(target_cycle),
+    .state0(state0),.state1(state1),.state2(state2),
+    .checkpoint_physical_mask(clock_mask),.checkpoint_physical_logical_ce(ce));
+""" + result[end:]
+    return result
+
+
+def synthesis(external):
+    if not external:
+        return TCL
+    return TCL.replace(' fixture.sv', ' generated/physical-clock-wiring.sv fixture.sv').replace(
+        'report_utilization', """foreach name {network/checkpoint_physical_root_gate network/left/gate network/middle/gate network/right/gate} {
+  if {[llength [get_cells $name]] != 1} {error "lost generated native gate $name"}
+}
+if {[llength [get_cells -hier -filter {NAME =~ *dut/physical/internal_clock_network*}]] != 0} {
+  error "external network instantiated duplicate gates"
+}
+report_utilization""")
+
+
+def check_network(directory):
+    audit_dependencies(directory/'reference.fir', directory/'manifest.json', directory/'physical-clock-plan.json',
+                       directory/'physical-clock-dependencies.json')
+    audit_wiring(directory/'reference.fir', directory/'manifest.json', directory/'physical-clock-plan.json',
+                 directory/'physical-clock-wiring.fir', directory/'physical-clock-wiring.json',
+                 directory/'physical-clock-wiring.sv', directory/'physical-clock-wiring-emission.json')
+    dep = json.loads((directory/'physical-clock-dependencies.json').read_text())
+    require(dep['root_module'] == 'PhysicalTransportNetwork' and
+            dep['external_inputs_require_freeze'] == ['PhysicalTransportNetwork.reset'],
+            'fixture must bind its sole external CE input to the shared capture/network/endpoint reset')
+
+
 def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
@@ -137,6 +194,7 @@ def audit_frames(raw):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--mode', choices=('vivado', 'vcs', 'audit'), required=True)
+    parser.add_argument('--generated', type=Path, help='compiler-generated physical transport network')
     parser.add_argument('--native', type=Path)
     parser.add_argument('--eda', type=Path)
     parser.add_argument('--out', type=Path, required=True)
@@ -169,8 +227,13 @@ def main():
                 require(sha(directory/name) == digest, 'changed '+group+' '+name)
         for name in SOURCES:
             require(sha(directory/'sources'/Path(name).name) == doc['sources'][name], 'changed source snapshot')
-        require((directory/'fixture.sv').read_text() == FIXTURE and
-                (directory/'synth.tcl').read_text() == TCL, 'changed synthesis contract')
+        external = doc['external_clock_network']
+        require(type(external) is bool, 'invalid network mode')
+        require((directory/'fixture.sv').read_text() == fixture(external) and
+                (directory/'synth.tcl').read_text() == synthesis(external), 'changed synthesis contract')
+        if external:
+            require(all('generated/'+name in doc['inputs'] for name in NETWORK_FILES), 'missing generated inputs')
+            check_network(directory/'generated')
         return doc
 
     summary = dict(status='pass', backend='eda' if args.mode == 'vcs' else 'f2',
@@ -182,8 +245,16 @@ def main():
         (out/'sources').mkdir()
         for name in SOURCES:
             (out/'sources'/Path(name).name).write_bytes((ROOT/name).read_bytes())
-        (out/'fixture.sv').write_text(FIXTURE)
-        (out/'synth.tcl').write_text(TCL)
+        external = args.generated is not None
+        summary['external_clock_network'] = external
+        if external:
+            require(args.generated.resolve().is_relative_to(RUNS), 'generated inputs must be below runs')
+            check_network(args.generated)
+            (out/'generated').mkdir()
+            for name in NETWORK_FILES:
+                shutil.copyfile(args.generated/name, out/'generated'/name)
+        (out/'fixture.sv').write_text(fixture(external))
+        (out/'synth.tcl').write_text(synthesis(external))
         vendor = Path(os.environ['XILINX_VIVADO'])/'data/verilog/src'
         summary['vendor_models'] = {}
         for name, path in [('BUFGCE.v', vendor/'unisims/BUFGCE.v'), ('glbl.v', vendor/'glbl.v')]:
@@ -195,16 +266,20 @@ def main():
         summary['sources'] = {n: sha(out/'sources'/Path(n).name) for n in SOURCES}
         summary['inputs'] = {str(p.relative_to(out)): sha(p) for p in (out/'sources').iterdir()}
         summary['inputs'].update({n: sha(out/n) for n in ('fixture.sv','synth.tcl','BUFGCE.v','glbl.v')})
+        if external:
+            summary['inputs'].update({'generated/'+name: sha(out/'generated'/name) for name in NETWORK_FILES})
         summary['artifacts'] = {n: sha(out/n) for n in ('physical-transport.dcp','utilization.rpt','timing.rpt','synth.log','vivado.log','vivado.jou','commands.json')}
     elif args.mode == 'vcs':
         require(os.environ.get('VCS_HOME') == toolchain.VCS_HOME and Path(toolchain.VCS).is_file(), 'EDA VCS SP2 required')
         native = validate(args.native, 'f2')
+        summary['external_clock_network'] = native['external_clock_network']
         for name, digest in native['inputs'].items():
             path=out/name; path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes((args.native/name).read_bytes())
             require(sha(path) == digest, 'copy mismatch')
         healthy=out/'healthy'; healthy.mkdir()
         run([toolchain.VCS,'-full64','-sverilog','-timescale=1ns/1ps','-Mupdate','-debug_access+all',
+             *(['+define+GENERATED_TRANSPORT_NETWORK', str(out/'generated/physical-clock-wiring.sv')] if native['external_clock_network'] else []),
              '-top','physical_capture_transport_tb','-top','glbl','-Mdir='+str(healthy/'csrc'),'-o',healthy/'simv',
              out/'BUFGCE.v',out/'glbl.v',*(out/'sources'/Path(n).name for n in (*RTL,TB,EXIT))], 'compile', healthy)
         text=run([healthy/'simv','-no_save','+frames='+str(healthy/'frames.hex')], 'healthy', healthy)
@@ -248,11 +323,22 @@ def main():
         text=run([healthy/'simv','-no_save','+corrupt'], 'corrupt', work, expected=1)
         require('reason=banked logical CE state' in text and 'PHYSICAL_TRANSPORT_PASS' not in text, 'corrupt readback did not stop')
         summary['negative_tests'].append('banked logical CE state')
+        summary['reset_recovery_tests'] = []
+        for phase in RESET_PHASES:
+            work = out/('reset-'+phase); work.mkdir()
+            text = run([healthy/'simv', '-no_save', '+reset_at='+phase], 'reset-'+phase, work)
+            require(re.search('PHYSICAL_TRANSPORT_RESET_PASS phase='+phase+r' recovered_cuts=1 cycles=64 checks=\d+', text),
+                    'reset invalidation/recovery failed '+phase)
+            summary['reset_recovery_tests'].append(phase)
         summary['sources']=native['sources']; summary['inputs']=native['inputs']
         summary['native_receipt']=str(args.native/'summary.json')
         summary['artifacts']={str(p.relative_to(out)):sha(p) for p in out.rglob('*') if p.is_file() and p.suffix in ('.log','.vcd','.hex')}
     else:
         native=validate(args.native,'f2'); eda=validate(args.eda,'eda')
+        summary['external_clock_network'] = native['external_clock_network']
+        require(native['external_clock_network']==eda['external_clock_network'], 'different clock network modes')
+        require(eda['reset_recovery_tests']==RESET_PHASES, 'incomplete reset interruption/recovery scope')
+        require(len(list(args.eda.rglob('*.vcd')))==12, 'missing complete debug waveforms')
         require(native['inputs']==eda['inputs'] and native['sources']==eda['sources'], 'different native and EDA inputs')
         require(eda['cuts']==5 and eda['requests']==26 and eda['cycles']>=320 and len(eda['negative_tests'])==6, 'incomplete EDA scope')
         summary.update(native_receipt=str(args.native/'summary.json'),eda_receipt=str(args.eda/'summary.json'),matched_inputs=len(native['inputs']),matched_sources=len(native['sources']))
