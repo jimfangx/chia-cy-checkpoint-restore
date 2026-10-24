@@ -99,7 +99,7 @@ def audit_inputs(generated):
     mappings = binding['annotation_translation']['mappings']
     policy_rows = [r for r in mappings
                    if r['source'] in expected_policies | {'DefaultWriteFirstAnnotation'}]
-    require(len(mappings) == 6 and len(policy_rows) == 3 and {r['source'] for r in policy_rows} == expected_policies
+    require(len(mappings) == 8 and len(policy_rows) == 3 and {r['source'] for r in policy_rows} == expected_policies
             and all(r['targets'] == [r['source']] for r in policy_rows),
             'memory lowering policy changed or missing')
     # Independently derive the target-box destination from the actual emitted
@@ -113,6 +113,15 @@ def audit_inputs(generated):
     require(target_rows == [dict(source='TargetBoxAnnotation(~HostPipeline|HostPipeline/consumer:HostConsumer)',
                                  targets=['~HostPipeline|HostPipeline/consumer:'+child[0]])],
             'target-box hierarchy mapping changed or missing')
+    # Historical originals deliberately need not exist in the current circuit.
+    # Only the destination follows specialization; bind both fields and index.
+    dedup_rows = [r for r in mappings if r['source'].startswith('DedupedResult(')]
+    require(dedup_rows == [
+        dict(source='DedupedResult(~Historical|OriginalConsumer,Some(~HostPipeline|HostPipeline/consumer:HostConsumer),0.25)',
+             targets=['DedupedResult(~Historical|OriginalConsumer,Some(~HostPipeline|HostPipeline/consumer:'+child[0]+'),0.25)']),
+        dict(source='DedupedResult(~Historical|Deleted,None,-1.0)',
+             targets=['DedupedResult(~Historical|Deleted,None,-1.0)'])],
+        'deduplication history mapping changed or missing')
     descriptors = json.loads((generated/'bank-probe-descriptors.json').read_text())
     require(manifest['reference_sha256'] == binding['reference_sha256'] ==
             sha(generated/'bank-probe-reference.fir'), 'unbound pre-bank circuit')

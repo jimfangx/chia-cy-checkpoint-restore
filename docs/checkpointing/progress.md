@@ -20,29 +20,29 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 202,
-**in_progress**. Exact consumed-input and global-channel-frequency context now
-survives bank specialization and final emission, with malformed/unsupported
-owners rejected. Production preflight rejects **8 annotation classes**, down
-from 10. Accepted whole-Rocket banks and the checkpoint-enabled image remain
-pending.
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 203,
+**in_progress**. Deduplication history now preserves immutable historical
+origins/indices and translates each live instance path through bank specialization.
+Descriptor and final-emission checks reject changed or dropped history. Exact
+Rocket production preflight rejects **7 annotation classes**, down from 8;
+accepted whole-Rocket banks and the checkpoint-enabled image remain pending.
 
-All **130 Scala / 306 checkpoint Python / 40 loop tests**, full retained EDA
-ASan/UBSan/FCFS scope, native localhost Vivado bank/top OOC synthesis and
-independent EDA audit pass. VCS checks: 4,669 bank / 7,858 MMIO-DMA top / 21,970
-synchronous-policy; 26 context, six XDC, five policy and eight target-box
-corruptions reject. Full FPGA cuts and paired CPU zero-edge/finite/live/rolling
-migration remain pending. No owned F2 instance or native Vivado/Java job remains;
-no new AFI was requested. Commands/files: `runs/aws-f2/iteration202/summary.json`.
-See [fpga-capture-transport.md](fpga-capture-transport.md).
+All **135 Scala / 306 checkpoint Python / 40 loop tests**, full retained EDA
+ASan/UBSan/FCFS scope, localhost Vivado bank/top OOC synthesis and independent
+EDA audit pass. VCS checks: 4,669 bank / 7,858 MMIO-DMA top / 21,970 synchronous
+policy. Twelve new history corruptions reject alongside all retained context,
+XDC, policy and target-box cases. Full FPGA capture and paired CPU
+zero-edge/finite/live/rolling migration remain pending. Commands and individual
+files: `runs/aws-f2/iteration203/summary.json`; see
+[fpga-capture-transport.md](fpga-capture-transport.md).
 
-Existing controller commits were published FireSim first (`c81b3dad`),
-then Chipyard (`7d469130`); independent remote tips agree.
-The local read-only tracking-ref update error is retained; remote publication
-succeeded. Current edits await the loop controller's checkpoint/publication. Managed-worker
-startup failed before creation; central agent only, no worker remains. Plan
-input hashes are unchanged, with no agent staging or commits. Follow
-[github-publication.md](github-publication.md).
+Existing controller checkpoints were published FireSim first (`e93185ae`),
+then Chipyard (`eb036fd6`); independent remote tips agree. The
+local read-only tracking-ref update error is retained; remote publication
+succeeded. Current edits await the loop controller's checkpoint/publication.
+Managed-worker startup failed before creation; central agent only, no worker
+remains. Plan input hashes are unchanged, with no agent staging or commits.
+Follow [github-publication.md](github-publication.md).
 
 On October 23 the
 existing manager successfully launched one tagged `f2.6xlarge`, instance
@@ -6760,6 +6760,43 @@ XDC, five memory-policy and eight target-box corruptions. Commands and individua
 receipts: `runs/aws-f2/iteration202/summary.json` relative to the loop.
 
 This is compiler/component evidence. The remaining contracts are DedupedResult,
+RunFirrtlTransformAnnotation, FirrtlCircuitAnnotation, UnrecognizedAnnotation,
+BridgeExtraction$BridgeInstance, BlackBoxInlineAnno, PreLinkRenamingAnnotation
+and GoldenGateOutputFileAnnotation. Three physical BUFGCE owners, complete
+common-cut/memory/timing/bridge/host/pre-FAME integration, full image/P&R/AFI,
+all-hart early/warm/outstanding/late FPGA cuts, paired CPU zero-edge restores,
+finite replay, sustained live RTL beyond the trace window and rolling hardware
+recovery remain pending. Reuse iteration-194's localhost invocation. Final
+scoped inventory has no owned F2 instance or native Vivado/Java job; no new AFI
+request was made.
+
+## Iteration 203: deduplication-history specialization
+
+Iteration 203 adds an explicit FIRRTL DedupedResult specialization contract.
+The historical original module identity and normalized index remain unchanged;
+only the live destination and every instance hop follow bank specialization.
+Removed-destination history retains FIRRTL's -1 sentinel. Invalid indices and
+foreign, stale, opaque, unreachable or mismatched destinations reject. Complete
+source/translated values and mapping rows are hash-bound, and both bank-state
+and final emitted annotations are checked against the stored translation.
+An independent fixture audit derives the destination from actual instrumented
+IR and rejects twelve coherently rehashed history corruptions. Exact Rocket
+production preflight now rejects **7 annotation classes**, down from 8; it still
+emits no accepted whole-Rocket bank RTL.
+
+All **135 Scala / 306 checkpoint Python / 40 loop tests** and the full retained
+EDA ASan/UBSan/FCFS/bank/bridge/host scope pass. Native localhost Vivado 2025.2
+bank and MMIO/DMA-top OOC synthesis pass; bank use is 125 LUTs /
+82 registers, estimated setup +6.435 ns / hold
++0.054 ns at 140 MHz, with external I/O unconstrained. Matching
+EDA SP2 VCS passes 4,669 bank / 7,858 exact-native-top / 21,970 synchronous-policy
+checks with debug waveforms. Independent audit matches ten generated files /
+nineteen sources, retaining all 26 context, six XDC, five memory-policy and
+eight target-box corruption rejections alongside the twelve new history cases.
+Commands and individual receipts: `runs/aws-f2/iteration203/summary.json`
+relative to the loop.
+
+This is compiler/component evidence. Remaining annotation contracts are
 RunFirrtlTransformAnnotation, FirrtlCircuitAnnotation, UnrecognizedAnnotation,
 BridgeExtraction$BridgeInstance, BlackBoxInlineAnno, PreLinkRenamingAnnotation
 and GoldenGateOutputFileAnnotation. Three physical BUFGCE owners, complete

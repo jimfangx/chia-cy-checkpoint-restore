@@ -1,5 +1,40 @@
 # FPGA capture transport component
 
+Iteration 203 adds an explicit FIRRTL DedupedResult specialization contract.
+The historical original module identity and normalized index remain unchanged;
+only the live destination and every instance hop follow bank specialization.
+Removed-destination history retains FIRRTL's -1 sentinel. Invalid indices and
+foreign, stale, opaque, unreachable or mismatched destinations reject. Complete
+source/translated values and mapping rows are hash-bound, and both bank-state
+and final emitted annotations are checked against the stored translation.
+An independent fixture audit derives the destination from actual instrumented
+IR and rejects twelve coherently rehashed history corruptions. Exact Rocket
+production preflight now rejects **7 annotation classes**, down from 8; it still
+emits no accepted whole-Rocket bank RTL.
+
+All **135 Scala / 306 checkpoint Python / 40 loop tests** and the full retained
+EDA ASan/UBSan/FCFS/bank/bridge/host scope pass. Native localhost Vivado 2025.2
+bank and MMIO/DMA-top OOC synthesis pass; bank use is 125 LUTs /
+82 registers, estimated setup +6.435 ns / hold
++0.054 ns at 140 MHz, with external I/O unconstrained. Matching
+EDA SP2 VCS passes 4,669 bank / 7,858 exact-native-top / 21,970 synchronous-policy
+checks with debug waveforms. Independent audit matches ten generated files /
+nineteen sources, retaining all 26 context, six XDC, five memory-policy and
+eight target-box corruption rejections alongside the twelve new history cases.
+Commands and individual receipts: `runs/aws-f2/iteration203/summary.json`
+relative to the loop.
+
+This is compiler/component evidence. Remaining annotation contracts are
+RunFirrtlTransformAnnotation, FirrtlCircuitAnnotation, UnrecognizedAnnotation,
+BridgeExtraction$BridgeInstance, BlackBoxInlineAnno, PreLinkRenamingAnnotation
+and GoldenGateOutputFileAnnotation. Three physical BUFGCE owners, complete
+common-cut/memory/timing/bridge/host/pre-FAME integration, full image/P&R/AFI,
+all-hart early/warm/outstanding/late FPGA cuts, paired CPU zero-edge restores,
+finite replay, sustained live RTL beyond the trace window and rolling hardware
+recovery remain pending. Reuse iteration-194's localhost invocation. Final
+scoped inventory has no owned F2 instance or native Vivado/Java job; no new AFI
+request was made.
+
 Iteration 202 preserves two additional explicit compiler-context contracts:
 consumed AddCircuit/FirrtlFile and GetIncludes/InputAnnotationFile events, and
 global channel clock-frequency metadata. Every event producer/type/path and
