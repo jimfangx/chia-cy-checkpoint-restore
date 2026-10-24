@@ -31,6 +31,7 @@ SOURCES = ('sims/firesim/sim/midas/src/main/scala/midas/checkpoint/SimulatorBank
            'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedClockGateAdapter.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedStateBankAccess.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedStateBankAnnotations.scala',
+           'sims/firesim/sim/midas/src/main/scala/midas/core/SimWrapper.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/passes/WriteXDCFile.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/ShadowAnnotations.scala',
            'sims/firesim/sim/midas/targetutils/src/main/scala/midas/xdc/XDCAnnotation.scala',
@@ -87,9 +88,20 @@ def audit_inputs(generated):
     mappings = binding['annotation_translation']['mappings']
     policy_rows = [r for r in mappings
                    if r['source'] in expected_policies | {'DefaultWriteFirstAnnotation'}]
-    require(len(mappings) == 5 and len(policy_rows) == 3 and {r['source'] for r in policy_rows} == expected_policies
+    require(len(mappings) == 6 and len(policy_rows) == 3 and {r['source'] for r in policy_rows} == expected_policies
             and all(r['targets'] == [r['source']] for r in policy_rows),
             'memory lowering policy changed or missing')
+    # Independently derive the target-box destination from the actual emitted
+    # hierarchy. A coherent rehash must not bless a stale, flattened or swapped
+    # marker even when all storage descriptors still match.
+    child = re.findall(r'^\s*inst consumer of (\w+)\s*$',
+                       (generated/'bank-probe-instrumented.fir').read_text(), re.MULTILINE)
+    require(len(child) == 1 and child[0].startswith('CheckpointStorage_'),
+            'missing specialized target-box instance')
+    target_rows = [r for r in mappings if r['source'].startswith('TargetBoxAnnotation(')]
+    require(target_rows == [dict(source='TargetBoxAnnotation(~HostPipeline|HostPipeline/consumer:HostConsumer)',
+                                 targets=['~HostPipeline|HostPipeline/consumer:'+child[0]])],
+            'target-box hierarchy mapping changed or missing')
     descriptors = json.loads((generated/'bank-probe-descriptors.json').read_text())
     require(manifest['reference_sha256'] == binding['reference_sha256'] ==
             sha(generated/'bank-probe-reference.fir'), 'unbound pre-bank circuit')

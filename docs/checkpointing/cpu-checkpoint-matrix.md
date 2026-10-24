@@ -10,9 +10,38 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 
 | Family | F2 workload / custom capture image | FPGA Level-1 to EDA metasim | FPGA Level-2 finite RTL replay | Live RTL / rolling hardware recovery |
 | --- | --- | --- | --- | --- |
-| Rocket (all four harts) | baseline verified: real F2 slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress: bank/MMIO/DMA fixtures synthesize locally, current exact-recipe bank trial rejects 11 annotation contracts; global memory policies, inert compiler context, XDC and memory-model labels translate with provenance; all seven FPGA plusarg instances have source-checked constant semantics; three physical BUFGCE owners, complete common-cut/memory/host binding and image P&R/AFI remain pending | pending | pending | pending |
+| Rocket (all four harts) | baseline verified: real F2 slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress: bank/MMIO/DMA fixtures synthesize locally, current exact-recipe bank trial rejects 10 annotation contracts; target-box instance paths, global memory policies, inert compiler context, XDC and memory-model labels translate with provenance; all seven FPGA plusarg instances have source-checked constant semantics; three physical BUFGCE owners, complete common-cut/memory/host binding and image P&R/AFI remain pending | pending | pending | pending |
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
+
+Iteration 201 adds an explicit TargetBox clone/rename contract. Concrete,
+reachable module and instance paths retain their root and all instance hops,
+with every module reference specialized together. Foreign, stale, opaque,
+unreachable and mismatched paths reject; dropped/changed markers fail descriptor
+validation. Original and translated annotations, mapping rows and the marker's
+actual class definition are hash-bound. The production compiler fixture's
+independent audit derives the destination from actual instrumented IR and rejects
+eight coherently rehashed marker corruptions. Actual exact-Rocket production
+preflight now rejects **10 annotation classes**, down from 11, and still emits
+no accepted whole-Rocket bank RTL.
+
+All **125 Scala / 306 checkpoint Python / 40 loop tests** and the full retained
+EDA ASan/UBSan/FCFS/bank/bridge/host scope pass. Native localhost Vivado 2025.2
+bank and MMIO/DMA-top OOC synthesis pass. Matched bank VCS passes **4,669** checks,
+exact-native-input top VCS **7,858**, and the read-first synchronous fixture
+**21,970**, retaining full debug waveforms. Independent EDA auditing matches ten
+generated files / sixteen sources and retains all six XDC, ten compiler-context
+and five memory-policy corruption rejections plus the eight new target-box cases.
+The bank fixture uses 125 LUTs / 82 registers; estimated setup +6.435 ns / hold
++0.054 ns at 140 MHz, with external I/O unconstrained. Commands and individual
+receipts: `runs/aws-f2/iteration201/summary.json` relative to the loop.
+
+This is compiler/component evidence. Full checkpoint image/P&R/AFI, physical
+BUFGCE ownership, complete common-cut/memory/host/pre-FAME integration, four
+active hardware cuts, paired CPU zero-edge restores, finite replay, sustained
+live RTL beyond the trace window and rolling hardware recovery remain pending.
+The iteration-194 localhost invocation is retained; final scoped inventory has
+no owned runtime instance or native Vivado/Java job, and no new AFI was requested.
 
 Iteration 200 preserves exact global InferReadWrite, default read-first/write-first
 and passthrough synchronous-memory policies through bank specialization. Source

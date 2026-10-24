@@ -20,32 +20,29 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 200,
-**in_progress**. Explicit global memory-lowering policies now survive bank
-specialization with complete source/translated hashes and mapping provenance.
-Conflicting/duplicate defaults and unapplied synchronous-memory defaults reject
-before inventory; backend-selected old-data pipeline ownership is independently
-checked. The actual exact-recipe production bank trial rejects **11 annotation
-classes**, down from 14, and emits no accepted whole-Rocket bank RTL.
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 201,
+**in_progress**. TargetBox instance paths now translate onto exact bank clones,
+with source/translated hashes and mapping provenance. Foreign, stale, opaque,
+unreachable and mismatched paths reject, and descriptor validation detects
+changed/dropped markers. Exact-Rocket preflight rejects **10 annotation classes**,
+down from 11; accepted whole-Rocket banks and the checkpoint image remain pending.
 
-All **122 Scala / 306 checkpoint Python / 40 loop tests** and full retained EDA
-ASan/UBSan scope pass. The new read-first fixture passes **21,970 VCS checks**,
-454 bank reads / ten complete-state captures with independent original-RTL and public
-input oracles. Native localhost bank/top OOC synthesis, 4,669 bank / 7,858
-exact-native-top VCS checks and independent EDA auditing pass; five new policy
-plus ten context / six XDC corruption cases reject. Full debug VCDs remain.
-Full checkpoint-enabled image/AFI, physical cuts and paired CPU zero-edge,
-finite/live/rolling migration remain pending. Reuse iteration-194's localhost
-build invocation; final inventory finds no owned F2 instance or native
-Vivado/Java job and no new AFI request. Commands and individual artifacts:
-`runs/aws-f2/iteration200/summary.json` relative to the loop. See
+All **125 Scala / 306 checkpoint Python / 40 loop tests** and full retained EDA
+ASan/UBSan scope pass. Localhost Vivado 2025.2 bank/top OOC synthesis, 4,669 bank /
+7,858 exact-native-top / 21,970 synchronous-policy VCS checks and independent EDA
+auditing pass, with full debug waveforms. Eight new coherently rehashed target-box
+corruptions reject; prior policy/context/XDC tests remain intact. Full physical
+FPGA cuts and paired CPU zero-edge/finite/live/rolling migration remain pending.
+Reuse iteration-194's localhost build invocation. Final inventory finds no owned
+F2 instance or native Vivado/Java job and no new AFI request. Commands and files:
+`runs/aws-f2/iteration201/summary.json`. See
 [fpga-capture-transport.md](fpga-capture-transport.md).
 
-Existing controller checkpoints were published FireSim first
-(`ae3ec787`), then Chipyard (`4f4463a7`); independent remote
-tips agree, with Chipyard's read-only local tracking-ref error retained.
-Managed-worker startup failed before creation; central agent only, no worker
-remains. Both plan input hashes are unchanged; no files were staged or committed.
+Existing controller checkpoints were published FireSim first (`786cc808`), then
+Chipyard (`b8153f14`); independent remote tips agree, with the local read-only
+tracking-ref update error retained. Managed-worker startup failed before creation;
+central agent only, no worker remains. Plan input hashes are unchanged, with no
+agent staging or commits. Follow [github-publication.md](github-publication.md).
 
 On October 23 the
 existing manager successfully launched one tagged `f2.6xlarge`, instance
@@ -6705,3 +6702,34 @@ physical early/warm/outstanding/late captures, paired CPU zero-edge restores,
 finite replay, sustained live RTL beyond the trace window and rolling hardware
 recovery remain pending. Final scoped inventory finds no owned F2 runtime
 instance or native Vivado/Java job; no new AFI request was made.
+
+## Iteration 201: target-box hierarchy specialization
+
+Iteration 201 adds an explicit TargetBox clone/rename contract. Concrete,
+reachable module and instance paths retain their root and all instance hops,
+with every module reference specialized together. Foreign, stale, opaque,
+unreachable and mismatched paths reject; dropped/changed markers fail descriptor
+validation. Original and translated annotations, mapping rows and the marker's
+actual class definition are hash-bound. The production compiler fixture's
+independent audit derives the destination from actual instrumented IR and rejects
+eight coherently rehashed marker corruptions. Actual exact-Rocket production
+preflight now rejects **10 annotation classes**, down from 11, and still emits
+no accepted whole-Rocket bank RTL.
+
+All **125 Scala / 306 checkpoint Python / 40 loop tests** and the full retained
+EDA ASan/UBSan/FCFS/bank/bridge/host scope pass. Native localhost Vivado 2025.2
+bank and MMIO/DMA-top OOC synthesis pass. Matched bank VCS passes **4,669** checks,
+exact-native-input top VCS **7,858**, and the read-first synchronous fixture
+**21,970**, retaining full debug waveforms. Independent EDA auditing matches ten
+generated files / sixteen sources and retains all six XDC, ten compiler-context
+and five memory-policy corruption rejections plus the eight new target-box cases.
+The bank fixture uses 125 LUTs / 82 registers; estimated setup +6.435 ns / hold
++0.054 ns at 140 MHz, with external I/O unconstrained. Commands and individual
+receipts: `runs/aws-f2/iteration201/summary.json` relative to the loop.
+
+This is compiler/component evidence. Full checkpoint image/P&R/AFI, physical
+BUFGCE ownership, complete common-cut/memory/host/pre-FAME integration, four
+active hardware cuts, paired CPU zero-edge restores, finite replay, sustained
+live RTL beyond the trace window and rolling hardware recovery remain pending.
+The iteration-194 localhost invocation is retained; final scoped inventory has
+no owned runtime instance or native Vivado/Java job, and no new AFI was requested.
