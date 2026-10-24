@@ -20,6 +20,57 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 214,
+**in_progress**. The actual `SimulationMapping` linker now replaces its exact
+validated external target placeholder and returns native circuit/module renames,
+so the absolute target boundary and all local/nonlocal annotations follow
+`TargetBox` to `FAMETop` together. It rejects ambiguous repeated instances,
+stale/foreign/relative paths, malformed namespaces, missing definitions and
+incompatible lowered interfaces. Strict downstream bank validation is unchanged.
+See [f2-simulation-mapping.md](f2-simulation-mapping.md).
+
+The exact Rocket recipe now passes the stale TargetBoxAnnotation barrier and
+explicitly rejects physical `BUFGCE` enable-latch state at
+`F1Shim.top.FASEDMemoryTimingModel_0.gate`. A synthesized capture owner and common
+low-phase cut are still required; the metasim output register cannot establish
+that ownership. No full Rocket bank/capture image is emitted. Reuse
+iteration194's initialized ExternallyProvisioned localhost build invocation.
+
+All **207 Scala / 309 checkpoint Python / 40 loop tests** and the retained EDA
+ASan/UBSan/FCFS/host/bank/memory/bridge scope pass. Seven native Vivado component
+synthesis jobs pass. The new linked-boundary fixture uses **44 LUTs / 18 registers**
+and passes **595** fresh SP2 VCS checks over 256 functional cycles, complete bank
+cuts 0/17/128/256 and sixteen response stalls, against unchanged original RTL and
+an arithmetic oracle. Corrupt bank readout fails at cut 17 before any further
+functional edge. Healthy/failed full debug VCDs are retained. Native/EDA matching
+covers **11 generated files / 8 current sources**; nine independent boundary,
+reference and owner corruptions reject, including a coherently changed owner.
+Retained production-bank/top audits match 28 files / 41 sources and pass
+4,669 / 7,858 checks, plus 21,970 synchronous-policy checks. These are compiler/
+component results; CPU/F2 zero-edge/finite/live acceptance remains pending.
+
+Physical CE-latch/common-cut ownership, complete memory/timing/bridge/host and
+pre-FAME binding, full localhost image/P&R/AFI, all-four-hart active early/warm/
+outstanding/late hardware cuts, paired CPU restores/live comparison beyond trace
+and rolling hardware recovery remain pending. No new AFI or runtime was
+requested. Plans and the four manager YAMLs retain their entry hashes; no staging
+or local commits. Existing controller checkpoints were published FireSim first
+(`db522bae`), then Chipyard (`7baa5956`); the Chipyard remote-tracking update
+reported read-only metadata after the push, and independent remote-tip checks
+confirm publication. Follow [github-publication.md](github-publication.md).
+
+Managed worker creation failed before startup; only this central agent ran and
+no delegated worker remains. Initial native-test harness, VCS testbench syntax,
+compiler-diagnostic parser and coherent-negative audit setup failures remain in
+original logs. The final native/EDA audit uses a separate artifact exchange,
+after an initial audit reached EDA before native-top outputs were transferred.
+Exact commands, compiler failure, protected inputs and receipts are under
+`runs/aws-f2/iteration214/` relative to the loop: `verification-commands.json`,
+`remaining-blockers.json`, `mapping-audit.json`, `final-audit.json` and `summary.json`.
+Hardware acceptance remains incomplete.
+
+## Iteration 213 (retained recovery note)
+
 Active milestone: `F2-rocket-checkpoint-migration`, iteration 213,
 **in_progress**. Added exact native RAMStyleHint logical-memory contracts and
 fixed the actual final WriteXDCFile consumer to emit late public host-widget
