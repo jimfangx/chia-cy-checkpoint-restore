@@ -22,9 +22,10 @@ from tools.checkpoint_formats.native_input_guard import require_live_inputs_unch
 
 ROOT = Path(__file__).resolve().parents[3]
 NAMES = ('bank-probe-reference.fir', 'bank-probe-state.json', 'bank-probe-instrumented.fir',
-         'bank-probe-binding.json', 'bank-probe-descriptors.json', 'bank-probe-emission.json')
+         'bank-probe-binding.json', 'bank-probe-descriptors.json', 'bank-probe-context.json', 'bank-probe-emission.json')
 XDC_NAMES = ('bank-probe.synthesis.xdc', 'bank-probe.implementation.xdc')
 SOURCES = ('sims/firesim/sim/midas/src/main/scala/midas/checkpoint/SimulatorBankProbe.scala',
+           'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/SimulatorBankProbeContext.scala',
            'tools/checkpoint_formats/native_input_guard.py',
            'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedExternalOwners.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedClockGateAdapter.scala',
@@ -53,6 +54,22 @@ def audit_inputs(generated):
     require(set(emission['inputs']) == {'.'+n for n in NAMES[:-1]}, 'incomplete probe input binding')
     for name in NAMES[:-1]:
         require(emission['inputs']['.'+name] == sha(generated/name), 'unbound probe input '+name)
+    context = json.loads((generated/'bank-probe-context.json').read_text())
+    require(context['context_version'] == 1 and context['scope'] == 'compiler_context_only'
+            and context['deployable_capture_image'] is False, 'unsupported compiler context scope')
+    require(context['reference_sha256'] == sha(generated/'bank-probe-reference.fir') and
+            context['instrumented_sha256'] == sha(generated/'bank-probe-instrumented.fir'),
+            'unbound compiler context circuits')
+    # Independent literal fixture contract: rehashing a missing/changed option
+    # or enum label must not turn it into accepted native/VCS build provenance.
+    expected_context = dict(info_mode='use', firrtl_output_file='fixture.fir',
+                            target_directory='checkpoint-fixture', config_package='fixture.config',
+                            config_string='FixtureConfig', output_base_filename='fixture',
+                            allow_unrecognized_input_annotations=True,
+                            enum_type=dict(name='fixture.Mode', values=dict(idle=0, busy=3)))
+    require(len(context['annotations']) == len(expected_context) and
+            {r['kind']: r['value'] for r in context['annotations']} == expected_context,
+            'compiler context changed or missing')
     require(emission.get('emitted_xdc_sha256') ==
             {'.synthesis.xdc': sha(generated/XDC_NAMES[0]),
              '.implementation.xdc': sha(generated/XDC_NAMES[1])}, 'unbound emitted physical constraints')

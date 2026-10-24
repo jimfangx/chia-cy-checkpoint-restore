@@ -20,23 +20,32 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 198,
-**in_progress**. Bank specialization now translates internal/external XDC
-arguments together under each repeated explicit root, validates concrete
-paths/ports, and retains memory-model labels on exact logical RAMs. Unknown
-contracts remain unsupported. Bank emission receipts bind both actual emitted
-XDC files. The real Rocket production bank diagnostic rejects **22 remaining
-annotation classes**, down from 25; it emits no accepted whole-Rocket bank RTL.
-All **113 Scala / 306 checkpoint Python / 40 loop tests** and the complete
-retained EDA ASan/UBSan scope pass. Final native synthesis (125 LUTs / 82 registers), retained-DCP constraints,
-4,669 bank and 7,858 exact-native-input top VCS checks pass. Six missing or
-coherently rehashed constraint corruptions reject. Receipts are under `runs/aws-f2/iteration198/` relative to the loop.
-The initial native fixture's invalid clock endpoint is rejected despite exit 0;
-its logs/receipt remain diagnostic. Reuse iteration-194's localhost build
-invocation; no duplicate farm or AFI was launched. Full checkpoint-enabled
-image/P&R/AFI, physical cuts, complete memory/host/common-cut ownership and
-paired CPU finite/live migration remain pending. See
-[fpga-capture-transport.md](fpga-capture-transport.md).
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 199,
+**in_progress**. The bank probe now preserves eight explicitly typed, inert
+compiler-context classes (parser/config/output choices and enum type definitions)
+and emits a separate context receipt bound to both actual circuit representations
+and final bank emission. This does not admit arbitrary NoTargetAnnotations,
+unknown payloads, pending passes, embedded circuits or targeted enum owners.
+Duplicate compiler options and conflicting enum definitions reject.
+The real exact-recipe production bank compile now rejects **14 annotation
+classes**, down from 22, and still emits no accepted whole-Rocket bank RTL.
+All **119 Scala / 306 checkpoint Python / 40 loop tests** and the full retained
+EDA ASan/UBSan scope pass. Native localhost Vivado 2025.2 bank-fixture synthesis
+passes (125 LUTs / 82 registers; estimated setup +6.435 ns / hold +0.054 ns
+at 140 MHz, external I/O unconstrained). Matched-input bank VCS passes 4,669
+checks and exact-native-input MMIO/DMA top passes 7,858. Independent EDA auditing
+compares all ten generated files / fifteen sources and rejects six XDC plus ten
+missing/coherently rehashed compiler-context corruptions. Full debug VCDs remain.
+Final receipts and raw commands: `runs/aws-f2/iteration199/summary.json` relative
+to the loop. Final scoped inventory finds no owned F2 instance or native
+Vivado/Java job. Existing controller checkpoints were published FireSim first
+(`27b2ec3f`), then Chipyard (`ea2d4849`), with remote tips independently verified;
+Chipyard's read-only local tracking-ref error is preserved. Reuse iteration-194's localhost
+build invocation. Full checkpoint-enabled image/P&R/AFI, physical cuts, complete
+memory/host/common-cut ownership and paired CPU finite/live migration remain
+pending. See [fpga-capture-transport.md](fpga-capture-transport.md).
+Managed-worker startup failed before creation; only the central agent worked.
+Both plan input hashes are unchanged; no files were staged or committed.
 
 On October 23 the
 existing manager successfully launched one tagged `f2.6xlarge`, instance
@@ -6638,3 +6647,26 @@ Previous M0 context (source reconnaissance complete):
 Later: investigate the discarded host-lowering return value before depending on HostTransforms. M2 uses VCS metasim and ordinary clean RTL VCS; keep Level 1 and Level 2 independent. Unsupported/lost mappings must fail explicitly when capture instrumentation is introduced.
 
 Environment note: Chipyard HEAD changed externally during M0 from f0914763d010669c2b194c7fcd6fd8290ba21750 to a6295df2d9e691aa115f5409ec4bfbfe6b5ed80b (test acct). Initial dirty files disappeared from status; this agent did not edit or commit them. FireSim HEAD stayed 2650ce60df882c32c18008357839c1856490a87c.
+
+## Iteration 199: explicit inert compiler context at the bank boundary
+
+Eight parser/config/output/enum-type annotation contracts now preserve complete
+values through the real host-to-FPGA compiler without treating them as storage
+owners. The context sidecar binds both actual IR representations and final
+emission; unknown annotations, pass requests, stale circuits, targeted enums
+and arbitrary output payloads remain unsupported. Duplicate options and
+conflicting enum definitions reject. The exact Rocket production compiler
+exits 1 on 14 remaining contracts and emits no accepted whole-Rocket banks.
+
+All 119 Scala, 306 checkpoint Python and 40 loop tests, full retained EDA
+ASan/UBSan/FCFS/bank/bridge/host regressions, 4,669 bank and 7,858 exact-native
+top VCS checks pass. Independent native/VCS/DCP/source auditing rejects ten
+context and six XDC corruptions, including coherently rehashed changes. The
+component DCPs are from localhost Vivado 2025.2, not full image builds. No new
+AFI request, FPGA capture or CPU migration is established. Final inventory has
+no owned runtime instance or native Vivado/Java build job. Next work needs
+explicit contracts for the remaining stage/pass/deleted/opaque/bridge/channel/
+pre-link/target-box/output annotations, physical BUFGCE ownership and complete
+common-cut/memory/host/semantic integration before full image/P&R/AFI and
+hardware cuts. Existing controller commits were pushed in the required order;
+no worker or delegated request remains. Receipts: `runs/aws-f2/iteration199/`.

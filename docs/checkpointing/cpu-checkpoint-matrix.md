@@ -10,9 +10,33 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 
 | Family | F2 workload / custom capture image | FPGA Level-1 to EDA metasim | FPGA Level-2 finite RTL replay | Live RTL / rolling hardware recovery |
 | --- | --- | --- | --- | --- |
-| Rocket (all four harts) | baseline verified: real F2 slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress: bank/MMIO/DMA fixtures synthesize locally, current exact-recipe bank trial rejects 22 annotation contracts; XDC and memory-model labels now translate with provenance; all seven FPGA plusarg instances have source-checked constant semantics; three physical BUFGCE owners, complete common-cut/memory/host binding and image P&R/AFI remain pending | pending | pending | pending |
+| Rocket (all four harts) | baseline verified: real F2 slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress: bank/MMIO/DMA fixtures synthesize locally, current exact-recipe bank trial rejects 14 annotation contracts; inert compiler context, XDC and memory-model labels now translate with provenance; all seven FPGA plusarg instances have source-checked constant semantics; three physical BUFGCE owners, complete common-cut/memory/host binding and image P&R/AFI remain pending | pending | pending | pending |
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
+
+Iteration 199 adds an explicit post-lowering compiler-context contract for
+InfoMode, OutputFile, TargetDir, ConfigPackage, ConfigString, OutputBaseFilename,
+AllowUnrecognizedAnnotations and enum type definitions. Values remain unchanged
+for downstream stage consumers, while `.bank-probe-context.json` binds their
+complete values and pre/instrumented circuit hashes into final emission. The
+parser permissiveness flag does not relax storage-owner admission. Unknown
+annotations, embedded circuits, pending transforms, targeted enum instances and
+arbitrary output payloads still reject; duplicate options/conflicting enum types
+also reject. Actual Rocket production preflight rejects 14 remaining annotation
+classes, down from 22; no accepted whole-Rocket bank RTL is emitted. This is a
+compiler/component increment. Full checkpoint image, physical BUFGCE/common-cut,
+functional-memory/host ownership, all four active FPGA cuts and complete paired
+CPU zero-edge/finite/live/rolling acceptance remain pending. Evidence and raw
+commands: `runs/aws-f2/iteration199/summary.json` relative to the loop.
+
+Validation passes: 119 Scala / 306 checkpoint Python / 40 loop tests and the
+full retained EDA ASan/UBSan scope. Native localhost bank OOC uses 125 LUTs /
+82 registers (estimated setup +6.435 ns / hold +0.054 ns at 140 MHz, external I/O
+unconstrained). Matched-input bank VCS passes 4,669 checks and exact-native-input
+MMIO/DMA top passes 7,858 with full debug VCDs. Independent EDA auditing matches
+all ten generated files / fifteen sources and rejects ten compiler-context plus
+six XDC missing/coherently rehashed corruptions. Final scoped inventory has no
+owned F2 instance or native Vivado/Java build job; no new AFI was requested.
 
 Iteration 198 adds correlated per-instance XDC translation, exact logical-RAM
 memory-model labels and emitted-XDC receipt hashes. Repeated-root constraints
