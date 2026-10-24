@@ -20,41 +20,49 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 207,
-**in_progress**. The bank compiler preserves five exact passive generated
-output-file contracts, including driver headers and platform defines, and binds
-both their original UTF-8 bytes and final emission. Exact Rocket production
-preflight now rejects **3 annotation classes**, down from 4. Whole-Rocket banks,
-complete physical coverage, checkpoint-enabled image and CPU hardware migration
-remain pending.
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 208,
+**in_progress**. Golden Gate consumes its exact runtime default VerilogEmitter
+request at stage entry, retaining immutable input/policy provenance and binding
+the actual selected emitter and final SystemVerilog bytes. Xilinx specialization
+rewrites every abstract clock-gate instance, proves the exact source/definitions
+unreferenced, then retires them with complete historical mapping/source hashes.
+These are compiler contracts; physical BUFGCE state remains unsupported.
 
-All **159 Scala / 306 checkpoint Python / 40 loop tests**, full retained EDA
+Actual exact-Rocket production preflight now rejects **2 annotation classes**,
+down from 3. The remaining RunFirrtlTransformAnnotation is a genuine generated
+**InlineInstances** request, with twelve wrapper InlineAnnotation targets; it is
+not another default emitter. A standalone replay of the actual Rocket wrapper
+establishes that producer. Emitter validation preserves that request for the
+bank's explicit unsupported rejection. The other blocker is the 2,120 raw
+DedupGroupAnnotation restrictions. Existing --no-dedup cannot discharge them:
+EnableAndRunDedupOnce temporarily removes it. Next: implement actual phase-correct
+inline execution/mapping provenance and enforce dedup groups before mandatory
+dedup. Details and exact input/source hashes: `runs/aws-f2/iteration208/remaining-blockers.json`.
+
+All **176 Scala / 306 checkpoint Python / 40 loop tests**, full retained EDA
 ASan/UBSan/FCFS/bank/memory/bridge/host scope and localhost bank/top OOC synthesis
-pass. EDA SP2 VCS passes 4,669 bank / 7,858 exact-native-top / 21,970 synchronous
-policy checks, retaining debug waveforms. Independent auditing matches 22
-generated files / 27 sources and rejects 20 new output corruptions plus every
-retained negative. Exact commands and individual receipts:
-`runs/aws-f2/iteration207/summary.json`. Initial fixture/setup failures remain
-in their diagnostic logs; corrected full runs establish the passes.
+pass. Final-source SP2 VCS passes 4,669 bank / 7,858 exact-native-top / 21,970
+synchronous-policy checks with debug waveforms. Independent EDA audit matches
+28 generated files / 33 sources, rejecting 21 emitter and 33 gate-retirement
+corruptions plus every retained negative. Initial fixture/setup and production
+failures remain in diagnostic logs; corrected runs establish the passes.
+Commands, individual files and provenance: `runs/aws-f2/iteration208/summary.json`.
 
-Next contracts: resolve the actual default VerilogEmitter request at stage
-entry; preserve the 2,120 target-bearing raw dedup-group restrictions; retire
-only validated, unreachable abstract clock-gate inline sources. Existing
-`--no-dedup` does not prove group restrictions redundant: the forced one-shot
-dedup pass temporarily removes that policy. Three physical BUFGCE owners still
-need a phase-correct capture/restore contract. See the exact runtime-jar/source
-provenance in `runs/aws-f2/iteration207/remaining-blockers.json` and
-[fpga-capture-transport.md](fpga-capture-transport.md).
+Whole-Rocket banks, three physical BUFGCE owners, complete common-cut/memory/
+timing/bridge/host/pre-FAME binding, localhost full image/P&R/AFI, physical active
+cuts, paired CPU zero-edge restores, finite replay, sustained live RTL beyond
+the trace window and rolling hardware recovery remain pending. Reuse the
+iteration194 localhost invocation; no new image, AFI or runtime was requested.
+AWS access, localhost SSH, Vivado 2025.2 and F2 HDK checks pass. Final scoped
+inventory is retained under this iteration. Three managed workers completed and
+returned results; no delegated LLM work remains. Plans are unchanged; no staging
+or local commits were performed.
 
-Existing controller checkpoints were published FireSim first (`10aa5ba3`), then
-Chipyard (`2e5d9626`); remote tips independently agree. The successful Chipyard
-push emitted the existing read-only local tracking-ref warning. Current edits
-await controller checkpoint/publication; follow
-[github-publication.md](github-publication.md). AWS access, localhost SSH and
-native Vivado 2025.2/F2 HDK checks pass. No new AFI or runtime instance was
-requested; final scoped inventory has no owned F2 instance or native Vivado/Java
-job. Three managed workers completed and returned results; no delegated
-LLM work remains. Plans are unchanged, with no agent staging or commits.
+Existing controller checkpoints were published FireSim first (`3627bc7c`), then
+Chipyard (`2feedcda`), with independently verified remote tips. The successful
+Chipyard push retains its read-only tracking-ref warning. Current edits await
+the controller's checkpoint/publication; follow
+[github-publication.md](github-publication.md).
 
 On October 23 the
 existing manager successfully launched one tagged `f2.6xlarge`, instance
@@ -6913,3 +6921,22 @@ iteration194 localhost invocation. Exact commands and complete receipts:
 staging/commits, new AFI requests or runtime launches. Three workers completed
 and were joined; existing controller checkpoints were published in required
 order. See [github-publication.md](github-publication.md).
+
+
+## Iteration 208: stage emitter policy and exact Xilinx source retirement
+
+Consumed the exact default stage emitter request and retained its complete input,
+policy, actual final emitter and output-byte binding. Retired only exact known
+abstract gate source/definitions after the actual Xilinx rewrite, including
+instances in globally unreachable modules. Typed and raw annotation references,
+unknown sources, duplicate/colliding definitions and altered receipts reject.
+Independent historical-circuit auditing rejects 54 new corruption cases.
+
+Exact Rocket preflight rejects two annotation classes. Investigation distinguishes
+the remaining generated InlineInstances request from the consumed stage default;
+it remains live and unsupported. Raw dedup-group restrictions and physical
+clock-gate/common-cut/full-image/CPU migration coverage remain pending. Full
+176 Scala / 306 Python / 40 loop scope, retained EDA sanitizers/FCFS, native OOC
+and final independent audit pass. Exact receipts and commands:
+`runs/aws-f2/iteration208/summary.json`. Both plans remain byte-identical, with
+no agent staging/commits or new runtime/AFI requests.

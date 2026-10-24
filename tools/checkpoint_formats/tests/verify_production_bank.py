@@ -28,6 +28,9 @@ PRELINK_HISTORY_NAMES = ('pre-link-input.fir', 'pre-link-output.fir')
 BRIDGE_HISTORY_NAMES = ('bridge-extraction-input.fir', 'bridge-extraction-promoted.fir',
                         'bridge-extraction-output.fir', 'bridge-extraction-connectivity.json')
 INPUT_CIRCUIT_NAMES = ('compiler-input.fir',)
+EMITTER_HISTORY_NAMES = ('compiler-emitter-request.json', 'golden-gate-emitter.json')
+GATE_HISTORY_NAMES = ('clock-gate-input.fir', 'clock-gate-rewritten.fir',
+                      'clock-gate-output.fir', 'clock-gate-source.v')
 # Literal independent fixture oracle. These are retained build/driver outputs,
 # not simulator storage or evidence of an integrated checkpoint host driver.
 PASSIVE_OUTPUTS = {
@@ -38,7 +41,8 @@ PASSIVE_OUTPUTS = {
     '.defines.vh': '// fixture platform defines\n`define USE_DDR_CHANNEL_A 0\n',
 }
 OUTPUT_NAMES = tuple('passive-output'+suffix for suffix in PASSIVE_OUTPUTS)
-HISTORY_NAMES = (*PRELINK_HISTORY_NAMES, *BRIDGE_HISTORY_NAMES, *INPUT_CIRCUIT_NAMES, *OUTPUT_NAMES)
+HISTORY_NAMES = (*PRELINK_HISTORY_NAMES, *BRIDGE_HISTORY_NAMES, *INPUT_CIRCUIT_NAMES,
+                 *EMITTER_HISTORY_NAMES, *GATE_HISTORY_NAMES, *OUTPUT_NAMES)
 SOURCES = ('sims/firesim/sim/midas/src/main/scala/midas/checkpoint/SimulatorBankProbe.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/SimulatorBankProbeContext.scala',
            'tools/checkpoint_formats/native_input_guard.py',
@@ -58,6 +62,12 @@ SOURCES = ('sims/firesim/sim/midas/src/main/scala/midas/checkpoint/SimulatorBank
            'sims/firesim/sim/midas/src/main/scala/midas/ShadowAnnotations.scala',
            'sims/firesim/sim/midas/targetutils/src/main/scala/midas/xdc/XDCAnnotation.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/stage/GoldenGateCompilerPhase.scala',
+           'sims/firesim/sim/midas/src/main/scala/midas/stage/GoldenGateEmitterPolicy.scala',
+           'sims/firesim/sim/midas/src/main/scala/midas/passes/xilinx/package.scala',
+           'sims/firesim/sim/midas/src/main/scala/midas/passes/package.scala',
+           'sims/firesim/sim/midas/src/main/scala/midas/passes/xilinx/ClockGateRetirement.scala',
+           'sims/firesim/sim/midas/src/test/scala/midas/passes/xilinx/ClockGateRetirementSpec.scala',
+           'sims/firesim/sim/midas/src/test/scala/midas/stage/GoldenGateEmitterPolicySpec.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/stage/GoldenGateFileEmission.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/passes/SimulationMapping.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/platform/F1Shim.scala',
@@ -70,6 +80,85 @@ SOURCES = ('sims/firesim/sim/midas/src/main/scala/midas/checkpoint/SimulatorBank
 
 def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def audit_emitter_policy(generated):
+    """Specify the resolved request and actual emission independently of Scala."""
+    request = generated/EMITTER_HISTORY_NAMES[0]
+    expected_request = [{'class': 'firrtl.stage.RunFirrtlTransformAnnotation',
+                         'transform': 'firrtl.VerilogEmitter'}]
+    require(request.read_bytes() == b'[\n  {\n    "class":"firrtl.stage.RunFirrtlTransformAnnotation",\n'
+            b'    "transform":"firrtl.VerilogEmitter"\n  }\n]',
+            'consumed default emitter request changed')
+    policy = dict(producer='midas.stage.GoldenGateCompilerPhase',
+                  policy='golden-gate-system-verilog-v1', request=expected_request,
+                  request_sha256=sha(request), output_language='SystemVerilog',
+                  plain_emitter='firrtl.SystemVerilogEmitter',
+                  observed_emitter='midas.checkpoint.SemanticCleanEmitter')
+    canonical = json.dumps(policy, sort_keys=True, separators=(',', ':'), ensure_ascii=False)
+    expected = dict(
+        binding_version=1, scope='compiler_emitter_policy_only', deployable_capture_image=False,
+        consumed_policy=policy,
+        consumed_policy_sha256=hashlib.sha256(canonical.encode('utf-8')).hexdigest(),
+        observed_emission=True, actual_emitter='midas.checkpoint.SemanticCleanEmitter',
+        emitted_circuit='HostPipeline', output_suffix='.sv',
+        emitted_verilog_sha256=sha(generated/'bank-probe.sv'))
+    require(json.dumps(json.loads((generated/EMITTER_HISTORY_NAMES[1]).read_text()), sort_keys=True) ==
+            json.dumps(expected, sort_keys=True),
+        'resolved emitter policy or actual emission changed')
+    return dict(kind='golden_gate_emitter_policy', value=policy)
+
+
+def audit_gate_retirement(generated):
+    """Check complete historical IR, including a globally unreachable owner."""
+    modules = '''module GateTop :
+    input I : Clock
+    input CE : UInt<1>
+    output O : Clock
+    inst child of Child
+    child.I <= I
+    child.CE <= CE
+    O <= child.O
+  module Child :
+    input I : Clock
+    input CE : UInt<1>
+    output O : Clock
+    inst gate of AbstractClockGate_0
+    gate.I <= I
+    gate.CE <= CE
+    O <= gate.O
+  module Unreachable :
+    inst deadGate of AbstractClockGate'''
+    def definition(module, defname):
+        return (f'extmodule {module} :\n  input I : Clock\n  input CE : UInt<1>\n'
+                f'  output O : Clock\n  defname = {defname}')
+    definitions = [dict(module=name, definition=definition(name, 'AbstractClockGate'))
+                   for name in ('AbstractClockGate', 'AbstractClockGate_0')]
+    physical = definition('BUFGCE', 'BUFGCE')
+    prefix = 'FIRRTL version 1.2.0\ncircuit GateTop :\n'
+    rewritten = modules.replace('of AbstractClockGate_0', 'of BUFGCE').replace(
+        'of AbstractClockGate', 'of BUFGCE')
+    for name, body, defs in (
+            (GATE_HISTORY_NAMES[0], modules, definitions),
+            (GATE_HISTORY_NAMES[1], rewritten, definitions),
+            (GATE_HISTORY_NAMES[2], rewritten, [])):
+        expected = prefix+body+'\n'+'\n'.join([d['definition'] for d in defs]+[physical])
+        require(' '.join((generated/name).read_text().split()) == ' '.join(expected.split()),
+                'historical clock-gate circuit changed: '+name)
+    source = generated/GATE_HISTORY_NAMES[3]
+    require(sha(source) == '4b0aadbcd127cc4ceb682c1b439a69fbdaf7f095791021b17b3437b2cde6af48',
+            'retired clock-gate inline source changed')
+    for row in definitions:
+        row['definition_sha256'] = hashlib.sha256(row['definition'].encode('utf-8')).hexdigest()
+    return dict(kind='xilinx_clock_gate_retirement', value=dict(
+        producer='midas.passes.xilinx.HostSpecialization', circuit='GateTop',
+        input_sha256=sha(generated/GATE_HISTORY_NAMES[0]),
+        rewritten_sha256=sha(generated/GATE_HISTORY_NAMES[1]),
+        output_sha256=sha(generated/GATE_HISTORY_NAMES[2]), definitions=definitions,
+        source_target='~GateTop|AbstractClockGate', source_name='AbstractClockGate.v',
+        source_text=source.read_text(), source_sha256=sha(source),
+        instances=[dict(parent='Child', instance='gate', **{'from': 'AbstractClockGate_0'}, to='BUFGCE'),
+                   dict(parent='Unreachable', instance='deadGate', **{'from': 'AbstractClockGate'}, to='BUFGCE')]))
 
 
 def audit_inputs(generated):
@@ -98,6 +187,8 @@ def audit_inputs(generated):
                                 'fixture_request': dict(name='fixture_core', multiplier=2, divisor=4),
                                 'fixture_response': dict(name='fixture_uncore', multiplier=1, divisor=1)})
     expected_rows = [dict(kind=k, value=v) for k, v in expected_context.items()] + [
+        audit_emitter_policy(generated),
+        audit_gate_retirement(generated),
         dict(kind='deleted_input', value=dict(producer='firrtl.stage.phases.AddCircuit',
              annotation_class='firrtl.stage.FirrtlFileAnnotation', file='historical-fixture.fir')),
         dict(kind='deleted_input', value=dict(producer='firrtl.options.phases.GetIncludes',

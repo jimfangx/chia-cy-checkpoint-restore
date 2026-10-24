@@ -10,9 +10,37 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 
 | Family | F2 workload / custom capture image | FPGA Level-1 to EDA metasim | FPGA Level-2 finite RTL replay | Live RTL / rolling hardware recovery |
 | --- | --- | --- | --- | --- |
-| Rocket (all four harts) | baseline verified: real F2 slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress: bank/MMIO/DMA fixtures synthesize locally, current exact-recipe bank trial rejects 3 annotation contracts; passive generated headers/defines retain exact-byte emission provenance; stage input retains immutable circuit/module history; consumed bridge extraction retains immutable circuit/connectivity history; consumed pre-link requests retain immutable circuit/mapping history; deduplication-history and target-box instance paths, global memory policies, consumed-input/channel-frequency context, XDC and memory-model labels translate with provenance; all seven FPGA plusarg instances have source-checked constant semantics; three physical BUFGCE owners, complete common-cut/memory/host binding and image P&R/AFI remain pending | pending | pending | pending |
+| Rocket (all four harts) | baseline verified: real F2 slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress: bank/MMIO/DMA fixtures synthesize locally, current exact-recipe bank trial rejects 2 annotation classes; exact stage emitter policy and retired abstract clock-gate source have immutable final-emission/history provenance; passive generated headers/defines retain exact-byte emission provenance; stage input retains immutable circuit/module history; consumed bridge extraction retains immutable circuit/connectivity history; consumed pre-link requests retain immutable circuit/mapping history; deduplication-history and target-box instance paths, global memory policies, consumed-input/channel-frequency context, XDC and memory-model labels translate with provenance; all seven FPGA plusarg instances have source-checked constant semantics; three physical BUFGCE owners, complete common-cut/memory/host binding and image P&R/AFI remain pending | pending | pending | pending |
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
+
+Iteration 208 consumes the exact default FIRRTL emitter request at stage entry,
+with immutable request/policy context and final selected-emitter/SystemVerilog
+binding. It retires only exact AbstractClockGate source/definitions after the
+actual Xilinx rewrite and global unreachability/reference checks. Complete
+historical circuits, source bytes and instance mappings are independently audited.
+Physical BUFGCE state is still unsupported.
+
+Actual exact-Rocket preflight rejects **2 annotation classes**, down from 3.
+The remaining RunFirrtlTransformAnnotation requests **InlineInstances**, produced
+by actual wrapper elaboration with twelve inline targets; it remains live for
+its own execution/mapping contract. The 2,120 unknown raw dedup-group constraints
+also remain unsupported; forced dedup temporarily removes --no-dedup. No whole-
+Rocket bank RTL or checkpoint-enabled image is emitted. These compiler changes
+do not establish physical capture or CPU migration.
+
+All 176 Scala / 306 checkpoint Python / 40 loop tests, retained EDA ASan/UBSan/
+FCFS/bank/memory/bridge/host scope, localhost bank/top OOC synthesis and independent
+EDA audit pass. Final SP2 VCS checks: 4,669 bank / 7,858 exact-native-top / 21,970
+synchronous policy, retaining waveforms. The audit matches 28 files / 33 sources
+and rejects 21 emitter plus 33 gate-history corruptions alongside all retained
+negatives. Bank resources/timing: 125 LUTs / 82 registers, setup +6.435 ns /
+hold +0.054 ns at 140 MHz; external I/O unconstrained. Full image/P&R/AFI,
+physical all-hart active cuts, complete paired CPU zero-edge restores, finite
+replay, sustained live RTL and rolling recovery remain pending. Reuse iteration194's
+localhost invocation. Commands and individual receipts:
+`runs/aws-f2/iteration208/summary.json`; exact remaining contracts and producer
+replay: `runs/aws-f2/iteration208/remaining-blockers.json`.
 
 Iteration 207 adds an exact passive output-file contract for `.const.h`,
 `.const.vh`, `.partition.const.h`, `.peer2peer.const.yaml` and `.defines.vh`.
