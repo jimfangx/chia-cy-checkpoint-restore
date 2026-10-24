@@ -20,30 +20,33 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 204,
-**in_progress**. Consumed pre-link namespace requests now produce immutable
-historical circuit hashes and module mappings. Actual Rocket production
-preflight rejects **6 annotation classes**, down from 7. Whole-Rocket banks,
-complete physical state coverage and the checkpoint-enabled image remain pending.
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 205,
+**in_progress**. BridgeExtraction now consumes temporary instance markers and
+retains immutable historical circuit/connectivity hashes and bridge identities.
+Repeated bridge-bearing modules and pass reuse are covered. Actual Rocket
+production preflight rejects **5 annotation classes**, down from 6; whole-Rocket
+banks, complete physical state coverage and the checkpoint-enabled image remain
+pending.
 
-All **142 Scala / 306 checkpoint Python / 40 loop tests**, full retained EDA
+All **149 Scala / 306 checkpoint Python / 40 loop tests**, full retained EDA
 ASan/UBSan/FCFS scope, localhost Vivado bank/top OOC synthesis and independent
 EDA audit pass. VCS checks: 4,669 bank / 7,858 MMIO-DMA top / 21,970 synchronous
-policy. Sixteen new consumed-pre-link corruptions reject alongside all retained
-history, context, XDC, policy and target-box cases. Full FPGA capture and paired
-CPU zero-edge/finite/live/rolling migration remain pending. Commands and
-individual files: `runs/aws-f2/iteration204/summary.json`; see
+policy. Twenty-five new extraction corruptions reject alongside every retained
+history/context/XDC/policy/target-box case. Full FPGA capture and paired CPU
+zero-edge/finite/live/rolling migration remain pending. Commands and individual
+files: `runs/aws-f2/iteration205/summary.json`; see
 [fpga-capture-transport.md](fpga-capture-transport.md).
 
-Existing controller checkpoints were published FireSim first (`1179b651`),
-then Chipyard (`97d9caa7`); both pushes and independent remote tips agree.
-Current edits await the loop controller's checkpoint/publication. Follow
+Existing controller checkpoints were published FireSim first (`0724e2c4`), then
+Chipyard (`3bf3bd4f`); independent remote tips agree. Chipyard's local tracking
+ref update warned read-only after the successful remote push. Current edits
+await the loop controller's checkpoint/publication; follow
 [github-publication.md](github-publication.md). AWS access checks pass; final
 scoped inventory has no owned F2 instance or native Vivado/Java job. No new AFI
-was requested. Managed-worker startup failed before creation; central agent
-only, and no worker remains. Plan input hashes are unchanged, with no agent
-staging or commits. Initial fixture-only compile/expectation failures remain
-under `runs/aws-f2/iteration204/`; corrected full-suite logs establish the passes.
+was requested. Managed-worker startup failed before creation; the central agent
+completed the work, and no worker remains. Plans are unchanged, with no agent
+staging or commits. Initial fixture compile/expectation failures remain under
+`runs/aws-f2/iteration205/`; corrected full-suite logs establish the passes.
 
 On October 23 the
 existing manager successfully launched one tagged `f2.6xlarge`, instance

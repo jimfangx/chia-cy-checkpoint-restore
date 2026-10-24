@@ -1,5 +1,42 @@
 # FPGA capture transport component
 
+Iteration 205 consumes BridgeExtraction's temporary instance markers at the
+actual promote/commute/prune boundary and retains immutable historical input,
+promoted/output circuit hashes, ordered bridge identities and complete generated
+connectivity hash. Live/deleted markers remain unsupported. Duplicate promotion
+requests for repeated bridge-bearing modules are coalesced. A pass-reuse fix
+preserves a real input module whose name collides with a previous temporary
+wrapper. Historical names remain independent of the later bank hierarchy;
+context and both final-emission boundaries reject changed or dropped history.
+The production-backend fixture runs actual clock/data bridge extraction with
+repeated instances. Independent auditing checks all three complete historical
+circuits and complete pipe/clock connectivity and rejects **25** missing or
+coherently rehashed extraction corruptions. Exact Rocket production preflight
+now rejects **5 annotation classes**, down from 6; no accepted whole-Rocket bank
+RTL is emitted.
+
+All **149 Scala / 306 checkpoint Python / 40 loop tests** and the complete
+retained EDA ASan/UBSan/FCFS/bank/bridge/host scope pass. Native localhost Vivado
+2025.2 bank and MMIO/DMA-top OOC synthesis pass. EDA SP2 VCS passes 4,669 bank /
+7,858 exact-native-top / 21,970 synchronous-policy checks with debug waveforms.
+Independent audit matches sixteen generated files / twenty-three sources,
+retaining all prior sixteen pre-link, twelve deduplication, 26 context, eight
+target-box, six XDC and five policy rejections. Bank use is 125 LUTs / 82
+registers, estimated setup +6.435 ns / hold +0.054 ns at 140 MHz; external I/O
+is unconstrained. Initial fixture compile/expectation failures remain diagnostic;
+corrected full-suite logs establish the passes. Commands and individual receipts:
+`runs/aws-f2/iteration205/summary.json` relative to the loop.
+
+This is compiler/component evidence. Remaining annotation contracts are
+RunFirrtlTransformAnnotation, FirrtlCircuitAnnotation, UnrecognizedAnnotation,
+BlackBoxInlineAnno and GoldenGateOutputFileAnnotation. Three physical BUFGCE
+owners, complete common-cut/memory/timing/bridge/host/pre-FAME integration,
+full image/P&R/AFI, all-hart active FPGA cuts, paired CPU zero-edge restores,
+finite replay, sustained live RTL beyond the trace window and rolling hardware
+recovery remain pending. Reuse iteration-194's localhost invocation. AWS access
+checks pass; final scoped inventory has no owned F2 instance or native
+Vivado/Java job. No new AFI was requested. Both plan input hashes are unchanged.
+
 Iteration 204 replaces the consumed mutable PreLinkRenaming namespace request
 with immutable history from the actual pass: complete ordered module renames
 and hashes of its exact historical input/output circuits. The request itself

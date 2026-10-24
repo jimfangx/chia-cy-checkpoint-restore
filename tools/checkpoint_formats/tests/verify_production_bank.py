@@ -24,7 +24,10 @@ ROOT = Path(__file__).resolve().parents[3]
 NAMES = ('bank-probe-reference.fir', 'bank-probe-state.json', 'bank-probe-instrumented.fir',
          'bank-probe-binding.json', 'bank-probe-descriptors.json', 'bank-probe-context.json', 'bank-probe-emission.json')
 XDC_NAMES = ('bank-probe.synthesis.xdc', 'bank-probe.implementation.xdc')
-HISTORY_NAMES = ('pre-link-input.fir', 'pre-link-output.fir')
+PRELINK_HISTORY_NAMES = ('pre-link-input.fir', 'pre-link-output.fir')
+BRIDGE_HISTORY_NAMES = ('bridge-extraction-input.fir', 'bridge-extraction-promoted.fir',
+                        'bridge-extraction-output.fir', 'bridge-extraction-connectivity.json')
+HISTORY_NAMES = (*PRELINK_HISTORY_NAMES, *BRIDGE_HISTORY_NAMES)
 SOURCES = ('sims/firesim/sim/midas/src/main/scala/midas/checkpoint/SimulatorBankProbe.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/SimulatorBankProbeContext.scala',
            'tools/checkpoint_formats/native_input_guard.py',
@@ -36,6 +39,8 @@ SOURCES = ('sims/firesim/sim/midas/src/main/scala/midas/checkpoint/SimulatorBank
            'sims/firesim/sim/midas/src/main/scala/midas/passes/TargetClockAnalysis.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/passes/UpdateBridgeClockInfo.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/passes/PreLinkRenaming.scala',
+           'sims/firesim/sim/midas/src/main/scala/midas/passes/ExtractBridges.scala',
+           'sims/firesim/sim/midas/src/test/scala/midas/passes/BridgeExtractionSpec.scala',
            'sims/firesim/sim/midas/src/test/scala/midas/passes/PreLinkRenamingSpec.scala',
            'sims/firesim/sim/firesim-lib/src/main/scala/bridgeutils/RationalClock.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/passes/WriteXDCFile.scala',
@@ -96,7 +101,7 @@ circuit HistoricalWrapper :
     inst right of Shared
     inst ext of External'''
     historical_output = historical_input.replace('Shared', 'Shared_0').replace('External', 'External_0')
-    for name, expected in zip(HISTORY_NAMES, (historical_input, historical_output)):
+    for name, expected in zip(PRELINK_HISTORY_NAMES, (historical_input, historical_output)):
         require(' '.join((generated/name).read_text().split()) == ' '.join(expected.split()),
                 'historical pre-link circuit changed: '+name)
     expected_rows.append(dict(kind='pre_link_renaming', value=dict(
@@ -105,6 +110,96 @@ circuit HistoricalWrapper :
         module_renames=[{'from': source, 'to': dest} for source, dest in
                        (('Shared', 'Shared_0'), ('External', 'External_0'),
                         ('HistoricalWrapper', 'HistoricalWrapper'))])))
+    # Independently specified full extraction fixture. The removed temporary
+    # wrapper is history, not a target in the banked simulator. Audit all three
+    # circuits and the complete generated clock/pipe connectivity, rather than
+    # trusting a self-consistent rehash of changed historical artifacts.
+    bridge_prefix = """FIRRTL version 1.2.0
+  extmodule ClockSource :
+    output clock : Clock
+    defname = ClockSource
+  extmodule DataBridge :
+    input clock : Clock
+    input value : UInt<8>
+    defname = DataBridge"""
+    input_worker = """module Worker :
+    input clock : Clock
+    input value : UInt<8>
+    inst bridge of DataBridge
+    bridge.clock <= clock
+    bridge.value <= value"""
+    input_top = """module ExtractionFixture :
+    input value : UInt<8>
+    inst clocks of ClockSource
+    inst left of Worker
+    inst right of Worker
+    left.clock <= clocks.clock
+    left.value <= value
+    right.clock <= clocks.clock
+    right.value <= value"""
+    output_worker = """module Worker :
+    input clock : Clock
+    input value : UInt<8>
+    input bridge : { flip clock : Clock, flip value : UInt<8>}
+    bridge.clock <= clock
+    bridge.value <= value"""
+    output_top = """module ExtractionFixture :
+    input value : UInt<8>
+    input clocks : { clock : Clock}
+    input right_bridge : { flip clock : Clock, flip value : UInt<8>}
+    input left_bridge : { flip clock : Clock, flip value : UInt<8>}
+    inst left of Worker
+    left.bridge <= left_bridge
+    inst right of Worker
+    right.bridge <= right_bridge
+    left.clock <= clocks.clock
+    left.value <= value
+    right.clock <= clocks.clock
+    right.value <= value"""
+    wrapper = """module DummyTop :
+    inst realTopInst of ExtractionFixture
+    inst realTopInst_left_bridge of DataBridge
+    realTopInst.left_bridge <= realTopInst_left_bridge
+    inst realTopInst_right_bridge of DataBridge
+    realTopInst.right_bridge <= realTopInst_right_bridge
+    inst realTopInst_clocks of ClockSource
+    realTopInst.clocks <= realTopInst_clocks"""
+    version, definitions = bridge_prefix.split('\n', 1)
+    for name, circuit, modules in (
+            (BRIDGE_HISTORY_NAMES[0], 'ExtractionFixture', (definitions, input_worker, input_top)),
+            (BRIDGE_HISTORY_NAMES[1], 'DummyTop', (wrapper, definitions, output_worker, output_top)),
+            (BRIDGE_HISTORY_NAMES[2], 'ExtractionFixture', (definitions, output_worker, output_top))):
+        expected = version+'\ncircuit '+circuit+' :\n'+'\n'.join(modules)
+        require(' '.join((generated/name).read_text().split()) == ' '.join(expected.split()),
+                'historical bridge extraction circuit changed: '+name)
+    connectivity = []
+    root = '~ExtractionFixture|ExtractionFixture>'
+    for port in ('left_bridge', 'right_bridge', 'clocks'):
+        is_clock = port == 'clocks'
+        channel = 'clock' if is_clock else 'value'
+        connectivity.append(dict(
+            **{'class': 'firesim.lib.bridgeutils.BridgeIOAnnotation'}, target=root+port,
+            channelMapping={channel: port+'_'+channel},
+            widgetClass='midas.widgets.ClockBridgeModule' if is_clock else 'fixture.DataBridgeModule'))
+        row = dict(**{'class': 'midas.passes.fame.FAMEChannelConnectionAnnotation'},
+                   globalName=port+'_'+channel, sinks=[root+port+'.'+channel])
+        if is_clock:
+            row['channelInfo'] = dict(**{'class': 'midas.passes.fame.TargetClockChannel'},
+                clockInfo=[dict(name='base', multiplier=1, divisor=1)], perClockMFMR=[1])
+        else:
+            row['channelInfo'] = dict(**{'class': 'midas.passes.fame.PipeChannel'}, latency=0)
+            row['clock'] = root+port+'.clock'
+        connectivity.append(row)
+    require(json.loads((generated/BRIDGE_HISTORY_NAMES[3]).read_text()) == connectivity,
+            'historical bridge extraction connectivity changed')
+    expected_rows.append(dict(kind='bridge_extraction', value=dict(
+        producer='midas.passes.BridgeExtraction', circuit='ExtractionFixture', wrapper='DummyTop',
+        input_sha256=sha(generated/BRIDGE_HISTORY_NAMES[0]),
+        promoted_sha256=sha(generated/BRIDGE_HISTORY_NAMES[1]),
+        output_sha256=sha(generated/BRIDGE_HISTORY_NAMES[2]),
+        connectivity_sha256=sha(generated/BRIDGE_HISTORY_NAMES[3]),
+        bridge_instances=['~DummyTop|DummyTop/realTopInst_'+instance+':'+module for instance, module in
+                          (('clocks', 'ClockSource'), ('left_bridge', 'DataBridge'), ('right_bridge', 'DataBridge'))])))
     require(sorted(json.dumps(r, sort_keys=True) for r in context['annotations']) ==
             sorted(json.dumps(r, sort_keys=True) for r in expected_rows),
             'compiler context changed or missing')
