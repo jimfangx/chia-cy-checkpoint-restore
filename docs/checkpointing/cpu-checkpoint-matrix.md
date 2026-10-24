@@ -10,9 +10,38 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 
 | Family | F2 workload / custom capture image | FPGA Level-1 to EDA metasim | FPGA Level-2 finite RTL replay | Live RTL / rolling hardware recovery |
 | --- | --- | --- | --- | --- |
-| Rocket (all four harts) | baseline verified: real F2 slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress: bank/MMIO/DMA fixtures synthesize locally, current exact-recipe bank trial rejects 2 annotation classes; exact stage emitter policy and retired abstract clock-gate source have immutable final-emission/history provenance; passive generated headers/defines retain exact-byte emission provenance; stage input retains immutable circuit/module history; consumed bridge extraction retains immutable circuit/connectivity history; consumed pre-link requests retain immutable circuit/mapping history; deduplication-history and target-box instance paths, global memory policies, consumed-input/channel-frequency context, XDC and memory-model labels translate with provenance; all seven FPGA plusarg instances have source-checked constant semantics; three physical BUFGCE owners, complete common-cut/memory/host binding and image P&R/AFI remain pending | pending | pending | pending |
+| Rocket (all four harts) | baseline verified: real F2 slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress: bank/MMIO/DMA fixtures synthesize locally, current exact-recipe bank trial rejects 1 annotation class (raw dedup groups); post-mapping InlineInstances runs before inventory/banking with complete concrete register/RAM rename provenance; exact stage emitter policy and retired abstract clock-gate source have immutable final-emission/history provenance; passive generated headers/defines retain exact-byte emission provenance; stage input retains immutable circuit/module history; consumed bridge extraction retains immutable circuit/connectivity history; consumed pre-link requests retain immutable circuit/mapping history; deduplication-history and target-box instance paths, global memory policies, consumed-input/channel-frequency context, XDC and memory-model labels translate with provenance; all seven FPGA plusarg instances have source-checked constant semantics; three physical BUFGCE owners, complete common-cut/memory/host binding and image P&R/AFI remain pending | pending | pending | pending |
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
+
+Iteration 209 executes the generated wrapper InlineInstances request using the
+native pass on the final lowered simulator, before inventory/banking. Every
+concrete register and memory instance is tracked across actual FIRRTL renames;
+lost, duplicated, aliased or reshaped storage rejects. Immutable consumed
+request/targets, input/output circuit and annotation hashes, complete native
+rename history and storage mappings survive in final-emission-bound context.
+Physical opaque owners remain separate and unsupported.
+
+Exact Rocket preflight now rejects **one annotation class**, the 2,120 raw
+dedup-group restrictions. InlineInstances is actually consumed; no whole-Rocket
+bank or checkpoint image is emitted. Next: enforce group restrictions before
+the mandatory dedup pass, which temporarily removes --no-dedup. The complete
+common-cut/memory/timing/bridge/host/pre-FAME ownership, physical BUFGCE owners,
+localhost full image/P&R/AFI, active FPGA cuts, fresh CPU zero-edge readbacks,
+finite replay, sustained live RTL and rolling hardware recovery remain pending.
+Reuse iteration194's localhost invocation; initialized manager configs survive.
+
+180 Scala / 306 checkpoint Python / 40 loop tests and retained EDA ASan/UBSan/
+FCFS/component regressions pass. The independent inline audit rejects 13
+corruptions; fresh SP2 VCS compares 2,016 outputs over 512 fixture cycles and
+retains a debug waveform. Native inline OOC synthesis: 63 LUTs / 16 registers.
+Bank/top fixture OOC synthesis also passes. Final independent EDA audit matches
+28 generated files / 35 current sources; SP2 VCS passes 4,669 bank / 7,858
+exact-native-top / 21,970 synchronous-policy checks, with waveforms. Final-source
+inline native/VCS inputs and six sources match; all retained negatives pass.
+This is compiler/component evidence only. Commands and individual receipts:
+`runs/aws-f2/iteration209/summary.json`; actual production failure and remaining work:
+`runs/aws-f2/iteration209/remaining-blockers.json`.
 
 Iteration 208 consumes the exact default FIRRTL emitter request at stage entry,
 with immutable request/policy context and final selected-emitter/SystemVerilog

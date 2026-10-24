@@ -62,6 +62,8 @@ SOURCES = ('sims/firesim/sim/midas/src/main/scala/midas/checkpoint/SimulatorBank
            'sims/firesim/sim/midas/src/main/scala/midas/ShadowAnnotations.scala',
            'sims/firesim/sim/midas/targetutils/src/main/scala/midas/xdc/XDCAnnotation.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/stage/GoldenGateCompilerPhase.scala',
+           'sims/firesim/sim/midas/src/main/scala/midas/passes/ResolveSimulationInline.scala',
+           'sims/firesim/sim/midas/src/test/scala/midas/passes/ResolveSimulationInlineSpec.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/stage/GoldenGateEmitterPolicy.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/passes/xilinx/package.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/passes/package.scala',
