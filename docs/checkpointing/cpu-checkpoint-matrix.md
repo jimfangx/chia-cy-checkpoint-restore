@@ -14,6 +14,23 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 223 adds physical-cut support to the actual FireSim NASTI/MMIO and
+512-bit stream widget. Its external-network sideband exposes original CE,
+mask, sampled CE/cycle and read/fault status; its header binds physical RTL
+hashes. An immutable functional-only descriptor ROM rejects physical mode;
+complete bank-255 physical descriptor composition is still required. Native
+localhost component synthesis uses 1,967 LUTs / 830 registers and one falling-
+edge mask, with no duplicate native gates; 140 MHz OOC setup/hold estimates
+are +0.550/+0.071 ns. Full image implementation timing remains pending.
+Fresh EDA SP2 passes 6,810 widget checks, six complete component cuts, abort/
+drain, backpressure and reset recovery. All six debug waves contain execution;
+52-input/29-source independent auditing rejects eight evidence substitutions,
+including corrected-CRC semantic corruption and physical-owner removal.
+This is **in_progress component integration**. Production ownership, image/AFI
+and every hardware-origin migration column above remain pending. See
+[f2-physical-widget.md](f2-physical-widget.md) and
+`runs/aws-f2/iteration223/verification-commands.json` for execution evidence.
+
 Iteration 222 composes the exact compiler CE endpoint with functional-bank
 and MMIO/DMA transport using a synthesizable descriptor/response router. Bank
 255 is reserved and malformed/aliased descriptors reject. Accepted reads retain

@@ -20,6 +20,64 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 223,
+**in_progress**. The real FireSim NASTI/MMIO and 512-bit stream widget now has
+an explicit physical-cut mode, using the external compiler-generated native
+clock network. Typed sideband ports expose the unmasked CE inputs, mask,
+captured CE/cycle and read/fault status. The driver header binds the physical
+mode and both physical RTL resource hashes. Functional descriptor construction
+rejects reserved bank 255; physical mode rejects functional-only immutable
+ROMs. Complete physical descriptor composition remains required. See
+[f2-physical-widget.md](f2-physical-widget.md).
+
+Fresh EDA SP2 component execution passes **6,810 checks / six complete cuts /
+130 DMA stalls**, with independent arithmetic/CRC/descriptor checks of seven
+words per cut at **52/84/164/244/324/21**. It runs through target cycle **400**,
+then resets an unpublished stalled capture, recovers and runs through **96**.
+Abort/drain acknowledgement, missing-owner/CE/cycle faults, a corrupt oracle
+and an independently compiled incorrect widget CE connection are exercised.
+Failure handling must complete VCS shutdown before returning a nonzero exit;
+the independent audit rejects time-zero-only debug waves. For registered AXI,
+cut labels equal actual adapter-acceptance target counts, rather than the
+late-setup direct-MMIO fixture's +1 offset. Hardware behavior was unchanged.
+The native/EDA audit matches **52 inputs / 29 sources** and rejects **eight**
+evidence substitutions, including removed owners, coherent widget rewiring,
+corrected-CRC semantic corruption, wrong cuts and missing native/negative/debug
+artifacts. All **six** full debug waves contain execution timestamps.
+
+All **223 Scala / 309 checkpoint Python / 40 loop tests** pass. Retained
+ASan/UBSan/FCFS/host/bridge/bank/memory/clock scope and all **fourteen localhost
+component synthesis scopes** pass. The physical widget uses **1,967 LUTs /
+830 registers**, one falling-edge mask and no duplicate BUFGCEs; native gates
+remain in the external network. OOC 140 MHz setup/hold estimates are
+**+0.550/+0.071 ns**; full image implementation timing is pending. Exact Rocket
+compilation reproduces all six retained CE input files byte-for-byte and still
+rejects the unsupported FASED physical owner. Retained CE/router/top/bank/
+clock/reset and independent Rocket dependency/memory audits pass.
+
+This remains component integration. Complete production functional-bank/
+physical descriptor/bridge binding, `F1Shim.reset` and external writers,
+simulator/functional-memory/FASED/bridge/host/pre-FAME ownership and physical
+CE zero-edge metasim restore are pending. Full localhost image/P&R/AFI,
+active four-hart early/warm/outstanding/late FPGA captures, paired complete
+independent zero-edge readbacks, finite RTL replay, sustained live RTL beyond
+the trace and rolling FPGA failure recovery remain required. Reuse
+iteration194's initialized ExternallyProvisioned localhost invocation. No new
+runtime instance or AFI was created and no FPGA checkpoint was produced.
+
+Protected plans and initialized manager inputs retain entry hashes. No staging
+or commits. Existing controller checkpoints were published FireSim first
+(`ae01cc3c`), then Chipyard (`679a10fc`), with remote-tip evidence; the local
+read-only tracking-ref warning did not prevent publication. The next controller
+checkpoint must also be published; follow
+[github-publication.md](github-publication.md). Managed worker startup failed
+before creation; only the central agent ran and no delegated request remains.
+Final scoped inventory has no active loop F2 instance or native Vivado/Java job.
+All current commands, receipts, recovered compiler/testbench/waveform diagnostics
+and explicit acceptance gaps are under `runs/aws-f2/iteration223/`.
+
+## Iteration 222 (retained recovery note)
+
 Active milestone: `F2-rocket-checkpoint-migration`, iteration 222,
 **in_progress**. `CheckpointPhysicalStateRouter` now composes functional-bank
 and exact compiler-generated physical CE descriptors/responses with the
