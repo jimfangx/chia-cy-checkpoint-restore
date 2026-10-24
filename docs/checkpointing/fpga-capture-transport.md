@@ -1,5 +1,69 @@
 # FPGA capture transport component
 
+Iteration 193 replaces module-local serial priority muxes with masked,
+balanced two-input reductions. Selectors remain globally unique and checked
+before specialization; a miss produces zero, including stateless children.
+The request/response latency, frozen functional state, synchronous pipeline
+ownership and held-response semantics remain unchanged. Source-structure checks
+cover all 2,300 retained modules and 14,398 masked branches (12,099 storage
+entries plus 2,299 child routes). The largest retained module replaces 198
+inline priority muxes with eight pairwise OR stages. These are source
+measurements; physical timing is measured independently.
+
+A new dense fixture retains **260 owners**: 257 local registers spanning every
+width from 1 through 64, plus three repeated child instances. Its largest
+module uses nine OR stages. Fresh EDA VCS SP2 passes **13,558 checks / 780 word
+reads / 3,120 stalled response boundaries**, with complete cuts at **2 / 39 /
+132** and continued functional execution through 173 edges. Every word is
+compared with both original RTL and a separate public-input accumulator model.
+Original-only preservation annotations keep otherwise unobserved reference
+registers through Verilog emission. Invalid banks, slots and oversized
+addresses return held zero/error responses. First-word semantic corruption
+stops frozen before any read completes; full debug VCDs are retained.
+`audit_dense_words` reconstructs all 780 words independently from the recorded
+public inputs, including width truncation and each repeated child. Its four
+unit tests also reject altered/missing/reordered inputs, semantic corruption,
+noncanonical padding, and incomplete/reshaped/unknown owners.
+
+All **90 Scala / 290 checkpoint Python / 40 loop tests** and the full retained
+EDA bank/transport/host/FCFS ASan/UBSan scope pass. The top MMIO/CPU-DMA VCS
+fixture passes **7,858** checks using the actual immutable native synthesis
+inputs. EDA synchronization excludes live Vivado `.Xil` scratch directories;
+real rsync tests independently verify that DCP/report evidence still transfers.
+The original failed reference compile and scratch-race diagnostics are retained
+under `runs/aws-f2/iteration193/`, alongside the successful reruns.
+
+All **15** native localhost OOC synthesis commands complete, including the
+retained whole root (**711,231 LUTs / 107,319 registers / 64 DSPs / no block
+RAM**). Its estimated setup WNS is **-0.287 ns** (72 failing
+endpoints) and hold WHS is **-0.324 ns** (18,351 failing endpoints),
+of **3,586,899** total. The whole root still fails estimated timing. External I/O
+remains unconstrained and OOC clock-buffer locations unbound; full image timing
+closure is not verified. The parent exits **0** and publishes a CRC-checked,
+independently audited DCP after a parallel synthesis worker reports a Boost
+interprocess `Bad file descriptor` shutdown exception. Its cause remains
+unproven; the raw log and a separate diagnostic receipt preserve it.
+The dense native component uses **14,176 LUTs / 8,579 registers**, estimated
+WNS **+5.849 ns** / WHS **+0.073 ns** at 140 MHz (OOC, external I/O unconstrained).
+Final independent EDA audits pass for complete source/inventory/DCP identity,
+all 780 dense public-input words, retained receipt/semantic negatives and
+computed-clock token corruptions. Fresh AWS/localhost inventory records no
+invocation runtime instance and no remaining native Vivado/Java build job.
+Exact commands and immutable receipts are cataloged in
+`runs/aws-f2/iteration193/summary.json` relative to the loop.
+
+The production integration gap remains explicit: `CheckpointCaptureTopKey`
+defaults to `None`, there is no production Rocket binding, and
+`GoldenGateCompilerPhase`'s checkpoint path emits inventory without invoking
+`GeneratedStateBankAccess`. A complete F1Shim bank probe cannot simply be
+frozen behind its own MMIO/stream engine; the capture transport must remain
+live, and external memory handshakes need a common-cut ownership protocol.
+The materialized abstract gate adapter also does not establish the physical
+BUFGCE implementation's state/clock mapping. Complete source-bound physical
+and pre-FAME mapping, atomic functional-memory/host capture, production
+integration, image P&R/AFI and actual FPGA-to-VCS migration remain pending.
+No new checkpoint image or hardware checkpoint is claimed.
+
 Iteration 192 represents one-bit combinational Clock-token origins explicitly
 as `data_clock: {hierarchy, expression}`. Transparent casts/aliases/child pins
 preserve the defining scope and expression. The generator and independent

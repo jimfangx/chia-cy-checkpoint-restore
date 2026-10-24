@@ -63,18 +63,36 @@ def bench(directory, binding, manifest):
     # transfer edges. Its storage is observed only by this independent oracle.
     rows = binding['state']
     require(len(rows) == len(manifest['state']), 'incomplete descriptor coverage')
+    dense = root == 'DenseStorage'
+    if dense:
+        expected_paths = {f'DenseStorage.word_{i}' for i in range(257)} | {
+            f'DenseStorage.child_{name}.saved' for name in 'abc'}
+        require({row['hierarchy'] for row in rows} == expected_paths and len(rows) == 260,
+                'incomplete dense local/repeated-child inventory')
     captures = []
     for index, row in enumerate(rows):
         require(row['width'] <= 64 and row['depth'] == 1, 'register-only subtree oracle required')
         original = 'original.' + row['hierarchy'].removeprefix(root + '.')
+        if dense:
+            name = row['hierarchy'].removeprefix(root + '.')
+            if name.startswith('word_'):
+                word = int(name.removeprefix('word_'))
+                require(row['width'] == word % 64 + 1, 'dense state width differs from public-input oracle')
+                expected = f"((64'd{word} + model_sum + model_steps * 64'd{word + 1}) & 64'h{(1 << row['width']) - 1:016x})"
+            else:
+                require(row['width'] == 64, 'dense child width differs from public-input oracle')
+                expected = "(64'd9 + model_sum)"
+            captures.append(f'check($unsigned({original}) === {expected}, "dense original/public-input oracle {index}");')
+            captures.append(f'read_word({row["bank"]}, {row["slot"]}, {expected}, {index});')
+            continue
         captures.append(f'read_word({row["bank"]}, {row["slot"]}, $unsigned({original}), {index});')
     effects = root == 'EffectsStorage'
     constant = root == 'SynthesisConstantStorage'
     if constant:
         output_checks.append('check(fixed === 9\'d341, "exact FPGA synthesis default despite process plusarg");')
-    adverse = ('data=17\'h1abcd;' if constant else 'eventEnable=1; fault=1;' if effects else
+    adverse = ('data=64\'hffffffffffffffff;' if dense else 'data=17\'h1abcd;' if constant else 'eventEnable=1; fault=1;' if effects else
                'io_sfence_valid=1; io_sfence_bits_rs1=1; io_sfence_bits_addr=0;')
-    restore = 'data=0;' if constant else 'fault=0; eventEnable=0;' if effects else 'io_sfence_valid=0;'
+    restore = 'data=0;' if constant or dense else 'fault=0; eventEnable=0;' if effects else 'io_sfence_valid=0;'
     event_drive = 'eventEnable=(i%3==0);' if effects else ''
     fault_trial = """if ($test$plusargs("functional_stop") || $test$plusargs("functional_assert")) begin
     ckpt_freeze=1; fault=1; eventEnable=$test$plusargs("functional_assert");
@@ -86,6 +104,23 @@ def bench(directory, binding, manifest):
     end
     $display("FUNCTIONAL_EFFECT_MISSING"); checkpoint_network_fail();
   end""" if effects else '' 
+    invalid_task = '''task invalid_dense_read(input integer bank, input integer slot, input [31:0] address);
+  begin
+    ckpt_bank=bank; ckpt_slot=slot; ckpt_address=address;
+    ckpt_req_valid=1; ckpt_resp_ready=0; #1;
+    check(ckpt_match===0 && ckpt_data===0 && ckpt_req_ready===1,"invalid selector zero miss");
+    tick(); ckpt_req_valid=0;
+    ckpt_bank=0; ckpt_slot=0; ckpt_address=0;
+    repeat(3) begin
+      #1;
+      check(ckpt_resp_valid===1 && ckpt_resp_error===1 && ckpt_resp_data===0,"held invalid selector response");
+      tick();
+    end
+    ckpt_resp_ready=1; tick(); ckpt_resp_ready=0;
+    check(ckpt_resp_valid===0,"invalid response retired");
+  end
+endtask''' if dense else ''
+    invalid_calls = "invalid_dense_read(255,65535,0); invalid_dense_read(0,65535,0); invalid_dense_read(0,0,1); invalid_dense_read(0,0,32'hffffffff);" if dense else ""
     return f'''`timescale 1ns/1ps
 module checkpoint_effects_tb;
 import "DPI-C" function void checkpoint_network_fail();
@@ -100,6 +135,7 @@ wire [63:0] ckpt_resp_data, ckpt_data;
 {root} dut(.*);
 Original{root} original({','.join(connections)});
 integer checks=0, edges=0, reads=0, stalls=0, captures=0, i, j, fd;
+reg [63:0] model_sum=0, model_steps=0;
 bit corrupt=0, fault_test=0;
 task check(input bit condition, input string message);
   begin
@@ -114,8 +150,13 @@ task tick;
   begin
     $display("EFFECTS_TICK frozen=%0d cycle=%0d",ckpt_freeze,edges);
     {'if (!ckpt_freeze) $display("SYNTHESIS_CONSTANT_INPUT cycle=%0d reset=%0d data=%0d",edges,reset,data);' if constant else ''}
+    {'if (!ckpt_freeze) $display("DENSE_INPUT cycle=%0d reset=%0d data=%0d",edges,reset,data);' if dense else ''}
     #5; clock=1;
-    if (!ckpt_freeze) begin if (!fault_test) reference_clock=1; edges++; end
+    if (!ckpt_freeze) begin
+      if (!fault_test) reference_clock=1;
+      {'if (reset) begin model_sum=0; model_steps=0; end else begin model_sum=model_sum+data; model_steps=model_steps+1; end' if dense else ''}
+      edges++;
+    end
     #1; clock=0; reference_clock=0; #4;
     if (!fault_test) begin
       {chr(10).join(output_checks)}
@@ -141,11 +182,13 @@ task read_word(input integer bank, input integer slot, input [63:0] expected, in
     check(ckpt_resp_valid===0,"response retired"); reads++;
   end
 endtask
+{invalid_task}
 task capture;
   integer cut;
   begin
     cut=edges; ckpt_freeze=1; reset=1; {adverse}
     {chr(10).join(captures)}
+    {invalid_calls}
     check(edges==cut,"no functional edge during capture");
     $display("EFFECTS_CAPTURE cycle=%0d words={len(rows)}",cut); captures++;
     {restore} reset=0; ckpt_freeze=0;

@@ -45,7 +45,7 @@ def main():
     generated = out / 'generated'
     root = json.loads((generated / 'generated-bank-manifest.json').read_text())['root_module']
     require(root in ('EffectsStorage', 'DTLB', 'DCacheDataArray', 'MultiClockStorage', 'GateStorage',
-                     'SynthesisConstantStorage'), 'unexpected synthesis root')
+                     'SynthesisConstantStorage', 'DenseStorage'), 'unexpected synthesis root')
     clocks = ('clock_a', 'clock_b', 'ckpt_clock') if root == 'MultiClockStorage' else ('clock',)
     constraints = '\n'.join(f'create_clock -period 7.142857 [get_ports {clock}]' for clock in clocks)
     gate_constraints = '''if {[llength [get_pins -quiet gate/O]] != 1} { error "missing registered gate output" }

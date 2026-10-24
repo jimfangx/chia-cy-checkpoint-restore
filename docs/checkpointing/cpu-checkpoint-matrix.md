@@ -10,9 +10,25 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 
 | Family | F2 workload / custom capture image | FPGA Level-1 to EDA metasim | FPGA Level-2 finite RTL replay | Live RTL / rolling hardware recovery |
 | --- | --- | --- | --- | --- |
-| Rocket (all four harts) | baseline verified: real F2, slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress (MMIO/CPU-DMA Widget, banks, clock provenance, exact registered-gate/FPGA-constant owners, retained FASED/DTLB/D-cache banks; static/invalid/computed token clock provenance explicit; retained whole-root banks/descriptors emit for all 12,099 entries and native OOC synthesis completes; whole-root timing fails) | pending | pending | pending |
+| Rocket (all four harts) | baseline verified: real F2, slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress (MMIO/CPU-DMA Widget, banks, clock provenance, exact registered-gate/FPGA-constant owners, retained FASED/DTLB/D-cache banks; static/invalid/computed token clock provenance explicit; retained whole-root banks/descriptors emit for all 12,099 entries and native OOC synthesis completes; balanced readout; whole-root OOC WNS -0.287 ns / WHS -0.324 ns, full image timing pending) | pending | pending | pending |
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
+
+Iteration 193 adds balanced masked state readout and a dense 260-owner fixture.
+All **90 Scala / 290 checkpoint Python / 40 loop tests**, complete retained EDA
+ASan/UBSan scope, **13,558** dense checks / **780** word reads and top MMIO/DMA
+**7,858** checks pass. Dense cuts at **2 / 39 / 132** include original-RTL and
+public-input oracles, **3,120** stalled boundaries, invalid selectors, first-word
+corruption stop and debug waveforms. All **15** native OOC commands and final
+independent EDA audits complete. Whole-root setup WNS improves **-0.916 ->
+-0.287 ns** and setup violations **6,878 -> 72**; hold WHS remains **-0.324 ns**.
+The parent exits 0 with a CRC-checked DCP despite a retained parallel-worker
+shutdown exception. Complete image timing remains unverified. Detailed source,
+resource and diagnostic scope: [fpga-capture-transport.md](fpga-capture-transport.md).
+Commands/receipts: `runs/aws-f2/iteration193/summary.json` relative to the loop.
+The production recipe still has no complete capture binding; custom AFI, actual
+FPGA captures, paired CPU zero-edge restores, finite/live RTL comparison and
+rolling hardware recovery remain **pending**.
 
 Iteration 192 distinguishes computed Clock-typed FAME token data from physical
 clock origins. The binding records the expression and its defining hierarchy;

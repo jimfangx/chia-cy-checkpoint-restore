@@ -20,18 +20,18 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 192,
-**in_progress**. Computed Clock-typed FAME token data now has explicit scoped
-expression provenance and remains prohibited on every sequential clock.
-All **89 Scala / 286 checkpoint Python / 40 loop tests** and the full retained
-EDA bank/transport/host/FCFS ASan/UBSan scope pass. Whole retained Rocket bank
-emission and descriptor validation now pass for **12,099 entries / 619,016
-transfer words / 2,300 instances**. This covers the retained generated RTL
-inventory only. All 14 native OOC synthesis runs complete; whole-root estimated
-setup/hold slack fails (**-0.916 ns / -0.324 ns**). Independent EDA audits pass;
-physical primitive/common-cut memory/host integration, custom AFI, actual F2
-capture, paired CPU migration and live/rolling hardware acceptance remain pending.
-See [fpga-capture-transport.md](fpga-capture-transport.md).
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 193,
+**in_progress**. Generated bank readout now uses masked balanced reductions;
+the largest retained module replaces 198 priority muxes with eight OR stages.
+All **90 Scala / 290 checkpoint Python / 40 loop tests**, full retained EDA
+ASan/UBSan scope, **13,558** dense checks / **780** complete word reads and top
+MMIO/DMA **7,858** checks pass. All **15** native OOC synthesis commands and
+independent evidence audits complete. Whole-root estimated WNS **-0.287 ns** /
+WHS **-0.324 ns** does not establish complete image closure. A parallel-worker
+shutdown exception remains preserved despite the successful parent/DCP.
+Complete physical/common-cut memory/host integration, production binding,
+image P&R/AFI, actual FPGA capture and paired CPU live/rolling acceptance
+remain pending. See [fpga-capture-transport.md](fpga-capture-transport.md).
 
 On October 23 the
 existing manager successfully launched one tagged `f2.6xlarge`, instance
@@ -92,6 +92,64 @@ pending the complete state network, bridge and host-owner implementation.
 Report individual nonempty files, including actual native manager logs and
 `results-workload/.../uartlog`, instead of directories. Keep original
 iteration-175 artifacts and failed-license receipts unchanged.
+
+## Iteration 193: balanced generated-state readout
+
+Module-local state selection now masks each unique selector and uses balanced
+two-input match/data reductions instead of serial priority muxes. The 260-owner
+dense fixture covers all widths 1..64 and three repeated children, retaining
+nine OR stages at its root. Fresh EDA VCS SP2 passes **13,558 checks / 780
+complete reads / 3,120 stalled response boundaries** at **2 / 39 / 132**, then
+continues through 173 functional edges. Original RTL and a separate public-input
+model check every word; invalid selectors return held zero/error, and deliberate
+first-word corruption stops frozen. Full debug VCDs are retained. The independent
+public-input auditor verifies all 780 words; four semantic-negative unit tests
+cover input, membership, shape and payload corruption.
+
+All **90 Scala / 290 checkpoint Python / 40 loop tests**, the full retained
+EDA bank/transport/host/FCFS ASan/UBSan scope and the top's **7,858** MMIO/DMA
+checks pass. An initial dense-reference compile failed because emission removed
+unobserved original registers; original-only preservation fixes that oracle.
+EDA sync also encountered a disappearing live Vivado scratch file. The helper
+now excludes `.Xil` scratch while real rsync tests require DCPs/reports to
+transfer. Both initial diagnostics remain immutable under this iteration's
+`runs/`. All **15** native localhost OOC synthesis commands complete, including the
+retained whole root (**711,231 LUTs / 107,319 registers / 64 DSPs / no block
+RAM**). Its estimated setup WNS is **-0.287 ns** (72 failing
+endpoints) and hold WHS is **-0.324 ns** (18,351 failing endpoints),
+of **3,586,899** total. The whole root still fails estimated timing. External I/O
+remains unconstrained and OOC clock-buffer locations unbound; full image timing
+closure is not verified. The parent exits **0** and publishes a CRC-checked,
+independently audited DCP after a parallel synthesis worker reports a Boost
+interprocess `Bad file descriptor` shutdown exception. Its cause remains
+unproven; the raw log and a separate diagnostic receipt preserve it.
+The dense native component uses **14,176 LUTs / 8,579 registers**, estimated
+WNS **+5.849 ns** / WHS **+0.073 ns** at 140 MHz (OOC, external I/O unconstrained).
+Final independent EDA audits pass for complete source/inventory/DCP identity,
+all 780 dense public-input words, retained receipt/semantic negatives and
+computed-clock token corruptions. Fresh AWS/localhost inventory records no
+invocation runtime instance and no remaining native Vivado/Java build job.
+Exact commands and immutable receipts are cataloged in
+`runs/aws-f2/iteration193/summary.json` relative to the loop.
+
+Compared with the retained iteration-192 measurement, setup WNS improves from
+**-0.916 ns** to **-0.287 ns**, with failing setup endpoints reduced from
+**6,878** to **72**. The remaining worst setup path runs from L2
+`mshrs_1/w_grantlast` to `sourceD/s3_bypass_data_REG_1` through 29 logic levels.
+Address mapped-clock/placement timing during complete image integration.
+
+The production exact recipe remains unmodified and does not yet select a
+complete capture binding. Its bank probe is generated-RTL scope only, not an
+atomic physical memory/host cut. Complete physical/pre-FAME mapping, live
+MMIO/DMA/common-cut ownership, full image P&R/AFI and actual FPGA captures,
+paired zero-edge CPU migration, finite/live RTL and rolling recovery remain
+pending. Reuse the prepared `checkpoint-f2-rocket-capture-193` invocation and
+localhost build configuration; do not launch a duplicate build or AWS farm.
+Existing controller commits were published FireSim first (`a2a38229`), then
+Chipyard (`c7cb1cbd`); independent remote tips agree. The successful Chipyard
+remote push retained its read-only local tracking-ref update error. Managed
+worker startup failed before a worker began; work stayed central and no
+worker requests remain. Plans/conda/archive and local git history are untouched.
 
 ## Iteration 192: computed FAME clock tokens and whole-root bank emission
 

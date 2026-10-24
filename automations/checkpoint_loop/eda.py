@@ -29,7 +29,7 @@ SSH_OPTIONS = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=15"]
 # remote compiler caches/builds; source deletions still propagate via --delete.
 SOURCE_EXCLUDES = (
     ".aws/", ".codex/", ".agents/", ".ssh/", ".conda-env/", ".conda-lock-env/",
-    ".bloop/", ".sbt/", ".ivy2/", "__pycache__/", "target/",
+    ".bloop/", ".sbt/", ".ivy2/", "__pycache__/", "target/", ".Xil/",
     "/env.sh", "/sims/firesim/env.sh",
     "/sims/firesim/deploy/results-build/", "/sims/firesim/deploy/results-workload/",
     "/sims/firesim/deploy/logs/", "/sims/firesim/deploy/built-hwdb-entries/",
@@ -41,6 +41,9 @@ CONTROL_EXCLUDES = (
     "/state*.json", "/loop.log*", "/verification.log*", "/last-message.json",
     "/eda.lock", "/migration-source/",
     "build-host/", "/aws-f2/local-build/",
+    # Vivado's live realtime scratch files disappear during native synthesis.
+    # They are not build inputs or retained evidence (DCP/reports/logs remain).
+    ".Xil/",
 )
 INPUT_EXCLUDES = tuple(pattern for pattern in CONTROL_EXCLUDES if pattern != "/migration-source/")
 
