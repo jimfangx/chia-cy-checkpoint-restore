@@ -14,6 +14,18 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 217 adds a topology prerequisite for the generated physical cut:
+the exact Rocket final-emission plan resolves all three native SYNC gates,
+2,107 clock pins and 13,234 sequential consumers to root `clock`, with complete
+clock coverage of 11,459 simulator inventory entries. Independent FIRRTL
+reconstruction rejects 15 coherently rehashed plan corruptions. This is
+**in_progress** compiler integration only: no clock rewrite or physical capture
+owner is admitted, and the FASED BUFGCE bank guard remains. CE dependency
+closure, full image/P&R/AFI, all four active-workload hardware cuts, Level-1
+migration, Level-2 finite/live RTL and rolling hardware recovery stay pending.
+See [f2-physical-clock-plan.md](f2-physical-clock-plan.md) and
+`runs/aws-f2/iteration217/verification-commands.json` for current commands.
+
 Iteration 216 connects the physical cut to the descriptor/bank/MMIO/DMA
 transport through a deferred post-stop acknowledgement and holds external
 owners until physical release completes. Fresh EDA SP2 passes 4,739 checks,

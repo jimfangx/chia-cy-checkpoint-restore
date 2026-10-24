@@ -22,6 +22,7 @@ ROOT = Path(__file__).resolve().parents[3]
 GENERATED = ('host-pipeline.sv', 'host-pipeline.fir', 'host-pipeline-manifest.json',
              'host-pipeline-emission.json', 'host-pipeline-external-owners.json', 'original-input.fir', 'discarded-host.sv')
 SOURCES = ('sims/firesim/sim/midas/src/main/scala/midas/stage/GoldenGateCompilerPhase.scala',
+           'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/PhysicalClockCutPlan.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedExternalOwners.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/SimulatorStateInventory.scala',
            'sims/firesim/sim/midas/src/test/scala/midas/stage/GoldenGateHostPipelineSpec.scala',

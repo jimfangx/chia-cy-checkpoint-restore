@@ -20,6 +20,49 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 217,
+**in_progress**. The exact Rocket compiler now emits a physical common-source
+clock plan from its final emitted netlist: three native default-SYNC BUFGCEs,
+2,107 clock pins, 13,234 sequential consumers and clock coverage for every one
+of the 11,459 simulator inventory entries. All sequential origins resolve to
+root input `clock`. The analysis handles final instance connectors and memory
+pipeline owners without changing the netlist. Physical latch StateIDs remain
+separate from metasim O owners. Independent reconstruction rejects 15 coherent
+plan/binding corruptions. See [f2-physical-clock-plan.md](f2-physical-clock-plan.md).
+
+The plan does not rewrite clocks, prove CE dependency closure, supply capture
+owners or remove the strict physical bank guard. Actual generated root/derived
+clock rewiring, CE bank/restore mappings, complete memory/timing/bridge/host and
+pre-FAME common-cut ownership, full localhost image/P&R/AFI, active four-hart
+FPGA cuts and paired zero-edge/finite/live/rolling CPU migration remain pending.
+Reuse iteration194's initialized ExternallyProvisioned localhost invocation.
+No new runtime instance or AFI was requested. Do not deploy this topology-only
+emission as a checkpoint-enabled image.
+
+Fresh 212 Scala / 309 checkpoint Python / 40 loop tests, the retained EDA
+ASan/UBSan/FCFS/host/bank/memory/bridge scope and nine native localhost component
+synthesis checks pass. Final native/EDA production audits match 28 generated
+files and 44 sources; fresh bank/top/memory-policy VCS checks pass 4,669 /
+7,858 / 21,970 comparisons. Physical-cut/transport VCS retain 1,968 / 4,739
+checks and debug waveforms. Ten transport evidence substitutions reject with
+162 original execution files preserved. Native and EDA Rocket clock-plan
+audits match. Exact commands, `summary.json`, `final-audit.json` and
+`remaining-blockers.json` are under `runs/aws-f2/iteration217/`. Final scoped
+inventory has no active loop runtime or native Vivado/Java job.
+Initial connector-reachability and independent-audit
+canonical-hash/clocked-effect-identity failures remain in their original logs.
+The corrected actual Rocket compiler and independent topology audit pass.
+
+Managed worker startup failed before creation; only the central agent ran.
+Existing controller checkpoints were published FireSim first (`53d08591`), then
+Chipyard (`b30e3dff`); independent remote tips match. The local read-only remote
+tracking-ref warning did not prevent the Chipyard remote update. Plans and the
+four initialized manager YAMLs remain read-only. No staging or local commits.
+Follow [github-publication.md](github-publication.md) for the controller's next
+checkpoint.
+
+## Iteration 216 (retained recovery note)
+
 Active milestone: `F2-rocket-checkpoint-migration`, iteration 216,
 **in_progress**. Added `CheckpointPhysicalCaptureTransport.sv`, connecting the
 physical common-low-phase sampler to descriptor/bank/MMIO/DMA transport.

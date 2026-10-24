@@ -1,5 +1,10 @@
 # Physical common-clock cut component
 
+Iteration 217 resolves the actual Rocket final-emission clock topology and
+inventory-clock coverage as a prerequisite to wiring this component. See
+[f2-physical-clock-plan.md](f2-physical-clock-plan.md). It leaves the netlist
+unchanged and does not remove physical capture-owner rejection.
+
 Iteration 216 connects this component to the descriptor/bank/MMIO/DMA
 transport with a deferred post-stop label and coordinated release. See
 [f2-physical-capture-transport.md](f2-physical-capture-transport.md). Production
