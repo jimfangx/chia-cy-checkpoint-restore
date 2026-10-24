@@ -14,6 +14,20 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 225 adds a separate native functional-bank companion for the exact
+Rocket recipe: 12,096 concrete storage descriptors, 619,013 transfer words and
+all three original BUFGCEs, with independent complete emitted-storage/shape,
+clock/CE-dependency and XDC auditing. The ordinary production admission guard
+remains. Native companion fixtures pass 230 Scala tests, synthesize with two
+native gates (848 LUTs / 390 registers), and pass 4,539 EDA SP2 checks over four
+complete 32-word cuts, 468 response stalls and execution through cycle 405.
+Semantic and independently compiled native-wiring faults stop immediately;
+three execution waveforms remain. This is **in_progress readout integration**;
+connected production cut/transport/owners, full image/AFI and every FPGA-origin
+migration column remain pending. See
+[f2-native-functional-banks.md](f2-native-functional-banks.md) and
+`runs/aws-f2/iteration225/verification-commands.json`.
+
 Iteration 224 adds immutable functional/physical CE descriptor composition to
 the real widget. Generated endpoint identities and selectors, both complete
 component documents and distinct circuit references bind the synthesized ROM

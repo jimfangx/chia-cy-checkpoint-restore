@@ -20,7 +20,65 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 224,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 225,
+**in_progress**. The exact Rocket recipe now emits a separate native functional
+bank companion: **12,096** concrete storage descriptors, **619,013** transfer
+words and all three original BUFGCEs. Native leaves retain their real primitive
+identity; synthetic metasim `O` owners are excluded. The new inventory/scope
+cannot pass the ordinary descriptor factory or production admission guard.
+Original CE/topology, instrumentation and both translated XDC files are bound.
+See [f2-native-functional-banks.md](f2-native-functional-banks.md).
+
+The real recipe exposed XDC consumer ordering during companion emission. The
+probe now runs the actual `WriteXDCFile` consumer before emitter optimization.
+Independent auditing covers every emitted register/RAM owner and shape, all
+specialized paths, all transfer words/selectors and the three separate response
+registers. The standard production bank path still rejects the unbound FASED
+physical latch/common-low-phase owner; this is an opt-in readout companion.
+
+All **230 Scala**, **309 checkpoint Python** and **40 loop tests** pass. Native
+fixture synthesis retains two SYNC gates and uses **848 LUTs / 390 registers**.
+140 MHz OOC setup/hold estimates are **+5.840/−0.151 ns**; estimated hold timing
+fails and full image implementation/timing closure remain pending. Fresh EDA
+SP2 passes **4,539** component checks, **128 words / four cuts / 468 stalls**,
+endpoint reset recovery and continuation through cycle **405**. Cuts are
+**14/66/180/325**. The independent arithmetic/memory oracle compares public
+ports with the unmodified reference. A corrupt word stops at cut 14/check 17;
+an independently recompiled wrong native CE connection stops at cycle 12/check
+1. Three full execution VCDs remain. Native/EDA auditing matches **26 inputs /
+13 sources**; six coherent owner/selector/native-RTL substitutions reject.
+
+All **sixteen** localhost component synthesis scopes and the full retained EDA
+ASan/UBSan/FCFS/host/bridge/bank/memory/clock/widget/CE/router/reset/top scope pass.
+The real widget retains 6,810 checks; the composed ROM retains 126 checks and
+its independently compiled slot fault. Complete native/EDA input matching and
+coherent evidence-substitution audits pass. The fresh Rocket native companion
+also passes independent EDA reconstruction of every storage owner/shape and
+matches all eleven source/output hashes with the native audit. Final commands,
+underlying recovered failures and explicit hardware gaps are under
+`runs/aws-f2/iteration225/`: `verification-commands.json`, `recovery-notes.json`
+and `summary.json`. No live localhost Vivado/Java job or loop F2 instance remains.
+
+Next: compose the native functional and physical CE descriptor tables from the
+same original circuit, connect the physical mask/ungated bank/MMIO/DMA network,
+and bind reset/external-writer ownership. Complete simulator/functional-memory/
+FASED/bridge/host/pre-FAME state, physical CE restore, full localhost image/
+P&R/AFI, active all-hart early/warm/outstanding/late FPGA captures, independent
+paired zero-edge readback, finite replay, sustained live clean RTL beyond the
+trace and rolling hardware failure recovery remain required. Reuse iteration194's
+initialized ExternallyProvisioned localhost invocation. No new AFI/runtime
+instance, FPGA checkpoint or CPU migration is claimed.
+
+Both plans and the four initialized manager inputs retain their entry hashes.
+No staging or local commits. Existing controller checkpoints were published
+FireSim first (`d4215278`), then Chipyard (`c850ab30`), with matched remote tips.
+Follow [github-publication.md](github-publication.md) for the next controller
+checkpoint. Managed worker startup failed before creation; all work ran
+centrally and no delegated LLM request exists.
+
+## Iteration 224 (retained recovery note)
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 224,
 **in_progress**. Immutable descriptor composition now appends generated physical
 CE identities/slots to validated functional-bank descriptors. The factory
 regenerates the CE endpoint and binds both complete component documents and
