@@ -14,6 +14,22 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 224 adds immutable functional/physical CE descriptor composition to
+the real widget. Generated endpoint identities and selectors, both complete
+component documents and distinct circuit references bind the synthesized ROM
+and host constructor. Physical table/transport count mismatches reject in both
+modes. The new fixture uses nine functional and three physical descriptors;
+it does not establish common-cut Rocket ownership. All 226 Scala tests pass.
+Native localhost synthesis uses 1,806 LUTs / 767 registers, one immutable ROM
+and no duplicate BUFGCEs; 140 MHz OOC setup/hold estimates are +0.553/+0.071 ns.
+Fresh EDA SP2 passes 126 ROM checks and stops an independently compiled physical
+slot fault at descriptor 9; both debug waves are retained. Native/EDA auditing
+matches 34 inputs / 13 sources and rejects six coherent manifest corruptions.
+This remains **in_progress component integration**. Production ownership,
+image/P&R/AFI and every hardware-origin migration column above remain pending.
+See [f2-physical-descriptors.md](f2-physical-descriptors.md) and
+`runs/aws-f2/iteration224/verification-commands.json`.
+
 Iteration 223 adds physical-cut support to the actual FireSim NASTI/MMIO and
 512-bit stream widget. Its external-network sideband exposes original CE,
 mask, sampled CE/cycle and read/fault status; its header binds physical RTL

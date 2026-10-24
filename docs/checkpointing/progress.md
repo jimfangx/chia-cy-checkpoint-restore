@@ -20,7 +20,57 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 223,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 224,
+**in_progress**. Immutable descriptor composition now appends generated physical
+CE identities/slots to validated functional-bank descriptors. The factory
+regenerates the CE endpoint and binds both complete component documents and
+circuit references, rather than accepting an unverified physical table. The
+widget rejects descriptor/transport physical-count disagreement in both modes;
+its synthesized ROM and generated host constructor share the composition hash.
+Complete production coverage and physical restore support remain explicitly
+false. See [f2-physical-descriptors.md](f2-physical-descriptors.md).
+
+The full Scala scope passes **226 tests**, checkpoint Python **309**, and loop
+orchestration **40**. Native synthesis of the real widget with the composed ROM
+uses **1,806 LUTs / 767 registers**, one immutable ROM and no duplicate BUFGCEs.
+140 MHz OOC setup/hold estimates are **+0.553/+0.071 ns**; full image timing
+remains pending. The fixture retains distinct functional and physical reference
+circuits; it is not an actual Rocket checkpoint. Current commands and final
+execution receipts belong under `runs/aws-f2/iteration224/`.
+
+Fresh EDA SP2 VCS passes **126** public-port ROM checks, all twelve descriptors,
+invalid-index alias cases and three reset phases. An independently compiled
+physical-slot fault stops at index **9 / check 19**; both full debug waveforms
+contain execution. Independent native/EDA auditing matches **34 inputs / 13
+sources** and rejects **six** coherently rehashed manifest corruptions.
+
+All **fifteen** localhost component synthesis scopes and the retained EDA
+ASan/UBSan/FCFS/host/bridge/bank/memory/clock scope pass. Fresh physical-widget
+execution retains **6,810 checks / six cuts / 130 DMA stalls**, complete raw
+frames and full debug waves; router/CE/physical-transport/top checks retain
+**4,912 / 2,722 / 4,739 per mode / 7,858** comparisons. These remain component
+results. The final native inventory has no active Vivado/Java job or loop F2
+instance. Execution commands, independent audits and explicit hardware gaps
+are recorded in `runs/aws-f2/iteration224/verification-commands.json` and
+`summary.json`.
+
+The exact Rocket compiler still rejects the FASED physical BUFGCE CE-latch owner.
+Production banks and same-cut reset/external-writer ownership, complete
+simulator/functional-memory/FASED/bridge/host/pre-FAME state, physical CE restore,
+full localhost image/P&R/AFI, active all-hart early/warm/outstanding/late hardware
+cuts, paired independent zero-edge readback, finite replay, sustained live RTL
+and rolling hardware failure recovery remain required. Reuse iteration194's
+initialized ExternallyProvisioned localhost invocation. No new AFI/runtime or
+FPGA checkpoint is claimed. Both plans and the four manager inputs retain their
+entry hashes. No staging or local commits. Existing controller checkpoints were
+published FireSim first (`771f1111`), then Chipyard (`9a654835`), with independently
+matched remote tips. Follow [github-publication.md](github-publication.md) for
+the next controller-created checkpoint. Managed worker startup failed before
+creation; all work runs centrally and no delegated worker exists.
+
+## Iteration 223 (retained recovery note)
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 223,
 **in_progress**. The real FireSim NASTI/MMIO and 512-bit stream widget now has
 an explicit physical-cut mode, using the external compiler-generated native
 clock network. Typed sideband ports expose the unmasked CE inputs, mask,

@@ -32,10 +32,13 @@ mode and SHA256 of both physical RTL resources as well as the original logical
 transport/cut resources. Physical configurations with an immutable descriptor
 ROM require an ordered bank-255 tail, one width-one/depth-one descriptor per CE
 bit, and reject functional descriptors that alias that reserved bank. The
-current functional-only descriptor constructor cannot satisfy that condition;
+functional-only descriptor constructor cannot satisfy that condition;
 the functional constructor rejects bank 255 entirely, so functional state cannot
-impersonate physical CE owners. Complete physical descriptor composition and
-production bank generation remain required. No unverified ROM or default owner tieoff bypass was added.
+impersonate physical CE owners. Iteration 224 adds a separate validated
+[physical descriptor composition](f2-physical-descriptors.md), retaining both
+component circuit references and generated endpoint identities. Production bank
+generation and common-cut ownership remain required. No unverified ROM or
+default owner tieoff bypass was added.
 
 Current native/EDA auditing matches 52 inputs and 29 sources. Fresh SP2 VCS
 passes 6,810 checks, six complete captures, 130 DMA stalls and reset recovery.
