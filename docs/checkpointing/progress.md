@@ -20,32 +20,32 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 199,
-**in_progress**. The bank probe now preserves eight explicitly typed, inert
-compiler-context classes (parser/config/output choices and enum type definitions)
-and emits a separate context receipt bound to both actual circuit representations
-and final bank emission. This does not admit arbitrary NoTargetAnnotations,
-unknown payloads, pending passes, embedded circuits or targeted enum owners.
-Duplicate compiler options and conflicting enum definitions reject.
-The real exact-recipe production bank compile now rejects **14 annotation
-classes**, down from 22, and still emits no accepted whole-Rocket bank RTL.
-All **119 Scala / 306 checkpoint Python / 40 loop tests** and the full retained
-EDA ASan/UBSan scope pass. Native localhost Vivado 2025.2 bank-fixture synthesis
-passes (125 LUTs / 82 registers; estimated setup +6.435 ns / hold +0.054 ns
-at 140 MHz, external I/O unconstrained). Matched-input bank VCS passes 4,669
-checks and exact-native-input MMIO/DMA top passes 7,858. Independent EDA auditing
-compares all ten generated files / fifteen sources and rejects six XDC plus ten
-missing/coherently rehashed compiler-context corruptions. Full debug VCDs remain.
-Final receipts and raw commands: `runs/aws-f2/iteration199/summary.json` relative
-to the loop. Final scoped inventory finds no owned F2 instance or native
-Vivado/Java job. Existing controller checkpoints were published FireSim first
-(`27b2ec3f`), then Chipyard (`ea2d4849`), with remote tips independently verified;
-Chipyard's read-only local tracking-ref error is preserved. Reuse iteration-194's localhost
-build invocation. Full checkpoint-enabled image/P&R/AFI, physical cuts, complete
-memory/host/common-cut ownership and paired CPU finite/live migration remain
-pending. See [fpga-capture-transport.md](fpga-capture-transport.md).
-Managed-worker startup failed before creation; only the central agent worked.
-Both plan input hashes are unchanged; no files were staged or committed.
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 200,
+**in_progress**. Explicit global memory-lowering policies now survive bank
+specialization with complete source/translated hashes and mapping provenance.
+Conflicting/duplicate defaults and unapplied synchronous-memory defaults reject
+before inventory; backend-selected old-data pipeline ownership is independently
+checked. The actual exact-recipe production bank trial rejects **11 annotation
+classes**, down from 14, and emits no accepted whole-Rocket bank RTL.
+
+All **122 Scala / 306 checkpoint Python / 40 loop tests** and full retained EDA
+ASan/UBSan scope pass. The new read-first fixture passes **21,970 VCS checks**,
+454 bank reads / ten complete-state captures with independent original-RTL and public
+input oracles. Native localhost bank/top OOC synthesis, 4,669 bank / 7,858
+exact-native-top VCS checks and independent EDA auditing pass; five new policy
+plus ten context / six XDC corruption cases reject. Full debug VCDs remain.
+Full checkpoint-enabled image/AFI, physical cuts and paired CPU zero-edge,
+finite/live/rolling migration remain pending. Reuse iteration-194's localhost
+build invocation; final inventory finds no owned F2 instance or native
+Vivado/Java job and no new AFI request. Commands and individual artifacts:
+`runs/aws-f2/iteration200/summary.json` relative to the loop. See
+[fpga-capture-transport.md](fpga-capture-transport.md).
+
+Existing controller checkpoints were published FireSim first
+(`ae3ec787`), then Chipyard (`4f4463a7`); independent remote
+tips agree, with Chipyard's read-only local tracking-ref error retained.
+Managed-worker startup failed before creation; central agent only, no worker
+remains. Both plan input hashes are unchanged; no files were staged or committed.
 
 On October 23 the
 existing manager successfully launched one tagged `f2.6xlarge`, instance
@@ -6670,3 +6670,38 @@ pre-link/target-box/output annotations, physical BUFGCE ownership and complete
 common-cut/memory/host/semantic integration before full image/P&R/AFI and
 hardware cuts. Existing controller commits were pushed in the required order;
 no worker or delegated request remains. Receipts: `runs/aws-f2/iteration199/`.
+
+## Iteration 200: memory policy and inventory-order contracts
+
+Iteration 200 preserves exact global InferReadWrite, default read-first/write-first
+and passthrough synchronous-memory policies through bank specialization. Source
+and translated annotation hashes plus explicit mapping rows bind every policy.
+Duplicate/conflicting defaults reject; synchronous undefined read-under-write
+must be resolved by the backend before inventory, because choosing a default
+later can change a saved address pipeline into a data pipeline. Dropped or
+swapped policies fail descriptor validation. Unknown owners remain unsupported.
+Actual exact-Rocket production preflight now rejects **11 annotation classes**,
+down from 14, and emits no accepted whole-Rocket banks.
+
+All **122 Scala / 306 checkpoint Python / 40 loop tests** and the full retained
+EDA ASan/UBSan/FCFS/bank/bridge/host scope pass. A new backend-resolved read-first
+fixture passes **21,970 VCS checks**, 454 bank responses and ten complete-state
+captures, with 2,905 sampled output boundaries across 202 functional edges,
+against unchanged original RTL and an
+independent input oracle, including collisions, masks, held responses and
+continuation. Original synchronous-memory coverage remains intact. Native
+localhost Vivado 2025.2 bank and MMIO/DMA-top OOC synthesis pass; bank use is
+125 LUTs / 82 registers, estimated setup +6.435 ns / hold +0.054 ns at 140 MHz
+with external I/O unconstrained. Matched bank VCS passes 4,669 checks and
+exact-native-input top VCS passes 7,858, with full debug waveforms. Independent
+EDA auditing matches all ten generated files / fifteen sources and rejects
+five coherently rehashed memory-policy, ten compiler-context and six XDC
+corruptions. Evidence and exact commands: `runs/aws-f2/iteration200/summary.json`
+relative to the loop.
+
+This remains compiler/component evidence. Full checkpoint image/P&R/AFI,
+three physical BUFGCE owners, complete common-cut/memory/host/pre-FAME binding,
+physical early/warm/outstanding/late captures, paired CPU zero-edge restores,
+finite replay, sustained live RTL beyond the trace window and rolling hardware
+recovery remain pending. Final scoped inventory finds no owned F2 runtime
+instance or native Vivado/Java job; no new AFI request was made.

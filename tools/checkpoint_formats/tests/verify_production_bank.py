@@ -82,6 +82,14 @@ def audit_inputs(generated):
         require(lines == [line], 'physical-constraint target or command changed: '+name)
     manifest = json.loads((generated/'bank-probe-state.json').read_text())
     binding = json.loads((generated/'bank-probe-binding.json').read_text())
+    expected_policies = {'InferReadWriteAnnotation', 'DefaultReadFirstAnnotation',
+                         'PassthroughSimpleSyncReadMemsAnnotation'}
+    mappings = binding['annotation_translation']['mappings']
+    policy_rows = [r for r in mappings
+                   if r['source'] in expected_policies | {'DefaultWriteFirstAnnotation'}]
+    require(len(mappings) == 5 and len(policy_rows) == 3 and {r['source'] for r in policy_rows} == expected_policies
+            and all(r['targets'] == [r['source']] for r in policy_rows),
+            'memory lowering policy changed or missing')
     descriptors = json.loads((generated/'bank-probe-descriptors.json').read_text())
     require(manifest['reference_sha256'] == binding['reference_sha256'] ==
             sha(generated/'bank-probe-reference.fir'), 'unbound pre-bank circuit')

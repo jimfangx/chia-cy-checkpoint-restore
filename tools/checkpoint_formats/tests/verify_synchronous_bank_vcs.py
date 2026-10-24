@@ -38,6 +38,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--generated', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--default-read-first', action='store_true',
+                        help='Verify backend-resolved undefined readers as old-data pipelines')
     args = parser.parse_args()
     require(Path(toolchain.VCS).is_file() and os.environ.get('VCS_HOME') == toolchain.VCS_HOME,
             'run on EDA with vcs-env.sh sourced LAST')
@@ -60,7 +62,13 @@ def main():
             binding['instrumented_sha256'] == sha(snapshots / 'generated-bank.fir') and
             binding['manifest_sha256'] == sha(snapshots / 'generated-bank-semantic.json'), 'unbound storage')
     entries = binding['state']
-    require(len(entries) == 10 and {e['hierarchy'] for e in entries} == set(ORACLE), 'incomplete pipeline ownership')
+    oracle = dict(ORACLE)
+    if args.default_read_first:
+        del oracle['SyncStorage.undefMem_r_addr']
+        oracle['SyncStorage.undefMem_r_data'] = (7, 9, 1)
+        require('read-under-write => undefined' not in (snapshots/'generated-bank-input.fir').read_text(),
+                'default memory policy was not resolved before inventory')
+    require(len(entries) == 10 and {e['hierarchy'] for e in entries} == set(oracle), 'incomplete pipeline ownership')
     sim = json.loads((snapshots / 'generated-bank-simulator-binding.json').read_text())
     require(len(sim['state']) == 10 and sim['manifest_sha256'] == sha(snapshots / 'generated-bank-simulator.json')
             and sim['instrumented_sha256'] == sha(snapshots / 'generated-bank-simulator.fir') and
@@ -72,7 +80,7 @@ def main():
     header = ['localparam integer ENTRY_COUNT=10;',
               'integer banks[0:9],slots[0:9],depths[0:9],kinds[0:9];', 'initial begin']
     for i, e in enumerate(entries):
-        kind, width, depth = ORACLE[e['hierarchy']]
+        kind, width, depth = oracle[e['hierarchy']]
         require((e['width'], e['depth']) == (width, depth), 'reshaped owner')
         header.append(f"banks[{i}]={e['bank']};slots[{i}]={e['slot']};depths[{i}]={depth};kinds[{i}]={kind};")
     (out / 'synchronous_bindings.svh').write_text('\n'.join(header + ['end']) + '\n')
@@ -89,6 +97,7 @@ def main():
         return (out / name).read_text()
 
     run([toolchain.VCS, '-full64', '-sverilog', '-timescale=1ns/1ps', '-Mupdate', '-debug_access+all',
+         *(['+define+DEFAULT_READ_FIRST'] if args.default_read_first else []),
          '-top', 'synchronous_bank_tb', f'+incdir+{out}', f'-Mdir={out / "csrc"}', '-o', out / 'simv',
          snapshots / 'generated-bank.sv', snapshots / 'reference.sv',
          out / 'source-snapshots' / 'tools/checkpoint_formats/tests/synchronous_bank_tb.sv'], 'compile.log')
@@ -100,6 +109,7 @@ def main():
     summary = dict(status='pass', backend='eda', original_root=str(ROOT), host=socket.gethostname(),
                    observed_utc=datetime.now(timezone.utc).isoformat(), physical_fpga_capture=False,
                    scope='five emitter synchronous reader/RW modes; independent public oracle and unchanged reference RTL',
+                   default_read_first=args.default_read_first,
                    checks=int(match[1]), reads=int(match[2]), stalls=int(match[3]), functional_edges=int(match[4]),
                    captures=int(match[5]), output_edges=int(match[6]), hashes=hashes, commands=commands,
                    artifacts={p.name: sha(p) for p in out.iterdir() if p.is_file() and p.suffix in ('.log', '.vcd', '.svh')})

@@ -10,9 +10,42 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 
 | Family | F2 workload / custom capture image | FPGA Level-1 to EDA metasim | FPGA Level-2 finite RTL replay | Live RTL / rolling hardware recovery |
 | --- | --- | --- | --- | --- |
-| Rocket (all four harts) | baseline verified: real F2 slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress: bank/MMIO/DMA fixtures synthesize locally, current exact-recipe bank trial rejects 14 annotation contracts; inert compiler context, XDC and memory-model labels now translate with provenance; all seven FPGA plusarg instances have source-checked constant semantics; three physical BUFGCE owners, complete common-cut/memory/host binding and image P&R/AFI remain pending | pending | pending | pending |
+| Rocket (all four harts) | baseline verified: real F2 slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress: bank/MMIO/DMA fixtures synthesize locally, current exact-recipe bank trial rejects 11 annotation contracts; global memory policies, inert compiler context, XDC and memory-model labels translate with provenance; all seven FPGA plusarg instances have source-checked constant semantics; three physical BUFGCE owners, complete common-cut/memory/host binding and image P&R/AFI remain pending | pending | pending | pending |
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
+
+Iteration 200 preserves exact global InferReadWrite, default read-first/write-first
+and passthrough synchronous-memory policies through bank specialization. Source
+and translated annotation hashes plus explicit mapping rows bind every policy.
+Duplicate/conflicting defaults reject; synchronous undefined read-under-write
+must be resolved by the backend before inventory, because choosing a default
+later can change a saved address pipeline into a data pipeline. Dropped or
+swapped policies fail descriptor validation. Unknown owners remain unsupported.
+Actual exact-Rocket production preflight now rejects **11 annotation classes**,
+down from 14, and emits no accepted whole-Rocket banks.
+
+All **122 Scala / 306 checkpoint Python / 40 loop tests** and the full retained
+EDA ASan/UBSan/FCFS/bank/bridge/host scope pass. A new backend-resolved read-first
+fixture passes **21,970 VCS checks**, 454 bank responses and ten complete-state
+captures, with 2,905 sampled output boundaries across 202 functional edges,
+against unchanged original RTL and an
+independent input oracle, including collisions, masks, held responses and
+continuation. Original synchronous-memory coverage remains intact. Native
+localhost Vivado 2025.2 bank and MMIO/DMA-top OOC synthesis pass; bank use is
+125 LUTs / 82 registers, estimated setup +6.435 ns / hold +0.054 ns at 140 MHz
+with external I/O unconstrained. Matched bank VCS passes 4,669 checks and
+exact-native-input top VCS passes 7,858, with full debug waveforms. Independent
+EDA auditing matches all ten generated files / fifteen sources and rejects
+five coherently rehashed memory-policy, ten compiler-context and six XDC
+corruptions. Evidence and exact commands: `runs/aws-f2/iteration200/summary.json`
+relative to the loop.
+
+This remains compiler/component evidence. Full checkpoint image/P&R/AFI,
+three physical BUFGCE owners, complete common-cut/memory/host/pre-FAME binding,
+physical early/warm/outstanding/late captures, paired CPU zero-edge restores,
+finite replay, sustained live RTL beyond the trace window and rolling hardware
+recovery remain pending. Final scoped inventory finds no owned F2 runtime
+instance or native Vivado/Java job; no new AFI request was made.
 
 Iteration 199 adds an explicit post-lowering compiler-context contract for
 InfoMode, OutputFile, TargetDir, ConfigPackage, ConfigString, OutputBaseFilename,

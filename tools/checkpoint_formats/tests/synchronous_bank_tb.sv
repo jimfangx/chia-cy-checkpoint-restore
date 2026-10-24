@@ -20,6 +20,7 @@ module synchronous_bank_tb;
   reg [8:0] memory[0:4][0:7];
   reg [8:0] savedOld,savedRWOld,savedRWUndef;
   reg [2:0] savedNew,savedUndef;
+  reg [8:0] savedUndefData;
   integer checks=0,reads=0,stalls=0,edges=0,captures=0,compared=0;
   reg initialized=0;
   `include "synchronous_bindings.svh"
@@ -36,6 +37,7 @@ module synchronous_bank_tb;
         edges=edges+1;
         if(ren) begin
           savedOld=memory[0][addr]; savedNew=addr; savedUndef=addr;
+          savedUndefData=memory[2][addr];
           // FIRRTL passthrough RW output samples old data even on write edges.
           savedRWOld=memory[3][addr]; savedRWUndef=memory[4][addr];
         end
@@ -53,7 +55,11 @@ module synchronous_bank_tb;
           ckpt_freeze,ren,wen,wmode,mask,addr,data));
         check(oldMemOut===savedOld,"old reader data pipeline");
         check(newMemOut===memory[1][savedNew],"new reader address pipeline");
+`ifdef DEFAULT_READ_FIRST
+        check(undefMemOut===savedUndefData,"default old reader data pipeline");
+`else
         check(undefMemOut===memory[2][savedUndef],"undefined reader address pipeline");
+`endif
         check(rwOldOut===savedRWOld,"old RW data pipeline including writes");
         check(rwUndefOut===savedRWUndef,"undefined RW data pipeline including writes");
         compared=compared+1;
@@ -66,7 +72,11 @@ module synchronous_bank_tb;
       0,1,2,3,4:oracle=memory[kind][at];
       5:oracle=savedOld;
       6:oracle=savedNew;
+`ifdef DEFAULT_READ_FIRST
+      7:oracle=savedUndefData;
+`else
       7:oracle=savedUndef;
+`endif
       8:oracle=savedRWOld;
       9:oracle=savedRWUndef;
       default:begin oracle=0;$fatal(1,"unknown owner");end
