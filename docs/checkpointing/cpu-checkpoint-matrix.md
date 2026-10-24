@@ -10,9 +10,38 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 
 | Family | F2 workload / custom capture image | FPGA Level-1 to EDA metasim | FPGA Level-2 finite RTL replay | Live RTL / rolling hardware recovery |
 | --- | --- | --- | --- | --- |
-| Rocket (all four harts) | baseline verified: real F2 slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress: bank/MMIO/DMA fixtures synthesize locally, current exact-recipe bank trial rejects 4 annotation contracts; stage input retains immutable circuit/module history; consumed bridge extraction retains immutable circuit/connectivity history; consumed pre-link requests retain immutable circuit/mapping history; deduplication-history and target-box instance paths, global memory policies, consumed-input/channel-frequency context, XDC and memory-model labels translate with provenance; all seven FPGA plusarg instances have source-checked constant semantics; three physical BUFGCE owners, complete common-cut/memory/host binding and image P&R/AFI remain pending | pending | pending | pending |
+| Rocket (all four harts) | baseline verified: real F2 slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress: bank/MMIO/DMA fixtures synthesize locally, current exact-recipe bank trial rejects 3 annotation contracts; passive generated headers/defines retain exact-byte emission provenance; stage input retains immutable circuit/module history; consumed bridge extraction retains immutable circuit/connectivity history; consumed pre-link requests retain immutable circuit/mapping history; deduplication-history and target-box instance paths, global memory policies, consumed-input/channel-frequency context, XDC and memory-model labels translate with provenance; all seven FPGA plusarg instances have source-checked constant semantics; three physical BUFGCE owners, complete common-cut/memory/host binding and image P&R/AFI remain pending | pending | pending | pending |
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
+
+Iteration 207 adds an exact passive output-file contract for `.const.h`,
+`.const.vh`, `.partition.const.h`, `.peer2peer.const.yaml` and `.defines.vh`.
+Original annotations and bytes remain unchanged; context binds each suffix,
+UTF-8 byte count and SHA-256, and final emission binds every preserved output.
+Duplicate suffixes, malformed/default-charset-mismatched bodies, unknown/IP
+scripts, dropped/changed outputs and dropped/changed generated sidecars reject.
+These headers remain metadata; they do not prove integrated checkpoint-driver
+or physical-state coverage. Independent fixture inputs include UTF-8 and a
+legitimate empty peer-to-peer map.
+
+All 159 Scala / 40 loop tests pass. Actual exact-Rocket production preflight
+rejects three annotation classes: RunFirrtlTransformAnnotation,
+UnrecognizedAnnotation and BlackBoxInlineAnno. Complete image/P&R/AFI, physical
+common-cut/memory/timing/bridge/host/pre-FAME binding, four active FPGA cuts,
+paired CPU zero-edge restores, finite replay, sustained live RTL and rolling
+hardware recovery remain pending. Reuse iteration194's localhost invocation.
+All 306 checkpoint Python tests, full retained EDA ASan/UBSan/FCFS scope,
+localhost bank/top OOC synthesis and independent EDA audit pass. SP2 VCS checks:
+4,669 bank / 7,858 exact-native-top / 21,970 synchronous policy, with debug
+waveforms. Twenty new output corruptions reject alongside all retained
+negatives; native/VCS audits match 22 files / 27 sources. Bank resources are
+125 LUTs / 82 registers; setup +6.435 ns / hold +0.054 ns at 140 MHz, external
+I/O unconstrained. Exact commands and receipts: `runs/aws-f2/iteration207/summary.json`.
+The saved remaining-blocker investigation identifies 2,120 target-bearing
+unknown dedup-group requests and the forced dedup policy that prevents their
+silent removal; no unsupported annotation was promoted to complete capture.
+Scoped final inventory has no owned F2 runtime or native Vivado/Java job; no
+new AFI was requested. Both read-only plan hashes remain unchanged.
 
 Iteration 206 consumes the original FirrtlCircuitAnnotation at the actual
 Golden Gate stage entry. Its immutable receipt retains the complete serialized

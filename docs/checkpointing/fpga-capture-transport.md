@@ -1,5 +1,34 @@
 # FPGA capture transport component
 
+Iteration 207 adds an exact passive output-file contract for `.const.h`,
+`.const.vh`, `.partition.const.h`, `.peer2peer.const.yaml` and `.defines.vh`.
+Original annotations and bytes remain unchanged; context binds each suffix,
+UTF-8 byte count and SHA-256, and final emission binds every preserved output.
+Duplicate suffixes, malformed/default-charset-mismatched bodies, unknown/IP
+scripts, dropped/changed outputs and dropped/changed generated sidecars reject.
+These headers remain metadata; they do not prove integrated checkpoint-driver
+or physical-state coverage. Independent fixture inputs include UTF-8 and a
+legitimate empty peer-to-peer map.
+
+All 159 Scala / 40 loop tests pass. Actual exact-Rocket production preflight
+rejects three annotation classes: RunFirrtlTransformAnnotation,
+UnrecognizedAnnotation and BlackBoxInlineAnno. Complete image/P&R/AFI, physical
+common-cut/memory/timing/bridge/host/pre-FAME binding, four active FPGA cuts,
+paired CPU zero-edge restores, finite replay, sustained live RTL and rolling
+hardware recovery remain pending. Reuse iteration194's localhost invocation.
+All 306 checkpoint Python tests, full retained EDA ASan/UBSan/FCFS scope,
+localhost bank/top OOC synthesis and independent EDA audit pass. SP2 VCS checks:
+4,669 bank / 7,858 exact-native-top / 21,970 synchronous policy, with debug
+waveforms. Twenty new output corruptions reject alongside all retained
+negatives; native/VCS audits match 22 files / 27 sources. Bank resources are
+125 LUTs / 82 registers; setup +6.435 ns / hold +0.054 ns at 140 MHz, external
+I/O unconstrained. Exact commands and receipts: `runs/aws-f2/iteration207/summary.json`.
+The saved remaining-blocker investigation identifies 2,120 target-bearing
+unknown dedup-group requests and the forced dedup policy that prevents their
+silent removal; no unsupported annotation was promoted to complete capture.
+Scoped final inventory has no owned F2 runtime or native Vivado/Java job; no
+new AFI was requested. Both read-only plan hashes remain unchanged.
+
 Iteration 206 consumes the original FirrtlCircuitAnnotation at the actual
 Golden Gate stage entry. Its immutable receipt retains the complete serialized
 input-circuit SHA-256, original circuit name and ordered module identities.

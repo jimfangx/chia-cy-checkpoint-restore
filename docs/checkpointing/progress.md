@@ -20,28 +20,41 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 206,
-**in_progress**. The actual stage now consumes its original input circuit and
-retains immutable circuit/module history. Exact Rocket bank preflight rejects
-**4 annotation classes**, down from 5. Whole-Rocket banks, complete physical
-coverage, checkpoint-enabled image and all CPU hardware migration remain pending.
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 207,
+**in_progress**. The bank compiler preserves five exact passive generated
+output-file contracts, including driver headers and platform defines, and binds
+both their original UTF-8 bytes and final emission. Exact Rocket production
+preflight now rejects **3 annotation classes**, down from 4. Whole-Rocket banks,
+complete physical coverage, checkpoint-enabled image and CPU hardware migration
+remain pending.
 
-All **153 Scala / 306 checkpoint Python / 40 loop tests**, full retained EDA
-ASan/UBSan/FCFS scope, localhost bank/top OOC synthesis and independent EDA
-audit pass. VCS: 4,669 bank / 7,858 MMIO-DMA top / 21,970 synchronous-policy
-checks. Fourteen new input-circuit corruptions reject alongside every retained
-negative. Commands and individual files: `runs/aws-f2/iteration206/summary.json`;
-see [fpga-capture-transport.md](fpga-capture-transport.md).
+All **159 Scala / 306 checkpoint Python / 40 loop tests**, full retained EDA
+ASan/UBSan/FCFS/bank/memory/bridge/host scope and localhost bank/top OOC synthesis
+pass. EDA SP2 VCS passes 4,669 bank / 7,858 exact-native-top / 21,970 synchronous
+policy checks, retaining debug waveforms. Independent auditing matches 22
+generated files / 27 sources and rejects 20 new output corruptions plus every
+retained negative. Exact commands and individual receipts:
+`runs/aws-f2/iteration207/summary.json`. Initial fixture/setup failures remain
+in their diagnostic logs; corrected full runs establish the passes.
 
-Existing controller checkpoints were published FireSim first (`55d40027`), then
-Chipyard (`a841a366`); independent remote tips agree. Chipyard's local tracking
-ref update warned read-only after the successful remote push. Current edits
+Next contracts: resolve the actual default VerilogEmitter request at stage
+entry; preserve the 2,120 target-bearing raw dedup-group restrictions; retire
+only validated, unreachable abstract clock-gate inline sources. Existing
+`--no-dedup` does not prove group restrictions redundant: the forced one-shot
+dedup pass temporarily removes that policy. Three physical BUFGCE owners still
+need a phase-correct capture/restore contract. See the exact runtime-jar/source
+provenance in `runs/aws-f2/iteration207/remaining-blockers.json` and
+[fpga-capture-transport.md](fpga-capture-transport.md).
+
+Existing controller checkpoints were published FireSim first (`10aa5ba3`), then
+Chipyard (`2e5d9626`); remote tips independently agree. The successful Chipyard
+push emitted the existing read-only local tracking-ref warning. Current edits
 await controller checkpoint/publication; follow
-[github-publication.md](github-publication.md). AWS checks pass, no owned F2
-instance or native Vivado/Java job remains, and no new AFI was requested.
-The initial inherited-context worker startup failed; a fresh-context managed
-review completed, and all delegated work was joined before final reporting.
-Plans are unchanged, with no agent staging or commits.
+[github-publication.md](github-publication.md). AWS access, localhost SSH and
+native Vivado 2025.2/F2 HDK checks pass. No new AFI or runtime instance was
+requested; final scoped inventory has no owned F2 instance or native Vivado/Java
+job. Three managed workers completed and returned results; no delegated
+LLM work remains. Plans are unchanged, with no agent staging or commits.
 
 On October 23 the
 existing manager successfully launched one tagged `f2.6xlarge`, instance
@@ -6872,3 +6885,31 @@ finite replay, sustained live RTL beyond the trace window and rolling hardware
 recovery remain pending. Reuse iteration-194's localhost invocation. AWS access
 checks pass; scoped inventory has no owned F2 instance or native Vivado/Java
 job. No new AFI was requested. Both read-only plan hashes are unchanged.
+
+## Iteration 207: passive generated-output provenance
+
+The bank compiler now retains exact driver/header/define artifact bytes with
+suffix, UTF-8 size and hash in compiler context and final emission. It rejects
+unknown/IP scripts, duplicate suffixes, malformed/default-charset-mismatched
+bodies and missing/changed outputs or generated sidecars. Independent EDA audit
+rejects 20 missing or coherently rehashed output corruptions, including swapped
+bodies, Unicode byte counts and legitimate empty maps. All 159 Scala / 306
+checkpoint Python / 40 loop tests and full retained EDA ASan/UBSan/FCFS scope
+pass. Native bank and MMIO/DMA-top OOC synthesis pass; matching SP2 VCS checks
+are 4,669 / 7,858, plus 21,970 synchronous-policy checks. Audit matches 22
+files / 27 sources. Bank resources/timing remain 125 LUTs / 82 registers,
+setup +6.435 ns / hold +0.054 ns at 140 MHz, external I/O unconstrained.
+
+Actual Rocket preflight rejects three annotation classes rather than four;
+whole-Rocket banks and complete checkpoint image remain unsupported. The
+runtime FIRRTL default emitter request, 2,120 unknown target-bearing dedup-group
+restrictions, abstract clock-gate source retirement and physical BUFGCE owners
+have concrete provenance in `runs/aws-f2/iteration207/remaining-blockers.json`.
+Existing --no-dedup does not discharge group constraints because forced dedup
+removes it temporarily. Full physical cuts, paired CPU restores, finite replay,
+live comparison beyond trace and rolling migration remain pending. Reuse the
+iteration194 localhost invocation. Exact commands and complete receipts:
+`runs/aws-f2/iteration207/summary.json`. Plans remain byte-identical; no agent
+staging/commits, new AFI requests or runtime launches. Three workers completed
+and were joined; existing controller checkpoints were published in required
+order. See [github-publication.md](github-publication.md).

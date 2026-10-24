@@ -28,7 +28,17 @@ PRELINK_HISTORY_NAMES = ('pre-link-input.fir', 'pre-link-output.fir')
 BRIDGE_HISTORY_NAMES = ('bridge-extraction-input.fir', 'bridge-extraction-promoted.fir',
                         'bridge-extraction-output.fir', 'bridge-extraction-connectivity.json')
 INPUT_CIRCUIT_NAMES = ('compiler-input.fir',)
-HISTORY_NAMES = (*PRELINK_HISTORY_NAMES, *BRIDGE_HISTORY_NAMES, *INPUT_CIRCUIT_NAMES)
+# Literal independent fixture oracle. These are retained build/driver outputs,
+# not simulator storage or evidence of an integrated checkpoint host driver.
+PASSIVE_OUTPUTS = {
+    '.const.h': '// fixture driver metadata\n#define FIXTURE_CTRL_BASE 64\n',
+    '.const.vh': '// fixture widths: λ\n`define FIXTURE_WIDTH 8\n',
+    '.partition.const.h': '// fixture partition metadata\n#define FIXTURE_PARTITIONS 1\n',
+    '.peer2peer.const.yaml': '',
+    '.defines.vh': '// fixture platform defines\n`define USE_DDR_CHANNEL_A 0\n',
+}
+OUTPUT_NAMES = tuple('passive-output'+suffix for suffix in PASSIVE_OUTPUTS)
+HISTORY_NAMES = (*PRELINK_HISTORY_NAMES, *BRIDGE_HISTORY_NAMES, *INPUT_CIRCUIT_NAMES, *OUTPUT_NAMES)
 SOURCES = ('sims/firesim/sim/midas/src/main/scala/midas/checkpoint/SimulatorBankProbe.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/SimulatorBankProbeContext.scala',
            'tools/checkpoint_formats/native_input_guard.py',
@@ -48,6 +58,10 @@ SOURCES = ('sims/firesim/sim/midas/src/main/scala/midas/checkpoint/SimulatorBank
            'sims/firesim/sim/midas/src/main/scala/midas/ShadowAnnotations.scala',
            'sims/firesim/sim/midas/targetutils/src/main/scala/midas/xdc/XDCAnnotation.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/stage/GoldenGateCompilerPhase.scala',
+           'sims/firesim/sim/midas/src/main/scala/midas/stage/GoldenGateFileEmission.scala',
+           'sims/firesim/sim/midas/src/main/scala/midas/passes/SimulationMapping.scala',
+           'sims/firesim/sim/midas/src/main/scala/midas/platform/F1Shim.scala',
+           'sims/firesim/sim/midas/src/test/scala/midas/checkpoint/SimulatorBankProbeContextSpec.scala',
            'sims/firesim/sim/midas/src/test/scala/midas/stage/GoldenGateHostPipelineSpec.scala',
            'tools/checkpoint_formats/tests/production_bank_tb.sv',
            'tools/checkpoint_formats/tests/checkpoint_generated_network_exit.cc',
@@ -88,6 +102,17 @@ def audit_inputs(generated):
              annotation_class='firrtl.stage.FirrtlFileAnnotation', file='historical-fixture.fir')),
         dict(kind='deleted_input', value=dict(producer='firrtl.options.phases.GetIncludes',
              annotation_class='firrtl.options.InputAnnotationFileAnnotation', file='historical-fixture.anno.json'))]
+    output_hashes = {}
+    for suffix, body in PASSIVE_OUTPUTS.items():
+        payload = body.encode('utf-8')
+        require((generated/('passive-output'+suffix)).read_bytes() == payload,
+                'preserved output artifact changed: '+suffix)
+        digest = hashlib.sha256(payload).hexdigest()
+        output_hashes[suffix] = digest
+        expected_rows.append(dict(kind='golden_gate_output_file', value=dict(
+            file_suffix=suffix, body_sha256=digest, body_bytes=len(payload))))
+    require(emission.get('preserved_output_sha256') == output_hashes,
+            'preserved output emission binding changed or missing')
     # The stage consumes exactly one original input circuit, independently of
     # the mapped simulator later banked. Derive its receipt from complete,
     # independently specified input text; a coherently rehashed substitution
