@@ -1,5 +1,41 @@
 # FPGA capture transport component
 
+Iteration 204 replaces the consumed mutable PreLinkRenaming namespace request
+with immutable history from the actual pass: complete ordered module renames
+and hashes of its exact historical input/output circuits. The request itself
+and wrapped requests still reject. Duplicate requests reject before namespace
+mutation. Historical names remain unchanged through bank specialization;
+context and final emission bind every value, rejecting dropped/altered history.
+A production-backend fixture uses a real collision/repeated-instance/external
+definition pass invocation; its independent audit validates both complete
+historical circuits and rejects sixteen missing or coherently rehashed history
+corruptions. Exact Rocket production preflight now rejects **6 annotation
+classes**, down from 7; no accepted whole-Rocket bank RTL is emitted.
+
+All **142 Scala / 306 checkpoint Python / 40 loop tests** and the complete
+retained EDA ASan/UBSan/FCFS/bank/bridge/host scope pass. Native localhost Vivado
+2025.2 bank and MMIO/DMA-top OOC synthesis pass. EDA SP2 VCS passes 4,669 bank /
+7,858 exact-native-top / 21,970 synchronous-policy checks, retaining debug
+waveforms. Independent audit matches twelve generated files / twenty-one
+sources, including both historical circuits, and retains all 26 context, twelve
+deduplication, eight target-box, six XDC and five memory-policy rejections.
+Bank use remains 125 LUTs / 82 registers, estimated setup +6.435 ns / hold
++0.054 ns at 140 MHz, with external I/O unconstrained. Initial fixture-only
+compile/expectation failures and corrected full-suite logs remain diagnostic.
+Commands and individual receipts: `runs/aws-f2/iteration204/summary.json`
+relative to the loop.
+
+This is compiler/component evidence. Remaining annotation contracts are
+RunFirrtlTransformAnnotation, FirrtlCircuitAnnotation, UnrecognizedAnnotation,
+BridgeExtraction$BridgeInstance, BlackBoxInlineAnno and
+GoldenGateOutputFileAnnotation. Three physical BUFGCE owners, complete common
+cut/memory/timing/bridge/host/pre-FAME integration, full image/P&R/AFI, all-hart
+active FPGA cuts, paired CPU zero-edge restores, finite replay, sustained live
+RTL beyond the trace window and rolling hardware recovery remain pending.
+Reuse iteration-194's localhost invocation. AWS access checks pass; final scoped
+inventory has no owned F2 instance or native Vivado/Java job. No new AFI was
+requested. Both plan input hashes remain unchanged.
+
 Iteration 203 adds an explicit FIRRTL DedupedResult specialization contract.
 The historical original module identity and normalized index remain unchanged;
 only the live destination and every instance hop follow bank specialization.

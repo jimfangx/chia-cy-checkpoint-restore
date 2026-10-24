@@ -24,6 +24,7 @@ ROOT = Path(__file__).resolve().parents[3]
 NAMES = ('bank-probe-reference.fir', 'bank-probe-state.json', 'bank-probe-instrumented.fir',
          'bank-probe-binding.json', 'bank-probe-descriptors.json', 'bank-probe-context.json', 'bank-probe-emission.json')
 XDC_NAMES = ('bank-probe.synthesis.xdc', 'bank-probe.implementation.xdc')
+HISTORY_NAMES = ('pre-link-input.fir', 'pre-link-output.fir')
 SOURCES = ('sims/firesim/sim/midas/src/main/scala/midas/checkpoint/SimulatorBankProbe.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/SimulatorBankProbeContext.scala',
            'tools/checkpoint_formats/native_input_guard.py',
@@ -34,6 +35,8 @@ SOURCES = ('sims/firesim/sim/midas/src/main/scala/midas/checkpoint/SimulatorBank
            'sims/firesim/sim/midas/src/main/scala/midas/core/SimWrapper.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/passes/TargetClockAnalysis.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/passes/UpdateBridgeClockInfo.scala',
+           'sims/firesim/sim/midas/src/main/scala/midas/passes/PreLinkRenaming.scala',
+           'sims/firesim/sim/midas/src/test/scala/midas/passes/PreLinkRenamingSpec.scala',
            'sims/firesim/sim/firesim-lib/src/main/scala/bridgeutils/RationalClock.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/passes/WriteXDCFile.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/ShadowAnnotations.scala',
@@ -79,6 +82,29 @@ def audit_inputs(generated):
              annotation_class='firrtl.stage.FirrtlFileAnnotation', file='historical-fixture.fir')),
         dict(kind='deleted_input', value=dict(producer='firrtl.options.phases.GetIncludes',
              annotation_class='firrtl.options.InputAnnotationFileAnnotation', file='historical-fixture.anno.json'))]
+    # Independent historical pass oracle. The names and repeated instances
+    # come from the actual pass invocation, never the current bank hierarchy.
+    # Check both complete circuit texts before trusting the event's hashes.
+    historical_input = '''FIRRTL version 1.2.0
+circuit HistoricalWrapper :
+  module Shared :
+    skip
+  extmodule External :
+    defname = external_cell
+  module HistoricalWrapper :
+    inst left of Shared
+    inst right of Shared
+    inst ext of External'''
+    historical_output = historical_input.replace('Shared', 'Shared_0').replace('External', 'External_0')
+    for name, expected in zip(HISTORY_NAMES, (historical_input, historical_output)):
+        require(' '.join((generated/name).read_text().split()) == ' '.join(expected.split()),
+                'historical pre-link circuit changed: '+name)
+    expected_rows.append(dict(kind='pre_link_renaming', value=dict(
+        producer='midas.passes.PreLinkRenaming', circuit='HistoricalWrapper',
+        input_sha256=sha(generated/HISTORY_NAMES[0]), output_sha256=sha(generated/HISTORY_NAMES[1]),
+        module_renames=[{'from': source, 'to': dest} for source, dest in
+                       (('Shared', 'Shared_0'), ('External', 'External_0'),
+                        ('HistoricalWrapper', 'HistoricalWrapper'))])))
     require(sorted(json.dumps(r, sort_keys=True) for r in context['annotations']) ==
             sorted(json.dumps(r, sort_keys=True) for r in expected_rows),
             'compiler context changed or missing')
@@ -159,7 +185,7 @@ def main():
     base.mkdir(parents=True, exist_ok=True)
     out = Path(tempfile.mkdtemp(prefix='production-bank-', dir=base))
     pinned = []
-    for label, root, names in [('generated', args.generated.resolve(), (*NAMES, *XDC_NAMES, 'bank-probe.sv')),
+    for label, root, names in [('generated', args.generated.resolve(), (*NAMES, *XDC_NAMES, *HISTORY_NAMES, 'bank-probe.sv')),
                                ('sources', ROOT, SOURCES)]:
         for name in names:
             target = out/label/name; target.parent.mkdir(parents=True, exist_ok=True)
@@ -243,7 +269,7 @@ close_project
                    observed_utc=datetime.now(timezone.utc).isoformat(), host=socket.gethostname(),
                    original_root=str(ROOT), scope='production compiler bank probe fixture only',
                    physical_fpga_capture=False, full_rocket_image_build=False, commands=commands,
-                   generated={n: sha(generated/n) for n in (*NAMES, *XDC_NAMES, 'bank-probe.sv')},
+                   generated={n: sha(generated/n) for n in (*NAMES, *XDC_NAMES, *HISTORY_NAMES, 'bank-probe.sv')},
                    sources={n: sha(out/'sources'/n) for n in SOURCES},
                    artifacts={str(p.relative_to(out)): sha(p) for p in out.rglob('*')
                               if p.is_file() and p.suffix in ('.log', '.rpt', '.dcp', '.vcd', '.tcl')})
