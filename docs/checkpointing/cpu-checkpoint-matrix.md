@@ -14,6 +14,19 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 218 emits a separate physical clock-mask wiring probe for the exact
+Rocket compiler: one added root BUFGCE, the three original native gates,
+dedicated ungated source routing and ordered unmasked CE output. Independent
+reconstruction checks every original driver, storage/reset declaration and
+clocked effect across 488 reachable module definitions and rejects eight
+coherently rehashed corruptions. The existing physical sampler can drive this
+generated network without duplicate gates. This remains **in_progress**:
+production annotation/XDC, complete external-writer/common-cut ownership,
+physical CE bank/restore mappings, MMIO/DMA binding and image/P&R/AFI are still
+pending. Every hardware capture/migration column above remains pending.
+See [f2-physical-clock-wiring.md](f2-physical-clock-wiring.md) and
+`runs/aws-f2/iteration218/verification-commands.json` for current commands.
+
 Iteration 217 adds a topology prerequisite for the generated physical cut:
 the exact Rocket final-emission plan resolves all three native SYNC gates,
 2,107 clock pins and 13,234 sequential consumers to root `clock`, with complete

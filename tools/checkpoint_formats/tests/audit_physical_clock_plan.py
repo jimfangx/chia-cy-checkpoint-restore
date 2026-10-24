@@ -38,29 +38,8 @@ def arguments(text):
     return result + [text[start:].strip()]
 
 
-def audit(reference, manifest, plan, binding, verilog):
-    text = Path(reference).read_text()
-    inventory = json.loads(Path(manifest).read_text())
-    doc = json.loads(Path(plan).read_text())
-    emitted = json.loads(Path(binding).read_text())
-    manifest_sha = hashlib.sha256(Path(manifest).read_bytes()).hexdigest()
-    plan_sha = hashlib.sha256(Path(plan).read_bytes()).hexdigest()
-    require(emitted == dict(binding_version=1, scope='physical_clock_topology_only',
-                           complete_fpga_capture=False, deployable_capture_image=False,
-                           reference_sha256=digest(text), simulator_manifest_sha256=manifest_sha,
-                           plan_sha256=plan_sha, emitted_verilog_sha256=hashlib.sha256(Path(verilog).read_bytes()).hexdigest()),
-            'unbound physical plan emission')
-    require(doc['plan_version'] == 1 and doc['scope'] == 'physical_clock_topology_only' and
-            doc['reference_sha256'] == inventory['reference_sha256'] == digest(text) and
-            doc['simulator_manifest_sha256'] == manifest_sha and
-            doc['root_module'] == inventory['root_module'] == inventory['circuit'], 'unbound plan input')
-    require(all(doc[k] is False for k in ('complete_fpga_capture', 'deployable_capture_image',
-                                         'clock_rewrite_applied', 'ce_dependency_closure_proven')),
-            'clock plan cannot establish capture or owner closure')
-    require(doc['remaining_obligations'] == ['all_functional_and_ce_driver_owners_use_generated_gated_clocks',
-            'external_ce_and_reset_writers_are_frozen_at_the_same_cut', 'physical_latch_bank_and_metasim_restore_mapping',
-            'functional_memory_timing_bridge_host_and_pre_fame_ownership', 'connected_ungated_mmio_dma_transport'],
-            'clock plan dropped pending obligations')
+def parse_modules(text):
+    """Parse lowered ground netlist connectivity, including emitter connectors."""
     headers = list(re.finditer(r'^  (extmodule|module) (' + IDENT + r') :[^\n]*', text, re.M))
     require(headers and len({h[2] for h in headers}) == len(headers), 'missing/duplicate module')
     modules = {}
@@ -137,6 +116,33 @@ def audit(reference, manifest, plan, binding, verilog):
         modules[header[2]] = dict(kind=header[1], body='\n'.join(line[2:] if line.startswith('  ') else line for line in body.splitlines()),
                                   ports=ports, instances=instances, drivers=drivers, aliases=aliases,
                                   consumers=consumers, effects=effects, events=events)
+    return modules
+
+
+def audit(reference, manifest, plan, binding, verilog):
+    text = Path(reference).read_text()
+    inventory = json.loads(Path(manifest).read_text())
+    doc = json.loads(Path(plan).read_text())
+    emitted = json.loads(Path(binding).read_text())
+    manifest_sha = hashlib.sha256(Path(manifest).read_bytes()).hexdigest()
+    plan_sha = hashlib.sha256(Path(plan).read_bytes()).hexdigest()
+    require(emitted == dict(binding_version=1, scope='physical_clock_topology_only',
+                           complete_fpga_capture=False, deployable_capture_image=False,
+                           reference_sha256=digest(text), simulator_manifest_sha256=manifest_sha,
+                           plan_sha256=plan_sha, emitted_verilog_sha256=hashlib.sha256(Path(verilog).read_bytes()).hexdigest()),
+            'unbound physical plan emission')
+    require(doc['plan_version'] == 1 and doc['scope'] == 'physical_clock_topology_only' and
+            doc['reference_sha256'] == inventory['reference_sha256'] == digest(text) and
+            doc['simulator_manifest_sha256'] == manifest_sha and
+            doc['root_module'] == inventory['root_module'] == inventory['circuit'], 'unbound plan input')
+    require(all(doc[k] is False for k in ('complete_fpga_capture', 'deployable_capture_image',
+                                         'clock_rewrite_applied', 'ce_dependency_closure_proven')),
+            'clock plan cannot establish capture or owner closure')
+    require(doc['remaining_obligations'] == ['all_functional_and_ce_driver_owners_use_generated_gated_clocks',
+            'external_ce_and_reset_writers_are_frozen_at_the_same_cut', 'physical_latch_bank_and_metasim_restore_mapping',
+            'functional_memory_timing_bridge_host_and_pre_fame_ownership', 'connected_ungated_mmio_dma_transport'],
+            'clock plan dropped pending obligations')
+    modules = parse_modules(text)
     root = doc['root_module']
     scopes = {}
 

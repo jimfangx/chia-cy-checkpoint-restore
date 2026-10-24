@@ -20,6 +20,67 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 218,
+**in_progress**. The exact Rocket compiler now emits a separate physical
+clock-mask wiring probe: one new root BUFGCE plus all three original native
+SYNC gates, ungated source routing to their I pins and a deterministic unmasked
+CE vector through repeated/nested hierarchy. Direct type/kind/flow resolution
+preserves final emitter operations and memory IR. Independent reconstruction
+checks every original driver, storage/reset declaration and clocked effect in
+488 reachable module definitions (5,037 consumer definitions); eight coherent
+wiring corruptions reject. The topology audit still covers all 13,234
+instantiated consumers / 11,459 inventory entries and rejects 15 mutations.
+See [f2-physical-clock-wiring.md](f2-physical-clock-wiring.md).
+
+The physical sampler's new external-network mode drives this generated mask
+without duplicate gates. Native localhost F2-device synthesis of the connected
+64-bit fixture retains three SYNC gates and one falling-edge mask register:
+**47 LUTs / 151 registers**, estimated 140 MHz setup **+2.750 ns**, unplaced hold
+**-0.072 ns**; implementation timing closure is pending. Fresh EDA SP2 VCS
+passes **1,813 checks**, complete cuts **0/17/128/256**, 64 stalled cycles and
+continuation through 320 functional cycles. A test-only CE expectation mutation
+stops at cycle 17 without acknowledging an edge; two full debug VCDs remain.
+These are compiler/component results, never FPGA capture or CPU live acceptance.
+
+All **214 Scala / 309 checkpoint Python / 40 loop tests** pass. The complete
+retained EDA ASan/UBSan/FCFS/host/bank/memory/bridge scope passes, including
+fresh exact-native-input top VCS (**7,858 checks**), production bank (**4,669**),
+default physical cut (**1,968**) and bank/MMIO/DMA transport (**4,739**).
+All ten native component synthesis scopes pass. Final native/EDA production
+receipts match 28 generated files / 45 sources; the new wiring receipts match
+20 inputs / nine sources. Existing production, mapping, physical and transport
+corruption scopes pass; original execution evidence is preserved.
+
+The probe does not replace deployable RTL, translate production annotations/XDC
+or admit banks. Complete external CE/reset/memory writers, physical CE bank IDs
+and zero-edge restore adapters, authoritative FAME target time, functional
+memory/timing/bridge/host/pre-FAME ownership and ungated MMIO/DMA binding remain
+pending. The exact Rocket production build still explicitly rejects the FASED
+physical CE owner. Full localhost image/P&R/AFI, actual active four-hart FPGA
+cuts and paired zero-edge/finite/live/rolling CPU migration are still required.
+Reuse iteration194's initialized ExternallyProvisioned localhost invocation;
+no new instance or AFI was requested. Final scoped inventory has no active loop
+runtime or native Vivado/Java job. Do not deploy the probe as a capture image.
+
+Initial final-IR text reparsing, unreachable-extmodule audit selection,
+source-change-during-synthesis and vendor-global-reset startup failures retain
+their original logs. The fixes preserve original IR, restrict primitive choice
+to reachable native owners, pin final sources and respect vendor startup.
+The evidence audit found a missing fresh top fixture and the full check was
+subsequently run. Exact commands, final component receipts, `summary.json`,
+`final-audit.json` and `remaining-blockers.json` are under
+`runs/aws-f2/iteration218/`.
+
+Managed worker startup failed before creation; only the central agent ran and
+no delegated request remains. Existing controller checkpoints were published
+FireSim first (`266d3f31`), then Chipyard (`421e0c42`); independent remote tips
+match. The local read-only tracking-ref warning did not prevent the Chipyard
+remote update. Plans and the four initialized manager YAMLs retain entry
+hashes. No staging or local commits. Follow
+[github-publication.md](github-publication.md) for the controller's next checkpoint.
+
+## Iteration 217 (retained recovery note)
+
 Active milestone: `F2-rocket-checkpoint-migration`, iteration 217,
 **in_progress**. The exact Rocket compiler now emits a physical common-source
 clock plan from its final emitted netlist: three native default-SYNC BUFGCEs,

@@ -1,5 +1,9 @@
 # Rocket physical clock cut prerequisites
 
+Iteration 218 adds a separate [generated clock-mask wiring probe](f2-physical-clock-wiring.md)
+and sampler connection. The topology-only output described below remains
+unchanged, and complete production capture ownership is still pending.
+
 Iteration 217 adds `--simulator-physical-clock-plan` to the actual Golden Gate
 compiler. It requires one complete root inventory and rejects bank-probe or
 semantic-map requests in the same invocation. It runs against the emitter's

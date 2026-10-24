@@ -49,6 +49,7 @@ SOURCES = ('sims/firesim/sim/midas/src/main/scala/midas/checkpoint/SimulatorBank
            'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedExternalOwners.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/PhysicalClockGateContract.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/PhysicalClockCutPlan.scala',
+           'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/PhysicalClockCutWiring.scala',
            'sims/firesim/sim/midas/src/test/scala/midas/checkpoint/PhysicalClockCutPlanSpec.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/stage/GoldenGateCli.scala',
            'sims/firesim/sim/midas/src/test/scala/midas/checkpoint/PhysicalClockGateContractSpec.scala',

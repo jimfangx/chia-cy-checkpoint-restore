@@ -76,8 +76,8 @@ module physical_clock_cut_tb;
     check(captured_ce[0]===ref_gates[0].gate.enable_clk &&
           captured_ce[1]===ref_gates[1].gate.enable_clk &&
           captured_ce[2]===ref_gates[2].gate.enable_clk,"independent vendor low-latch readback");
-    check(dut.root_gate.enable_clk===0 && dut.gates[0].gate.enable_clk===0 &&
-          dut.gates[1].gate.enable_clk===0 && dut.gates[2].gate.enable_clk===0,
+    check(dut.internal_clock_network.root_gate.enable_clk===0 && dut.internal_clock_network.gates[0].gate.enable_clk===0 &&
+          dut.internal_clock_network.gates[1].gate.enable_clk===0 && dut.internal_clock_network.gates[2].gate.enable_clk===0,
           "physical latch is masked, logical mapping is separate");
     if (corrupt && cycle==17) check(captured_ce===(reference_ce ^ 1),"captured_ce[0]");
     saved_cycle=target_cycle;
