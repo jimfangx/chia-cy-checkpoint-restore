@@ -17,20 +17,25 @@ import tempfile
 from tools.checkpoint_formats import toolchain
 from tools.checkpoint_formats.codec import require
 from tools.checkpoint_formats.tests.audit_physical_clock_wiring import audit
+from tools.checkpoint_formats.tests.audit_physical_clock_dependencies import audit as audit_dependencies
 
 ROOT = Path(__file__).resolve().parents[3]
 RUNS = ROOT / 'automations/checkpoint_loop/runs'
 SOURCES = ('sims/firesim/sim/midas/src/main/verilog/CheckpointPhysicalClockCut.sv',
            'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/PhysicalClockCutWiring.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/PhysicalClockCutPlan.scala',
+           'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/PhysicalClockCutDependencies.scala',
+           'sims/firesim/sim/midas/src/test/scala/midas/checkpoint/PhysicalClockCutDependenciesSpec.scala',
            'sims/firesim/sim/midas/src/test/scala/midas/checkpoint/PhysicalClockCutPlanSpec.scala',
            'tools/checkpoint_formats/tests/audit_physical_clock_plan.py',
            'tools/checkpoint_formats/tests/audit_physical_clock_wiring.py',
+           'tools/checkpoint_formats/tests/audit_physical_clock_dependencies.py',
            'tools/checkpoint_formats/tests/physical_clock_wiring_tb.sv',
            'tools/checkpoint_formats/tests/verify_physical_clock_wiring.py',
            'tools/checkpoint_formats/tests/checkpoint_generated_network_exit.cc')
 FILES = ('reference.fir','manifest.json','physical-clock-plan.json', 'physical-clock-wiring.fir',
-         'physical-clock-wiring.json','physical-clock-wiring.sv','physical-clock-wiring-emission.json')
+         'physical-clock-wiring.json','physical-clock-wiring.sv','physical-clock-wiring-emission.json',
+         'physical-clock-dependencies.json')
 FIXTURE = '''module PhysicalClockWiringFixture(
   input wire clock, reset, freeze_request,
   output wire [7:0] a,b,
@@ -99,6 +104,8 @@ def main():
         return log.read_text()
 
     def check_generated(directory):
+        audit_dependencies(directory/'reference.fir',directory/'manifest.json',directory/'physical-clock-plan.json',
+            directory/'physical-clock-dependencies.json')
         return audit(directory/'reference.fir',directory/'manifest.json',directory/'physical-clock-plan.json',
             directory/'physical-clock-wiring.fir',directory/'physical-clock-wiring.json',
             directory/'physical-clock-wiring.sv',directory/'physical-clock-wiring-emission.json')

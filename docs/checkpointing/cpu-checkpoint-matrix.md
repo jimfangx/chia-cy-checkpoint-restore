@@ -14,6 +14,18 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 219 adds complete original-CE dependency prerequisites to that probe.
+The three actual Rocket gates have 27/179/179 clocked-state terminals (207
+distinct owners), all bound to inventory StateIDs and clock consumers. The
+two target gates also depend on external `F1Shim.reset`, whose same-cut owner
+remains unbound. An independent concrete-instance oracle rejects omitted
+dependencies and invented closure/ownership claims. This is **in_progress**
+compiler/component work; the physical bank guard remains, and full localhost
+image implementation/AFI, actual FPGA checkpoint cuts and every migration
+column above remain pending. See
+[f2-physical-clock-dependencies.md](f2-physical-clock-dependencies.md) and
+`runs/aws-f2/iteration219/verification-commands.json` for current commands.
+
 Iteration 218 emits a separate physical clock-mask wiring probe for the exact
 Rocket compiler: one added root BUFGCE, the three original native gates,
 dedicated ungated source routing and ordered unmasked CE output. Independent

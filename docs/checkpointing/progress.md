@@ -20,6 +20,61 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 219,
+**in_progress**. The exact Rocket compiler now emits original, unmasked CE
+combinational dependency prerequisites alongside the separate physical wiring
+probe. Repeated/nested hierarchy and implicit synchronous memory pipeline
+owners retain exact inventory StateIDs and stopped-clock coverage. The three
+native gate cones contain **27/179/179 state terminals (207 distinct owners)**;
+the two target gates also depend on external **`F1Shim.reset`**, whose same-cut
+owner remains unbound. Unknown/invalid dependencies, combinational cycles and
+oscillating/physical clocks used as CE data reject. No functional/deployable
+RTL or capture admission changes. See
+[f2-physical-clock-dependencies.md](f2-physical-clock-dependencies.md).
+
+Independent concrete-instance reconstruction passes the exact Rocket and mask
+fixture, rejects **11** dependency/ownership corruptions each (including
+coherently removed external inputs), and agrees on **six** external-input/RAM
+cases: asynchronous reads, saved synchronous address/data and both lowered and
+emitter readwriters. Existing complete Rocket topology/wiring audits retain
+**15/8** negative cases. Native and EDA wiring snapshots match **24 inputs /
+12 sources**, now including the dependency manifest and compiler/oracle sources.
+
+All **217 Scala / 309 checkpoint Python / 40 loop tests**, the complete retained
+EDA ASan/UBSan/FCFS/host/bank/memory/bridge scope and all **ten** native localhost
+component synthesis scopes pass. Fresh EDA SP2 wiring VCS passes **1,813** checks,
+complete cuts 0/17/128/256, 64 stalls and 320 functional cycles, with both debug
+VCDs and first-divergence rejection. Retained physical-cut/transport/top VCS
+passes **1,968 / 4,739 / 7,858** checks; production bank passes **4,669**.
+These remain compiler/component results, never FPGA capture or CPU acceptance.
+
+Bind `F1Shim.reset` and complete external writers at the same production cut;
+connect production clock/cut/bank and annotation/XDC translation, physical CE
+StateIDs and zero-edge restore adapters, ungated MMIO/DMA and complete
+functional-memory/timing/bridge/host/pre-FAME ownership next. Exact Rocket
+production compilation still explicitly rejects the FASED physical CE owner.
+Full localhost image/P&R/AFI, actual active four-hart early/warm/outstanding/late
+F2 cuts, independent paired zero-edge restores, finite replay, sustained live
+clean RTL beyond trace and rolling hardware failure migration remain pending.
+Reuse iteration194's initialized ExternallyProvisioned localhost invocation;
+no new instance or AFI was requested. Do not deploy the probe as a capture image.
+
+Initial test-construction compiler-symbol/readwriter-enable failures and
+independent-oracle module-name/import-path diagnostics remain in their original
+iteration219 logs; corrected full checks pass. Exact commands and individual
+receipts are in `runs/aws-f2/iteration219/verification-commands.json`,
+`summary.json`, `final-audit.json` and `remaining-blockers.json`.
+
+Managed worker startup failed before creation; only the central agent ran and
+no delegated request remains. Existing controller checkpoints were published
+FireSim first (`5d06691a`), then Chipyard (`de1575be`); independent remote tips
+match. The local read-only tracking-ref warning did not prevent the Chipyard
+remote update. Plans and the four initialized manager inputs retain entry
+hashes; no staging or local commits. Follow
+[github-publication.md](github-publication.md) for the controller's next checkpoint.
+
+## Iteration 218 (retained recovery note)
+
 Active milestone: `F2-rocket-checkpoint-migration`, iteration 218,
 **in_progress**. The exact Rocket compiler now emits a separate physical
 clock-mask wiring probe: one new root BUFGCE plus all three original native
