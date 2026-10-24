@@ -14,6 +14,22 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 221 adds exact Rocket physical CE StateIDs and a generated bank-255
+readout endpoint, with one bit and one slot per original native gate. It binds
+the source/inventory/topology/CE dependencies and generated endpoint bytes;
+complete capture, production freeze ownership and metasim restore support remain
+explicitly false. The exact endpoint with the generated active three-gate
+fixture synthesizes on localhost: 202 LUTs / 235 registers, four SYNC BUFGCEs,
+one falling-edge mask, OOC setup/hold estimates +2.063/-0.072 ns at 140 MHz.
+All 220 Scala tests and 14 independent layout corruption cases pass. Fresh EDA SP2 passes **2,722 checks / five cuts / 52 reads / 140 stalls**,
+reset cancellation/recovery and resumed execution through cycle 320. Every bit
+is read as both zero and one. Corrupt-oracle and independently compiled
+inverted-bit endpoints stop at their first bad frozen readout; three full debug
+VCDs remain. The production BUFGCE guard remains; complete bank arbitration,
+owner/restore binding, full image/P&R/AFI and every physical capture/migration
+column above remain pending. See [f2-physical-ce-bank.md](f2-physical-ce-bank.md)
+and `runs/aws-f2/iteration221/verification-commands.json`.
+
 Iteration 220 connects the compiler-generated native clock mask/CE network to
 physical bank/MMIO/DMA transport without duplicate gates. Reset directly
 invalidates unpublished DMA streams. Fresh native generated-network synthesis

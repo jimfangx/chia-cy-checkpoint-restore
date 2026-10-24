@@ -20,6 +20,61 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 221,
+**in_progress**. The exact Rocket compiler now emits a read-only physical CE
+bank companion: three distinct physical StateIDs, bank 255 / slots 0-2, one-bit
+width/depth-one descriptors and an ungated backpressured response endpoint.
+It reads the common-low-phase sampler's unmasked captured CE, with explicit
+same-reset/read-enable contracts. The manifest binds the exact reference,
+inventory, topology, original CE dependencies and generated RTL bytes. See
+[f2-physical-ce-bank.md](f2-physical-ce-bank.md).
+
+All **220 Scala / 309 checkpoint Python / 40 loop tests** pass. The full retained
+EDA ASan/UBSan/FCFS/host/bridge/bank/memory/clock scope and all twelve localhost
+component synthesis scopes pass. The exact generated CE endpoint plus compiler
+three-gate workload/sampler synthesizes on localhost with **202 LUTs / 235
+registers**, four native SYNC BUFGCEs and one falling-edge mask. OOC setup/hold
+estimates are **+2.063/-0.072 ns** at 140 MHz; full image timing is pending.
+Independent concrete-instance reconstruction rejects **14** layout corruptions,
+including omitted owners, aliases, metasim O-as-physical IDs and unsupported
+capture/restore claims. Fresh EDA SP2 passes **2,722 checks**, **five cuts /
+52 reads / 140 stalled cycles**, reset cancellation/recovery and independent
+resumed workload checks
+through cycle **320**. Every CE bit is observed as both zero and one. The
+corrupt oracle and an independently compiled inverted-bit endpoint each stop
+at their first bad frozen readout, with three full debug VCDs. Both retained
+physical transport modes still pass 4,739 checks, five complete cuts and all
+fault/reset cases; physical cut/top/production bank/wiring scopes retain
+1,968 / 7,858 / 4,669 / 1,813 checks. Six memory-corpus audits and independent
+Rocket topology/wiring/CE reconstruction retain their complete scope.
+
+No complete production capture/restore owner is admitted. The exact Rocket
+production compilation still rejects the FASED physical CE latch. The new
+endpoint still needs complete bank arbitration and MMIO/DMA composition,
+production external reset/writer binding, physical CE zero-edge metasim restore,
+and complete simulator/functional-memory/timing/bridge/host/pre-FAME ownership.
+Full localhost image/P&R/AFI, active four-hart early/warm/outstanding/late FPGA
+cuts, paired independent zero-edge readbacks, finite replay, sustained live
+clean RTL beyond trace and rolling FPGA failure recovery remain pending.
+Reuse iteration194's initialized localhost build invocation; do not deploy the
+component fixture as a checkpoint image. No AFI or runtime instance requested.
+
+The initial native run correctly rejected a verifier edit during execution;
+its original source-integrity failure/log is retained. A fresh native run uses
+current immutable inputs. Plans and initialized manager inputs retain entry
+hashes. No staging or commits. Existing controller checkpoints were published
+FireSim first (`af89e1d3`), then Chipyard (`a6b6c72a`); independent remote tips
+match. Chipyard's local read-only tracking-ref warning did not prevent the
+remote update. Follow [github-publication.md](github-publication.md) for the
+controller's next checkpoint. Managed worker startup failed before creation;
+only the central agent ran, and no delegated LLM request remains. Final AWS/
+localhost inventory has no active loop F2 instance or native Vivado/Java job.
+Independent current-source bank audit matches 30 inputs / 12 sources. Exact
+commands, final audit, summary and pending requirements are under
+`runs/aws-f2/iteration221/`.
+
+## Iteration 220 (retained recovery note)
+
 Active milestone: `F2-rocket-checkpoint-migration`, iteration 220,
 **in_progress**. `CheckpointPhysicalCaptureTransport` now connects directly to
 the compiler's hierarchy-preserving native clock mask/CE network, using its new
