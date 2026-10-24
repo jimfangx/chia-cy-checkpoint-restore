@@ -20,7 +20,68 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 226,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 227,
+**in_progress**. Native functional banks now compose with the hierarchy-preserving
+physical clock-mask network from the **same original circuit**. The generator
+independently reconstructs the banks before wiring, retains the original native
+BUFGCEs, adds one root mask gate, exports unmasked logical CE and leaves the
+response endpoint on `ckpt_clock`. Both translated XDC files remain byte-identical.
+See [f2-native-clock-cut-banks.md](f2-native-clock-cut-banks.md).
+
+The exact Rocket recipe compiles and passes complete independent structural
+reconstruction: **2,290 module definitions / 14,313 sequential/effect definitions**,
+**12,096 functional + three CE descriptors / 619,016 words**, three original
+native gates plus the root gate. All six original clock/CE inputs are unchanged.
+All **234 Scala tests** pass. The connected native counter/wide-RAM component
+synthesizes with **882 LUTs / 462 registers** and independently checked raw-clock
+bank endpoints, one falling-edge mask register and no duplicate gates. OOC
+140 MHz setup/hold estimates are **+2.672/−0.074 ns**; hold timing and complete
+image implementation/timing closure remain pending. Eight coherently rehashed
+structural/admission corruptions reject.
+
+Fresh EDA SP2 passes **5,343 checks / 128 words / four physical component
+cuts / 468 response stalls**, then continues through cycle **409**. Cuts are
+**15/68/183/329**. Payload corruption stops at cycle 15/check 24; an independently
+compiled root-mask bypass stops at cycle 15/check 14. Missing-owner and CE-drift
+cuts deny reads and remain stopped after host withdrawal. Five full execution
+VCDs remain. Independent native/EDA auditing matches **244 inputs / 24 sources**.
+Both localhost and EDA independently reconstruct the complete exact-Rocket clock/
+bank companion with matching hashes. All **18 localhost synthesis scopes**, all
+**37 retained/new EDA scopes**, **309 checkpoint Python / 40 loop tests** and the
+retained ASan/UBSan/host/FCFS checks pass. Final execution receipts, commands,
+underlying recovered failures and resource inventory belong under
+`runs/aws-f2/iteration227/`. Ordinary production admission still rejects the
+unbound FASED CE-latch owner. This is a separate clock/bank companion, not a
+replacement production image or complete CPU capture.
+
+Next: connect this generated native network to the CE endpoint/router and actual
+FireSim MMIO/DMA widget. Bind `F1Shim.reset`, every external CE input/writer,
+functional DRAM, FASED/bridge/host and pre-FAME owners to one cut. Resetting the
+sampler alone can reopen its mask; complete reset ownership is mandatory. Complete
+physical CE restore, localhost full image/P&R/AFI, active all-hart early/warm/
+outstanding/late F2 captures, paired independent zero-edge readback, finite replay,
+sustained live RTL beyond the trace and rolling hardware failure recovery remain
+required. Every FPGA-origin migration column stays pending. Reuse iteration194's
+initialized ExternallyProvisioned localhost invocation. No new checkpoint-enabled
+AFI, FPGA capture or CPU migration is claimed.
+
+The initialized AWS identity/F2 access and native Vivado 2025.2/HDK/localhost SSH
+checks succeed. All native jobs have completed and no loop F2 runtime instance
+remains. Account AFI IDs and the earlier pending-state observation remain in
+separate inventory receipts; the final AWS query reports all 28 account images
+available. This turn requested or modified no AFI and binds none of those existing
+images to complete checkpoint capture. Protected plans and four manager inputs
+retain their entry hashes. No staging or local commits. Existing controller checkpoints were published
+FireSim first (`b53c2d9b`), then Chipyard (`fceaea68`), with remote tips checked
+independently. The Chipyard push's local tracking-ref write failed on the protected
+filesystem after the remote accepted it; raw output remains under `runs/`.
+Follow [github-publication.md](github-publication.md) for the next controller
+checkpoint. Managed worker startup failed before creation; the native managed
+inventory contains only root and no delegated LLM job exists.
+
+## Iteration 226 (retained recovery note)
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 226,
 **in_progress**. Native functional and physical CE descriptor composition now
 requires the **same original circuit**. The new factory independently regenerates
 the native banks before accepting a result; differing references, coherently

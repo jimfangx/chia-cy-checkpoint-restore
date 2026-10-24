@@ -14,6 +14,26 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 227 connects independently reconstructed native functional banks to
+the generated physical clock-mask hierarchy from the same original Rocket circuit.
+The separate clock/bank companion retains every original native gate and both
+translated XDC files; the endpoint stays ungated. Independent auditing checks
+**2,290 modules / 14,313 sequential/effect definitions**. The descriptor counts
+remain **12,096 functional + three CE / 619,016 words**. All **234 Scala tests**
+pass; eight coherently rehashed structural/admission corruptions reject. The
+connected counter/wide-RAM component synthesizes with **882 LUTs / 462 registers**;
+OOC 140 MHz setup/hold estimates are **+2.672/−0.074 ns**. Hold timing closure is
+pending. Fresh EDA SP2 passes **5,343 checks / four component cuts / 128 words /
+468 stalls**, continuing through cycle 409. Semantic/root-mask faults stop at
+cycle 15/checks 24/14; missing-owner/CE-drift rejection and all five debug VCDs
+remain. Independent native/EDA matching covers **244 inputs / 24 sources**; all
+18 native synthesis and 37 EDA scopes pass. This is **in_progress clock/bank
+integration**; production reset and
+external-owner contracts, complete widget/network connection, full image/P&R/AFI
+and all FPGA-origin migration columns above remain pending. See
+[f2-native-clock-cut-banks.md](f2-native-clock-cut-banks.md) and
+`runs/aws-f2/iteration227/verification-commands.json` for final execution receipts.
+
 Iteration 226 composes native functional and physical CE descriptors from the
 same original Rocket circuit: **12,099 descriptors / 619,016 transfer words**.
 The factory independently reconstructs the native banks; different-circuit or

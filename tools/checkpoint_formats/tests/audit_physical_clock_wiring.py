@@ -15,9 +15,24 @@ PREFIX = 'checkpoint_physical_'
 MASK, RAW, CE, ROOT_GATE = [PREFIX + x for x in ('mask', 'source_clock', 'logical_ce', 'root_gate')]
 
 
-def audit(reference, manifest, plan, wired, binding, verilog, emission):
+def audit(reference, manifest, plan, wired, binding, verilog, emission, native_generated=None):
     text = Path(reference).read_text()
-    original = parse_modules(text)
+    native_binding = None
+    if native_generated is not None:
+        from tools.checkpoint_formats.tests.audit_native_functional_production import audit as audit_native
+        audit_native(native_generated)
+        native_generated = Path(native_generated)
+        prefix = native_generated/'FireSim-generated'
+        native_path = lambda suffix: Path(str(prefix)+'.native-functional'+suffix)
+        require(Path(reference).read_bytes() == native_path('-reference.fir').read_bytes() and
+                Path(manifest).read_bytes() == native_path('-simulator-state.json').read_bytes() and
+                Path(plan).read_bytes() == native_path('-plan.json').read_bytes(),
+                'native wiring inputs differ from independently audited functional source')
+        native_binding = json.loads(native_path('-binding.json').read_text())
+        baseline_text = native_path('-instrumented.fir').read_text()
+    else:
+        baseline_text = text
+    original = parse_modules(baseline_text)
     result_text = Path(wired).read_text()
     result = parse_modules(result_text)
     source_plan = json.loads(Path(plan).read_text())
@@ -49,9 +64,31 @@ def audit(reference, manifest, plan, wired, binding, verilog, emission):
             'external_ce_reset_and_memory_writer_freeze', 'physical_latch_bank_and_metasim_restore_mapping',
             'production_annotation_and_xdc_translation', 'functional_memory_timing_bridge_host_and_pre_fame_ownership',
             'connected_ungated_mmio_dma_transport'])
+    if native_binding is not None:
+        expected.update(scope='native_functional_clock_cut_companion_only',
+            functional_binding_sha256=digest(native_path('-binding.json').read_text()),
+            functional_instrumented_sha256=digest(baseline_text), access_clock='ckpt_clock',
+            access_clock_contract='tie_to_ungated_common_source',
+            functional_freeze_contract='hold_clock_mask_through_endpoint_drain',
+            bank_annotations_preserved=True, production_freeze_owners_bound=False, metasim_restore_supported=False)
     require(doc == expected, 'changed wiring binding or ownership claim')
-    require(json.loads(Path(emission).read_text()) == dict(wiring_binding_sha256=digest(Path(binding).read_text()),
-            wired_verilog_sha256=digest(Path(verilog).read_text())), 'unbound emitted wiring')
+    if native_binding is None:
+        require(json.loads(Path(emission).read_text()) == dict(wiring_binding_sha256=digest(Path(binding).read_text()),
+                wired_verilog_sha256=digest(Path(verilog).read_text())), 'unbound emitted wiring')
+    else:
+        suffixes = ['.native-clock-cut'+s for s in ('.fir','.json','.sv','.synthesis.xdc','.implementation.xdc')]
+        suffixes += ['.native-functional-emission.json','.native-descriptors-emission.json']
+        inputs = {s: digest(Path(str(prefix)+s).read_text()) for s in suffixes}
+        require(json.loads(Path(emission).read_text()) == dict(binding_version=1,
+            scope='native_functional_clock_cut_companion_only', inputs=inputs, complete_fpga_capture=False,
+            deployable_capture_image=False, production_freeze_owners_bound=False, metasim_restore_supported=False),
+            'native wiring emission/source/annotation binding changed')
+        require(inputs['.native-clock-cut.fir'] == digest(result_text) and
+                inputs['.native-clock-cut.json'] == digest(Path(binding).read_text()) and
+                inputs['.native-clock-cut.sv'] == digest(Path(verilog).read_text()), 'native wiring output substitution')
+        for suffix in ('.synthesis.xdc','.implementation.xdc'):
+            require(Path(str(prefix)+'.native-clock-cut'+suffix).read_bytes() == native_path(suffix).read_bytes(),
+                    'native pin constraints changed during clock wiring')
     visited = set()
     consumer_count = 0
 
@@ -140,6 +177,13 @@ def audit(reference, manifest, plan, wired, binding, verilog, emission):
         for child in before['instances'].values():
             check(child)
     check(root)
+    if native_binding is not None:
+        root_consumers = {name: expression for name, kind, expression in result[root]['consumers'] if kind == 'register'}
+        # The complete structural oracle above also checks every update/reset,
+        # not just these clock names. This explicit check catches accidental
+        # remasking of the endpoint in a coherently changed native input.
+        for name in ('ckpt_pending','ckpt_saved_data','ckpt_saved_error'):
+            require(root_consumers.get(name) == 'ckpt_clock', 'native endpoint clock was masked or changed')
     return dict(status='pass', scope='independent complete clock-wiring structural audit',
                 physical_fpga_capture=False, deployable_capture_image=False, native_gates=len(top_gates) + 1,
                 checked_module_definitions=len(visited), checked_consumer_definitions=consumer_count,
