@@ -20,53 +20,52 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 210,
-**in_progress**. The pinned FIRRTL 1.6 runtime now understands the exact typed
-Chisel DedupGroupAnnotation wire format. Stage entry disables unaware generic
-dedup before optimization. The actual forced pass partitions native bottom-up
-structural cliques by literal group, preserving native instance/component/module
-renaming, NoDedup and prior DupedResult behavior. Ungrouped modules remain a
-separate group; incompatible prior clique-name aliases reject. Constraints are
-consumed immediately after enforcement, before FAME/inline removes definitions.
-Input policy, actual pass maps/hashes and retirement history remain immutable
-through linking and final bank emission; ordinary dedup remains disabled and a
-second forced pass rejects. Missing/changed/duplicate receipts and suppression
-reject at both emission boundaries.
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 211,
+**in_progress**. Exact native default-SYNC BUFGCE public-pin/cell XDC targets
+now validate and translate through repeated instance specialization. Shared
+physical leaves retain their definition and correlated arguments; private pins,
+unknown/altered/parameterized primitives, source overrides, foreign/stale paths
+and cross-root arguments reject. Real WriteXDCFile expands the final hierarchy.
+External-owner reports now bind the exact physical definition and explicit
+transparent-low CE-latch/common-low-phase-cut requirements. Bank generation
+explicitly rejects that uncaptured physical owner; metasim's O register is not
+accepted as an FPGA latch adapter. Independent auditing also rejects missing,
+changed, mistyped and coherently rehashed physical contracts.
 
-The actual exact-Rocket compile now passes the raw annotation-class barrier
-(all **2,120** group constraints are typed/enforced), then rejects:
-`Generated checkpoint bank unsupported: XDC target requires a reachable concrete
-module: BUFGCE`. Do not weaken the concrete XDC check to admit an opaque primitive.
-Next: implement its physical constraint/state-owner contract and common-cut
-integration. Whole-Rocket bank RTL and a complete checkpoint image are not emitted.
-Exact fresh compiler log and receipt: `runs/aws-f2/iteration210/remaining-blockers.json`.
+The exact Rocket compiler advances past the old opaque-BUFGCE XDC failure and
+now rejects `annotation target is unreachable: ~F1Shim|Nasti2AXI4IdentityModule`.
+The underlying stack identifies **firrtl.transforms.NoDedupAnnotation** at
+GeneratedStateBankAnnotations.scala:175. Keep this constraint fail-closed;
+implement a phase-correct consumption/retirement contract through the actual
+inline pass rather than deleting unreachable annotations. Full log and stack
+receipt: `runs/aws-f2/iteration211/remaining-blockers.json`. No whole-Rocket
+bank RTL or checkpoint-enabled image is emitted.
 
-**188 Scala / 306 checkpoint Python / 40 loop tests**, full retained EDA
-ASan/UBSan/FCFS/memory/bridge/host/component scope and localhost OOC bank/MMIO-DMA
-synthesis pass. Fresh group fixture: **7,112** SP2 VCS comparisons / 512 cycles,
-full debug VCD, **19** independent corruptions rejected; native F2-part OOC:
-**63 LUTs / 56 registers**, retaining seven independent concrete owners. Inline
-fixture: 2,016 comparisons, 13 corruptions rejected and matching native OOC.
-Bank and synchronous-policy VCS pass 4,669 and 21,970 checks respectively.
-Final exact-native-top VCS passes **7,858** checks; the independent artifact
-audit matches **28 generated files / 39 current sources**. Complete commands/receipts are recorded under `runs/aws-f2/iteration210/summary.json`.
-This remains compiler/component evidence, not FPGA checkpoint capture.
+The full **193 Scala / 309 checkpoint Python / 40 loop tests**, retained EDA
+ASan/UBSan/FCFS/bank/memory/bridge/host scope and all native OOC checks pass.
+The new native fixture retains two real BUFGCEs / sixteen registers / six
+constraints; fresh EDA SP2 VCS compares **4,064** public outputs / 512 source
+cycles, with deliberate corruption stopping at source edge 4 and full debug
+VCDs. **14** independent corruptions reject. Final native/VCS physical inputs
+match all **10 files / 10 sources**; the retained production bank/top audit
+matches **28 generated files / 41 sources**, with bank/top/synchronous-policy
+VCS counts **4,669 / 7,858 / 21,970**. Exact commands, source/recipe identities,
+compiler rejection, inventory and receipts: `runs/aws-f2/iteration211/summary.json`.
+This remains compiler/component evidence; FPGA capture and paired CPU
+zero-edge/finite/live/rolling migration have not been established.
 
-Three physical BUFGCE owners, complete common-cut/memory/timing/bridge/host/
-pre-FAME binding, full localhost image/P&R/AFI, active all-hart hardware cuts,
-paired CPU zero-edge restores, finite replay, sustained live RTL beyond the
-recorded trace and rolling hardware recovery remain pending. Reuse the
-iteration194 localhost invocation. Fresh AWS/localhost SSH/Vivado 2025.2/F2 HDK
-checks pass; initialized manager configs are unchanged. No new AFI/runtime was
-requested, and final scoped inventory has no owned runtime or native build job.
-
-Managed worker startup failed before creating any worker; only the central
-agent remained. Plans are byte-identical to entry; no agent staging or local
-commits. Existing controller checkpoints were published FireSim first
-(`624c8e36`), then Chipyard (`ebb70466`), and remote tips verified. Chipyard's
-successful push retains the read-only tracking-ref warning. Current edits await
-the controller checkpoint/publication; follow
-[github-publication.md](github-publication.md).
+Three physical CE-latch owners, complete atomic common-cut/memory/timing/bridge/
+host/pre-FAME binding, full localhost image/P&R/AFI, all-hart active hardware
+cuts, paired CPU zero-edge restores, finite replay, sustained live RTL beyond
+the trace and rolling hardware recovery remain pending. Reuse iteration194's
+localhost build invocation and preserve initialized configs. Fresh AWS/localhost
+SSH/Vivado 2025.2/F2 HDK checks pass; initialized manager configs are unchanged. No new AFI/runtime was requested, and the final scoped
+inventory has no owned runtime or native Vivado/Java job. Managed worker creation
+failed before startup; only the central agent ran and no worker remains. Both plans retain their entry hashes; no agent
+staging or commits. Existing controller checkpoints were published FireSim
+first (`f93225fe`), then Chipyard (`3e575366`); independent remote tips match.
+The successful Chipyard push retains the read-only tracking-ref warning. Follow
+[github-publication.md](github-publication.md) for the controller's next checkpoint.
 
 On October 23 the
 existing manager successfully launched one tagged `f2.6xlarge`, instance
@@ -6989,3 +6988,33 @@ and migration requirements remain pending. Commands and nonempty receipts:
 `runs/aws-f2/iteration210/summary.json`. Plans/configs are unchanged; no staging,
 local commits, new AFI/runtime or remaining managed worker. Existing controller
 checkpoints were published in the required order.
+
+
+## Iteration 211: native physical-clock constraint contract
+
+Exact default-SYNC BUFGCE pin/cell constraints now validate and survive
+specialization through shared physical leaves, with real WriteXDCFile output.
+Exact definition and unsupported CE-latch/common-low-phase-cut ownership bind
+external-owner reports. Unknown/modified sources, parameters, ports, hidden or
+indexed pins, foreign/dead paths, cross-instance constraint products, missing
+or mistyped reports and coherent rehash attempts reject. Bank generation still
+rejects physical latch state rather than reusing the metasim O owner.
+
+Actual Rocket compilation advances to unreachable NoDedupAnnotation on
+Nasti2AXI4IdentityModule; the compiler stack identifies the producer contract.
+193 Scala / 309 Python / 40 loop tests, full EDA sanitizers/FCFS/components,
+native OOC and independent audits pass. Physical fixture: two BUFGCEs / sixteen
+registers / six constraints, 4,064 fresh SP2 VCS comparisons, 14 corruptions,
+healthy/failed VCDs and matching 10-file/10-source snapshots. Retained bank/top
+source audit: 28 files / 41 sources; VCS 4,669 / 7,858 / 21,970 checks.
+
+No checkpoint-enabled full image, physical checkpoint, CPU restore/finite/live
+acceptance or rolling hardware recovery is claimed. Reuse iteration194's local
+build invocation. Current commands and individual receipts:
+`runs/aws-f2/iteration211/summary.json`. Plans retain their entry hashes; no
+staging/commits, new AFI/runtime or remaining worker/native job. Existing
+controller checkpoints were published in the required order. Initial physical
+audit definition-indentation mismatch, fixture timescale/failure-status issue,
+wrong-CWD HDK setup attempt, production-diagnostic expectation and final-audit
+import failures remain in their original logs; corrected full checks establish
+the passes. See [github-publication.md](github-publication.md).

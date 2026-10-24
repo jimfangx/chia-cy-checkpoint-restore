@@ -68,6 +68,21 @@ def audit(reference: Path, manifest: Path, report: Path):
         require(row['physical_primitive'] is (defname=='BUFGCE') and
                 row['requires_explicit_owner'] is True and row['physical_capture_binding']=='unsupported',
                 'external audit cannot supply physical state adapter')
+        if defname == 'BUFGCE':
+            expected_body = ('extmodule ' + row['module'] + ' :\n  input I : Clock\n'
+                             '  input CE : UInt<1>\n  output O : Clock\n  defname = BUFGCE')
+            require(modules[row['module']][1] == expected_body and not row['inline_sources'],
+                    'not an exact source-free default SYNC primitive')
+            contract = dict(contract='xilinx-bufgce-default-sync-v1', definition_sha256=digest(expected_body),
+                            ce_type='SYNC', input_inverted=False, enable_inverted=False,
+                            state='transparent_low_ce_latch', public_pins=['I', 'CE', 'O'],
+                            direct_state_readout=False, physical_capture_binding='unsupported',
+                            required_cut='common_host_low_phase_all_owners_with_enable_latch_mapping',
+                            metasim_state_equivalent=False)
+            require(json.dumps(row.get('physical_contract'), sort_keys=True) == json.dumps(contract, sort_keys=True),
+                    'missing or changed physical primitive contract')
+        else:
+            require('physical_contract' not in row, 'physical contract on unknown primitive')
     unused=doc['unused_external_definitions']
     require([r['module'] for r in unused]==sorted(n for n,(k,_) in modules.items() if k=='extmodule' and n not in live),
             'missing/reordered/duplicate unused definition')

@@ -10,9 +10,31 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 
 | Family | F2 workload / custom capture image | FPGA Level-1 to EDA metasim | FPGA Level-2 finite RTL replay | Live RTL / rolling hardware recovery |
 | --- | --- | --- | --- | --- |
-| Rocket (all four harts) | baseline verified: real F2 slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress: bank/MMIO/DMA fixtures synthesize locally, current exact-recipe bank trial enforces 2,120 typed dedup groups and rejects opaque BUFGCE XDC/state ownership; post-mapping InlineInstances runs before inventory/banking with complete concrete register/RAM rename provenance; exact stage emitter policy and retired abstract clock-gate source have immutable final-emission/history provenance; passive generated headers/defines retain exact-byte emission provenance; stage input retains immutable circuit/module history; consumed bridge extraction retains immutable circuit/connectivity history; consumed pre-link requests retain immutable circuit/mapping history; deduplication-history and target-box instance paths, global memory policies, consumed-input/channel-frequency context, XDC and memory-model labels translate with provenance; all seven FPGA plusarg instances have source-checked constant semantics; three physical BUFGCE owners, complete common-cut/memory/host binding and image P&R/AFI remain pending | pending | pending | pending |
+| Rocket (all four harts) | baseline verified: real F2 slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress: bank/MMIO/DMA fixtures synthesize locally, current exact-recipe bank trial enforces 2,120 typed dedup groups and passes exact native BUFGCE XDC pin contracts and rejects unreachable NoDedup on Nasti2AXI4IdentityModule; physical CE-latch/common-cut ownership remains unsupported; post-mapping InlineInstances runs before inventory/banking with complete concrete register/RAM rename provenance; exact stage emitter policy and retired abstract clock-gate source have immutable final-emission/history provenance; passive generated headers/defines retain exact-byte emission provenance; stage input retains immutable circuit/module history; consumed bridge extraction retains immutable circuit/connectivity history; consumed pre-link requests retain immutable circuit/mapping history; deduplication-history and target-box instance paths, global memory policies, consumed-input/channel-frequency context, XDC and memory-model labels translate with provenance; all seven FPGA plusarg instances have source-checked constant semantics; three physical BUFGCE owners, complete common-cut/memory/host binding and image P&R/AFI remain pending | pending | pending | pending |
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
+
+Iteration 211 adds a source-free default-SYNC BUFGCE public-pin/cell contract,
+with correlated specialization through shared physical leaves and real downstream
+XDC emission. Unsupported latch state remains fail-closed, with exact definition,
+missing owner and common-low-phase-cut requirements in external-owner reports.
+Independent audits reject source overrides, altered parameters/ports, missing or
+mistyped contracts, cross-instance constraints and false capture claims.
+
+The actual Rocket compile passes its previous opaque-BUFGCE XDC failure, then
+rejects an unreachable `firrtl.transforms.NoDedupAnnotation` on
+`~F1Shim|Nasti2AXI4IdentityModule`; stack and fresh compiler bytes are retained.
+Next: phase-correct native-inline constraint retirement and physical CE-latch/
+common-cut implementation. All custom-image, FPGA checkpoint, CPU zero-edge,
+finite replay, sustained live RTL and rolling hardware acceptance remain pending.
+Commands/receipts: `runs/aws-f2/iteration211/summary.json`; concrete compiler
+failure: `runs/aws-f2/iteration211/remaining-blockers.json`. This is compiler and
+component work. All 193 Scala / 309 checkpoint Python / 40 loop tests, full
+retained EDA sanitizer/FCFS scope and native OOC checks pass. Physical fixture:
+two BUFGCEs / sixteen registers / six constraints, 4,064 VCS comparisons / 512
+cycles, 14 corruptions and debug VCDs; native/VCS match 10 files / 10 sources.
+Retained bank/top audit matches 28 files / 41 sources, with VCS counts
+4,669 / 7,858 / 21,970. No physical capture or CPU acceptance is established.
 
 Iteration 210 adds the exact Chisel group annotation missing from pinned FIRRTL
 1.6, suppresses unaware generic dedup before any optimization, and executes

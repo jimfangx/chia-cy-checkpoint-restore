@@ -1221,3 +1221,31 @@ comparison beyond trace, waveforms and rolling FPGA recovery remain pending.
 
 Use the existing [F2 workflow](aws-f2-workflow.md) and official
 [custom-image guide](https://docs.fires.im/en/latest/getting-started-guides/aws-ec2-f2-getting-started/building-a-firesim-afi/).
+
+
+## Iteration 211: exact physical clock constraints, explicit missing latch owner
+
+Native default-SYNC BUFGCE pin/cell constraints retain public I/CE/O identity,
+full correlated paths and shared leaf definitions across concrete specialization.
+Unknown/modified/parameterized primitives, inline/resource/path source overrides,
+private or indexed pins, foreign/dead/mismatched paths and mixed roots reject.
+Real WriteXDCFile emits all repeated-instance constraints; independent native
+Vivado OOC synthesis preserves two physical BUFGCEs, sixteen downstream registers
+and all six constraints in its DCP. Fresh EDA SP2 VCS compares against separately
+emitted original RTL with the native vendor model; deliberate oracle corruption
+stops at source edge 4, retaining healthy and failed full-visibility waveforms.
+Fourteen independent corruption cases and the general external-owner traversal
+check the same fixture.
+
+This is a constraint contract, not synthesized latch capture. Exact physical
+owner reports retain the definition hash, transparent-low CE-latch identity,
+unsupported readout and required common low-phase cut. Bank generation explicitly
+rejects a reachable physical BUFGCE even if supplied a valid metasim inventory.
+Metasim O, abstract posedge enable and native CE-latch state are distinct.
+Physical state/control/transport and all complete-image/hardware/CPU acceptance
+remain pending. The real Rocket compiler now gets past opaque-BUFGCE XDC and
+rejects an unreachable NoDedupAnnotation on Nasti2AXI4IdentityModule. Use the
+actual native-inline phase and immutable retirement provenance to address it;
+never discard unreachable constraints as generic bookkeeping. Exact commands,
+compiler failure and completed regression evidence belong under
+`runs/aws-f2/iteration211/summary.json`, relative to the loop.
