@@ -12,6 +12,7 @@ create_project -in_memory -part xcvu47p-fsvh2892-2-e
 # Resolve the unchanged relative readmem filenames against this private snapshot.
 cd $generated_dir
 read_verilog -sv generated-bank.sv
+read_xdc ram-style.synthesis.xdc
 synth_design -top InitializedStorage -part xcvu47p-fsvh2892-2-e -mode out_of_context
 create_clock -period 7.142857 [get_ports clock]
 opt_design
@@ -25,6 +26,9 @@ set memories [get_cells -hier -filter {REF_NAME =~ RAM* || REF_NAME =~ URAM*}]
 if {[llength $memories] == 0} { error "Synthesized RAM primitives and initialization must remain visible" }
 foreach cell [lsort $memories] {
     puts $report "CELL $cell REF_NAME=[get_property REF_NAME $cell]"
+    if {[lsearch -exact [list_property $cell] RAM_STYLE] >= 0} {
+        puts $report "RAM_STYLE=[get_property RAM_STYLE $cell]"
+    }
     foreach property [lsort [list_property $cell]] {
         if {[string match INIT* $property]} { puts $report "$property=[get_property $property $cell]" }
     }

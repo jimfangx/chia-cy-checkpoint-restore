@@ -16,6 +16,7 @@ import zipfile
 
 from tools.checkpoint_formats.codec import require
 from tools.checkpoint_formats.tests.verify_initialized_bank_vcs import GENERATED, SOURCES
+from tools.checkpoint_formats.tests.audit_ram_style import audit
 
 ROOT = Path(__file__).resolve().parents[3]
 TCL = 'tools/checkpoint_formats/capture_initialized_bank_synth.tcl'
@@ -36,6 +37,8 @@ def audit_primitive_initialization(report):
         require(location is not None, 'unexpected native RAM mapping')
         side, low, high, port = location.groups()
         require(primitive == ('RAMD32' if port else 'RAM32X1D'), 'unexpected native RAM primitive')
+        require(re.search(r'^RAM_STYLE=distributed$', properties, re.M) is not None,
+                f'emitted RAM-style constraint not applied to native memory {cell}')
         bit = int(low)
         require(low == high and bit < 9 and (side, bit, port) not in seen, 'duplicate or reshaped native RAM plane')
         seen.add((side, bit, port))
@@ -61,6 +64,7 @@ def main():
     snapshots = out / 'generated-snapshots'; snapshots.mkdir()
     for name in GENERATED:
         (snapshots / name).write_bytes((args.generated.resolve() / name).read_bytes())
+    ram_style = audit(snapshots)
     sources = (*SOURCES, TCL, 'tools/checkpoint_formats/tests/synth_initialized_bank.py')
     for name in sources:
         dest = out / 'source-snapshots' / name
@@ -95,7 +99,9 @@ def main():
                    observed_utc=datetime.now(timezone.utc).isoformat(), physical_fpga_capture=False,
                    full_rocket_image_build=False, scope='native initialized RAM bank component OOC synthesis only',
                    luts=luts, registers=registers, initialized_bit_planes=planes,
+                   ram_style=ram_style,
                    initialized_physical_read_port_copies=planes * 2, command=command,
+                   constrained_native_ram_cells=planes * 3,
                    sources={n: sha(out / 'source-snapshots' / n) for n in sources},
                    generated={n: sha(snapshots / n) for n in GENERATED},
                    artifacts={n: sha(out / n) for n in names})

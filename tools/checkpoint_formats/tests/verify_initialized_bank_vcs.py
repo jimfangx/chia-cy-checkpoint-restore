@@ -18,12 +18,15 @@ GENERATED = ('generated-bank-input.fir', 'generated-bank.fir', 'generated-bank.s
              'generated-bank-semantic.json', 'generated-bank-binding.json',
              'generated-bank-simulator.json', 'generated-bank-simulator-binding.json',
              'generated-bank-simulator.fir', 'source-annotations.json', 'translated-annotations.json',
-             'left.hex', 'right.bin')
+             'left.hex', 'right.bin', 'ram-style.synthesis.xdc', 'ram-style.implementation.xdc')
 SOURCES = ('sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedStateBankAccess.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedClockGateAdapter.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedStateBankAnnotations.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/widgets/CheckpointCaptureDescriptors.scala',
            'sims/firesim/sim/midas/src/test/scala/midas/checkpoint/InitializedStateBankSpec.scala',
+           'sims/firesim/sim/midas/src/main/scala/midas/passes/WriteXDCFile.scala',
+           'sims/firesim/sim/midas/targetutils/src/main/scala/midas/xdc/RAMStyleHint.scala',
+           'tools/checkpoint_formats/tests/audit_ram_style.py',
            'tools/checkpoint_formats/tests/initialized_bank_tb.sv',
            'tools/checkpoint_formats/tests/verify_initialized_bank_vcs.py')
 
@@ -53,6 +56,8 @@ def main():
             dest.write_bytes((source / name).read_bytes())
             hashes[directory][name] = sha(dest)
     snapshots = out / 'generated-snapshots'
+    from tools.checkpoint_formats.tests.audit_ram_style import audit
+    ram_style = audit(snapshots)
     binding = json.loads((snapshots / 'generated-bank-binding.json').read_text())
     require(binding['reference_sha256'] == sha(snapshots / 'generated-bank-input.fir') and
             binding['instrumented_sha256'] == sha(snapshots / 'generated-bank.fir') and
@@ -115,6 +120,7 @@ def main():
                    scope='initialized repeated RAM annotation translation/readout; independent oracle and original RTL',
                    checks=int(match[1]), reads=int(match[2]), stalls=int(match[3]), functional_edges=int(match[4]),
                    captures=int(match[5]), observations=int(match[6]), hashes=hashes, commands=commands,
+                   ram_style=ram_style,
                    cuts=sorted({w['cycle'] for w in words}),
                    artifacts={p.name: sha(p) for p in out.iterdir() if p.is_file() and p.suffix in ('.log', '.vcd', '.svh', '.hex', '.bin')})
     (out / 'summary.json').write_text(json.dumps(summary, indent=2) + '\n')
