@@ -14,6 +14,22 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 226 composes native functional and physical CE descriptors from the
+same original Rocket circuit: **12,099 descriptors / 619,016 transfer words**.
+The factory independently reconstructs the native banks; different-circuit or
+coherently rehashed caller results reject. A separate emitted binding retains
+the common reference, every selector and both complete domain documents, with
+all capture/production/restore admission flags false. The fixture's actual
+MMIO/stream widget retains its immutable ROM and matching host header; native
+localhost synthesis uses **1,591 LUTs / 764 registers**, OOC 140 MHz setup/hold
+estimates **+0.611/+0.071 ns**. All **233 Scala tests** pass. Fresh EDA SP2
+passes **81 ROM checks**; an independently compiled physical-slot fault stops
+at descriptor 5/check 11, with both execution waveforms retained. This remains
+**in_progress descriptor integration**: connected production cut/transport and
+complete owners, full image/P&R/AFI and every FPGA-origin migration column
+above remain pending. See [f2-native-descriptors.md](f2-native-descriptors.md)
+and `runs/aws-f2/iteration226/verification-commands.json`.
+
 Iteration 225 adds a separate native functional-bank companion for the exact
 Rocket recipe: 12,096 concrete storage descriptors, 619,013 transfer words and
 all three original BUFGCEs, with independent complete emitted-storage/shape,
