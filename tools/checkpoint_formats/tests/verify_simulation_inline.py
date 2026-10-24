@@ -166,6 +166,9 @@ write_checkpoint -force inline.dcp
     source_paths = [Path('sims/firesim/sim/midas/src') / p for p in (
         'main/scala/midas/passes/ResolveSimulationInline.scala',
         'main/scala/midas/stage/GoldenGateCompilerPhase.scala',
+        'main/scala/midas/passes/GoldenGateDedupGroups.scala',
+        'main/scala/midas/passes/CheckpointGroupDedupModules.scala',
+        'main/scala/midas/passes/EnableAndRunDedupOnce.scala',
         'main/scala/midas/checkpoint/SimulatorBankProbeContext.scala',
         'test/scala/midas/passes/ResolveSimulationInlineSpec.scala',
         'test/scala/midas/stage/GoldenGateHostPipelineSpec.scala')]
