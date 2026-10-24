@@ -14,6 +14,28 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 215 adds a synthesized common-clock physical-cut component,
+retaining native SYNC BUFGCEs and a falling-edge common mask. It samples the
+unmasked logical CE vector after stopping, rejects missing-owner/CE/cycle drift
+and validates release on a full control edge before unmasking. It is **not yet
+connected to the Rocket compiler, bank network or bridge**. Exact Rocket
+compilation still explicitly rejects the FASED physical owner; the three-clock
+ownership mapping and complete global integration remain pending.
+
+Native OOC fixture synthesis retains four gates and one falling-edge register,
+using 216 LUTs / 232 registers. Registered release improves estimated 140 MHz
+setup slack from -0.523 ns to +2.657 ns. Unplaced hold slack remains -0.072 ns;
+full implementation timing is pending. Fresh EDA SP2 VCS passes 1,968 checks,
+logical cuts 0/17/128/256, 64 stopped transport cycles and resumed functional
+comparison through cycle 320. All logical CE words match independent original
+vendor latch observations. Three fail-stop cases and a corrupt readback oracle
+reject at cut 17, and eight evidence corruption cases reject. Full debug waves
+and exact native/EDA inputs are retained. All 207 Scala / 309 checkpoint Python /
+40 loop tests and retained sanitizers/FCFS/components pass. These are component
+results; all hardware-origin CPU migration, finite/live and rolling entries
+remain pending. See [f2-physical-clock-cut.md](f2-physical-clock-cut.md) and
+`runs/aws-f2/iteration215/verification-commands.json` for exact commands.
+
 Iteration 214 fixes the actual native TargetBox-to-FAMETop link producer.
 Exactly one absolute concrete boundary, one external placeholder instance,
 disjoint pre-link namespaces and matching lowered interfaces are required;

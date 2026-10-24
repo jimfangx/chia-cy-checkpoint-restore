@@ -20,6 +20,66 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 215,
+**in_progress**. Added a synthesizable common-clock physical cut component,
+`CheckpointPhysicalClockCut.sv`, retaining the native default-SYNC BUFGCEs.
+It masks a root gate and three example physical gates during their common low
+phase, samples the complete unmasked logical CE vector and post-stop target
+label, and keeps transport/control running. Missing owners, CE drift and cycle
+drift withdraw read permission and latch fail-stop errors. Registered release
+checks faults before unmasking, including simultaneous host withdrawal.
+See [f2-physical-clock-cut.md](f2-physical-clock-cut.md).
+
+This is a component with explicit single-source/positive-edge/complete-owner
+obligations, **not yet wired into the Rocket compiler, bank network or bridge**.
+The original accepting-edge cut coordinator cannot simply reuse its cycle label
+for this delayed physical handshake. Preserve the strict compiler guard until
+all root/derived clocks, CE drivers, memory/timing/bridge/host and pre-FAME
+owners are bound at the same target cut. The fresh exact Rocket trial still
+rejects `F1Shim.top.FASEDMemoryTimingModel_0.gate`; no full image is emitted.
+Reuse iteration194's initialized ExternallyProvisioned localhost invocation.
+
+Fresh native synthesis retains four SYNC BUFGCEs and exactly one falling-edge
+mask register: **216 LUTs / 232 registers** including the functional fixture.
+The initial combinational release path missed 140 MHz estimated setup timing
+by 0.523 ns; registered validation yields **+2.657 ns** setup slack. The
+unplaced report still has **-0.072 ns** hold slack: no implementation timing
+closure is claimed. Original synthesis trials/receipts remain unchanged.
+Fresh SP2 EDA VCS passes **1,968 checks**, complete cuts **0/17/128/256**, 64
+transport stalls and 320 functional cycles against original native vendor
+gates and independent state/edge oracles. Every logical CE is independently
+checked against the uninstrumented vendor latch at each low cut; masked physical
+latches are separately checked zero. Missing-owner/CE-drift/cycle-drift cases
+stay stopped; corrupted readback expectation stops at CE bit 0 at cut 17 before
+another functional edge. Five full debug VCDs are retained. Native/EDA/source
+identity and eight evidence corruption cases, including coherent RTL rehash,
+pass. These results establish neither CPU migration nor semantic corruption
+acceptance on an actual CPU.
+
+All **207 Scala / 309 checkpoint Python / 40 loop tests** and retained EDA
+ASan/UBSan/FCFS/host/bank/memory/bridge scope pass. Eight current native component
+synthesis checks pass. Complete FPGA common-cut/ownership integration, full
+localhost image/P&R/AFI, actual four-hart active-workload hardware cuts, matching
+FPGA Level-1/Level-2 zero-edge restores, finite/live CPU comparison beyond trace
+and rolling hardware recovery remain pending. No runtime/AFI was requested.
+
+Managed worker startup failed before creation; only the central agent ran and
+no worker remains. Existing controller checkpoints were published FireSim first
+(`9b0bdfe3`), then Chipyard (`95a7ebc4`); independent remote tips match despite
+Chipyard's read-only local remote-tracking update error. New edits remain for
+the controller to stage/commit. Plans and all four manager configs retain their
+entry hashes. Follow [github-publication.md](github-publication.md).
+The first final-audit wrapper failed because a retained native receipt's manager
+absolute paths were not mapped when auditing on EDA. The audit now resolves both
+original roots without altering receipt provenance; the original failed log is
+retained and the complete final EDA retry and local final audit pass. Final
+scoped AWS inventory finds no runtime instance or native Vivado/Java job.
+Exact commands, scope, source hashes, remaining compiler error and
+final results are under `runs/aws-f2/iteration215/`: `verification-commands.json`,
+`remaining-blockers.json`, `physical-audit.json`, `final-audit.json`, `summary.json`.
+
+## Iteration 214 (retained recovery note)
+
 Active milestone: `F2-rocket-checkpoint-migration`, iteration 214,
 **in_progress**. The actual `SimulationMapping` linker now replaces its exact
 validated external target placeholder and returns native circuit/module renames,
