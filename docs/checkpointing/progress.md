@@ -20,29 +20,29 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 201,
-**in_progress**. TargetBox instance paths now translate onto exact bank clones,
-with source/translated hashes and mapping provenance. Foreign, stale, opaque,
-unreachable and mismatched paths reject, and descriptor validation detects
-changed/dropped markers. Exact-Rocket preflight rejects **10 annotation classes**,
-down from 11; accepted whole-Rocket banks and the checkpoint image remain pending.
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 202,
+**in_progress**. Exact consumed-input and global-channel-frequency context now
+survives bank specialization and final emission, with malformed/unsupported
+owners rejected. Production preflight rejects **8 annotation classes**, down
+from 10. Accepted whole-Rocket banks and the checkpoint-enabled image remain
+pending.
 
-All **125 Scala / 306 checkpoint Python / 40 loop tests** and full retained EDA
-ASan/UBSan scope pass. Localhost Vivado 2025.2 bank/top OOC synthesis, 4,669 bank /
-7,858 exact-native-top / 21,970 synchronous-policy VCS checks and independent EDA
-auditing pass, with full debug waveforms. Eight new coherently rehashed target-box
-corruptions reject; prior policy/context/XDC tests remain intact. Full physical
-FPGA cuts and paired CPU zero-edge/finite/live/rolling migration remain pending.
-Reuse iteration-194's localhost build invocation. Final inventory finds no owned
-F2 instance or native Vivado/Java job and no new AFI request. Commands and files:
-`runs/aws-f2/iteration201/summary.json`. See
-[fpga-capture-transport.md](fpga-capture-transport.md).
+All **130 Scala / 306 checkpoint Python / 40 loop tests**, full retained EDA
+ASan/UBSan/FCFS scope, native localhost Vivado bank/top OOC synthesis and
+independent EDA audit pass. VCS checks: 4,669 bank / 7,858 MMIO-DMA top / 21,970
+synchronous-policy; 26 context, six XDC, five policy and eight target-box
+corruptions reject. Full FPGA cuts and paired CPU zero-edge/finite/live/rolling
+migration remain pending. No owned F2 instance or native Vivado/Java job remains;
+no new AFI was requested. Commands/files: `runs/aws-f2/iteration202/summary.json`.
+See [fpga-capture-transport.md](fpga-capture-transport.md).
 
-Existing controller checkpoints were published FireSim first (`786cc808`), then
-Chipyard (`b8153f14`); independent remote tips agree, with the local read-only
-tracking-ref update error retained. Managed-worker startup failed before creation;
-central agent only, no worker remains. Plan input hashes are unchanged, with no
-agent staging or commits. Follow [github-publication.md](github-publication.md).
+Existing controller commits were published FireSim first (`c81b3dad`),
+then Chipyard (`7d469130`); independent remote tips agree.
+The local read-only tracking-ref update error is retained; remote publication
+succeeded. Current edits await the loop controller's checkpoint/publication. Managed-worker
+startup failed before creation; central agent only, no worker remains. Plan
+input hashes are unchanged, with no agent staging or commits. Follow
+[github-publication.md](github-publication.md).
 
 On October 23 the
 existing manager successfully launched one tagged `f2.6xlarge`, instance
@@ -6733,3 +6733,39 @@ active hardware cuts, paired CPU zero-edge restores, finite replay, sustained
 live RTL beyond the trace window and rolling hardware recovery remain pending.
 The iteration-194 localhost invocation is retained; final scoped inventory has
 no owned runtime instance or native Vivado/Java job, and no new AFI was requested.
+
+## Iteration 202: consumed inputs and channel clock metadata
+
+Iteration 202 preserves two additional explicit compiler-context contracts:
+consumed AddCircuit/FirrtlFile and GetIncludes/InputAnnotationFile events, and
+global channel clock-frequency metadata. Every event producer/type/path and
+channel name/clock label/unreduced positive ratio is retained and hash-bound.
+Deleted owners, nested wrappers, unknown/mismatched producers, live input files,
+malformed ratios and duplicate metadata reject. Final emission independently
+checks the context in both the bank state and returned emitted annotations;
+changed/dropped events or frequencies cannot hide behind an old sidecar.
+These global frequency labels do not establish physical clock-owner coverage.
+Actual exact-Rocket production preflight rejects **8 annotation classes**,
+down from 10, and emits no accepted whole-Rocket bank RTL.
+
+All **130 Scala / 306 checkpoint Python / 40 loop tests** and the full retained
+EDA ASan/UBSan/FCFS/bank/bridge/host scope pass. Native localhost Vivado 2025.2
+bank and MMIO/DMA-top OOC synthesis pass; bank use is 125 LUTs / 82 registers,
+estimated setup +6.435 ns / hold +0.054 ns at 140 MHz, with external I/O
+unconstrained. Matching VCS passes 4,669 bank / 7,858 exact-native-top /
+21,970 synchronous-policy checks with debug waveforms. Independent EDA auditing
+matches ten generated files / nineteen sources and rejects 26 coherently
+rehashed context corruptions (16 new consumed-input/clock cases), plus all six
+XDC, five memory-policy and eight target-box corruptions. Commands and individual
+receipts: `runs/aws-f2/iteration202/summary.json` relative to the loop.
+
+This is compiler/component evidence. The remaining contracts are DedupedResult,
+RunFirrtlTransformAnnotation, FirrtlCircuitAnnotation, UnrecognizedAnnotation,
+BridgeExtraction$BridgeInstance, BlackBoxInlineAnno, PreLinkRenamingAnnotation
+and GoldenGateOutputFileAnnotation. Three physical BUFGCE owners, complete
+common-cut/memory/timing/bridge/host/pre-FAME integration, full image/P&R/AFI,
+all-hart early/warm/outstanding/late FPGA cuts, paired CPU zero-edge restores,
+finite replay, sustained live RTL beyond the trace window and rolling hardware
+recovery remain pending. Reuse iteration-194's localhost invocation. Final
+scoped inventory has no owned F2 instance or native Vivado/Java job; no new AFI
+request was made.

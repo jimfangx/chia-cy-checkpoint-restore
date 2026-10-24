@@ -10,9 +10,43 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 
 | Family | F2 workload / custom capture image | FPGA Level-1 to EDA metasim | FPGA Level-2 finite RTL replay | Live RTL / rolling hardware recovery |
 | --- | --- | --- | --- | --- |
-| Rocket (all four harts) | baseline verified: real F2 slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress: bank/MMIO/DMA fixtures synthesize locally, current exact-recipe bank trial rejects 10 annotation contracts; target-box instance paths, global memory policies, inert compiler context, XDC and memory-model labels translate with provenance; all seven FPGA plusarg instances have source-checked constant semantics; three physical BUFGCE owners, complete common-cut/memory/host binding and image P&R/AFI remain pending | pending | pending | pending |
+| Rocket (all four harts) | baseline verified: real F2 slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress: bank/MMIO/DMA fixtures synthesize locally, current exact-recipe bank trial rejects 8 annotation contracts; target-box instance paths, global memory policies, consumed-input/channel-frequency context, XDC and memory-model labels translate with provenance; all seven FPGA plusarg instances have source-checked constant semantics; three physical BUFGCE owners, complete common-cut/memory/host binding and image P&R/AFI remain pending | pending | pending | pending |
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
+
+Iteration 202 preserves two additional explicit compiler-context contracts:
+consumed AddCircuit/FirrtlFile and GetIncludes/InputAnnotationFile events, and
+global channel clock-frequency metadata. Every event producer/type/path and
+channel name/clock label/unreduced positive ratio is retained and hash-bound.
+Deleted owners, nested wrappers, unknown/mismatched producers, live input files,
+malformed ratios and duplicate metadata reject. Final emission independently
+checks the context in both the bank state and returned emitted annotations;
+changed/dropped events or frequencies cannot hide behind an old sidecar.
+These global frequency labels do not establish physical clock-owner coverage.
+Actual exact-Rocket production preflight rejects **8 annotation classes**,
+down from 10, and emits no accepted whole-Rocket bank RTL.
+
+All **130 Scala / 306 checkpoint Python / 40 loop tests** and the full retained
+EDA ASan/UBSan/FCFS/bank/bridge/host scope pass. Native localhost Vivado 2025.2
+bank and MMIO/DMA-top OOC synthesis pass; bank use is 125 LUTs / 82 registers,
+estimated setup +6.435 ns / hold +0.054 ns at 140 MHz, with external I/O
+unconstrained. Matching VCS passes 4,669 bank / 7,858 exact-native-top /
+21,970 synchronous-policy checks with debug waveforms. Independent EDA auditing
+matches ten generated files / nineteen sources and rejects 26 coherently
+rehashed context corruptions (16 new consumed-input/clock cases), plus all six
+XDC, five memory-policy and eight target-box corruptions. Commands and individual
+receipts: `runs/aws-f2/iteration202/summary.json` relative to the loop.
+
+This is compiler/component evidence. The remaining contracts are DedupedResult,
+RunFirrtlTransformAnnotation, FirrtlCircuitAnnotation, UnrecognizedAnnotation,
+BridgeExtraction$BridgeInstance, BlackBoxInlineAnno, PreLinkRenamingAnnotation
+and GoldenGateOutputFileAnnotation. Three physical BUFGCE owners, complete
+common-cut/memory/timing/bridge/host/pre-FAME integration, full image/P&R/AFI,
+all-hart early/warm/outstanding/late FPGA cuts, paired CPU zero-edge restores,
+finite replay, sustained live RTL beyond the trace window and rolling hardware
+recovery remain pending. Reuse iteration-194's localhost invocation. Final
+scoped inventory has no owned F2 instance or native Vivado/Java job; no new AFI
+request was made.
 
 Iteration 201 adds an explicit TargetBox clone/rename contract. Concrete,
 reachable module and instance paths retain their root and all instance hops,

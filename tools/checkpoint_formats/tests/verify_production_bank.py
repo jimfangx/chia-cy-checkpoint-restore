@@ -32,6 +32,9 @@ SOURCES = ('sims/firesim/sim/midas/src/main/scala/midas/checkpoint/SimulatorBank
            'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedStateBankAccess.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedStateBankAnnotations.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/core/SimWrapper.scala',
+           'sims/firesim/sim/midas/src/main/scala/midas/passes/TargetClockAnalysis.scala',
+           'sims/firesim/sim/midas/src/main/scala/midas/passes/UpdateBridgeClockInfo.scala',
+           'sims/firesim/sim/firesim-lib/src/main/scala/bridgeutils/RationalClock.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/passes/WriteXDCFile.scala',
            'sims/firesim/sim/midas/src/main/scala/midas/ShadowAnnotations.scala',
            'sims/firesim/sim/midas/targetutils/src/main/scala/midas/xdc/XDCAnnotation.scala',
@@ -67,9 +70,17 @@ def audit_inputs(generated):
                             target_directory='checkpoint-fixture', config_package='fixture.config',
                             config_string='FixtureConfig', output_base_filename='fixture',
                             allow_unrecognized_input_annotations=True,
-                            enum_type=dict(name='fixture.Mode', values=dict(idle=0, busy=3)))
-    require(len(context['annotations']) == len(expected_context) and
-            {r['kind']: r['value'] for r in context['annotations']} == expected_context,
+                            enum_type=dict(name='fixture.Mode', values=dict(idle=0, busy=3)),
+                            channel_clock_info={
+                                'fixture_request': dict(name='fixture_core', multiplier=2, divisor=4),
+                                'fixture_response': dict(name='fixture_uncore', multiplier=1, divisor=1)})
+    expected_rows = [dict(kind=k, value=v) for k, v in expected_context.items()] + [
+        dict(kind='deleted_input', value=dict(producer='firrtl.stage.phases.AddCircuit',
+             annotation_class='firrtl.stage.FirrtlFileAnnotation', file='historical-fixture.fir')),
+        dict(kind='deleted_input', value=dict(producer='firrtl.options.phases.GetIncludes',
+             annotation_class='firrtl.options.InputAnnotationFileAnnotation', file='historical-fixture.anno.json'))]
+    require(sorted(json.dumps(r, sort_keys=True) for r in context['annotations']) ==
+            sorted(json.dumps(r, sort_keys=True) for r in expected_rows),
             'compiler context changed or missing')
     require(emission.get('emitted_xdc_sha256') ==
             {'.synthesis.xdc': sha(generated/XDC_NAMES[0]),
