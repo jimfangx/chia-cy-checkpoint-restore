@@ -39,6 +39,8 @@ SOURCES = tuple(sorted(set(NETWORK_SOURCES + (
     'sims/firesim/sim/midas/targetutils/src/main/scala/midas/xdc/XDCAnnotation.scala',
     'sims/firesim/sim/midas/targetutils/src/main/scala/midas/xdc/RAMStyleHint.scala',
     'tools/checkpoint_formats/tests/audit_native_inplace_identity.py',
+    'tools/checkpoint_formats/tests/test_native_constant_identity.py',
+    'tools/checkpoint_formats/tests/test_native_annotation_projection.py',
     'tools/checkpoint_formats/tests/audit_native_inplace_annotations.py',
     'tools/checkpoint_formats/simulator.py',
     'sims/firesim/sim/midas/src/test/scala/midas/checkpoint/NativeCheckpointInPlaceSpec.scala',

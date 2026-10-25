@@ -14,6 +14,23 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 236 connects functional and physical CE readout to a router around
+the existing host, preserving global identities, raw control clocks and original
+constraint placement. All **251 Scala / 22 localhost synthesis / 41 EDA scopes**,
+**313 Python / 40 loop tests** and retained **ASan/UBSan/host/FCFS** checks pass.
+The new bounded execution passes **7,101 SP2 checks / four cuts / 136 words / 522
+stalls** through cycle **419**, with **five debug waves**, **817 inputs / 54
+sources** matched and ten rehashed mutations rejected. Native synthesis retains
+**1,091 LUTs / 595 registers / 199 audited raw-clock registers**; full-image timing
+remains pending. The compiled CE connection fault fails on its first physical
+read at cycle **25**, check **55**. Independent exact-Rocket auditing covers all
+**2,431 source / 2,379 projected storage annotations**, native synthesis constants,
+retired caches, history and **14 XDC commands in seven annotation blocks**.
+Complete widget/MMIO/DMA attachment, all freeze owners, physical CE restore,
+pre-FAME mapping, full localhost image/AFI and every FPGA-origin acceptance
+column remain pending. Final commands and receipts belong under
+`runs/aws-f2/iteration236/`. See [f2-native-inplace-access.md](f2-native-inplace-access.md).
+
 Iteration 235 adds actual in-place compiler-context projection. All **250 Scala /
 21 localhost synthesis / 40 EDA scopes**, **309 Python / 40 loop tests** and
 retained **ASan/UBSan/host/FCFS** checks pass. The exact Rocket test projects

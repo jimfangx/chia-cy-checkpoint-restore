@@ -23,7 +23,67 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 235,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 236,
+**in_progress**. `NativeCheckpointInPlaceAccess.emit` connects one existing host
+execution to a raw-clock functional/physical CE readout router. It reconstructs
+source/context/graft/identity before emission, uses original global StateIDs with
+unchanged local selectors, and preserves original correlated XDC under the
+actual `network` instance. See [f2-native-inplace-access.md](f2-native-inplace-access.md).
+
+All **251 Scala / 22 localhost synthesis / 41 EDA scopes**, **313 checkpoint
+Python / 40 loop tests** and retained **ASan/UBSan/host/FCFS** checks pass.
+The new bounded readout passes **7,101 SP2 checks / four cuts / 136 words / 522
+stalls** through cycle **419**, retaining **five debug waves**. The compiled
+CE-connection fault stops on its first physical read at cycle **25**, check
+**55**, before a functional word; missing owner and CE drift remain stopped.
+Native synthesis retains **1,091 LUTs / 595 registers**, independently proving
+**199** raw parent/router/endpoint register clocks. OOC setup/hold estimates are
+**+2.052/−0.074 ns**; full-image timing closure remains pending. Native/EDA
+matching binds **817 inputs / 54 current sources** and rejects ten rehashed
+mutations. The retained original in-place execution still passes **6,541 checks /
+four cuts / 128 words / 468 stalls**, with six waves.
+
+Fresh exact-Rocket generation and independent production readout audits pass.
+They check **2,431 storage annotations / 2,379 projected annotations**, **25
+compiler-context annotations / 20 kinds** and **14 actual XDC commands in seven
+emitted annotation blocks**. Native plusarg constants are checked against exact
+source annotations, stateless original definitions and concrete module hashes;
+the generic metasim inventory schema stays unchanged. History, preservation,
+memory-model/constant targets, retired path caches and shell-only XDC retain
+complete explicit contracts. Four new Python tests exercise **23 negative
+subcases**. Unknown classes still reject. Commands and receipts belong under
+`runs/aws-f2/iteration236/` in `summary.json`, `verification-commands.json` and
+`recovery-notes.json`.
+
+Selected coverage remains **10,149 functional + two CE** entries, leaving
+**1,947 functional owners and one FASED CE owner** uncovered. The ordinary
+compiler still rejects that missing physical CE owner/common low-phase cut.
+Next: actual registered FPGATop widget/MMIO/DMA attachment, complete reset/
+external CE/functional DRAM/FASED/bridge/host ownership, physical CE restore and
+independent pre-FAME semantics. Full localhost image/P&R/timing/AFI/driver binding,
+active all-hart early/warm/outstanding/late F2 captures, independent complete
+zero-edge restores, finite replay, sustained live RTL and rolling recovery remain
+pending. Every FPGA-origin migration column remains pending. Reuse iteration194's
+initialized ExternallyProvisioned localhost invocation. No capture image or AFI
+is claimed.
+
+Diagnostics preserve invalid fixture register selectors, artificial clock-pin
+path segmentation, the vararg annotation constructor error, an EDA launch before
+a native receipt existed, previously fixture-only production annotation/schema
+assumptions, and the final annotation-block/command count mismatch. Corrections
+retain original structural-fixture/production constraints and strict admission.
+AWS, native Vivado/HDK and localhost SSH checks pass. Final inventory has **zero
+loop runtime instances / zero native jobs / 35 account AFIs**. Newly observed
+pending account AFI `afi-0c48c4812ad82c73d` was not requested by this turn;
+its provenance is unverified and it provides no checkpoint-image acceptance.
+The inventory delta preserves its ID without altering it. This iteration
+requested no runtime or image. Both plans and the four initialized
+manager YAMLs retain entry hashes. Existing iteration-235 controller checkpoints
+are published FireSim first, then Chipyard; both live remote tips match. No
+staging/local commits. Managed worker startup failed before creation; only the
+central agent ran, and no worker remains.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 235,
 **in_progress**. `NativeCheckpointInPlaceContext` binds the actual post-lowering
 compiler context alongside complete host storage annotation projection. Native
 functional emission version 2 retains the source annotation sets and context

@@ -2,15 +2,74 @@
 
 This audit establishes metadata coverage, never complete FPGA capture or restore.
 """
+import copy
+import hashlib
 import json
 from pathlib import Path
 import re
 
-from tools.checkpoint_formats.codec import require
-from tools.checkpoint_formats.simulator import validate_generated_manifest
+from tools.checkpoint_formats.codec import HASH, keys, natural, require
+from tools.checkpoint_formats.simulator import PLUSARG_MODEL_SHA256, validate_generated_manifest
 from tools.checkpoint_formats.tests.audit_physical_clock_plan import arguments, parse_modules, audit_source
 from tools.checkpoint_formats.tests.audit_physical_clock_dependencies import audit as audit_dependencies
 from tools.checkpoint_formats.tests.verify_native_functional_bank import digest, sha, FLAGS
+
+
+def validate_native_constants(manifest, modules, annotations):
+    """Validate FPGA constants without admitting them to metasim inventories.
+
+    The native producer hashes the concrete module, not the adapter (the latter
+    convention belongs to metasim's stateful plusarg model). Check source
+    annotations and every original definition before validating a storage-only
+    view with the unchanged generic schema. No original input is modified.
+    """
+    contracts = {}
+    for annotation in annotations:
+        if annotation.get('class') != 'midas.checkpoint.SynthesisPlusArgConstantAnnotation':
+            continue
+        keys(annotation, {'class','target','sourceSHA256','originalCircuitSHA256','width','default','format'})
+        require(isinstance(annotation['target'],str), 'invalid native constant target')
+        natural(annotation['width']); natural(annotation['default'])
+        match = re.fullmatch(r'~'+re.escape(manifest['circuit'])+r'\|([A-Za-z_][A-Za-z0-9_$]*)', annotation['target'])
+        require(match and match[1] not in contracts, 'foreign or duplicate native constant annotation')
+        contracts[match[1]] = annotation
+    view = copy.deepcopy(manifest)
+    seen = set()
+    original_hashes = set()
+    for instance in view['instances']:
+        adapter = instance.get('external_adapter')
+        if not adapter or adapter.get('adapter') != 'fpga-synthesis-plusarg-constant-v1':
+            continue
+        keys(adapter, {'adapter','source_sha256','original_circuit_sha256','width','default','format'})
+        require(adapter['source_sha256'] == PLUSARG_MODEL_SHA256 and
+                isinstance(adapter['original_circuit_sha256'],str) and HASH.fullmatch(adapter['original_circuit_sha256']),
+                'unknown native constant source or original circuit')
+        width, default = adapter['width'], adapter['default']
+        natural(width); natural(default)
+        require(0 < width <= 2**31-1 and default.bit_length() <= width and
+                isinstance(adapter['format'],str) and re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*=%[dbh]',adapter['format']),
+                'invalid native constant width/default/format')
+        module = instance['module']
+        require(module in modules and module in contracts, 'native constant lacks original annotated definition')
+        expected = dict(adapter='fpga-synthesis-plusarg-constant-v1',source_sha256=contracts[module]['sourceSHA256'],
+            original_circuit_sha256=contracts[module]['originalCircuitSHA256'],width=contracts[module]['width'],
+            default=contracts[module]['default'],format=contracts[module]['format'])
+        require(adapter == expected, 'native constant differs from source annotation')
+        actual = modules[module]
+        normalized = [line.strip() for line in re.sub(r' @\[.*$', '', actual['body'],flags=re.M).splitlines() if line.strip()]
+        require(actual['kind']=='module' and actual['ports']=={'out':('output',f'UInt<{width}>')} and
+                normalized == [f'module {module} :',f'output out : UInt<{width}>',f'out <= UInt<{width}>("h{default:x}")'],
+                'native constant has changed output, ports, hidden state or effects')
+        require(instance['implementation_sha256']==hashlib.sha256(actual['body'].encode()).hexdigest(),
+                'native constant concrete implementation hash changed')
+        require(not any(r['hierarchy'].rsplit('.',1)[0]==instance['hierarchy'] for r in manifest['state']),
+                'native synthesis constant cannot own runtime state')
+        seen.add(module); original_hashes.add(adapter['original_circuit_sha256'])
+        del instance['external_adapter']
+    require(seen==set(contracts) and len(original_hashes)<=1, 'missing native constant instance or mixed source circuits')
+    validate_generated_manifest(view)
+    return len([r for r in manifest['instances'] if r.get('external_adapter',{}).get('adapter') ==
+                'fpga-synthesis-plusarg-constant-v1'])
 
 
 def audit(generated):
@@ -33,7 +92,7 @@ def audit(generated):
     local_descriptors = read(prefix + '.native-descriptors.json')
     global_manifest = read('global-simulator-state.json')
     global_plan = read('global-physical-clock-plan.json')
-    validate_generated_manifest(global_manifest)
+    validate_native_constants(global_manifest, host, read('host-annotations.json'))
     require(global_manifest['root_module'] == global_manifest['circuit'] == root and
             global_manifest['reference_sha256'] == sha(generated / 'host.fir'), 'changed global source/root')
 
