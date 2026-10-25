@@ -29,6 +29,7 @@ PREFIX = 'FireSim-generated'
 PORT_PREFIX = 'checkpoint_inplace_'
 SOURCES = tuple(sorted(set(NETWORK_SOURCES + (
     'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/NativeCheckpointInPlace.scala',
+    'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/NativeCheckpointInPlaceContext.scala',
     'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/NativeCheckpointIdentity.scala',
     'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedStateBankAnnotations.scala',
     'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedSynthesisConstantAdapter.scala',

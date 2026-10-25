@@ -14,6 +14,21 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 235 adds actual in-place compiler-context projection. All **250 Scala /
+21 localhost synthesis / 40 EDA scopes**, **309 Python / 40 loop tests** and
+retained **ASan/UBSan/host/FCFS** checks pass. The exact Rocket test projects
+**2,456 source annotations**, preserves **25 context annotations / 20 kinds** and
+**2,379 storage annotations**, and emits **14 XDC commands** in the original
+compiler constraint order. Independent context auditing matches **15 fixture /
+17 production files / 44 sources** across both backends and rejects **eight /
+nine** coherently rehashed mutations. Retained in-place SP2 execution passes
+**6,541 checks / four cuts / 128 words / 468 stalls** through cycle **409**, with
+six debug waves and **1,822 inputs / 42 sources** matched. Receipt and command
+files are under `runs/aws-f2/iteration235/`. Full-image timing, endpoint/widget
+attachment, complete freeze owners/physical CE restore/pre-FAME mapping, the
+localhost capture image/AFI and every FPGA-origin capture/migration/recovery
+column remain pending. See [f2-native-inplace-context.md](f2-native-inplace-context.md).
+
 Iteration 234 projects primitive-local XDC to original physical executions,
 including renamed selected ancestors and unchanged siblings. Added mask gates
 receive no inherited original constraint. Both selected-reference and host input

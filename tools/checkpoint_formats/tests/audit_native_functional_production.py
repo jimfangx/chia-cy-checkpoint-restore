@@ -20,9 +20,9 @@ def audit(directory, prefix='FireSim-generated'):
     path=lambda name:directory/(prefix+'.native-functional'+name)
     read=lambda name:json.loads(path(name).read_text())
     emission=read('-emission.json')
-    require(emission==dict(binding_version=1,scope='native_functional_readout_companion_only',
+    require(emission==dict(binding_version=2,scope='native_functional_readout_companion_only',
         inputs=emission['inputs'],**FLAGS),'native emission scope/admission changed')
-    expected_suffixes=['-reference.fir','-simulator-state.json','-plan.json','-dependencies.json',
+    expected_suffixes=['-reference.fir','-reference.anno.json','-context.anno.json','-context.json','-simulator-state.json','-plan.json','-dependencies.json',
         '-inventory.json','-instrumented.fir','-binding.json','.sv','.synthesis.xdc','.implementation.xdc']
     require(set(emission['inputs'])=={'.native-functional'+s for s in expected_suffixes},'incomplete native emission files')
     for suffix in expected_suffixes:
