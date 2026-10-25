@@ -32,6 +32,9 @@ SOURCES = tuple(sorted(set(INPLACE_SOURCES + (
     'tools/checkpoint_formats/tests/native_inplace_access_fixture.sv',
     'tools/checkpoint_formats/tests/native_inplace_access_tb.sv',
     'sims/firesim/sim/midas/src/main/verilog/CheckpointPhysicalStateRouter.sv'))))
+ORACLE_BINDING_FILE = PREFIX+'.native-functional-binding.json'
+REFERENCE_FILE = 'generated/NativeReference.sv'
+TESTBENCH_FILE = 'sources/native_inplace_access_tb.sv'
 FILES = ['generated/instrumented.sv', 'generated/'+PREFIX+'.native-inplace-access.sv',
          'generated/'+PREFIX+'.native-inplace-access-router.sv',
          'generated/'+PREFIX+'.native-inplace-access-ce.sv',
@@ -101,7 +104,7 @@ def main():
         require((directory/'synth.tcl').read_text()==TCL, 'changed synthesis scope')
         for name in SOURCES:
             require(sha(directory/'sources'/Path(name).name)==sources[name], 'changed retained source '+name)
-        binding = json.loads((directory/'generated'/(PREFIX+'.native-functional-binding.json')).read_text())
+        binding = json.loads((directory/'generated'/ORACLE_BINDING_FILE).read_text())
         require((directory/'native-selectors.svh').read_text()==selectors(binding), 'changed independent selector/oracle')
         for name in ('BUFGCE.v','glbl.v'):
             require(sha(directory/name)==doc['vendor_models'][name], 'changed original vendor model')
@@ -130,7 +133,7 @@ def main():
         vendor = Path(os.environ['XILINX_VIVADO'])/'data/verilog/src'
         for name,source in (('BUFGCE.v',vendor/'unisims/BUFGCE.v'),('glbl.v',vendor/'glbl.v')):
             shutil.copyfile(source,out/name)
-        binding = json.loads((out/'generated'/(PREFIX+'.native-functional-binding.json')).read_text())
+        binding = json.loads((out/'generated'/ORACLE_BINDING_FILE).read_text())
         (out/'native-selectors.svh').write_text(selectors(binding))
         (out/'synth.tcl').write_text(TCL)
         summary['inputs'] = {str(p.relative_to(out)):sha(p) for p in out.rglob('*') if p.is_file()}
@@ -147,8 +150,8 @@ def main():
         for name in native['inputs']:
             dest = out/name;dest.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(args.native/name,dest)
         summary.update(inputs=native['inputs'],vendor_models=native['vendor_models'])
-        files = FILES + ['generated/NativeReference.sv','BUFGCE.v','glbl.v',
-            'sources/native_inplace_access_tb.sv','sources/checkpoint_widget_exit.cc']
+        files = FILES + [REFERENCE_FILE,'BUFGCE.v','glbl.v',
+            TESTBENCH_FILE,'sources/checkpoint_widget_exit.cc']
         common = [toolchain.VCS,'-full64','-sverilog','-debug_access+all','-timescale=1ns/1ps','-Mupdate',
             '+incdir+'+str(out),'-top','native_inplace_access_tb','-top','glbl']
         run([*common,'-Mdir=csrc','-o','simv',*files],'compile')

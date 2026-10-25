@@ -23,7 +23,59 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 237,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 238,
+**in_progress**. `NativeCheckpointInPlaceGraft.generate` inserts a descriptor
+ROM, transaction router and physical CE bank inside the one existing lowered
+root. Original functional ports, selected instance paths, ancestor clocks and
+storage annotations remain intact. It emits original-path synthesis/implementation
+XDC through the real consumer, bound with source/context, global identity,
+grafted circuit and RTL hashes. Explicit capture ports still require production
+widget/owner binding. See [f2-native-inplace-graft.md](f2-native-inplace-graft.md).
+
+The bounded graft passes **7,101 EDA SP2 checks / four cuts / 136 words / 522
+stalls**, reaching cycle **419** with five waves. Native synthesis retains
+**1,091 LUTs / 595 registers / three BUFGCEs**, proving **199** raw ancestor/
+router/endpoint clocks. OOC setup/hold estimates are **+2.052/−0.074 ns**;
+full-image closure remains pending. Independent native/EDA matching binds
+**630 inputs / 59 sources** and rejects six rehashed adapter mutations plus
+eight rehashed circuit/clock/hierarchy/constraint/scope/owner mutations. Settled
+wave reconstruction proves two ancestor counters advance during **872** frozen
+raw-clock edges at cuts **25/78/193/339**, without a selected target edge.
+Compiled CE corruption stops on its first physical read at cycle **25**, check
+**55**. Exact Rocket probe generation passes in **606 seconds**; the ordinary
+compiler still rejects its missing FASED CE capture owner/common low-phase cut.
+All **253 Scala / 24 localhost synthesis** scopes, **313 checkpoint Python / 40
+loop tests** and retained **ASan/UBSan/host/FCFS** checks pass. All **43 EDA
+scopes** and the combined source/word/constraint/waveform/resource audit pass.
+Exact commands and individual receipts belong under `runs/aws-f2/iteration238/`
+in `verification-commands.json`, `summary.json` and `final-audit.json`.
+Manager/EDA production graft auditing matches all
+**77 inputs / 59 sources**, with original execution and coverage gaps intact.
+
+Next: connect the graft's explicit capture interface to the registered widget
+inside the existing production FPGATop; complete reset/external CE/functional
+DRAM/FASED/bridge/host ownership, physical CE restore and independent pre-FAME
+semantics. Selected coverage still leaves **1,947 functional owners and one
+FASED CE owner** uncovered. Full localhost image/P&R/timing/AFI/driver binding,
+active all-hart F2 cuts and reference continuation, complete independent zero-edge
+restores, finite replay, sustained live clean RTL and rolling recovery remain
+pending. All FPGA-origin migration columns remain pending. Reuse iteration194's
+initialized ExternallyProvisioned localhost invocation; no checkpoint image,
+AFI, runtime or hardware-origin checkpoint is claimed.
+
+Final inventory: **zero loop runtime instances / zero native jobs / 37 account
+AFIs / no pending AFIs**, with no inventory delta. This turn requested no image
+or runtime; none of those account images establishes this implementation.
+AWS/F2, native Vivado/HDK and both localhost SSH access paths pass. Diagnostics
+retain the corrected ScalaTest filter, FIRRTL declaration order, annotation
+ordering and independent selector-path failures. Both existing controller
+checkpoints were pushed FireSim first, then Chipyard; remote tips match. The
+Chipyard push retains its successful remote update and
+local tracking-ref write denial. Plans and initialized manager YAMLs remain
+read-only. No staging/local commits. Managed worker startup failed before
+creation; only the central agent ran and no worker remains.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 237,
 **in_progress**. `NativeCheckpointInPlaceCaptureBinding` connects the validated
 in-place component network to the registered FPGATop widget, actual MMIO
 interconnect and CPU-managed DMA stream. The standalone binding shares the

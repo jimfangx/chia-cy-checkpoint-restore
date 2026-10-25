@@ -14,6 +14,21 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 238 adds a checked readout graft inside the existing lowered root,
+retaining original execution paths, raw ancestor clocks, global descriptor
+identity and original-path XDC. The bounded graft passes **7,101 EDA SP2 checks /
+four cuts / 136 words / 522 stalls**, five waves and six rehashed adapter
+rejections. Native synthesis proves **199 raw register clocks / three BUFGCEs**,
+retaining **1,091 LUTs / 595 registers**. Independent matching binds **630 inputs /
+59 sources**; settled waves show both ancestors advance across **872** frozen
+raw-clock edges without selected target advancement. Production widget/owner
+binding and every FPGA-origin acceptance column remain pending. All **253
+Scala / 24 localhost synthesis / 43 EDA scopes**, **313 checkpoint Python /
+40 loop tests** and retained **ASan/UBSan/host/FCFS** checks pass. Production
+manager/EDA graft audits match **77 inputs / 59 sources**. Final receipts and
+commands belong under `runs/aws-f2/iteration238/`.
+See [f2-native-inplace-graft.md](f2-native-inplace-graft.md).
+
 Iteration 237 attaches the validated in-place **component** host to the
 registered FPGATop widget and its actual MMIO/CPU DMA path. The new component
 passes **19,235 EDA SP2 checks / five cuts / 170 words / 1,110 DMA stalls**,
