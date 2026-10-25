@@ -14,6 +14,27 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 230 adds a reconstructed bounded native network attachment through
+actual FPGATop AXI control and CPU-managed DMA. The registered widget and network
+share the raw source and controller reset; all original functional inputs, cycle
+authority and owners remain explicit. Missing reset/owner connections reject,
+and an enclosing F1Shim simulator cannot be embedded as a second execution.
+All **238 Scala tests** pass. Fresh EDA SP2 passes **15,655 checks / five cuts /
+170 words / 1,110 DMA stalls**, including reset recovery and continuation through
+cycle **200**, with five debug VCDs and first-payload semantic/compiled CE fault
+rejection. Local native synthesis uses **4,582 LUTs / 1,726 registers**; **1,028**
+control/transport/DMA registers retain the raw source, six native constraints apply
+and five changed top connections reject. OOC 140 MHz setup/hold estimates are
+**+0.591/−0.095 ns**; full-image closure is pending. Detailed current-source and
+retained results, including all **20 native synthesis / 39 EDA scopes**, **309
+checkpoint Python / 40 loop tests** and retained ASan/UBSan/host/FCFS checks, are
+recorded in `runs/aws-f2/iteration230/summary.json` and its command manifest.
+This is **in_progress bounded attachment integration**. Whole-Rocket in-place
+instrumentation and ownership, physical CE restore, full image/timing/AFI/driver
+binding, actual active all-hart FPGA cuts and every FPGA-origin migration/recovery
+column above remain pending. See
+[f2-native-fpgatop-attachment.md](f2-native-fpgatop-attachment.md).
+
 Iteration 229 adds validated native state-access wrapper XDC placement at its
 actual `network` instance, with separately bound pre/post-link paths and an
 independent concrete-target reconstruction. All **237 Scala tests** pass. Native

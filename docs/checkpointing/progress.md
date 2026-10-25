@@ -20,7 +20,57 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 229,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 230,
+**in_progress**. `NativeCheckpointCaptureBinding` now reconstructs and attaches
+a bounded native network to the registered FPGATop widget, sharing its raw clock
+and controller reset, physical mask/CE sampling and request/response protocol.
+Actual FPGATop MMIO and CPU-managed AXI DMA preserve the existing bridge stream
+at index zero and allocate checkpoint stream one. The callback must wire all
+original non-clock ports, cycle authority and named freeze owners; omitted reset
+or owner inputs fail FIRRTL initialization. Embedding an enclosing simulator is
+explicitly rejected: complete Rocket F1Shim needs **in-place** production
+instrumentation, not another copy of the simulator. See
+[f2-native-fpgatop-attachment.md](f2-native-fpgatop-attachment.md).
+
+All **238 Scala tests** pass. Fresh EDA SP2 native-FPGATop execution passes
+**15,655 checks / five cuts / 170 words / 1,110 DMA stalls**, at cuts
+**16/84/184/324**, then reset recovery at **21** and continuation through **200**.
+Semantic and compiled CE faults stop at their first payload mismatch while frozen;
+missing-owner/cycle faults acknowledge no target edges. Five hierarchical VCDs
+remain. Local native synthesis passes at **4,582 LUTs / 1,726 registers**, with
+**1,028** independently audited raw-clock control/transport/DMA registers and six
+applied native constraint queries. OOC 140 MHz setup/hold estimates are
+**+0.591/−0.095 ns**; full-image timing closure remains pending. Five changed top
+connections reject. All **20 localhost synthesis / 39 EDA scopes**, **309 checkpoint
+Python / 40 loop tests** and retained ASan/UBSan/host/FCFS checks pass. New
+independent native/EDA matching covers **86 inputs / 41 sources**. Final
+current-source results, commands, diagnostics and independent audits belong under
+`runs/aws-f2/iteration230/summary.json` and `verification-commands.json`.
+Exact Rocket native structural regeneration/auditing passes, while the ordinary
+production compiler still rejects the unbound FASED physical CE owner/common cut.
+The bounded attachment does not admit whole-Rocket capture or restore.
+
+Next: instrument the existing production F1Shim execution in place while keeping
+the control/stream path ungated. Bind `F1Shim.reset`, all external CE inputs and
+functional DRAM writers, complete FASED/bridge/software owners and independent
+pre-FAME semantic state; implement physical CE restore. Complete production XDC
+attachment, localhost full-image P&R/timing/AFI/driver binding, actual all-hart
+early/warm/outstanding/late F2 capture and FPGA-reference continuation, paired
+independent zero-edge restoration, finite replay, sustained live RTL beyond trace
+and rolling hardware recovery remain pending. Every FPGA-origin migration column
+stays pending. Reuse iteration194's initialized localhost invocation.
+No checkpoint-enabled AFI or hardware checkpoint is claimed.
+
+The initialized AWS/F2 and native Vivado/HDK/localhost setup checks pass. Plans
+and manager configs remain protected inputs; the controller owns staging and
+commits. Existing controller checkpoints were published FireSim first and
+Chipyard second; remote tips are checked. Follow
+[github-publication.md](github-publication.md) for the next controller checkpoint.
+The managed worker failed before creation; all work remains central. Initial
+Scala, EDA naming and sync/dependency races and their repairs remain under this
+iteration's `runs/` with `recovery-notes.json`.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 229,
 **in_progress**. The native state-access wrapper now emits separately bound
 synthesis/implementation constraints at its concrete `network` instance.
 `NativeCheckpointConstraints` validates original targets, preserves correlated
