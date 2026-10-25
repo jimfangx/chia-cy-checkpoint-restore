@@ -14,6 +14,26 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 232 reconciles in-place selected banks with original global StateIDs
+without changing endpoint selectors, word order or physical CE bit order.
+All **244 Scala tests** pass. Exact-Rocket original-source auditing maps
+**10,149 functional + two CE** entries (**320,587 words**) and explicitly leaves
+**1,947 functional owners / 298,428 words** and **one FASED CE owner** uncovered.
+Local CE slots **0/1** correspond to global physical indices **1/2**. The bounded
+fixture synthesizes locally and rejects six structural and sixteen coherently
+rehashed metadata corruptions, including omitted global owners and nonfunctional
+parent clocks. All **21 localhost synthesis / 40 EDA scopes**, **309 checkpoint
+Python / 40 loop tests** and retained ASan/UBSan/host/FCFS checks pass. The native
+fixture uses **884 LUTs / 590 registers**, retaining **194** raw parent/readout
+clocks; OOC 140 MHz setup/hold estimates are **+2.672/−0.074 ns** and full-image
+closure is pending. Fresh EDA SP2 passes **6,541 checks / four cuts / 128 words /
+468 stalls** through cycle **409**, with six debug waves and independent matching
+of **934 inputs / 33 sources**. Final results and commands belong under
+`runs/aws-f2/iteration232/`. This remains **in_progress identity integration**. Production annotation/XDC and CE endpoint/router/widget
+attachment, complete owner binding/physical restore/pre-FAME mapping, full
+localhost image/AFI and every FPGA-origin migration/recovery column remain
+pending. See [f2-native-inplace-identity.md](f2-native-inplace-identity.md).
+
 Iteration 231 adds in-place banking of an existing concrete execution with raw
 parent/control clocks and a separately proven raw bank endpoint. All **242 Scala
 tests** pass. Independent exact-Rocket structural auditing covers the existing

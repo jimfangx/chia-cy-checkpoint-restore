@@ -20,7 +20,56 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 231,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 232,
+**in_progress**. In-place native banks now reconcile selected endpoint identities
+with the original complete enclosing generated-RTL inventory. Functional and physical
+StateIDs become global while hardware descriptor order, bank/slot, transfer shape
+and CE bit order stay local. Version-2 in-place bindings and the new descriptor
+factory bind both inventories, original topology/CE dependencies and every
+uncovered global owner. No coverage or restore admission is inferred.
+See [f2-native-inplace-identity.md](f2-native-inplace-identity.md).
+
+All **244 Scala tests** pass. Independent original-FIRRTL auditing reconstructs
+registers, RAMs and emitter pipelines, clocks/resets/shapes and complete global
+clock/CE provenance. Exact Rocket maps **10,149 functional + two CE** selected
+entries (**320,587 words**) into **12,096 functional + three CE** global owners.
+Its **1,947 uncovered functional owners / 298,428 words** and the sibling
+**FASED CE owner** remain explicit. Selected CE bits/slots **0/1** retain their
+hardware meanings despite global physical indices **1/2**. Native bounded
+in-place synthesis passes and rejects **six structural / sixteen coherently
+rehashed metadata mutations**, including actual nonfunctional parent-clock
+barriers. The native fixture uses **884 LUTs / 590 registers** and retains all
+**194** raw parent/readout register clocks. OOC 140 MHz setup/hold estimates are
+**+2.672/−0.074 ns**; full-image timing closure remains pending. Fresh EDA SP2
+passes **6,541 checks / four cuts / 128 words / 468 response stalls**, continuing
+through cycle **409**, with all six debug waveforms. Native/EDA input matching
+covers **934 inputs / 33 current sources**. All **21 localhost synthesis / 40
+EDA scopes**, **309 checkpoint Python / 40 loop tests** and retained
+ASan/UBSan/host/FCFS checks pass. Final receipts, diagnostics and ordered commands
+belong under `runs/aws-f2/iteration232/` in `summary.json`,
+`recovery-notes.json` and `verification-commands.json`. The fresh ordinary exact
+Rocket compiler still rejects the unbound FASED CE owner/common cut. No capture
+image or FPGA-origin checkpoint is claimed.
+
+Next: production annotation/XDC projection and actual in-place CE endpoint,
+router, widget/MMIO/stream attachment while preserving raw parent control clocks.
+Bind all resets, external CE/functional-memory writers, FASED/bridge/software
+owners and independent pre-FAME semantics, including physical CE restore.
+Full localhost image implementation/timing/AFI/driver binding, active all-hart
+F2 captures at early/warm/outstanding/late cuts, FPGA reference continuation,
+paired complete zero-edge restores, independent finite replay, sustained live
+RTL beyond trace and rolling hardware recovery remain pending. All hardware
+migration columns stay pending. Reuse iteration194's localhost invocation.
+
+Both plans and initialized manager YAMLs remain protected inputs. AWS/F2 and
+native Vivado 2025.2/HDK/default localhost SSH checks pass. Existing controller
+checkpoints were pushed FireSim first and Chipyard second; remote tips match.
+The Chipyard push's local tracking-ref update was denied by the sandbox after
+remote publication succeeded; retain its exact log. No staging or local commits.
+Follow [github-publication.md](github-publication.md). Managed worker startup
+failed before creation; all work remains central and no worker remains.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 231,
 **in_progress**. `NativeCheckpointInPlace.generate` now banks an existing
 concrete instance and routes its sideband through its existing ancestors,
 preserving parent control clocks and a separately proven raw readout clock.

@@ -15,11 +15,12 @@ import subprocess
 import tempfile
 
 from tools.checkpoint_formats import toolchain
-from tools.checkpoint_formats.codec import require
+from tools.checkpoint_formats.codec import canonical, require
 from tools.checkpoint_formats.tests.audit_physical_clock_plan import parse_modules
 from tools.checkpoint_formats.tests.verify_native_clock_cut_bank import audit as audit_network
 from tools.checkpoint_formats.tests.verify_native_clock_cut_bank import SOURCES as NETWORK_SOURCES
-from tools.checkpoint_formats.tests.verify_native_functional_bank import sha, selectors
+from tools.checkpoint_formats.tests.verify_native_functional_bank import sha, selectors, digest
+from tools.checkpoint_formats.tests.audit_native_inplace_identity import audit as audit_identity
 
 ROOT = Path(__file__).resolve().parents[3]
 RUNS = ROOT / 'automations/checkpoint_loop/runs'
@@ -27,6 +28,9 @@ PREFIX = 'FireSim-generated'
 PORT_PREFIX = 'checkpoint_inplace_'
 SOURCES = tuple(sorted(set(NETWORK_SOURCES + (
     'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/NativeCheckpointInPlace.scala',
+    'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/NativeCheckpointIdentity.scala',
+    'tools/checkpoint_formats/tests/audit_native_inplace_identity.py',
+    'tools/checkpoint_formats/simulator.py',
     'sims/firesim/sim/midas/src/test/scala/midas/checkpoint/NativeCheckpointInPlaceSpec.scala',
     'sims/firesim/sim/midas/src/test/scala/midas/checkpoint/MultipleFunctionalClocksSpec.scala',
     'tools/checkpoint_formats/tests/verify_native_inplace.py',
@@ -111,13 +115,15 @@ def audit(generated):
             seen.add(source)
             source = drivers[source]
         require(host[name]['ports'].get(source) == ('input', 'Clock'), 'raw clock is not a transparent ancestor input')
-    expected = dict(binding_version=1, scope='existing_instance_native_banks_only',
+    identity = audit_identity(generated)
+    expected = dict(binding_version=2, scope='existing_instance_native_banks_only',
         target=target,
         host_sha256=sha(generated / 'host.fir'),
         reference_sha256=sha(generated / (PREFIX + '.native-functional-reference.fir')),
         bank_binding_sha256=sha(generated / (PREFIX + '.native-functional-binding.json')),
         wiring_binding_sha256=sha(generated / (PREFIX + '.native-clock-cut.json')),
         instrumented_sha256=sha(generated / 'instrumented.fir'),
+        identity_binding_sha256=sha(generated / 'global-identity-binding.json'),
         enclosing_raw_clock=source, selected_raw_clock=clock_plan['common_source_clock'], endpoint_raw_clock='ckpt_clock',
         sideband_ports=[dict(selected=k, enclosing=PORT_PREFIX + k, direction=v[0], type=v[1]) for k, v in access.items()],
         complete_fpga_capture=False, deployable_capture_image=False,
@@ -161,7 +167,7 @@ def audit(generated):
         require(normalized('\n'.join(stripped)) == normalized(original['body']), 'changed original ancestor statement ' + name)
     raw_bits = sum(int(width) for name, _, _ in parents for width in
                    re.findall(r'\breg \w+ : UInt<(\d+)>', host[name]['body']))
-    return dict(network=network, original_execution_instances=1, raw_ancestor_register_bits=raw_bits,
+    return dict(network=network, identity=identity, original_execution_instances=1, raw_ancestor_register_bits=raw_bits,
                 routed_sideband_ports=len(access), modules=len(actual))
 
 
@@ -192,6 +198,92 @@ def corruptions(generated, out):
             rejected.append(dict(name=name, error=str(error)))
         else:
             raise ValueError('coherent in-place corruption accepted: ' + name)
+    return rejected + identity_corruptions(generated, out / 'identity')
+
+
+def identity_corruptions(generated, out):
+    """Valid JSON with all enclosing hashes recomputed must still reject."""
+    names = ('global-id', 'local-id-alias', 'selector', 'word-order', 'storage-path',
+             'physical-slot', 'physical-index', 'metasim-alias', 'drop-uncovered',
+             'uncovered-shape', 'coherent-global-owner-loss', 'coherent-global-shape',
+             'data-parent-clock', 'constant-parent-clock', 'capture-claim', 'restore-claim')
+    rejected = []
+    for name in names:
+        directory = out / name
+        shutil.copytree(generated, directory)
+        manifest = json.loads((directory / 'global-identity.json').read_text())
+        first = manifest['state'][0]
+        ce = next(r for r in manifest['state'] if r['domain'] == 'physical_ce')
+        required_reason = None
+        if name == 'global-id': first['state_id'] = '0' * 64
+        elif name == 'local-id-alias': first['state_id'] = first['selected_state_id']
+        elif name == 'selector': first['slot'] += 1
+        elif name == 'word-order': manifest['state'][0:2] = manifest['state'][1::-1]
+        elif name == 'storage-path': first['storage_hierarchy'] += '_other'
+        elif name == 'physical-slot': ce['slot'] += 1
+        elif name == 'physical-index': ce['global_physical_index'] += 1
+        elif name == 'metasim-alias': ce['state_id'] = ce['metasim_output_state_id']
+        elif name == 'drop-uncovered': manifest['uncovered_functional_state'].pop()
+        elif name == 'uncovered-shape': manifest['uncovered_functional_state'][0]['width'] += 1
+        elif name in ('coherent-global-owner-loss', 'coherent-global-shape'):
+            row = manifest['uncovered_functional_state'][0]
+            inventory = json.loads((directory / 'global-simulator-state.json').read_text())
+            topology = json.loads((directory / 'global-physical-clock-plan.json').read_text())
+            deps = json.loads((directory / 'global-physical-clock-dependencies.json').read_text())
+            if name == 'coherent-global-owner-loss':
+                inventory['state'] = [r for r in inventory['state'] if r['state_id'] != row['state_id']]
+                topology['state_clock_coverage'] = [r for r in topology['state_clock_coverage'] if r['state_id'] != row['state_id']]
+                manifest['uncovered_functional_state'].pop(0)
+                manifest['global_functional_entries'] -= 1
+            else:
+                next(r for r in inventory['state'] if r['state_id'] == row['state_id'])['width'] += 1
+                row['width'] += 1
+            (directory / 'global-simulator-state.json').write_bytes(canonical(inventory))
+            topology['simulator_manifest_sha256'] = digest(inventory)
+            (directory / 'global-physical-clock-plan.json').write_bytes(canonical(topology))
+            deps.update(simulator_manifest_sha256=digest(inventory), plan_sha256=digest(topology))
+            (directory / 'global-physical-clock-dependencies.json').write_bytes(canonical(deps))
+        elif name in ('data-parent-clock', 'constant-parent-clock'):
+            row = manifest['uncovered_functional_state'][0]
+            inventory = json.loads((directory / 'global-simulator-state.json').read_text())
+            topology = json.loads((directory / 'global-physical-clock-plan.json').read_text())
+            deps = json.loads((directory / 'global-physical-clock-dependencies.json').read_text())
+            clock = 'asClock(reset)' if name == 'data-parent-clock' else 'asClock(UInt<1>("h0"))'
+            host = directory / 'host.fir'
+            original = host.read_text()
+            before = 'reg %s : UInt<%d>, clock with :' % (row['hierarchy'].rsplit('.', 1)[1], row['width'])
+            require(original.count(before) == 1, 'ambiguous negative parent register')
+            host.write_text(original.replace(before, before.replace(', clock with :', ', ' + clock + ' with :')))
+            next(r for r in inventory['state'] if r['state_id'] == row['state_id'])['clock_expression'] = clock
+            row['clock_expression'] = clock
+            inventory['reference_sha256'] = sha(host)
+            (directory / 'global-simulator-state.json').write_bytes(canonical(inventory))
+            topology.update(reference_sha256=sha(host), simulator_manifest_sha256=digest(inventory))
+            (directory / 'global-physical-clock-plan.json').write_bytes(canonical(topology))
+            deps.update(reference_sha256=sha(host), simulator_manifest_sha256=digest(inventory), plan_sha256=digest(topology))
+            (directory / 'global-physical-clock-dependencies.json').write_bytes(canonical(deps))
+            required_reason = 'nonfunctional consumer clock'
+        elif name == 'capture-claim': manifest['complete_fpga_capture'] = True
+        elif name == 'restore-claim': manifest['metasim_restore_supported'] = True
+        (directory / 'global-identity.json').write_bytes(canonical(manifest))
+        inner = json.loads((directory / 'global-identity-binding.json').read_text())
+        inner['manifest_sha256'] = digest(manifest)
+        inner.update(global_simulator_manifest_sha256=sha(directory / 'global-simulator-state.json'),
+            global_clock_plan_sha256=sha(directory / 'global-physical-clock-plan.json'),
+            global_dependencies_sha256=sha(directory / 'global-physical-clock-dependencies.json'),
+            host_sha256=sha(directory / 'host.fir'))
+        (directory / 'global-identity-binding.json').write_bytes(canonical(inner))
+        outer = json.loads((directory / 'binding.json').read_text())
+        outer['identity_binding_sha256'] = digest(inner)
+        outer['host_sha256'] = sha(directory / 'host.fir')
+        (directory / 'binding.json').write_bytes(canonical(outer))
+        try:
+            audit_identity(directory)
+        except ValueError as error:
+            require(required_reason is None or required_reason in str(error), 'wrong identity rejection: ' + str(error))
+            rejected.append(dict(name='identity-' + name, error=str(error)))
+        else:
+            raise ValueError('coherent global identity corruption accepted: ' + name)
     return rejected
 
 

@@ -131,6 +131,16 @@ def audit(reference, manifest, plan, binding, verilog):
                            reference_sha256=digest(text), simulator_manifest_sha256=manifest_sha,
                            plan_sha256=plan_sha, emitted_verilog_sha256=hashlib.sha256(Path(verilog).read_bytes()).hexdigest()),
             'unbound physical plan emission')
+    return audit_source(reference, manifest, plan)
+
+
+def audit_source(reference, manifest, plan):
+    """Audit original topology without asserting that an RTL emission occurred."""
+    text = Path(reference).read_text()
+    inventory = json.loads(Path(manifest).read_text())
+    doc = json.loads(Path(plan).read_text())
+    manifest_sha = hashlib.sha256(Path(manifest).read_bytes()).hexdigest()
+    plan_sha = hashlib.sha256(Path(plan).read_bytes()).hexdigest()
     require(doc['plan_version'] == 1 and doc['scope'] == 'physical_clock_topology_only' and
             doc['reference_sha256'] == inventory['reference_sha256'] == digest(text) and
             doc['simulator_manifest_sha256'] == manifest_sha and
@@ -180,7 +190,11 @@ def audit(reference, manifest, plan, binding, verilog):
                     return dict(data_clock=dict(hierarchy=path, expression=expression))
                 require(scope['ports'][expression][1] == 'Clock', 'non-clock root')
                 return dict(root_clock=expression)
-            return origin(scope['parent'], scopes[scope['parent']]['drivers'][scope['instance'] + '.' + expression], seen)
+            pin = scope['instance'] + '.' + expression
+            driver = scopes[scope['parent']]['drivers'][pin]
+            if driver is None:
+                return dict(invalid_clock=scope['parent'] + '.' + pin)
+            return origin(scope['parent'], driver, seen)
         if expression in scope['drivers'] and (expression in scope['aliases'] or expression in scope['ports']):
             driver_value = scope['drivers'][expression]
             return dict(invalid_clock=path + '.' + expression) if driver_value is None else origin(path, driver_value, seen)
@@ -199,7 +213,8 @@ def audit(reference, manifest, plan, binding, verilog):
             child = path + '.' + field[1]
             require(field[2] in scopes[child]['ports'], 'unknown clock pin')
             if scopes[child]['ports'][field[2]][0] == 'input':
-                return origin(path, scope['drivers'][expression], seen)
+                value = scope['drivers'][expression]
+                return dict(invalid_clock=path + '.' + expression) if value is None else origin(path, value, seen)
             return origin(child, field[2], seen)
         raise ValueError('unresolved clock ' + path + '.' + expression)
 
@@ -210,17 +225,35 @@ def audit(reference, manifest, plan, binding, verilog):
                 expected_domains.append(dict(clock_hierarchy=path + '.' + name, **origin(path, name)))
     def consumer_walk(path):
         scope = scopes[path]
+        def identity(value, seen=frozenset()):
+            require(value not in seen, 'memory enable alias cycle')
+            call = re.fullmatch(r'mux\((.*)\)', value)
+            if call:
+                args = arguments(call[1])
+                if args[1:] == ['UInt<1>("h1")', 'UInt<1>("h0")']:
+                    return identity(args[0], seen | {value})
+            if value in scope['aliases'] and value in scope['drivers']:
+                return identity(scope['drivers'][value], seen | {value})
+            return value
+
+        def memory_clock(value, enable, seen=frozenset()):
+            require(value not in seen, 'memory clock alias cycle')
+            validif = re.fullmatch(r'validif\((.*)\)', value)
+            if validif:
+                args = arguments(validif[1])
+                require(len(args) == 2 and identity(args[0]) == identity(enable), 'memory clock guard mismatch')
+                return origin(path, args[1])
+            if value in scope['aliases'] and value in scope['drivers']:
+                return memory_clock(scope['drivers'][value], enable, seen | {value})
+            return origin(path, value)
+
         for _, name, kind, expression in sorted(scope['events'], key=lambda e: e[0]):
             if name is None:
                 name = kind + '_' + str(len(expected_consumers))
-            value = expression
-            validif = re.fullmatch(r'validif\((.*)\)', value)
-            if kind == 'memory_port' and validif:
-                args = arguments(validif[1])
-                require(args[0] == scope['drivers'][name + '.en'], 'memory clock guard mismatch')
-                value = args[1]
-            resolved = origin(path, value)
-            require(set(resolved) <= {'root_clock', 'gate_chain'} and 'root_clock' in resolved, 'nonfunctional consumer clock')
+            resolved = (memory_clock(expression, scope['drivers'][name + '.en'])
+                        if kind == 'memory_port' else origin(path, expression))
+            require(set(resolved) <= {'root_clock', 'gate_chain'} and 'root_clock' in resolved,
+                    'nonfunctional consumer clock ' + path + '.' + name + ': ' + str(resolved))
             expected_consumers.append(dict(hierarchy=path + '.' + name, kind=kind, clock_expression=expression,
                 origin=dict(clock_hierarchy=path + '.' + name, **resolved)))
         for child in sorted(scope['instances']):
