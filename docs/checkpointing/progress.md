@@ -20,7 +20,60 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 228,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 229,
+**in_progress**. The native state-access wrapper now emits separately bound
+synthesis/implementation constraints at its concrete `network` instance.
+`NativeCheckpointConstraints` validates original targets, preserves correlated
+native pins and repeated instances, keeps shell-only clauses intact, and retains
+distinct pre/post-link placements. A separate independent auditor reconstructs
+both original and rebased Tcl from concrete FIRRTL targets. See
+[f2-native-state-access-constraints.md](f2-native-state-access-constraints.md).
+
+All **237 Scala tests** pass. Native connected-widget synthesis passes with
+**2,637 LUTs / 1,157 registers**, three original/root gates and one falling-edge
+mask. Six real cell/pin queries resolve in `access/network`, applied gate
+properties/generated clocks are checked, and two deliberate empty queries reject.
+Fifteen coherently rehashed RTL/XDC corruptions reject. OOC 140 MHz setup/hold
+estimates are **+0.598/−0.104 ns**; full-image timing closure remains pending.
+Fresh EDA SP2 passes **6,482 checks / five cuts / 170 words / 210 DMA stalls**;
+all six execution VCDs remain. Independent native/EDA matching covers **94 inputs /
+34 sources**, rejecting nine evidence corruptions. Semantic/compiled CE faults
+stop at cut 63/checks 273/1,036. All **19 native synthesis / 38 EDA scopes**,
+**309 checkpoint Python / 40 loop tests** and retained ASan/UBSan/host/FCFS checks
+pass. Complete exact-Rocket structural auditing agrees on both hosts over
+**2,290 modules / 14,313 sequential/effect definitions**, retaining **12,096
+functional + three CE descriptors / 619,016 words**. Its seven constraint
+specifications contain six concrete circuit arguments; original shell clauses
+remain unchanged. Final evidence and commands belong below
+`runs/aws-f2/iteration229/summary.json` and `verification-commands.json`.
+
+The next implementation step remains production FPGATop raw-clock/reset MMIO/
+stream and generated-network attachment, using the now-explicit wrapper placement
+contract. Bind `F1Shim.reset`, all external CE and functional DRAM writers,
+FASED/bridge/host owners and complete independent pre-FAME semantics; implement
+physical CE restore. The ordinary production guard still requires a physical
+FASED CE owner and common cut. Complete localhost full-image/P&R/timing/AFI/driver
+binding, active all-hart F2 capture at early/warm/outstanding/late cuts, paired
+independent zero-edge restores, finite replay, sustained live RTL beyond trace,
+and rolling hardware recovery remain pending. Every FPGA-origin migration column
+stays pending. Reuse iteration194's initialized ExternallyProvisioned localhost
+invocation. No checkpoint-enabled AFI or FPGA capture is claimed.
+
+The initialized AWS identity/F2 access and Vivado 2025.2/HDK/localhost SSH checks
+pass. Protected plans/configs retain entry hashes. No staging or local commits.
+Existing controller checkpoints were pushed FireSim first and then Chipyard;
+remote tips are independently checked. The Chipyard push's local tracking-ref
+update failed on protected git metadata after remote acceptance. Follow
+[github-publication.md](github-publication.md) for the next controller checkpoint.
+Final inventory records **zero loop runtime instances / native Vivado or Java
+jobs**, and 29 account AFIs without attributing capture support to them. No new
+AFI or runtime was requested. Native managed worker startup failed before
+creation; the central agent continued alone. Original Scala and native constraint diagnostics and repairs are preserved
+in `runs/aws-f2/iteration229/recovery-notes.json`.
+
+## Iteration 228 (retained recovery note)
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 228,
 **in_progress**. `NativeCheckpointStateAccess.emit` now emits the same-reference
 native network/CE endpoint/router connection, retaining all original ports,
 complete descriptor geometry and explicit raw-clock/reset/mask/sample wiring.

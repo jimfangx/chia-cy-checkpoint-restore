@@ -14,6 +14,27 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 229 adds validated native state-access wrapper XDC placement at its
+actual `network` instance, with separately bound pre/post-link paths and an
+independent concrete-target reconstruction. All **237 Scala tests** pass. Native
+connected-widget synthesis passes at **2,637 LUTs / 1,157 registers**; six
+cell/pin queries and their gate/generated-clock effects are checked, and two
+empty queries fail explicitly. Fifteen coherently rehashed RTL/XDC corruptions
+reject. OOC 140 MHz setup/hold estimates are **+0.598/−0.104 ns**; full-image
+closure remains pending. Fresh EDA SP2 passes **6,482 checks / five cuts /
+170 words / 210 DMA stalls** with six debug VCDs. Independent matching covers
+**94 inputs / 34 sources** and rejects nine evidence corruptions. All **19 native
+synthesis / 38 EDA scopes**, **309 checkpoint Python / 40 loop tests** and retained
+ASan/UBSan/host/FCFS checks pass. Both hosts independently reconstruct complete
+exact-Rocket state/clock/XDC composition: **12,096 functional + three CE
+descriptors / 619,016 words**, seven XDC specifications / six circuit arguments.
+This remains **in_progress companion constraint integration**.
+Production attachment, reset/external writers and complete memory/bridge/host/
+pre-FAME ownership, localhost full image/AFI, actual active all-hart FPGA cuts,
+and every FPGA-origin migration/recovery column above remain pending. See
+[f2-native-state-access-constraints.md](f2-native-state-access-constraints.md) and
+`runs/aws-f2/iteration229/verification-commands.json`.
+
 Iteration 228 adds a generated same-reference native state-access wrapper:
 the native bank network, physical CE endpoint and read/response router connect
 through one raw source/reset contract. The connected component uses the actual

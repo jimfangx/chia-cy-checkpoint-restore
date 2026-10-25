@@ -40,6 +40,8 @@ def audit(native,eda):
             '<Part Name="xcvu47p-fsvh2892-2-e"' in metadata,'wrong native DCP top/tool/part')
     synth=(native/'synth.log').read_text()
     require('NATIVE_WIDGET_SYNTH_PASS gates=3 falling_edge_masks=1 raw_clock_endpoints=3' in synth and
+        'NATIVE_CONSTRAINTS_PASS queries=6 scope=access/network' in synth and
+        all('NATIVE_CONSTRAINT_QUERY_REJECTED kind='+kind in synth for kind in ('get_cells','get_pins')) and
         not re.search(r'ERROR:|CRITICAL WARNING:',synth),'native synthesis not established')
     commands=json.loads((eda/'commands.json').read_text())
     require([c['returncode'] for c in commands]==[0,0,0,0,0,1,0,1],'incomplete process exit evidence')

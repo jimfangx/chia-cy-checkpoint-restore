@@ -17,6 +17,7 @@ from tools.checkpoint_formats.tests.verify_native_clock_cut_bank import audit as
 from tools.checkpoint_formats.tests.verify_native_descriptors import audit as audit_descriptors
 from tools.checkpoint_formats.tests.verify_native_functional_bank import sha, selectors, FLAGS
 from tools.checkpoint_formats.tests.audit_physical_clock_plan import parse_modules
+from tools.checkpoint_formats.tests.audit_native_constraints import audit as audit_constraints
 
 ROOT=Path(__file__).resolve().parents[3]
 RUNS=ROOT/'automations/checkpoint_loop/runs'
@@ -24,10 +25,12 @@ BASE='tools/checkpoint_formats/tests/'
 SCALA='sims/firesim/sim/midas/src/'
 SOURCES=tuple(sorted(set(NETWORK_SOURCES+(
     SCALA+'main/scala/midas/checkpoint/NativeCheckpointStateAccess.scala',
+    SCALA+'main/scala/midas/checkpoint/NativeCheckpointConstraints.scala',
     SCALA+'main/scala/midas/widgets/CheckpointCaptureWidget.scala',
     SCALA+'test/scala/midas/widgets/CheckpointNativeDescriptorsSpec.scala',
     BASE+'native_checkpoint_widget_fixture.sv',BASE+'native_checkpoint_widget_tb.sv',
     BASE+'verify_native_checkpoint_widget.py',
+    BASE+'audit_native_constraints.py',
     *('sims/firesim/sim/midas/src/main/verilog/'+n+'.sv' for n in
       ('CheckpointPhysicalStateRouter','CheckpointCaptureTransport','CheckpointCaptureCut','CheckpointPhysicalCaptureTransport'))))))
 PREFIX='FireSim-generated'
@@ -40,6 +43,40 @@ TCL='''set_param general.maxThreads 4
 read_verilog -sv '''+' '.join(FILES)+'''
 synth_design -top NativeCheckpointWidgetFixture -part xcvu47p-fsvh2892-2-e -mode out_of_context -flatten_hierarchy none
 create_clock -name raw_clock -period 7.142857 [get_ports clock]
+# Apply the generated wrapper constraints in the concrete access instance.
+# During application every cell/pin query must resolve; Vivado warnings alone
+# are insufficient because an empty query can silently omit a constraint.
+current_instance access
+set native_constraint_queries 0
+foreach kind {get_cells get_pins} {
+  rename $kind native_original_$kind
+  proc $kind {args} {
+    set kind [lindex [info level 0] 0]
+    set found [uplevel 1 [linsert $args 0 native_original_$kind]]
+    if {[llength $found] != 1} {error "native constraint query must resolve once: $kind $args -> $found"}
+    incr ::native_constraint_queries
+    return $found
+  }
+}
+source generated/FireSim-generated.native-state-access.synthesis.xdc
+source generated/FireSim-generated.native-state-access.implementation.xdc
+foreach kind {get_cells get_pins} {
+  if {![catch {$kind -quiet network/missing_gate} reason] || ![string match {native constraint query must resolve once:*} $reason]} {
+    error "empty native constraint query did not fail: $kind"
+  }
+  puts "NATIVE_CONSTRAINT_QUERY_REJECTED kind=$kind"
+}
+foreach kind {get_cells get_pins} {rename $kind {}; rename native_original_$kind $kind}
+if {$native_constraint_queries != 6} {error "missing native cell/pin constraints"}
+foreach leaf {left_ right_} {
+  if {![get_property DONT_TOUCH [get_cells network/$leaf/gate]]} {error "native gate constraint was not applied"}
+  set clocks [get_clocks -of_objects [get_pins network/$leaf/gate/O]]
+  if {[llength $clocks] != 1 || [get_property NAME $clocks] ne "network/$leaf/gate/O"} {
+    error "native output generated clock constraint was not applied"
+  }
+}
+current_instance
+puts "NATIVE_CONSTRAINTS_PASS queries=$native_constraint_queries scope=access/network"
 set gates [get_cells -hier -filter {REF_NAME == BUFGCE}]
 if {[llength $gates] != 3} {error "expected original native gates and single root mask"}
 foreach name {access/network/checkpoint_physical_root_gate access/network/left_/gate access/network/right_/gate} {
@@ -67,6 +104,7 @@ def audit(generated):
     generated=Path(generated)
     path=lambda s:generated/(PREFIX+s)
     network=audit_network(generated)
+    constraints=audit_constraints(generated)
     descriptors=audit_descriptors(generated,widget=(generated/'widget').exists())
     load=lambda s:json.loads(path(s).read_text())
     bank=load('.native-functional-binding.json');deps=load('.native-functional-dependencies.json')
@@ -158,7 +196,7 @@ def audit(generated):
     require(rom and rom[1]==expected,'changed native descriptor ROM')
     require(len(re.findall(r'\b(?:always|initial|assign)\b',rtl))==1 and rtl.count('module ')==1 and
         rtl.count('endmodule')==1 and len(re.findall(r'\breg\b',rtl))==4,'unexpected native routing logic/storage')
-    return dict(network=network,functional_entries=len(bank['state']),physical_clock_gates=descriptors['physical_clock_gates'],
+    return dict(network=network,constraints=constraints,functional_entries=len(bank['state']),physical_clock_gates=descriptors['physical_clock_gates'],
         transfer_words=sum(r['depth'] for r in descriptors['state']))
 
 
@@ -183,6 +221,27 @@ def corruptions(generated,out):
         try:audit(target)
         except ValueError as e:rejected.append(dict(name=name,error=str(e)))
         else:raise AssertionError('accepted coherent native routing mutation '+name)
+    for name in ('missing-network','wrong-leaf','wrong-pin','missing-clause','wrong-placement',
+                 'changed-specification','claim-constraints-attached'):
+        target=out/name;shutil.copytree(generated,target)
+        binding_path=target/(PREFIX+'.native-state-access-constraints.json')
+        doc=json.loads(binding_path.read_text())
+        suffix='.native-state-access.implementation.xdc'
+        xdc=target/(PREFIX+suffix);original=xdc.read_text();changed=original
+        if name=='missing-network':changed=original.replace('network/','')
+        elif name=='wrong-leaf':changed=original.replace('left_/gate/O','right_/gate/O')
+        elif name=='wrong-pin':changed=original.replace('/gate/O','/gate/I')
+        elif name=='missing-clause':changed=original[:original.rfind('\n')]
+        elif name=='wrong-placement':
+            doc['original_post_link_path']='invented';doc['rebased_post_link_path']='invented/network'
+            changed=original.replace('network/','invented/network/')
+        elif name=='changed-specification':doc['constraint_specs'][-1]['format']='set_max_delay 0 -from [get_pins {}]'
+        else:doc['production_constraints_attached']=True
+        require(changed!=original or doc!=json.loads(binding_path.read_text()),'ineffective XDC mutation '+name)
+        xdc.write_text(changed);doc['inputs'][suffix]=sha(xdc);binding_path.write_text(json.dumps(doc))
+        try:audit(target)
+        except ValueError as e:rejected.append(dict(name=name,error=str(e)))
+        else:raise AssertionError('accepted coherent native constraint mutation '+name)
     return rejected
 
 
@@ -287,6 +346,8 @@ def main():
         summary['inputs']={str(p.relative_to(out)):sha(p) for p in out.rglob('*') if p.is_file() and 'corruptions' not in p.parts}
         text=run(['vivado','-mode','batch','-source','synth.tcl'],'synth')
         require('NATIVE_WIDGET_SYNTH_PASS gates=3 falling_edge_masks=1 raw_clock_endpoints=3' in text and
+            'NATIVE_CONSTRAINTS_PASS queries=6 scope=access/network' in text and
+            all('NATIVE_CONSTRAINT_QUERY_REJECTED kind='+kind in text for kind in ('get_cells','get_pins')) and
             not re.search(r'ERROR:|CRITICAL WARNING:',text),'native Widget synthesis failed')
         summary['artifacts']={n:sha(out/n) for n in ('native-widget.dcp','utilization.rpt','timing.rpt','synth.log','commands.json')}
     elif args.mode=='vcs':
