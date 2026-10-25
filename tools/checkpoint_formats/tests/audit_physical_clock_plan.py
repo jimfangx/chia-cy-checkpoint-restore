@@ -176,6 +176,8 @@ def audit(reference, manifest, plan, binding, verilog):
             return result
         if expression in scope['ports'] and scope['ports'][expression][0] == 'input':
             if scope['parent'] is None:
+                if scope['ports'][expression][1] == 'UInt<1>':
+                    return dict(data_clock=dict(hierarchy=path, expression=expression))
                 require(scope['ports'][expression][1] == 'Clock', 'non-clock root')
                 return dict(root_clock=expression)
             return origin(scope['parent'], scopes[scope['parent']]['drivers'][scope['instance'] + '.' + expression], seen)

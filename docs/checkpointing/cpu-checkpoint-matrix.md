@@ -14,6 +14,29 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 231 adds in-place banking of an existing concrete execution with raw
+parent/control clocks and a separately proven raw bank endpoint. All **242 Scala
+tests** pass. Independent exact-Rocket structural auditing covers the existing
+`F1Shim.top.sim` execution: **10,149 functional descriptors and two separately
+composed CE descriptors / 1,994
+generated module definitions / 11,590 sequential/effect definitions**. The
+sibling FASED model remains outside that selected scope. The bounded fixture
+synthesizes locally with **884 LUTs / 590 registers**; all **194** parent/readout
+registers keep the raw source and six rehashed structural corruptions reject.
+OOC 140 MHz setup/hold estimates are **+2.672/−0.074 ns**; full-image closure is
+pending. Fresh EDA SP2 passes **6,541 checks / four cuts / 128 words / 468
+response stalls**, continuing through cycle **409**, with six hierarchical
+VCDs. Semantic and compiled parent-control faults stop at cut **15**, checks
+**30/18**; the parent fault accepts no bank word. All **21 localhost synthesis /
+40 EDA scopes**, **309 checkpoint Python / 40 loop tests** and retained
+ASan/UBSan/host/FCFS checks pass. Evidence belongs under
+`runs/aws-f2/iteration231/`; consult its summary and command manifest.
+This remains **in_progress structural integration**. Complete production
+annotation/XDC projection and in-place CE endpoint/router/widget/stream attachment, full reset/
+CE/memory/FASED/bridge/software/pre-FAME ownership, physical CE restore,
+localhost image/AFI, active four-hart FPGA cuts and every FPGA-origin migration/
+recovery column remain pending. See [f2-native-inplace.md](f2-native-inplace.md).
+
 Iteration 230 adds a reconstructed bounded native network attachment through
 actual FPGATop AXI control and CPU-managed DMA. The registered widget and network
 share the raw source and controller reset; all original functional inputs, cycle

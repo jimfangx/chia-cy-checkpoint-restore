@@ -20,7 +20,57 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 230,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 231,
+**in_progress**. `NativeCheckpointInPlace.generate` now banks an existing
+concrete instance and routes its sideband through its existing ancestors,
+preserving parent control clocks and a separately proven raw readout clock.
+It rejects stale executing definitions, ambiguous paths/executions, unsupported
+enclosing annotations and nontransparent raw clocks. Scoped one-bit FAME clock
+tokens remain explicit data and cannot drive sequential state/effects/gates.
+See [f2-native-inplace.md](f2-native-inplace.md).
+
+All **242 Scala tests** pass. Independent exact-Rocket structural auditing
+passes over `F1Shim.top.sim`: **10,149 functional descriptors and two separately
+composed CE descriptors**, **1,994
+selected generated module definitions / 11,590 sequential/effect definitions**;
+the existing FASED sibling remains outside that selected scope. Both ancestor
+bodies remain unchanged, including **3,840** directly declared register bits.
+The bounded fixture synthesizes on native localhost Vivado to **884 LUTs / 590
+registers**, checking all **194** raw parent/readout registers. Six rehashed
+structural mutations reject. OOC 140 MHz setup/hold estimates are
+**+2.672/−0.074 ns**; full-image timing closure remains pending. Forty loop tests
+pass. Fresh EDA SP2 in-place execution passes **6,541 checks / four cuts / 128
+words / 468 stalls**, continuing through cycle **409**. Semantic and compiled
+parent-control faults stop at cut **15**, checks **30/18**; the latter accepts
+no bank word. Missing-owner, CE-drift and physical root-mask bypass negatives
+also reject, retaining all six hierarchical VCDs. All **21 localhost synthesis /
+40 EDA scopes**, **309 checkpoint Python / 40 loop tests**, and retained
+ASan/UBSan/host/FCFS checks pass. Current-source results, independent matching,
+diagnostics and ordered commands belong under `runs/aws-f2/iteration231/` in
+`summary.json` and `verification-commands.json`. The retained structural input
+matches the freshly regenerated exact recipe byte for byte; its original source
+path remains in the receipt. The ordinary production compiler still rejects
+the unbound FASED physical CE owner/common cut.
+
+Next: reconcile the selected/global manifests, project production annotations/XDC and connect these in-place sidebands,
+CE endpoint and router to the actual FPGATop widget/stream path, without gating its control/transport
+execution. Bind F1Shim reset, all external CE and DRAM writers, complete
+FASED/bridge/software owners and independent pre-FAME state; implement physical
+CE restore. Full localhost image/P&R/timing/AFI/driver binding, active all-hart
+early/warm/outstanding/late hardware cuts, FPGA-reference continuation, paired
+independent zero-edge restore, finite replay, sustained live RTL beyond trace
+and rolling hardware recovery remain pending. All FPGA-origin migration columns
+remain pending; neither a capture AFI nor a hardware checkpoint is claimed.
+
+AWS/F2, native Vivado 2025.2/HDK and default localhost SSH checks pass. Plans and
+initialized manager YAMLs remain protected inputs. Existing controller commits
+were pushed FireSim first, then Chipyard; staging and local commits remain the
+controller's responsibility. Follow [github-publication.md](github-publication.md)
+for its next checkpoint. Managed worker startup failed before creation; this
+turn remains central only. Initial compiler/fixture-reader corrections and
+all underlying diagnostics remain under this iteration's `runs/`.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 230,
 **in_progress**. `NativeCheckpointCaptureBinding` now reconstructs and attaches
 a bounded native network to the registered FPGATop widget, sharing its raw clock
 and controller reset, physical mask/CE sampling and request/response protocol.
