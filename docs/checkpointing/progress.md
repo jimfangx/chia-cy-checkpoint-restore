@@ -23,7 +23,58 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 236,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 237,
+**in_progress**. `NativeCheckpointInPlaceCaptureBinding` connects the validated
+in-place component network to the registered FPGATop widget, actual MMIO
+interconnect and CPU-managed DMA stream. The standalone binding shares the
+same endpoint attachment. Global descriptor identities, original bank selectors,
+CE bit order, original constraints and raw ancestor/control clocks survive.
+Missing reset/owner connections fail elaboration; changed source/dependency
+contracts and nested enclosing simulators reject. See
+[f2-native-inplace-widget.md](f2-native-inplace-widget.md).
+
+The new component passes **19,235 EDA SP2 checks / five cuts / 170 words /
+1,110 DMA stalls**, reset recovery through cycle **200** and four execution
+negatives, retaining **five debug waves**. Native synthesis retains **4,572
+LUTs / 1,850 registers / three BUFGCEs**, proving **199** raw ancestor/router/
+endpoint and **1,024** raw widget/MMIO/DMA register clocks. OOC setup/hold
+estimates are **+0.590/−0.074 ns**; full-image closure remains pending.
+Independent native/EDA matching binds **156 inputs / 68 sources** and rejects
+**ten** attachment mutations. Independently reconstructed settled VCD values
+prove both ancestor counters advance during **3,034** frozen raw-clock edges,
+with no selected target advance. Payload corruption stops at frame **1**;
+compiled CE corruption stops at frame **33**, both at cut **16**.
+
+All **252 Scala / 23 localhost synthesis / 42 EDA scopes**, **313 checkpoint
+Python / 40 loop tests** and retained **ASan/UBSan/host/FCFS** checks pass.
+The exact Rocket probe generation passes in **593 seconds**; its ordinary
+production compiler still rejects the missing FASED CE capture owner/common
+low-phase cut. Exact commands and individual receipts belong under
+`runs/aws-f2/iteration237/` in `summary.json`, `verification-commands.json` and
+`final-audit.json`. AWS/F2, Vivado/HDK, default localhost SSH and actual Fabric
+localhost access using the manager's `~/firesim.pem` setting pass. Existing controller checkpoints were published
+FireSim first, then Chipyard; remote tips match. The successful Chipyard push's
+local tracking-ref update was denied and is retained in its original log.
+
+The new binding handles an instrumented component host inside FPGATop. It still
+rejects embedding an enclosing production simulator. Next: a checked
+post-lowering graft into the existing production FPGATop with immutable ROM
+binding, complete reset/external CE/functional DRAM/FASED/bridge/host ownership,
+physical CE restore and independent pre-FAME semantics. Selected production
+coverage remains **10,149 functional + two CE** owners, leaving **1,947
+functional + one FASED CE** owners uncovered. Full localhost image/P&R/timing/
+AFI/driver binding, active all-hart hardware cuts, paired independent complete
+zero-edge restores, finite replay, sustained live clean RTL and rolling recovery
+remain pending. All FPGA-origin migration columns remain pending. Reuse
+iteration194's initialized ExternallyProvisioned localhost invocation. No
+checkpoint-enabled image, new AFI/runtime or hardware-origin checkpoint is
+claimed. The final scoped inventory has **zero loop runtime instances / zero
+native jobs / 36 account AFIs / no pending AFIs**; no account image is attributed
+to this implementation. Plans and initialized manager YAMLs remain read-only. No staging/local
+commits. Managed worker startup failed before creation; only the central agent
+ran, and no worker remains.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 236,
 **in_progress**. `NativeCheckpointInPlaceAccess.emit` connects one existing host
 execution to a raw-clock functional/physical CE readout router. It reconstructs
 source/context/graft/identity before emission, uses original global StateIDs with

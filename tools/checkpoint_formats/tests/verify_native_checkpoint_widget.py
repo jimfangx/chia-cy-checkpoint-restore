@@ -245,21 +245,21 @@ def corruptions(generated,out):
     return rejected
 
 
-def manifest_header(generated):
+def manifest_header(generated, descriptor_suffix=".native-descriptors.json"):
     bank=json.loads((generated/(PREFIX+'.native-functional-binding.json')).read_text())
     widths=[];offsets=[];offset=0
     for r in bank['state']:
         widths.append(f"{r['slot']}: native_width={r['transfer_width']};")
         offsets.append(f"{r['slot']}: native_offset={offset};");offset+=r['transfer_depth']
-    return 'localparam [255:0] MANIFEST=256\'h'+sha(generated/(PREFIX+'.native-descriptors.json'))+';\n'+\
+    return 'localparam [255:0] MANIFEST=256\'h'+sha(generated/(PREFIX+descriptor_suffix))+';\n'+\
         'function automatic integer native_width(input integer e); case(e)\n'+'\n'.join(widths)+\
         '\ndefault: native_width=0; endcase endfunction\n'+\
         'function automatic integer native_offset(input integer e); case(e)\n'+'\n'.join(offsets)+\
         '\ndefault: native_offset=32; endcase endfunction\n'
 
 
-def audit_frames(generated,lines):
-    rows=json.loads((generated/(PREFIX+'.native-descriptors.json')).read_text())['state']
+def audit_frames(generated,lines, descriptor_suffix=".native-descriptors.json"):
+    rows=json.loads((generated/(PREFIX+descriptor_suffix)).read_text())['state']
     bank=json.loads((generated/(PREFIX+'.native-functional-binding.json')).read_text())['state']
     require(len(lines)==36,'incomplete native snapshot')
     raw=[int(s,16).to_bytes(64,'little') for s in lines];frames=[int.from_bytes(v,'little') for v in raw]
@@ -278,7 +278,7 @@ def audit_frames(generated,lines):
     for i,frame in enumerate(frames):
         require(field(frame,0,64)==0x3154504b434d5346 and field(frame,64,16)==1 and field(frame,96,64)==cut,'bad native frame identity/cycle')
         require(field(frame,80,16)==(1 if i==0 else 3 if i==35 else 2),'bad native frame order')
-        if i==0:require(field(frame,256,256)==int(sha(generated/(PREFIX+'.native-descriptors.json')),16) and field(frame,224,32)==7,'bad native manifest header')
+        if i==0:require(field(frame,256,256)==int(sha(generated/(PREFIX+descriptor_suffix)),16) and field(frame,224,32)==7,'bad native manifest header')
         elif i==35:require(field(frame,160,64)==34 and field(frame,224,32)==crc32c(b''.join(raw[:-1]))^0xffffffff,'native trailer CRC/count mismatch')
         else:
             ordinal=field(frame,224,32);require(ordinal<7,'unknown native descriptor')

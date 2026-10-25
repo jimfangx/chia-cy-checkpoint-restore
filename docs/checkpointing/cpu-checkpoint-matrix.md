@@ -14,6 +14,22 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 237 attaches the validated in-place **component** host to the
+registered FPGATop widget and its actual MMIO/CPU DMA path. The new component
+passes **19,235 EDA SP2 checks / five cuts / 170 words / 1,110 DMA stalls**,
+reset recovery and four execution negatives, with five debug waves. Native
+synthesis retains **4,572 LUTs / 1,850 registers / three BUFGCEs**, proving **199
+raw ancestor/router/endpoint + 1,024 raw control/stream register clocks**.
+Independent native/EDA matching binds **156 inputs / 68 sources** and rejects
+ten mutations. Settled waveform reconstruction proves two ancestor counters
+advance across **3,034** frozen raw-clock edges without a selected target edge.
+All **252 Scala / 23 localhost synthesis / 42 EDA scopes**, **313 checkpoint
+Python / 40 loop tests** and retained **ASan/UBSan/host/FCFS** checks pass.
+Complete production post-lowering attachment, freeze owners, physical CE restore/pre-FAME semantics, full localhost
+image/timing/AFI and every FPGA-origin acceptance column remain pending.
+Commands and receipts belong under `runs/aws-f2/iteration237/`. See
+[f2-native-inplace-widget.md](f2-native-inplace-widget.md).
+
 Iteration 236 connects functional and physical CE readout to a router around
 the existing host, preserving global identities, raw control clocks and original
 constraint placement. All **251 Scala / 22 localhost synthesis / 41 EDA scopes**,
