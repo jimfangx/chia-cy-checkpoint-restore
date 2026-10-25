@@ -21,6 +21,7 @@ from tools.checkpoint_formats.tests.verify_native_clock_cut_bank import audit as
 from tools.checkpoint_formats.tests.verify_native_clock_cut_bank import SOURCES as NETWORK_SOURCES
 from tools.checkpoint_formats.tests.verify_native_functional_bank import sha, selectors, digest
 from tools.checkpoint_formats.tests.audit_native_inplace_identity import audit as audit_identity
+from tools.checkpoint_formats.tests.audit_native_inplace_annotations import audit as audit_annotations, corruptions as annotation_corruptions
 
 ROOT = Path(__file__).resolve().parents[3]
 RUNS = ROOT / 'automations/checkpoint_loop/runs'
@@ -29,7 +30,15 @@ PORT_PREFIX = 'checkpoint_inplace_'
 SOURCES = tuple(sorted(set(NETWORK_SOURCES + (
     'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/NativeCheckpointInPlace.scala',
     'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/NativeCheckpointIdentity.scala',
+    'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedStateBankAnnotations.scala',
+    'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedSynthesisConstantAdapter.scala',
+    'sims/firesim/sim/midas/src/main/scala/midas/passes/WriteXDCFile.scala',
+    'sims/firesim/sim/midas/src/main/scala/midas/ShadowAnnotations.scala',
+    'sims/firesim/sim/midas/targetutils/src/main/scala/midas/annotations.scala',
+    'sims/firesim/sim/midas/targetutils/src/main/scala/midas/xdc/XDCAnnotation.scala',
+    'sims/firesim/sim/midas/targetutils/src/main/scala/midas/xdc/RAMStyleHint.scala',
     'tools/checkpoint_formats/tests/audit_native_inplace_identity.py',
+    'tools/checkpoint_formats/tests/audit_native_inplace_annotations.py',
     'tools/checkpoint_formats/simulator.py',
     'sims/firesim/sim/midas/src/test/scala/midas/checkpoint/NativeCheckpointInPlaceSpec.scala',
     'sims/firesim/sim/midas/src/test/scala/midas/checkpoint/MultipleFunctionalClocksSpec.scala',
@@ -116,7 +125,8 @@ def audit(generated):
             source = drivers[source]
         require(host[name]['ports'].get(source) == ('input', 'Clock'), 'raw clock is not a transparent ancestor input')
     identity = audit_identity(generated)
-    expected = dict(binding_version=2, scope='existing_instance_native_banks_only',
+    annotations = audit_annotations(generated)
+    expected = dict(binding_version=3, scope='existing_instance_native_banks_only',
         target=target,
         host_sha256=sha(generated / 'host.fir'),
         reference_sha256=sha(generated / (PREFIX + '.native-functional-reference.fir')),
@@ -124,6 +134,7 @@ def audit(generated):
         wiring_binding_sha256=sha(generated / (PREFIX + '.native-clock-cut.json')),
         instrumented_sha256=sha(generated / 'instrumented.fir'),
         identity_binding_sha256=sha(generated / 'global-identity-binding.json'),
+        annotation_projection_sha256=sha(generated / 'annotation-projection.json'),
         enclosing_raw_clock=source, selected_raw_clock=clock_plan['common_source_clock'], endpoint_raw_clock='ckpt_clock',
         sideband_ports=[dict(selected=k, enclosing=PORT_PREFIX + k, direction=v[0], type=v[1]) for k, v in access.items()],
         complete_fpga_capture=False, deployable_capture_image=False,
@@ -167,7 +178,7 @@ def audit(generated):
         require(normalized('\n'.join(stripped)) == normalized(original['body']), 'changed original ancestor statement ' + name)
     raw_bits = sum(int(width) for name, _, _ in parents for width in
                    re.findall(r'\breg \w+ : UInt<(\d+)>', host[name]['body']))
-    return dict(network=network, identity=identity, original_execution_instances=1, raw_ancestor_register_bits=raw_bits,
+    return dict(network=network, identity=identity, annotations=annotations, original_execution_instances=1, raw_ancestor_register_bits=raw_bits,
                 routed_sideband_ports=len(access), modules=len(actual))
 
 
@@ -198,7 +209,7 @@ def corruptions(generated, out):
             rejected.append(dict(name=name, error=str(error)))
         else:
             raise ValueError('coherent in-place corruption accepted: ' + name)
-    return rejected + identity_corruptions(generated, out / 'identity')
+    return rejected + identity_corruptions(generated, out / 'identity') + annotation_corruptions(generated, out / 'annotations')
 
 
 def identity_corruptions(generated, out):

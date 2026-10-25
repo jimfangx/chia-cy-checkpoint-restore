@@ -14,6 +14,22 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 233 adds checked in-place host annotation/XDC projection. Concrete
+parent paths and repeated/shared executions retain correlation; full annotation
+sets, mappings and invalidated caches bind version-3 provenance. Unknown/stale
+owners and primitive-local constraints that would expand onto the added root
+gate reject. An independent bounded auditor checks actual emitted XDC and adds
+ten coherently rehashed annotation negatives. All **247 Scala / 21 native synthesis / 40 EDA scopes**, **309 Python / 40 loop
+tests** and retained **ASan/UBSan/host/FCFS** checks pass. Fresh in-place EDA SP2
+execution passes **6,541 checks / four cuts / 128 words / 468 stalls** through
+cycle **409**, retaining six debug waveforms. Independent matching covers
+**1,530 inputs / 41 sources**. The native fixture retains **884 LUTs / 590
+registers / 194 raw-clock registers**; full-image timing closure remains pending.
+Receipts and commands belong under `runs/aws-f2/iteration233/`. Full production annotation
+context/primitive-local projection, physical endpoint/widget attachment and every
+hardware migration column remain pending. See
+[f2-native-inplace-annotations.md](f2-native-inplace-annotations.md).
+
 Iteration 232 reconciles in-place selected banks with original global StateIDs
 without changing endpoint selectors, word order or physical CE bit order.
 All **244 Scala tests** pass. Exact-Rocket original-source auditing maps

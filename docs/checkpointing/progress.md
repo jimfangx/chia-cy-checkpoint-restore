@@ -20,7 +20,52 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 232,
+Follow [GitHub checkpoint publication](github-publication.md); the loop controller
+owns staging/local commits and the agent may publish existing checkpoints.
+
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 233,
+**in_progress**. In-place banking now projects supported host annotations against
+both complete original and instrumented concrete hierarchies. Parent-rooted XDC
+arguments retain their correlated paths, repeated banked definitions specialize,
+and unchanged shared siblings remain owners. Source/generated/result annotation
+sets and every mapping bind version-3 in-place provenance; stale combinational
+path caches are explicitly retired. Unknown owners, stale/foreign targets,
+missing declarations and ambiguous physical-local constraints reject.
+See [f2-native-inplace-annotations.md](f2-native-inplace-annotations.md).
+
+All **247 Scala / 21 localhost synthesis / 40 EDA scopes**, **309 checkpoint
+Python / 40 loop tests** and retained **ASan/UBSan/host/FCFS** checks pass.
+The new independent annotation/XDC auditor checks four actual emitted constraint
+lines and rejects **ten** coherently rehashed annotation mutations, alongside the
+retained **six structural / sixteen identity** negatives. Fresh EDA SP2 passes
+**6,541 checks / four cuts / 128 words / 468 stalls**, continuing through cycle
+**409**, with all **six** debug waves. Native/EDA matching binds **1,530 inputs /
+41 current sources**, including the actual annotation translator and XDC consumer.
+Native bounded synthesis retains **884 LUTs / 590 registers / 194 raw-clock
+registers**; full-image timing remains pending. Exact-Rocket structure and global
+uncovered owners match independently on both hosts. The ordinary Rocket compiler
+still rejects the unbound **FASED CE latch/common low-phase cut**; no deployable
+capture image or physical checkpoint is emitted.
+
+Fresh receipts, diagnostics, exact commands and recovery notes belong under
+`runs/aws-f2/iteration233/` in `summary.json`, `verification-commands.json` and
+`recovery-notes.json`. Plans and four manager YAMLs retain their entry hashes.
+AWS/F2/native Vivado/HDK/default localhost SSH checks pass. Existing iteration-232
+controller commits were published FireSim first, then Chipyard; remote tips match.
+The latter's remote push succeeded while its local tracking-ref write was denied;
+original logs are retained. No staging or local commits. Managed worker startup
+failed before creation; all work remained central.
+
+Next: exact production annotation/context projection (including primitive-local
+XDC), in-place physical CE endpoint/router/widget/MMIO/stream attachment, complete
+reset/external CE/functional-memory/FASED/bridge/host/pre-FAME ownership and
+physical CE restore. Full localhost image implementation/timing/AFI/driver
+binding, active four-hart F2 cuts, reference continuation, complete paired
+zero-edge restores, finite replay, sustained live RTL beyond trace and rolling
+hardware recovery remain pending. No checkpoint-enabled AFI or FPGA-origin
+checkpoint is claimed. Reuse iteration194's initialized localhost invocation.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 232,
 **in_progress**. In-place native banks now reconcile selected endpoint identities
 with the original complete enclosing generated-RTL inventory. Functional and physical
 StateIDs become global while hardware descriptor order, bank/slot, transfer shape
