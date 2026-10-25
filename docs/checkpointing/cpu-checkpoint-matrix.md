@@ -14,6 +14,24 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 234 projects primitive-local XDC to original physical executions,
+including renamed selected ancestors and unchanged siblings. Added mask gates
+receive no inherited original constraint. Both selected-reference and host input
+constraints use version-2 translation and its required descriptor validator.
+All **248 Scala / 21 localhost synthesis / 40 EDA scopes**, **309 checkpoint
+Python / 40 loop tests** and retained **ASan/UBSan/host/FCFS** checks pass. Fresh
+in-place EDA SP2 execution passes **6,541 checks / four cuts / 128 words / 468
+stalls** through cycle **409**, with six debug waves. Native synthesis retains
+**884 LUTs / 590 registers / 194 raw-clock registers**; full-image timing remains
+pending. Independent matching covers **1,710 inputs / 41 sources**, including
+six structural/sixteen identity/fourteen annotation negatives and six emitted XDC
+lines. Fresh exact Rocket/global coverage matches on both hosts; the ordinary
+compiler still rejects the missing FASED physical CE owner/common cut. Receipts,
+source/recipe provenance and commands belong under `runs/aws-f2/iteration234/`.
+Complete production context/physical endpoint attachment, all owners/physical CE
+restore, localhost image/AFI and every FPGA-origin migration column remain pending.
+See [f2-native-primitive-xdc.md](f2-native-primitive-xdc.md).
+
 Iteration 233 adds checked in-place host annotation/XDC projection. Concrete
 parent paths and repeated/shared executions retain correlation; full annotation
 sets, mappings and invalidated caches bind version-3 provenance. Unknown/stale

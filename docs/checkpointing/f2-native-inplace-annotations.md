@@ -1,5 +1,8 @@
 # In-place host annotation projection
 
+Iteration 234 supersedes the primitive-local constraint limitation described
+below; see [original physical-instance projection](f2-native-primitive-xdc.md).
+
 Iteration 233 adds an explicit annotation contract to `NativeCheckpointInPlace`.
 It applies the existing checked bank annotation translator to the complete
 original enclosing hierarchy, pairing each concrete instance path with its actual

@@ -23,7 +23,48 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 233,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 234,
+**in_progress**. Native-bank annotation translation now anchors shared native
+primitive-local XDC to each original concrete execution. Renamed ancestors and
+correlated pins retain their original scope; the added mask primitive is excluded,
+and unchanged siblings keep their constraints. Selected-reference and enclosing
+host constraints use the same checked version-2 translation. Descriptor validation
+requires that version. See [f2-native-primitive-xdc.md](f2-native-primitive-xdc.md).
+
+All **248 Scala / 21 localhost synthesis / 40 EDA scopes**, **309 checkpoint
+Python / 40 loop tests** and retained **ASan/UBSan/host/FCFS** regressions pass.
+The changed fixture passes **6,541 EDA SP2 checks / four cuts / 128 words / 468
+stalls** through cycle **409**, with all six debug waves. Native synthesis retains
+**884 LUTs / 590 registers / 194 raw-clock registers**; full-image timing remains
+pending. Independent in-place native/EDA matching covers **1,710 inputs / 41
+current sources**, rejecting six structural/sixteen identity/fourteen annotation
+mutations. Its independent annotation audit checks six actual emitted XDC lines;
+the retained physical-gate synthesis applies all six original physical constraints.
+
+Fresh exact-Rocket generation and original/global coverage auditing pass. The
+selected **10,149 functional + two CE** entries still leave **1,947 functional
+owners and the FASED CE owner** uncovered. The ordinary production compiler
+correctly rejects that unbound physical CE latch/common cut. No capture image,
+AFI or FPGA-origin checkpoint is emitted. Fresh receipts, exact runnable commands,
+diagnostics and recovery context belong under `runs/aws-f2/iteration234/` in
+`summary.json`, `verification-commands.json` and `recovery-notes.json`.
+
+AWS identity/F2 type discovery, native Vivado/HDK and default localhost SSH pass.
+Both plans and initialized manager YAMLs retain their entry hashes. Existing
+iteration-233 controller commits are published FireSim first, then Chipyard;
+remote tips match. The Chipyard push's local tracking-ref update was denied
+following successful remote publication; preserve its exact log. No staging or
+local commits. Managed worker startup failed before creation; work stays central.
+
+Next: exact production stage-context projection and in-place CE endpoint,
+router/widget/MMIO/stream attachment; bind reset/external CE/functional-memory,
+FASED/bridge/host/pre-FAME owners and physical CE restore. Full localhost image
+implementation/timing/AFI/driver binding, active all-hart F2 cuts, complete paired
+zero-edge migration, finite/live RTL comparison beyond the trace and rolling
+hardware recovery remain pending. Reuse iteration194's initialized localhost
+invocation. All FPGA-origin migration columns remain pending.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 233,
 **in_progress**. In-place banking now projects supported host annotations against
 both complete original and instrumented concrete hierarchies. Parent-rooted XDC
 arguments retain their correlated paths, repeated banked definitions specialize,

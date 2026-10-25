@@ -86,13 +86,25 @@ def audit(generated):
         require(args and len({t[0] for t in args}) == 1 and a['formatString'].count('{}') == len(args),
                 'uncorrelated constraint roots/specifiers')
         copies = []
-        for path, module in old.items():
+        executions = sorted(old.items()) if before[args[0][0]]['kind'] == 'extmodule' else old.items()
+        for path, module in executions:
             if module != args[0][0]:
                 continue
             renamed = []
             for _, hops, ref in args:
                 current = path
-                text = '~' + root + '|' + new[path]
+                if before[module]['kind'] == 'extmodule':
+                    # Enumerate original executions, then anchor at the full
+                    # circuit root. A local leaf target would also constrain
+                    # the newly inserted mask gate in the final hierarchy.
+                    text = '~' + root + '|' + new[root]
+                    prefix = root
+                    for instance in path.split('.')[1:]:
+                        prefix += '.' + instance
+                        require(prefix in new, 'lost constrained primitive ancestor')
+                        text += '/' + instance + ':' + new[prefix]
+                else:
+                    text = '~' + root + '|' + new[path]
                 for instance, _ in hops:
                     current += '.' + instance
                     require(current in new, 'lost constrained execution')
@@ -102,14 +114,15 @@ def audit(generated):
             for t in renamed:
                 target(t, after, new)
             copies.append(a_new)
-        # A shared physical primitive is retained as one local definition;
-        # WriteXDCFile expands it against the final concrete instance graph.
-        if before[args[0][0]]['kind'] == 'extmodule':
-            copies = [a]
         expected.extend(copies)
         mappings.append(dict(source=serialized(a), targets=[serialized(c) for c in copies]))
-    require(projection['host_translation']['mappings'] == mappings and
-            projection['host_translation']['translation_version'] == 1,
+    # Annotation JSON is saved in canonical serialize order. Translation keeps
+    # the source sequence, which can interleave public/internal XDC classes.
+    # Validate every mapping independently, then use that bound sequence for
+    # the downstream consumer's order-sensitive output.
+    actual_mappings = projection['host_translation']['mappings']
+    require(sorted(actual_mappings, key=canonical) == sorted(mappings, key=canonical) and
+            projection['host_translation']['translation_version'] == 2,
             'annotation mapping differs from concrete original/new hierarchy')
     require(projection['host_translation']['source_sha256'] == sha(generated / 'host-annotations.json'),
             'translation does not bind the complete fixture source')
@@ -134,8 +147,10 @@ def audit(generated):
         for t in a['sources']:
             target(t, after, new)
 
+    by_serialized = {serialized(a): a for a in expected}
+    emission_order = [by_serialized[t] for m in actual_mappings for t in m['targets']]
     emitted = {'Synthesis': [], 'Implementation': []}
-    for a in actual:
+    for a in emission_order:
         if a['class'] not in XDC:
             continue
         args = [target(t, after, new) for t in a['argumentList']]
@@ -163,12 +178,14 @@ def corruptions(generated, out):
     out.mkdir(parents=True, exist_ok=True)
     rejected = []
     for name in ('drop-constraint', 'stale-module', 'cross-instance', 'foreign-circuit', 'hidden-pin',
-                 'changed-destination', 'changed-format', 'duplicate-constraint', 'xdc-path', 'mapping-loss'):
+                 'changed-destination', 'changed-format', 'duplicate-constraint', 'xdc-path', 'mapping-loss',
+                 'primitive-local-expansion', 'primitive-mask-alias', 'primitive-cross-instance', 'primitive-owner-loss'):
         directory = out / name
         shutil.copytree(generated, directory)
         actual = json.loads((directory / 'instrumented-annotations.json').read_text())
         projection = json.loads((directory / 'annotation-projection.json').read_text())
-        xdc = next(a for a in actual if a['class'] in XDC and 'get_pins' in a['formatString'])
+        xdc = next(a for a in actual if a['class'] in XDC and 'get_pins' in a['formatString'] and
+                   any(t.endswith('>CE') for t in a['argumentList']))
         if name == 'drop-constraint': actual.remove(xdc)
         elif name == 'stale-module': xdc['argumentList'][0] = '~NativeHost|Leaf/gate:Native>CE'
         elif name == 'cross-instance':
@@ -180,6 +197,20 @@ def corruptions(generated, out):
         elif name == 'changed-format': xdc['formatString'] = 'set_max_delay 999 -to [get_pins {}]'
         elif name == 'duplicate-constraint': actual.append(copy.deepcopy(xdc))
         elif name == 'mapping-loss': projection['host_translation']['mappings'].pop()
+        elif name.startswith('primitive-'):
+            physical = next(a for a in actual if a['class'] in XDC and a['formatString'].startswith('set_max_delay 9'))
+            if name == 'primitive-local-expansion':
+                physical['argumentList'] = ['~NativeHost|Native>I', '~NativeHost|Native>O']
+            elif name == 'primitive-mask-alias':
+                physical['argumentList'] = [
+                    '~NativeHost|NativeHost/stage:Stage/network:NativeStorage/checkpoint_physical_root_gate:Native>' + pin
+                    for pin in ('I', 'O')]
+            elif name == 'primitive-cross-instance':
+                other = next(a for a in actual if a is not physical and a['class'] in XDC and
+                             a['formatString'].startswith('set_max_delay 9'))
+                physical['argumentList'][1] = other['argumentList'][1]
+            else:
+                actual.remove(physical)
         else:
             p = directory / 'instrumented.implementation.xdc'
             p.write_text(p.read_text().replace('/left_/', '/wrong_instance/'))

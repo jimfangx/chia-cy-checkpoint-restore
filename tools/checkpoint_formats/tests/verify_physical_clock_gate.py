@@ -64,7 +64,9 @@ def audit(generated):
               annotation('midas.InternalXDCAnnotation', 'Implementation', CLOCK, ['Physical>O', 'Physical>I', 'Physical>O']),
               annotation('midas.targetutils.xdc.XDCAnnotation', 'Implementation', DELAY, ['Parent/gate:Physical>O'])]
     after = [annotation('midas.InternalXDCAnnotation', 'Synthesis', CELL, [m + '>gate']) for m in ('LeftParent', 'RightParent')]
-    after += [before[1]]
+    after += [annotation('midas.InternalXDCAnnotation', 'Implementation', CLOCK,
+                         [f'PhysicalGateTop/{s}:{m}/gate:Physical>{pin}' for pin in ('O', 'I', 'O')])
+              for s, m in (('left', 'LeftParent'), ('right', 'RightParent'))]
     after += [annotation('midas.targetutils.xdc.XDCAnnotation', 'Implementation', DELAY,
                          [m + '/gate:Physical>O']) for m in ('LeftParent', 'RightParent')]
     after += [{'class': 'firrtl.transforms.NoCircuitDedupAnnotation$'}]
@@ -112,7 +114,7 @@ def audit(generated):
     require(doc == expected, 'changed physical state/constraint contract')
     mapping = json.loads((generated / 'mappings.json').read_text())
     require(set(mapping) == {'translation_version', 'source_sha256', 'translated_sha256', 'mappings'} and
-            mapping['translation_version'] == 1 and len(mapping['mappings']) == 3, 'invalid translation provenance')
+            mapping['translation_version'] == 2 and len(mapping['mappings']) == 3, 'invalid translation provenance')
     def serialized(a):
         kind = a['class'].split('.')[-1].rstrip('$')
         if 'formatString' not in a:
@@ -125,7 +127,7 @@ def audit(generated):
     require(mapping['source_sha256'] == annotation_hash(before) and mapping['translated_sha256'] == annotation_hash(after),
             'unbound physical annotation translation')
     expected_mappings = [dict(source=serialized(a), targets=[serialized(t) for t in targets])
-                         for a, targets in zip(before, (after[:2], [after[2]], after[3:5]))]
+                         for a, targets in zip(before, (after[:2], after[2:4], after[4:6]))]
     require(mapping['mappings'] == expected_mappings, 'missing changed or aliased physical translation')
     return dict(physical_instances=2, independently_checked_constraints=6, capture_owner_supported=False)
 
