@@ -20,7 +20,64 @@ EDA VCS, including finite replay, rolling recovery and sustained live RTL.
 FPGA synthesis/image builds and physical acceptance are required. ASIC
 mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 227,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 228,
+**in_progress**. `NativeCheckpointStateAccess.emit` now emits the same-reference
+native network/CE endpoint/router connection, retaining all original ports,
+complete descriptor geometry and explicit raw-clock/reset/mask/sample wiring.
+The separate binding reconstructs the input banks and clock network and declines
+production capture/restore admission. See
+[f2-native-state-access.md](f2-native-state-access.md).
+
+The new connected component uses the actual FireSim AXI/MMIO and 512-bit stream
+widget with the immutable native descriptor ROM. **236 Scala tests** pass.
+Local native synthesis passes at **2,577 LUTs / 1,155 registers**, with three
+original/root gates, one falling-edge mask and independently checked raw-clock
+response endpoints. OOC 140 MHz setup/hold estimates are **+0.597/−0.074 ns**;
+hold closure is pending. Fresh EDA SP2 passes **6,482 checks / five cuts / 170
+words / 210 DMA stalls**.
+Initial cuts **63/84/184/324** precede reset recovery at cut **21** and continued
+execution through cycle **96**. Semantic corruption/compiled CE misconnection
+stop at cut 63/checks **273/1,036**. Owner/CE/cycle faults acknowledge no target
+edges; all six hierarchical execution VCDs remain. Independent matching covers **89 inputs /
+32 sources**; eight coherent structural and nine evidence corruptions reject.
+The exact Rocket companion compiles and independently passes native routing
+reconstruction, retaining **12,096 functional + three CE descriptors / 619,016
+words** and unchanged original ports. All **19 localhost synthesis scopes**, all
+**38 EDA scopes**, **309 checkpoint Python / 40 loop tests** and the retained ASan/UBSan/host/FCFS checks pass.
+Final source/artifact audits pass. Evidence and exact commands:
+`runs/aws-f2/iteration228/summary.json`, `verification-commands.json` and
+`artifact-manifest.json`.
+
+Full production ownership remains incomplete: bind `F1Shim.reset`, all external
+CE inputs and functional DRAM writers, FASED/bridge/host owners, physical CE
+restore and complete independent pre-FAME semantics. Connect the generated
+network in production FPGATop with one raw-clock/reset MMIO/stream contract and
+rebase/validate XDC against the concrete wrapper instance.
+Complete localhost full-image/P&R/timing/AFI/driver binding, active all-hart F2
+capture at every cut, paired zero-edge restores, finite replay, sustained live
+RTL beyond trace and rolling failure recovery remain pending. The ordinary
+production bank admission guard still requires the FASED physical CE owner.
+Reuse iteration194's ExternallyProvisioned localhost invocation; every FPGA
+migration column remains pending.
+
+AWS identity/F2 access and Vivado 2025.2/HDK/localhost SSH checks pass. No new
+AFI or runtime was requested. Protected plans/configs retain entry hashes; no
+staging or local commits. Existing controller checkpoints were pushed FireSim
+first, then Chipyard; both remote tips match. The Chipyard remote accepted its
+push but the protected local tracking-ref update failed; raw output is retained.
+Follow [github-publication.md](github-publication.md) for the controller's next
+checkpoint. Final inventory has no tagged runtime or local Vivado/Java job. It
+records
+29 account AFIs, including a newly observed pending Saturn image whose identity
+is preserved in `resource-inventory-delta.json`; this turn requested no AFI and
+binds none to complete capture. Initial native cell-filter, dependent-input race
+and final audit log-location failures and their repairs remain in
+`recovery-notes.json`, with original underlying logs. Worker startup failed
+before creation; all work is central and no delegated LLM job exists.
+
+## Iteration 227 (retained recovery note)
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 227,
 **in_progress**. Native functional banks now compose with the hierarchy-preserving
 physical clock-mask network from the **same original circuit**. The generator
 independently reconstructs the banks before wiring, retains the original native

@@ -14,6 +14,26 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 228 adds a generated same-reference native state-access wrapper:
+the native bank network, physical CE endpoint and read/response router connect
+through one raw source/reset contract. The connected component uses the actual
+FireSim MMIO/stream widget and manifest-bound descriptor ROM. All **236 Scala
+tests** pass; native synthesis passes with **2,577 LUTs / 1,155 registers**, three
+native/root gates and one falling-edge mask. OOC 140 MHz setup/hold estimates are
+**+0.597/−0.074 ns**; hold closure remains pending. Fresh EDA SP2 passes
+**6,482 checks / five cuts / 170 words / 210 stalls**,
+with independent native/EDA matching over **89 inputs / 32 sources** and all six
+execution waveforms. Eight structural and nine evidence corruptions reject;
+semantic/compiled CE payload faults stop at cut 63/checks 273/1,036. All **19 native
+synthesis / 38 EDA scopes**, **309 checkpoint Python / 40 loop tests** and retained ASan/UBSan/host/FCFS regressions pass. Independent complete
+exact-Rocket structural auditing agrees on both hosts over **2,290 modules /
+14,313 sequential/effect definitions**, retaining **12,096 functional + three CE
+descriptors / 619,016 words**. Final inventories/audits pass. Production reset,
+external memory/CE writers, FASED/bridge/host/pre-FAME owners, production
+FPGATop integration, full image/P&R/AFI and every FPGA-origin migration column
+above remain pending. See [f2-native-state-access.md](f2-native-state-access.md)
+and `runs/aws-f2/iteration228/verification-commands.json`.
+
 Iteration 227 connects independently reconstructed native functional banks to
 the generated physical clock-mask hierarchy from the same original Rocket circuit.
 The separate clock/bank companion retains every original native gate and both
