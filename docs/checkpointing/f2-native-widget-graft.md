@@ -51,6 +51,25 @@ EDA SP2 VCS and matching-receipt audit modes. Current execution receipts and
 retained failures belong under `automations/checkpoint_loop/runs/aws-f2/iteration247/`.
 The progress handoff records completed checks.
 
+Iteration 248 replaces the invocation-local replacement runner after controller
+reruns encountered multiple old summaries. Run
+`python3 -m tools.checkpoint_formats.regression_runner --plan PLAN --out OUTPUT`
+on EDA with `vcs-env.sh` sourced last. Plans name every EDA scope, native receipt
+and hash, and use workspace-relative paths in subprocess argv. Each call reserves
+an exclusive attempt directory, verifies all native inputs before execution,
+keeps logs and binds the sole explicitly returned fresh receipt. An independent
+`--audit RESULT` checks every scope and pin without discovering a latest run.
+Failures retain a failed attempt and its underlying logs. Previous attempts are
+never reused, removed or overwritten. This is component regression plumbing.
+
+The full six-scope command passed twice against an already populated output
+tree on EDA SP2. Both complete source/artifact audits pass, alongside fresh
+native synthesis, waveform and retained sanitizer/FCFS checks. The fixture
+continues to pass 5,165 checks at the same four cuts; native/EDA binding now
+includes 597 sources and 636 inputs. These new receipts live under
+`automations/checkpoint_loop/runs/aws-f2/iteration248/`. Original iteration-247
+receipts, including its failed controller rerun, remain unchanged.
+
 The exact Rocket recipe still needs its uncovered functional and FASED clock
 owners, production annotation/identity binding, complete reset/external-writer,
 memory, timing, bridge, host and pre-FAME semantic coverage, full localhost image

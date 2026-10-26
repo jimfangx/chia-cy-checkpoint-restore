@@ -35,7 +35,62 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 247,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 248,
+**in_progress; controller rerun receipt-selection failure repaired**.
+The previous controller verification passed retained sanitizer/FCFS checks but
+stopped before connected execution: the replacement runner globbed all previous
+attempts and asserted there was only one receipt. The tracked
+`tools.checkpoint_formats.regression_runner` now reserves a fresh attempt per
+invocation, prevalidates every native/source/artifact pin, preserves subprocess
+logs, binds the explicitly returned fresh receipt and audits the complete ordered
+scope. Ambiguous receipts, substitutions, failed subprocesses, changed sources,
+missing scopes and evidence mutations reject. Ten new tests cover recovery and
+negative cases. No historical evidence was overwritten.
+
+Two actual complete EDA SP2 executions of the same populated output scope pass
+all **six components per attempt**, including connected MMIO/DMA. Independent
+auditing verifies both disjoint attempts and their original hashes. The connected
+fixture again passes **5,165 checks / four cuts / 136 words / 900 DMA stalls**;
+waveforms prove **2,704 stable frozen samples** and the compiled payload defect
+at **cut 81 / word 0 / byte 42**, before release. Fresh localhost Vivado retains
+**5,018 LUTs / 1,646 registers / three BUFGCEs / 662 audited raw registers**.
+Native/EDA source and artifact matching binds **597 sources / 636 inputs**.
+OOC setup/hold estimates remain **+0.437/−0.074 ns**, with unconstrained external
+I/O; full-image timing is pending.
+
+The complete fresh retained EDA **328 Python / bank / widget / ASan/UBSan host /
+FCFS / cut** scope and **40 loop tests** pass. FCFS retains **46 continuations /
+138 zero-edge owner comparisons / 2,972 rejections per backend**; the sanitized
+host passes **1,384 checks**. The directed audit verifies **113 receipts / 13,516
+files**, preserving all four historical stale aggregate-log mismatches explicitly.
+The unchanged **265 Scala tests plus two preparation tests** remain original
+iteration-247 execution evidence: their 266 source pins, logs and 29 generated
+fixture comparisons verify; they were not relabelled as fresh execution.
+
+Fresh exact Rocket compilation still rejects the missing **FASED physical
+CE-latch capture owner/common low-phase cut**. Complete functional/reset/external
+writer, DRAM, timing, bridge/host and pre-FAME semantic ownership, annotation and
+driver/descriptor identity binding, common-cut release/restore, full localhost
+image/P&R/AFI, active all-hart FPGA cuts, paired complete zero-edge migration,
+finite replay, sustained live RTL and rolling hardware recovery remain pending.
+No new FPGA checkpoint or CPU acceptance is claimed. Reuse iteration194's local
+build invocation and the initialized manager inputs.
+
+AWS access/HDK/native setup passes. Scoped inventory has zero tagged runtime
+instances and zero native Vivado/Java jobs; 47 account-owned AFIs are observed,
+with no AFI or instance requested by this turn. Existing controller checkpoints
+were published FireSim first (`14b50a8e`), then Chipyard (`c69ef1eb`), with remote
+tips independently matched. Chipyard's local tracking-ref update remains read-only
+after the successful remote push. Protected plan/config/index bytes and HEADs
+are unchanged; no staging or local commits. Managed worker startup failed before
+execution, so only the central agent ran and no worker remains. The manager guard
+rejected an audit-only command containing a `vcs-*` evidence path before execution;
+the explicit read-only matching script then passed. Exact logs, immutable receipt
+indexes and commands belong under `runs/aws-f2/iteration248/`, especially
+`accepted-receipts.json`, `verification-commands.json` and `final-audit-*/summary.json`.
+Follow [GitHub publication](github-publication.md) for the next controller checkpoint.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 247,
 **in_progress; checked widget-to-existing-execution graft implemented**.
 `NativeCheckpointWidgetGraft.connect` reconstructs the selected readout graft
 and wires all twenty real post-inline widget pins inside the existing host.

@@ -14,6 +14,21 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 248 repairs controller reruns without changing hardware acceptance:
+each regression invocation gets an exclusive attempt directory and an explicit,
+fully pinned receipt index. Two complete EDA SP2 runs against the populated scope
+pass **six components each**, including **5,165 connected MMIO/DMA checks / four
+cuts / 136 words / 900 stalls**. Native synthesis, independent waveform and
+source matching pass (**597 sources / 636 inputs**). All **328 Python / 40 loop**
+tests and retained **ASan/UBSan host/FCFS** checks pass. The directed historical
+audit verifies 113 receipts and retains four stale-log mismatches explicitly;
+unchanged Scala evidence retains its original execution date. Fresh exact Rocket
+compilation still rejects the FASED physical CE-latch owner/common-low-phase cut.
+No checkpoint-enabled full image, physical capture or CPU migration is established;
+all FPGA-origin acceptance columns remain pending. Commands and immutable
+receipts: `runs/aws-f2/iteration248/verification-commands.json` and
+`accepted-receipts.json`.
+
 Iteration 247 connects the real registered checkpoint widget to its existing
 selected execution through a checked post-lowering graft. All twenty routes,
 original host metadata, MMIO and shared DMA are independently audited. The
