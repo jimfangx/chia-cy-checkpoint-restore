@@ -10,6 +10,18 @@ all workers before its final JSON report. No delegated LLM work may outlive the
 central turn: Chia uses that turn's completion to detect the end of the LLM call.
 Preserve this instruction in subsequent progress updates.
 
+Recovery instruction (October 26, 2026): the user increased this manager to
+61 GiB RAM and authorized resuming the loop. Ray killed the previous iteration
+239 worker at its 95% memory threshold while exact-Rocket Java generation and
+multiple Vivado jobs overlapped; iteration 238 is the last controller-verified
+checkpoint. The host restarted and no previous loop/build workers remain.
+Recover the existing dirty iteration-239 work and preserve its diagnostics;
+its full regression sweep was interrupted, so do not claim it completed.
+Schedule at most two local Vivado jobs from launch, and avoid overlapping the
+large Java generation with the native synthesis sweep. Keep every required
+test and sanitizer enabled, and keep Ray's memory protection enabled. Do not
+restart the old PID-based native-concurrency helper after the host restart.
+
 Current user priority (October 23, 2026): actual AWS F2 FPGA capture and
 FPGA-to-EDA checkpoint migration. Follow the current top of `plan_agent.md`
 and [aws-f2-workflow.md](aws-f2-workflow.md). Reuse the four initialized manager YAMLs and the already configured AWS setup.
@@ -23,7 +35,39 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 238,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 239,
+**in_progress**. The actual FPGATop widget/MMIO/CPU-stream resources can now be
+reserved before final host inventory, with twenty explicit lowered endpoint
+annotations and no enclosing simulator copy. Owner/cycle inputs remain explicit.
+A reserved sentinel and driver `#error` cannot reach ordinary FPGA emission;
+the compiler rejects unresolved markers/header/parameter identity even without
+an inventory request. See [f2-widget-reservation.md](f2-widget-reservation.md).
+
+The transport's SystemVerilog blackboxes contain sequential state that the
+current FIRRTL inventory cannot audit. That rejection remains intact, with an
+explicit unsupported external-owner receipt. All twenty markers survive the actual native inline pass. Next: define peer
+routing after widget inlining, complete that state owner and immutable
+descriptor/driver identity, then connect the existing-root graft.
+Full production freeze/reset/external writers/DRAM/FASED/host/pre-FAME ownership,
+localhost full-image P&R/timing/AFI, all-hart active hardware cuts, independent
+zero-edge restores, finite replay, sustained live RTL and rolling recovery remain
+pending. All hardware-origin acceptance columns remain pending. Reuse the
+initialized iteration-194 ExternallyProvisioned localhost invocation.
+
+The unbound diagnostic passes **48 fresh EDA SP2 checks** with a debug wave,
+missing-owner rejection, zero checkpoint DMA frames, baseline DMA and reset
+recovery. Native synthesis proves **810 raw control/stream register clocks**;
+independent matching binds **25 inputs / 14 sources** and rejects eight rehashed
+mutations. The complete retained sweep is in progress under
+`runs/aws-f2/iteration239/`; final
+receipts and exact commands will be recorded there before returning. Both plans
+and initialized manager configs remain read-only. Managed worker startup failed
+before creation; only the central agent runs and no delegated worker exists.
+Existing controller checkpoints were pushed FireSim first, then Chipyard; the
+Chipyard remote update succeeded with a local tracking-ref write denial retained
+in its log. No local commits/staging, new AFIs or runtime launches.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 238,
 **in_progress**. `NativeCheckpointInPlaceGraft.generate` inserts a descriptor
 ROM, transaction router and physical CE bank inside the one existing lowered
 root. Original functional ports, selected instance paths, ancestor clocks and

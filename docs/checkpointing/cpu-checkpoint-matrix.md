@@ -14,6 +14,19 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 239 reserves the registered FPGATop widget/MMIO/CPU stream before
+host inventory and retains twenty explicit lowered readout endpoints. Owner/cycle
+inputs have no defaults. Unbound annotation/header/sentinel identity rejects
+before ordinary image emission. The opaque transport state owner and final
+ROM/driver binding remain pending; the existing strict inventory still rejects
+that external state. The diagnostic passes **48 EDA SP2 checks**, a debug wave,
+missing-owner rejection, baseline DMA and reset recovery; native synthesis proves
+**810 raw control/stream register clocks**. Independent matching binds **25 inputs /
+14 sources** and rejects eight rehashed mutations. The retained sweep is being recorded under
+`runs/aws-f2/iteration239/`. This reserves resources and establishes no new
+hardware capture or CPU migration acceptance. See
+[f2-widget-reservation.md](f2-widget-reservation.md).
+
 Iteration 238 adds a checked readout graft inside the existing lowered root,
 retaining original execution paths, raw ancestor clocks, global descriptor
 identity and original-path XDC. The bounded graft passes **7,101 EDA SP2 checks /
