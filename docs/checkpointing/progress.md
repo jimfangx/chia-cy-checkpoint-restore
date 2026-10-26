@@ -35,7 +35,48 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 239,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 240,
+**in_progress**. Added `NativeCheckpointWidgetPeerRouting.inspect(before, after)`
+to reconstruct all twenty reserved endpoints after the actual native inline
+pass, retaining exact phase circuit/annotation identities, original endpoint
+markers, owner/CE order, physical transport ABI/sources and raw clock/reset.
+It rejects swapped equal-zero returns, CE permutations, duplicate drivers,
+alias loops and altered transport identity. Existing image-emission and opaque
+transport-state rejections remain intact. See
+[f2-widget-peer-routing.md](f2-widget-peer-routing.md).
+
+The three new Scala tests pass with fourteen rejection cases. Independent
+manager/EDA reconstruction passes **20 pins / 42 connection hops**, binding
+**21 inputs / 23 sources** and rejecting seven receipt mutations. An initial
+phase-hash audit error is preserved; exact reservations before and after adding
+the real inline request are now retained and their request-only delta audited.
+The recovered native sweep passes **25 synthesis scopes**, with all nineteen
+launch tasks joined and a peak of two. The existing recovery generation and
+**256 Scala tests** remain timestamped under iteration 239. All **44 EDA scopes**,
+**313 checkpoint Python / 40 loop tests**, retained **ASan/UBSan/host/FCFS**,
+and the combined source/state/constraint/wave/resource audits pass. Exact-Rocket
+production compilation reaches the real missing FASED CE-owner/common-cut
+rejection in **106 seconds**. Original failures remain preserved. Recovery fixes
+bind the successful generation log and its unchanged source commit, use a
+workspace sbt socket directory, require the complete actual **79-file** graft
+set instead of counting two historical duplicate XDC aliases, and complete the
+missing manager production-structure audit. Final receipts and runnable commands
+belong under `runs/aws-f2/iteration240/`.
+
+The next production step is an independently audited transport state owner and
+immutable descriptor/driver identity, followed by a checked existing-root graft
+connection to these peer routes. Complete FASED/DRAM/host/reset/external-writer
+and pre-FAME ownership, localhost full-image P&R/timing/AFI, all-hart FPGA cuts,
+independent zero-edge restores, finite replay, sustained live RTL and rolling
+hardware recovery remain pending. All FPGA-origin acceptance columns remain
+pending. AWS/F2, native Vivado/HDK and localhost/Fabric SSH setup pass. Existing
+controller checkpoint heads were published FireSim first, then Chipyard; the
+remote updates succeeded and the local tracking-ref write denial is retained.
+Managed worker startup failed before creation; root only, with no delegated
+request outstanding. Plans and initialized manager inputs retain entry hashes.
+No staging/commits, runtime launches or new AFI requests.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 239,
 **in_progress**. The actual FPGATop widget/MMIO/CPU-stream resources can now be
 reserved before final host inventory, with twenty explicit lowered endpoint
 annotations and no enclosing simulator copy. Owner/cycle inputs remain explicit.

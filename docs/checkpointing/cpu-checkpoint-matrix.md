@@ -14,6 +14,19 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 240 reconstructs all twenty reserved widget routes after native
+inlining, without guessing flattened names or consuming unbound image markers.
+The three Scala tests pass fourteen rejection cases; independent manager/EDA
+reconstruction passes **20 pins / 42 hops / 21 inputs / 23 sources**, rejecting
+seven receipt mutations. The prior interrupted native sweep now passes all
+**25 synthesis scopes** with a joined maximum-two-job scheduler, **44 EDA scopes**,
+retained **256 Scala / 313 Python / 40 loop tests** and **ASan/UBSan/host/FCFS**.
+The combined source/state/constraint/wave/resource audit passes. Original failures,
+phase/provenance repairs and complete file-set matching are preserved under
+`runs/aws-f2/iteration240/`. Complete transport-state ownership, immutable identity, production
+graft attachment and every FPGA-origin acceptance column remain pending.
+See [f2-widget-peer-routing.md](f2-widget-peer-routing.md).
+
 Iteration 239 reserves the registered FPGATop widget/MMIO/CPU stream before
 host inventory and retains twenty explicit lowered readout endpoints. Owner/cycle
 inputs have no defaults. Unbound annotation/header/sentinel identity rejects
