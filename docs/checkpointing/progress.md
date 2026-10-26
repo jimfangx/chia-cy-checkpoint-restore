@@ -35,7 +35,27 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 242,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 243,
+**in_progress; verification ongoing**. Preserve source encoding in the cut and
+transport FSMs, and replace permissive native register classification with
+exact field widths plus a complete register-Q/exported-bit proof. The previous
+4-bit transport field selected 15 physical registers, in addition to five
+separately admitted cut FSM encoding bits. Current code requires all 484
+source bits to map without extra encoding storage. Three native negative builds
+and the existing readout/shadow checks are prepared. See
+[f2-transport-source-encoding.md](f2-transport-source-encoding.md).
+
+The fresh **318 Python / 40 loop tests** and retained EDA generated-bank/widget,
+**ASan/UBSan host/FCFS/cut** scope pass. The complete Scala exact-Rocket sweep is
+still running; native synthesis, new EDA checks and full cross-backend audits
+remain unverified. Current diagnostics/commands belong under
+`runs/aws-f2/iteration243/`. Hold the native synthesis sweep until large Java
+work finishes; use the joined maximum-two-job scheduler. A full-context managed worker failed before creation; minimal-context
+review workers subsequently started and are coordinated by root. Both plans and manager inputs
+retain their entry hashes. Production restore/owner binding, full localhost
+image/P&R/AFI, actual FPGA captures and paired CPU migration remain pending.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 242,
 **in_progress**. Added `CheckpointTransportControlSnapshot.sv`: one-edge atomic
 shadowing of the complete transport source-register vector and target label,
 immutable bounded bank reads during source continuation, busy backpressure,

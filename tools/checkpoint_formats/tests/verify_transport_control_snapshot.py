@@ -86,8 +86,7 @@ def monitor(generated):
     packed = ', '.join('dut.'+r['relative_path'] for r in rows[::-1])
     # DPI failure intentionally bypasses VCS cleanup. Preserve the actual
     # negative waveform through its divergent word before the nonzero exit.
-    text = control.monitor(generated).replace('checkpoint_network_fail(); $fatal',
-                                             '$dumpflush; #0.001; checkpoint_network_fail(); $fatal')
+    text = control.monitor(generated)
     require(text.count('import "DPI-C" function void checkpoint_network_fail();') == 1,
             'failure-call instrumentation changed the DPI declaration')
     marker = '  integer checks=0'
@@ -185,6 +184,8 @@ def main():
         for group in ('inputs', 'artifacts'):
             for name, digest in doc[group].items():
                 require(sha(directory/name) == digest, 'changed evidence '+name)
+        if backend == 'f2':
+            control.audit_native(directory)
         return doc
 
     summary = dict(status='pass', backend='eda' if a.mode == 'vcs' else 'f2', sources=sources,
@@ -209,9 +210,10 @@ def main():
         text = run(['vivado', '-mode', 'batch', '-source', 'synth.tcl'], 'synth')
         m = re.search(r'SNAPSHOT_SYNTH_PASS fields=4 registers=552 total_registers=(\d+) raw_positive_edge=1', text)
         require(m and not re.search(r'ERROR:|CRITICAL WARNING:', text), 'incomplete native atomic shadow synthesis')
+        summary['mapped_source_physical_bits'] = control.audit_native(out)
         summary.update(shadow_registers=552, total_registers=int(m[1]))
         summary['artifacts'] = {n: sha(out/n) for n in ('synth.log', 'state-registers.tsv',
-            'state-native-encodings.tsv', 'snapshot-registers.tsv', 'control-state.dcp',
+            'state-bits.tsv', 'state-native-encodings.tsv', 'snapshot-registers.tsv', 'control-state.dcp',
             'control-state-netlist.v', 'utilization.rpt', 'timing.rpt', 'commands.json')}
     elif a.mode == 'vcs':
         require(os.environ.get('VCS_HOME') == toolchain.VCS_HOME and Path(toolchain.VCS).is_file(), 'EDA SP2 VCS required')

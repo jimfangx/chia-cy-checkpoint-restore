@@ -173,7 +173,11 @@ def monitor(generated):
   end
   final $display("CONTROL_STATE_AUDIT_PASS samples=%0d word_checks=%0d fields=24 bits=484",control_samples,control_word_checks);
 '''
-    return tb.replace(marker, observation+marker)
+    text = tb.replace(marker, observation+marker).replace('checkpoint_network_fail(); $fatal',
+                '$dumpflush; #0.001; checkpoint_network_fail(); $fatal')
+    require(text.count('import "DPI-C" function void checkpoint_network_fail();') == 1,
+            'failure instrumentation changed the DPI declaration')
+    return text
 
 
 def fixture(generated):
@@ -198,7 +202,7 @@ def fixture(generated):
 
 def tcl():
     rows = reconstruct({Path(n).name: (ROOT/n).read_text() for n in RTL}, 3)
-    fields = ' '.join(r['relative_path'].replace('.', '/') for r in rows)
+    fields = ' '.join('{'+r['relative_path'].replace('.', '/')+' '+str(r['width'])+' '+str(r['offset'])+'}' for r in rows)
     return '''set_param general.maxThreads 4
 read_verilog -sv sources/CheckpointCaptureCut.sv sources/CheckpointCaptureTransport.sv sources/CheckpointPhysicalClockCut.sv sources/CheckpointPhysicalCaptureTransport.sv bank.sv fixture.sv
 synth_design -top ControlStateSynthesisFixture -part xcvu47p-fsvh2892-2-e -mode out_of_context -flatten_hierarchy none
@@ -219,19 +223,34 @@ foreach cell $regs {
 if {$falling != 1} {error "missing falling-edge physical mask"}
 set fd [open state-registers.tsv w]
 set observed {}
-foreach field {'''+fields+'''} {
+set bf [open state-bits.tsv w]
+foreach row {'''+fields+'''} {
+  lassign $row field width offset
   set selected [get_cells -hier -filter "NAME =~ dut/${field}_reg* && REF_NAME =~ FD*"]
-  if {[llength $selected] == 0} {error "missing observed state $field"}
+  if {[llength $selected] != $width} {error "changed physical width $field expected=$width actual=[llength $selected]"}
   foreach cell $selected {
     if {[lsearch -exact $observed $cell] >= 0} {error "ambiguous state field $cell"}
+    if {[get_property FSM_ENCODED_STATES $cell] ne ""} {error "unmapped encoded state $cell"}
+    set bit 0
+    if {$width > 1} {
+      if {![regexp {\\[([0-9]+)\\]$} $cell unused bit] || $bit >= $width} {error "unbound physical bit $cell"}
+    }
+    set index [expr {$offset+$bit}]
+    set port [get_ports [format {control_state[%d]} $index]]
+    set q [get_pins -of_objects $cell -filter {REF_PIN_NAME == Q}]
+    if {[llength $port] != 1 || [llength $q] != 1 ||
+        [lsort [get_nets -segments -of_objects $port]] ne [lsort [get_nets -segments -of_objects $q]]} {
+      error "physical Q differs from exported source bit $cell index=$index"
+    }
+    puts $bf "$field\t$bit\t$index\t$cell\t$q\t$port"
     lappend observed $cell
   }
   puts $fd "$field\t[llength $selected]"
 }
 close $fd
-set extra [get_cells -hier -filter {NAME =~ dut/transport/cut/FSM_onehot_state_reg* && REF_NAME =~ FD*}]
-if {[llength $extra] != 5} {error "unexpected native cut FSM implementation"}
+close $bf
 set ef [open state-native-encodings.tsv w]
+puts $ef "policy=source_encoding_only expected_encoded_registers=0"
 set encoded 0
 foreach cell $regs {
   set encoding [get_property FSM_ENCODED_STATES $cell]
@@ -241,12 +260,9 @@ foreach cell $regs {
   }
 }
 close $ef
-foreach cell $extra {
-  if {[get_property FSM_ENCODED_STATES $cell] eq "" || [file tail [get_property FILE_NAME $cell]] ne "CheckpointCaptureCut.sv"} {error "unbound native FSM state $cell"}
-  if {[lsearch -exact $observed $cell] >= 0} {error "duplicate native FSM state $cell"}
-  lappend observed $cell
-}
+if {$encoded != 0} {error "unmapped native FSM encoding"}
 if {[lsort $observed] ne [lsort $regs]} {error "unclassified sequential state"}
+if {[llength $regs] != 484} {error "source/native state width mismatch"}
 report_utilization -file utilization.rpt
 report_timing_summary -file timing.rpt
 write_checkpoint -force control-state.dcp
@@ -254,6 +270,34 @@ write_verilog -force -mode funcsim control-state-netlist.v
 puts "CONTROL_STATE_SYNTH_PASS fields=24 live_bits=484 raw_registers=[llength $regs] falling=1"
 puts "CONTROL_STATE_NATIVE_ENCODING registers=$encoded atomic_capture_restore_adapter=UNSUPPORTED"
 '''
+
+
+def audit_native(directory):
+    """Check the emitted physical-bit partition, independently of Tcl counts."""
+    rows = reconstruct({Path(n).name: (ROOT/n).read_text() for n in RTL}, 3)
+    expected = {}
+    for row in rows:
+        field = row['relative_path'].replace('.', '/')
+        for bit in range(row['width']):
+            cell = 'dut/'+field+'_reg'+('['+str(bit)+']' if row['width'] > 1 else '')
+            expected[row['offset']+bit] = (field, bit, cell)
+    actual = {}
+    for line in (directory/'state-bits.tsv').read_text().splitlines():
+        field, bit, index, cell, q, port = line.split('\t')
+        bit, index = int(bit), int(index)
+        require(index not in actual and expected.get(index) == (field, bit, cell) and
+                q == cell+'/Q' and port == 'control_state['+str(index)+']',
+                'incorrect/duplicate physical state bit '+line)
+        actual[index] = (field, bit, cell)
+    require(actual == expected and len(actual) == 484, 'incomplete physical state bit mapping')
+    field_rows = [line.split('\t') for line in (directory/'state-registers.tsv').read_text().splitlines()]
+    fields = dict(field_rows)
+    require(len(field_rows) == len(fields) == len(rows) and
+            fields == {r['relative_path'].replace('.', '/'): str(r['width']) for r in rows},
+            'incorrect physical state field widths')
+    require((directory/'state-native-encodings.tsv').read_text() ==
+            'policy=source_encoding_only expected_encoded_registers=0\n', 'native encoded storage remains')
+    return len(actual)
 
 
 def main():
@@ -287,6 +331,8 @@ def main():
         for group in ('inputs', 'artifacts'):
             for name, digest in doc[group].items():
                 require(sha(directory/name) == digest, 'changed evidence '+name)
+        if backend == 'f2':
+            audit_native(directory)
         return doc
 
     summary = dict(status='pass', backend='eda' if a.mode == 'vcs' else 'f2', sources=sources,
@@ -309,10 +355,53 @@ def main():
         shutil.copyfile(ROOT/EXIT, out/Path(EXIT).name)
         summary['inputs'] = {str(f.relative_to(out)): sha(f) for f in out.rglob('*') if f.is_file()}
         text = run(['vivado', '-mode', 'batch', '-source', 'synth.tcl'], 'synth')
-        require(re.search(r'CONTROL_STATE_SYNTH_PASS fields=24 live_bits=484 raw_registers=\d+ falling=1', text)
+        require(re.search(r'CONTROL_STATE_SYNTH_PASS fields=24 live_bits=484 raw_registers=484 falling=1', text)
                 and not re.search(r'ERROR:|CRITICAL WARNING:', text), 'incomplete state synthesis')
-        summary['artifacts'] = {n: sha(out/n) for n in ('synth.log', 'state-registers.tsv', 'state-native-encodings.tsv', 'control-state.dcp',
-            'control-state-netlist.v', 'utilization.rpt', 'timing.rpt', 'commands.json')}
+        summary['mapped_physical_bits'] = audit_native(out)
+        # Re-enable inference in each actual controller separately. The same
+        # physical/Q audit must reject extra or recoded storage; merely seeing
+        # the RTL attribute is not evidence that synthesis honored it.
+        negative = []
+        for name in ('CheckpointCaptureCut.sv', 'CheckpointCaptureTransport.sv'):
+            work = out/('inferred-'+Path(name).stem)
+            work.mkdir()
+            shutil.copytree(out/'sources', work/'sources')
+            for filename in ('bank.sv', 'fixture.sv', 'synth.tcl'):
+                shutil.copyfile(out/filename, work/filename)
+            path = work/'sources'/name
+            original = path.read_text()
+            attribute = '(* fsm_encoding = "none" *) '
+            require(original.count(attribute) == 1, 'encoding policy mutation site changed')
+            path.write_text(original.replace(attribute, ''))
+            text = run(['vivado', '-mode', 'batch', '-source', 'synth.tcl'],
+                       'inferred-'+Path(name).stem, expected=1, cwd=work)
+            require(re.search(r'changed physical width|unmapped encoded state|unmapped native FSM encoding', text)
+                    and 'CONTROL_STATE_SYNTH_PASS' not in text, 'inference defect rejected for unrelated reason')
+            negative.append(dict(source=name, rejected=True, returncode=1))
+        work = out/'swapped-export'
+        work.mkdir()
+        shutil.copytree(out/'sources', work/'sources')
+        for filename in ('bank.sv', 'fixture.sv', 'synth.tcl'):
+            shutil.copyfile(out/filename, work/filename)
+        path = work/'fixture.sv'
+        original = path.read_text()
+        require(original.count('.control_state(control_state)') == 1, 'physical export mutation site changed')
+        path.write_text(original.replace('.control_state(control_state)', '.control_state(raw_state)').replace(
+            '  CheckpointPhysicalCaptureTransport #(', '''  wire [483:0] raw_state;
+  assign control_state = {raw_state[483:8],raw_state[3:0],raw_state[7:4]};
+  CheckpointPhysicalCaptureTransport #('''))
+        text = run(['vivado', '-mode', 'batch', '-source', 'synth.tcl'], 'swapped-export', expected=1, cwd=work)
+        require('physical Q differs from exported source bit' in text and 'CONTROL_STATE_SYNTH_PASS' not in text,
+                'physical export defect rejected for unrelated reason')
+        negative.append(dict(source='fixture.sv', rejected=True, returncode=1))
+        summary['native_state_negatives'] = negative
+        summary['artifacts'] = {n: sha(out/n) for n in ('synth.log', 'state-registers.tsv', 'state-bits.tsv', 'state-native-encodings.tsv', 'control-state.dcp',
+            'control-state-netlist.v', 'utilization.rpt', 'timing.rpt', 'commands.json',
+            'inferred-CheckpointCaptureCut.log', 'inferred-CheckpointCaptureTransport.log', 'swapped-export.log')}
+        summary['artifacts'].update({str(f.relative_to(out)): sha(f) for f in out.rglob('*')
+            if f.is_file() and (any(p.name.startswith('inferred-') or p.name == 'swapped-export'
+                                  for p in f.relative_to(out).parents)) and
+            f.suffix in ('.log', '.sv', '.tcl', '.tsv')})
     elif a.mode == 'vcs':
         require(os.environ.get('VCS_HOME') == toolchain.VCS_HOME and Path(toolchain.VCS).is_file(), 'EDA SP2 VCS required')
         native = validate(a.native, 'f2')
@@ -356,6 +445,9 @@ def main():
         work.mkdir()
         text = run([out/'simv-swapped', '-no_save'], 'swapped', 1, work)
         require('CONTROL_STATE_DIVERGENCE' in text, 'swapped state did not diverge')
+        waves = list(out.rglob('*.vcd'))
+        require(len(waves) == 13 and all(re.search(r'^#[1-9][0-9]*$', f.read_text(), re.M) for f in waves),
+                'missing or unflushed readout debug waveform')
         summary.update(results=results, semantic_miswire_rejected=True, inputs=native['inputs'],
                        native_receipt=str(a.native/'summary.json'))
         summary['artifacts'] = {str(f.relative_to(out)): sha(f) for f in out.rglob('*')
@@ -363,7 +455,8 @@ def main():
     else:
         native, eda = validate(a.native, 'f2'), validate(a.eda, 'eda')
         require(native['inputs'] == eda['inputs'] and len(eda['results']) == 11 and
-                eda['semantic_miswire_rejected'], 'incomplete native/EDA comparison')
+                eda['semantic_miswire_rejected'] and len(native['native_state_negatives']) == 3,
+                'incomplete native/EDA comparison')
         require((a.native/'fixture.sv').read_text() == fixture(a.generated) and
                 (a.native/'synth.tcl').read_text() == tcl() and
                 (a.native/'monitor.sv').read_text() == monitor(a.generated), 'altered native/EDA contract')
