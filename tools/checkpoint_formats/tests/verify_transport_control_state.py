@@ -263,6 +263,17 @@ close $ef
 if {$encoded != 0} {error "unmapped native FSM encoding"}
 if {[lsort $observed] ne [lsort $regs]} {error "unclassified sequential state"}
 if {[llength $regs] != 484} {error "source/native state width mismatch"}
+# FD* selection alone can silently omit a latch, shift register or RAM. The
+# external-clock fixture has no opaque gate leaves; every sequential primitive
+# must therefore be in the explicit source/shadow flip-flop partition.
+set native_storage [get_cells -hier -filter {IS_SEQUENTIAL == 1}]
+set native_flops [get_cells -hier -filter {REF_NAME =~ FD*}]
+if {[lsort $native_storage] ne [lsort $native_flops]} {error "unrepresented native sequential primitive"}
+set nf [open native-storage.tsv w]
+foreach cell [lsort $native_storage] {
+  puts $nf "$cell\t[get_property REF_NAME $cell]"
+}
+close $nf
 report_utilization -file utilization.rpt
 report_timing_summary -file timing.rpt
 write_checkpoint -force control-state.dcp
@@ -272,7 +283,7 @@ puts "CONTROL_STATE_NATIVE_ENCODING registers=$encoded atomic_capture_restore_ad
 '''
 
 
-def audit_native(directory):
+def audit_native(directory, *, shadow=False):
     """Check the emitted physical-bit partition, independently of Tcl counts."""
     rows = reconstruct({Path(n).name: (ROOT/n).read_text() for n in RTL}, 3)
     expected = {}
@@ -297,6 +308,20 @@ def audit_native(directory):
             'incorrect physical state field widths')
     require((directory/'state-native-encodings.tsv').read_text() ==
             'policy=source_encoding_only expected_encoded_registers=0\n', 'native encoded storage remains')
+    # Independently bind the complete Vivado sequential census to the explicit
+    # source and optional shadow cell sets; no unlisted storage type is admitted.
+    storage = {entry[2] for entry in expected.values()}
+    if shadow:
+        for field, count in [('saved_state', 484), ('snapshot_cycle', 64), ('occupied', 1), ('error', 3)]:
+            storage.update('snapshot/'+field+'_reg'+('['+str(bit)+']' if count > 1 else '')
+                           for bit in range(count))
+    census = {}
+    for line in (directory/'native-storage.tsv').read_text().splitlines():
+        cell, primitive = line.split('\t')
+        require(cell not in census and primitive in ('FDRE', 'FDSE'),
+                'duplicate/unsupported native sequential primitive '+line)
+        census[cell] = primitive
+    require(set(census) == storage, 'incomplete native sequential census')
     return len(actual)
 
 
@@ -370,7 +395,7 @@ def main():
                 shutil.copyfile(out/filename, work/filename)
             path = work/'sources'/name
             original = path.read_text()
-            attribute = '(* fsm_encoding = "none" *) '
+            attribute = '(* fsm_encoding = "none", dont_touch = "true" *) '
             require(original.count(attribute) == 1, 'encoding policy mutation site changed')
             path.write_text(original.replace(attribute, ''))
             text = run(['vivado', '-mode', 'batch', '-source', 'synth.tcl'],
@@ -378,6 +403,23 @@ def main():
             require(re.search(r'changed physical width|unmapped encoded state|unmapped native FSM encoding', text)
                     and 'CONTROL_STATE_SYNTH_PASS' not in text, 'inference defect rejected for unrelated reason')
             negative.append(dict(source=name, rejected=True, returncode=1))
+        # FSM extraction can be disabled while synthesis still duplicates
+        # source state for fanout. Remove ONLY preservation, keeping none, to
+        # reproduce the independently observed eleven unmapped copies.
+        work = out/'replication-enabled'
+        work.mkdir()
+        shutil.copytree(out/'sources', work/'sources')
+        for filename in ('bank.sv', 'fixture.sv', 'synth.tcl'):
+            shutil.copyfile(out/filename, work/filename)
+        path = work/'sources/CheckpointCaptureTransport.sv'
+        original = path.read_text()
+        policy = 'fsm_encoding = "none", dont_touch = "true"'
+        require(original.count(policy) == 1, 'replication policy mutation site changed')
+        path.write_text(original.replace(policy, 'fsm_encoding = "none"'))
+        text = run(['vivado', '-mode', 'batch', '-source', 'synth.tcl'], 'replication-enabled', expected=1, cwd=work)
+        require('changed physical width transport/state expected=4 actual=15' in text and
+                'CONTROL_STATE_SYNTH_PASS' not in text, 'replication defect rejected for unrelated reason')
+        negative.append(dict(source='CheckpointCaptureTransport.sv:preservation_removed', rejected=True, returncode=1))
         work = out/'swapped-export'
         work.mkdir()
         shutil.copytree(out/'sources', work/'sources')
@@ -394,12 +436,29 @@ def main():
         require('physical Q differs from exported source bit' in text and 'CONTROL_STATE_SYNTH_PASS' not in text,
                 'physical export defect rejected for unrelated reason')
         negative.append(dict(source='fixture.sv', rejected=True, returncode=1))
+        # A storage primitive outside FD* must fail even when every exported
+        # source Q bit and field width still matches.
+        work = out/'hidden-latch'
+        work.mkdir()
+        shutil.copytree(out/'sources', work/'sources')
+        for filename in ('bank.sv', 'fixture.sv', 'synth.tcl'):
+            shutil.copyfile(out/filename, work/filename)
+        path = work/'fixture.sv'
+        original = path.read_text()
+        marker = '    output wire [63:0] word_data'
+        require(original.count(marker) == 1, 'hidden storage mutation boundary changed')
+        path.write_text(original.replace(marker, marker+',\n    output reg hidden_state').replace(
+            'endmodule', '  always @* if (mmio_valid) hidden_state = mmio_write;\nendmodule'))
+        text = run(['vivado', '-mode', 'batch', '-source', 'synth.tcl'], 'hidden-latch', expected=1, cwd=work)
+        require('unrepresented native sequential primitive' in text and 'CONTROL_STATE_SYNTH_PASS' not in text,
+                'hidden storage rejected for unrelated reason')
+        negative.append(dict(source='fixture.sv:hidden-latch', rejected=True, returncode=1))
         summary['native_state_negatives'] = negative
         summary['artifacts'] = {n: sha(out/n) for n in ('synth.log', 'state-registers.tsv', 'state-bits.tsv', 'state-native-encodings.tsv', 'control-state.dcp',
             'control-state-netlist.v', 'utilization.rpt', 'timing.rpt', 'commands.json',
-            'inferred-CheckpointCaptureCut.log', 'inferred-CheckpointCaptureTransport.log', 'swapped-export.log')}
+            'inferred-CheckpointCaptureCut.log', 'inferred-CheckpointCaptureTransport.log', 'swapped-export.log', 'hidden-latch.log', 'replication-enabled.log', 'native-storage.tsv')}
         summary['artifacts'].update({str(f.relative_to(out)): sha(f) for f in out.rglob('*')
-            if f.is_file() and (any(p.name.startswith('inferred-') or p.name == 'swapped-export'
+            if f.is_file() and (any(p.name.startswith('inferred-') or p.name in ('swapped-export', 'hidden-latch', 'replication-enabled')
                                   for p in f.relative_to(out).parents)) and
             f.suffix in ('.log', '.sv', '.tcl', '.tsv')})
     elif a.mode == 'vcs':
@@ -455,7 +514,7 @@ def main():
     else:
         native, eda = validate(a.native, 'f2'), validate(a.eda, 'eda')
         require(native['inputs'] == eda['inputs'] and len(eda['results']) == 11 and
-                eda['semantic_miswire_rejected'] and len(native['native_state_negatives']) == 3,
+                eda['semantic_miswire_rejected'] and len(native['native_state_negatives']) == 5,
                 'incomplete native/EDA comparison')
         require((a.native/'fixture.sv').read_text() == fixture(a.generated) and
                 (a.native/'synth.tcl').read_text() == tcl() and

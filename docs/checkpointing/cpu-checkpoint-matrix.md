@@ -14,6 +14,21 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 244 verifies source preservation and complete native transport storage
+census. FSM policy alone left eleven unrepresented replicas; both controller
+state registers now require source-level preservation. Fresh native synthesis
+maps **484 source bits / 484 registers**, with **552 shadow / 1,036 total**
+registers and no extra encoding storage. **Five native negatives** reject.
+All **262 Scala / 318 Python / 40 loop / 27 native / 46 EDA scopes**, retained
+**ASan/UBSan/host/FCFS**, cross-backend audits and **29 debug waves** pass.
+Readout checks **5,051 samples / 50,510 words**; shadow checks **1,614 captures /
+80,952 words** plus eleven integration scenarios, including corruption at cut
+100/observation 107. Original failures and repaired-source evidence remain
+separate under `runs/aws-f2/iteration244/` and its `repair/` source epoch.
+These are component results. Full source/owner binding, checkpoint image and
+all FPGA-origin acceptance columns remain pending. See
+[f2-transport-source-encoding.md](f2-transport-source-encoding.md).
+
 Iteration 242 adds a synthesizable atomic shadow of the complete transport
 source-register vector and target label. Native Vivado accounts for **552 shadow /
 1,052 total register cells**. EDA VCS passes **1,614 standalone captures / 80,952

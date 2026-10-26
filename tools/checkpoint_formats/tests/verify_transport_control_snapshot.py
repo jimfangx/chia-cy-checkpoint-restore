@@ -185,7 +185,7 @@ def main():
             for name, digest in doc[group].items():
                 require(sha(directory/name) == digest, 'changed evidence '+name)
         if backend == 'f2':
-            control.audit_native(directory)
+            control.audit_native(directory, shadow=True)
         return doc
 
     summary = dict(status='pass', backend='eda' if a.mode == 'vcs' else 'f2', sources=sources,
@@ -210,10 +210,10 @@ def main():
         text = run(['vivado', '-mode', 'batch', '-source', 'synth.tcl'], 'synth')
         m = re.search(r'SNAPSHOT_SYNTH_PASS fields=4 registers=552 total_registers=(\d+) raw_positive_edge=1', text)
         require(m and not re.search(r'ERROR:|CRITICAL WARNING:', text), 'incomplete native atomic shadow synthesis')
-        summary['mapped_source_physical_bits'] = control.audit_native(out)
+        summary['mapped_source_physical_bits'] = control.audit_native(out, shadow=True)
         summary.update(shadow_registers=552, total_registers=int(m[1]))
         summary['artifacts'] = {n: sha(out/n) for n in ('synth.log', 'state-registers.tsv',
-            'state-bits.tsv', 'state-native-encodings.tsv', 'snapshot-registers.tsv', 'control-state.dcp',
+            'state-bits.tsv', 'state-native-encodings.tsv', 'native-storage.tsv', 'snapshot-registers.tsv', 'control-state.dcp',
             'control-state-netlist.v', 'utilization.rpt', 'timing.rpt', 'commands.json')}
     elif a.mode == 'vcs':
         require(os.environ.get('VCS_HOME') == toolchain.VCS_HOME and Path(toolchain.VCS).is_file(), 'EDA SP2 VCS required')

@@ -35,25 +35,71 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 243,
-**in_progress; verification ongoing**. Preserve source encoding in the cut and
-transport FSMs, and replace permissive native register classification with
-exact field widths plus a complete register-Q/exported-bit proof. The previous
-4-bit transport field selected 15 physical registers, in addition to five
-separately admitted cut FSM encoding bits. Current code requires all 484
-source bits to map without extra encoding storage. Three native negative builds
-and the existing readout/shadow checks are prepared. See
-[f2-transport-source-encoding.md](f2-transport-source-encoding.md).
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 244,
+**in_progress; source-preservation component increment verified**.
+`CheckpointCaptureCut.state` and `CheckpointCaptureTransport.state` now require
+both `fsm_encoding="none"` and `dont_touch="true"`, with exact refreshed Scala
+source pins. The initial native failure proved that disabling FSM extraction
+alone left eleven transport `state_reg[2/3]_rep*` copies: 495 physical registers
+for 484 source bits. Preserve original failed builds and source-copy probes under
+`runs/aws-f2/iteration244/`; all accepted repaired-source evidence is separate
+under `runs/aws-f2/iteration244/repair/`.
 
-The fresh **318 Python / 40 loop tests** and retained EDA generated-bank/widget,
-**ASan/UBSan host/FCFS/cut** scope pass. The complete Scala exact-Rocket sweep is
-still running; native synthesis, new EDA checks and full cross-backend audits
-remain unverified. Current diagnostics/commands belong under
-`runs/aws-f2/iteration243/`. Hold the native synthesis sweep until large Java
-work finishes; use the joined maximum-two-job scheduler. A full-context managed worker failed before creation; minimal-context
-review workers subsequently started and are coordinated by root. Both plans and manager inputs
-retain their entry hashes. Production restore/owner binding, full localhost
-image/P&R/AFI, actual FPGA captures and paired CPU migration remain pending.
+The full repaired scope passes: **262 Scala / 39 suites, 318 Python / 40 loop,
+27 native component / 46 EDA scopes**, retained **ASan/UBSan/host/FCFS**, and
+independent complete source/state/constraint/wave/resource audits. Fresh exact
+Rocket generation passes in **614s**; production compilation still explicitly
+rejects the missing FASED BUFGCE latch/common-low-phase owner. Native readout maps
+all **484 source bits** to exactly **484 registers**, with zero extra encoding
+storage. Shadow synthesis has **552 shadow / 1,036 total registers**. The complete
+`IS_SEQUENTIAL` census rejects unrepresented storage. All **five native negatives**
+reject: complete policy removal per controller, transport-only preservation
+removal (eleven replicas), exported-bit permutation and a hidden latch.
+
+EDA SP2 VCS passes **5,051 readout samples / 50,510 words**, **1,614 shadow
+captures / 80,952 words** at gate counts 1/3/65, and eleven integration scenarios.
+The captured-bit defect stops at cut **100**, observation **107**, word **0**.
+All **29 debug waves** are retained and independently audited. Both attached-top
+DCPs independently enumerate **1,016 raw control/stream registers**, partitioned
+777/55/184; exact count and every raw clock are checked. Legacy assertions
+1,028/1,024 were updated only after those DCP recounts. Source-instance ownership
+checks remain intact; three definition deduplication sites avoid deep structural
+hashing only after global duplicate-name validation. No overall speedup is claimed.
+
+Recovery evidence is preserved: the original Scala job was stopped/joined (143),
+then both complete Scala source epochs passed. Initial missing-adapter EDA failure,
+two native width failures, nested historical-producer lookup failure and both
+stale raw-count audit failures retain separate logs. The corrected producer lookup
+keeps complete circuit/storage/context equivalence checks and binds the fixture
+to its actual iteration-239 producer, separately from fresh generation. All
+native tasks were joined with at most two Vivados and no large-Java overlap.
+One managed EDA worker hit model capacity; root collected its 44 earlier receipts,
+observed its processes gone and ran all repaired-source checks centrally. Review
+results were collected; no delegated request or build process remains.
+
+AWS/F2, Vivado 2025.2/HDK and localhost checks pass. Final scoped inventory has no
+loop runtime instance or native job; 44 account-owned images are recorded, with
+no new instance/AFI requested by this increment. Plans and four manager YAMLs
+match their entry hashes. Existing controller heads were published FireSim first
+(`8ee6f51d`), then Chipyard (`59edaf9d`); no agent staging or local commits.
+Publish the controller's next checkpoint per
+[github-publication.md](github-publication.md).
+
+Complete transport restore/stream/MMIO/host ownership, immutable descriptor/driver
+binding and production graft, full FASED/DRAM/reset/external-writer/pre-FAME coverage,
+localhost full-image P&R/timing/AFI, active all-hart early/warm/outstanding/late FPGA
+captures, independent zero-edge/finite/live CPU migration beyond trace and rolling
+hardware recovery remain pending. Every FPGA-origin matrix column remains pending.
+Exact runnable commands and individual receipts: `repair/verification-commands.json`,
+`repair/summary.json`, `repair/native-recovery.json`, `repair/manager-audit-result.json`,
+`repair/remaining-blockers.json`, `repair/final-inventory.json` under iteration244.
+See [f2-transport-source-encoding.md](f2-transport-source-encoding.md).
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 243,
+**in_progress; interrupted verification**. Source encoding preservation and
+exact register-Q/exported-bit mapping were implemented, but native/EDA checks
+and the full Scala sweep were not completed. Preserve original diagnostics
+under `runs/aws-f2/iteration243/`; do not mark those receipts freshly verified.
 
 Historical milestone: `F2-rocket-checkpoint-migration`, iteration 242,
 **in_progress**. Added `CheckpointTransportControlSnapshot.sv`: one-edge atomic
