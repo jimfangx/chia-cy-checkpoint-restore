@@ -74,7 +74,7 @@ FIXTURE = '''module PhysicalTransportSynthesisFixture(
   wire [63:0] physical_cut_cycle;
   wire [2:0] physical_error;
   CheckpointPhysicalCaptureTransport #(.GATES(3),.OWNERS(4),.ENTRIES(3),
-    .MANIFEST_SHA256(256'h0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef)) dut(.control_state(), .*);
+    .MANIFEST_SHA256(256'h0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef)) dut(.restore_hold(1'b0), .restore_load_pos(1'b0), .restore_load_neg(1'b0), .restore_state(484'b0), .control_state(), .*);
   always @(posedge root_clock) if(reset) target_cycle<=0; else target_cycle<=target_cycle+1;
   always @(posedge gate_clock[0]) if(reset) state0<=1; else state0<=(state0*33)^target_cycle[31:0];
   always @(posedge gate_clock[1]) if(reset) state1<=2; else state1<=(state1*33)^(target_cycle[31:0]+1);

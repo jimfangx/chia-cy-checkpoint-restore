@@ -22,7 +22,10 @@ epoch. Explicit abort retirement or reset is necessary before another epoch.
 Abort/reset invalidate even a ready-to-apply offer immediately. Errors are sticky
 until reset; abort cannot forgive faults or conceal simultaneous illegal commands.
 
-The component does **not** write the production transport's physical registers.
+The staging component does **not** write physical registers itself. The separate
+[parked physical apply component](f2-transport-physical-restore.md) now connects
+its offer to opt-in transport register load muxes and complete readback. It
+retains a permanent clock mask and supplies no release or continuation protocol.
 The falling-edge mask, stream/MMIO obligations, raw control state, physical clock
 gates, shadow storage, host owners, complete state validation and common-cut
 release still need a destination adapter. No production widget, compiler owner,

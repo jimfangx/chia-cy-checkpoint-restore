@@ -35,7 +35,73 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 245,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 246,
+**in_progress; parked physical apply component verified**.
+`CheckpointTransportPhysicalRestore` loads the 23 positive-edge fields, then the
+falling-edge mask, independently reads the complete vector and acknowledges
+staging once. Its permanent mask and MMIO/bank/DMA isolation prevent any target
+edge; there is no release or stream/host continuation. Production ties every
+restore port off with `RESTORE_ENABLE=0`; strict ownership/image guards remain.
+See [f2-transport-physical-restore.md](f2-transport-physical-restore.md).
+
+Native Vivado 2025.2 passes **30 fields / 1,041 registers / 601 LUTs**, with
+all **484 physical bits**, two falling-edge registers and an explicit native
+GND binding for the valid-specialization-only supervisor `error[4]`. The original
+1,042 draft assumed that constant bit retained a register; the pre-synthesis
+source audit corrected it and added a required constant-driver proof. Four
+receipt mutations and a separately synthesized extra **LDCE** reject; the latter
+has **1,042 actual sequential cells**. Estimated OOC setup slack **+1.697ns** at
+140MHz has unconstrained external I/O; full-image implementation remains pending.
+
+Native-bound EDA SP2 VCS passes **2,092 physical restores / 7,504,531 checks /
+136 rejections** at gate counts 1/3/31/65, plus invalid counts 0/65536. All target
+edge counts are zero. A compiled physical-write defect stops at cut **100**, bit
+**0**, with zero acknowledgements. Independent root waveform/source auditing
+confirms those labels and every evidence hash. All **seven full waves** remain.
+The fresh **27-scope native sweep** and staging synthesis pass with a joined
+maximum-two-job scheduler. All retained EDA compiler/bank/widget/physical/owner
+checks, **318 Python / 40 loop** tests and **ASan/UBSan host/FCFS** pass. Readout
+retains **5,051 samples / 50,510 words**, shadow **1,614 captures / 80,952 words**
+and staging **2,092 restores / 139,884 checks / 159 rejections**. Complete native/
+EDA source, state, constraints, resource and waveform audits pass, including both
+independent **1,016-register** raw-control recounts.
+
+Fresh exact Rocket generation passes in **623s**. Initial Scala fullscope is
+**260/262**, with exactly two test assertions incorrectly expecting inline
+literal ties. The complete repaired widget suite passes **5/5**, checking each
+connected net's sole width-exact zero driver. Main implementation is unchanged;
+`scala-evidence-audit.json` explicitly records aggregate coverage, not a single
+all-pass full run. The actual production compiler still rejects the FASED
+physical CE-latch owner/common-low-phase cut. The initial sbt boot socket failure
+is retained separately from the corrected runs-local runtime directory.
+
+The reset-negative launcher needed its exact mutation anchor updated to preserve
+the new `restoring` term. Its original failure remains separate; the corrected
+compiled defect still fails at reset invalidation. Two summary-only errors
+(quiet parent log and manager-source paths on EDA) retain their original logs;
+completed child receipts and mapped source hashes now audit successfully. No
+compiler/RTL behavior was weakened to repair these diagnostic launchers.
+
+All delegated requests and root jobs have finished. Exact commands and individual
+receipts are under `runs/aws-f2/iteration246/verification-commands.json` and
+`summary.json`. Final fresh AWS/local inventory has no loop runtime or native
+job and records **46 account-owned images**; this increment requested no instance
+or AFI. Manager/AWS/HDK/Vivado/localhost checks pass. Existing controller checkpoints
+were published FireSim first (`e751b993`), then Chipyard (`f229abac`), with remote
+tips independently matched. The Chipyard push updated GitHub but its local
+tracking-ref lock remained read-only; independent remote-tip verification passes.
+Protected plans/configs retain their entry hashes.
+Publish the next controller checkpoint per
+[GitHub publication](github-publication.md); no agent staging or local commits.
+
+Common-cut release, complete stream/MMIO/host state, immutable descriptor/driver
+binding and production graft, FASED/DRAM/reset/external-writer/pre-FAME coverage,
+full localhost image/P&R/AFI, active all-hart early/warm/outstanding/late F2 cuts,
+paired complete zero-edge migration, finite replay, sustained live RTL beyond
+trace and rolling hardware recovery remain pending. Every FPGA-origin acceptance
+column remains pending.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 245,
 **in_progress; transport restore staging component verified**.
 Added a synthesizable transactional staging bank for the exact transport vector:
 nonzero compile-time identity, source-cycle and complete-length binding, strictly

@@ -10,7 +10,7 @@ module checkpoint_cut_tb;
     wire [63:0] cut_cycle;
     wire [4:0] error;
     integer checks = 0;
-    CheckpointCaptureCut #(.OWNERS(4)) dut(.control_state(), .*);
+    CheckpointCaptureCut #(.OWNERS(4)) dut(.restore_hold(1'b0), .restore_load_pos(1'b0), .restore_state(72'b0), .control_state(), .*);
 
     task tick;
         @(posedge clock); #1;

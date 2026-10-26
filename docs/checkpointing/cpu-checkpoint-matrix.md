@@ -14,6 +14,20 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 246 verifies permanently parked **physical register apply** with
+positive/falling-edge load muxes and complete readback before acknowledgement.
+Native synthesis maps **484 physical bits / 1,041 total registers / 601 LUTs**,
+two falling-edge cells and the explicitly bound constant-zero supervisor bit;
+a real added LDCE rejects. Native-bound EDA passes **2,092 restores / 136
+rejections / 7,504,531 checks / zero target edges**, plus invalid specializations
+and corruption at cut100/bit0 before acknowledgement, retaining seven full waves.
+The fresh 27-scope native sweep, all retained EDA/ASan/UBSan/host/FCFS checks,
+318 Python/40 loop tests and independent source/resource/waveform audits pass.
+Production restore remains disabled. Common-cut release, complete stream/MMIO/
+host continuation, capture image and every FPGA-origin acceptance column remain
+pending. See [f2-transport-physical-restore.md](f2-transport-physical-restore.md)
+and `runs/aws-f2/iteration246/`.
+
 Iteration 245 adds transactional transport restore **staging**, with exact
 identity/length/cycle binding, ordered complete words, padding/CRC checks and
 one-shot backpressured apply. Native synthesis audits **655 registers / eight

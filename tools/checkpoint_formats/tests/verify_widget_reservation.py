@@ -91,7 +91,7 @@ def audit(g):
     require(hashlib.sha256(transport['body'].encode()).hexdigest()==receipt['transport_definition_sha256'],
             'changed reserved transport definition')
     params=dict(re.findall(r'^  parameter (\w+) = (\d+)$',transport['body'],re.M))
-    require(params==dict(GATES='2',OWNERS='2',ENTRIES='7',EXTERNAL_CLOCK_NETWORK='1',MANIFEST_SHA256=str(2**256-1)),
+    require(params==dict(GATES='2',OWNERS='2',ENTRIES='7',EXTERNAL_CLOCK_NETWORK='1',RESTORE_ENABLE='0',MANIFEST_SHA256=str(2**256-1)),
             'changed reservation transport parameters')
     for n in RTL:
         actual=[a for a in ann if a['class']=='firrtl.transforms.BlackBoxInlineAnno' and a['name']==n]

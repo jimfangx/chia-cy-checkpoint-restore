@@ -56,7 +56,7 @@ module physical_capture_transport_tb;
 `endif
   // Corruption inputs are deliberately outside the trusted functional owner.
   CheckpointPhysicalCaptureTransport #(.OWNERS(4),.GATES(3),.ENTRIES(3),.EXTERNAL_CLOCK_NETWORK(EXTERNAL_NETWORK),.MANIFEST_SHA256(HASH)) dut(
-    .target_cycle(target_cycle ^ cycle_fault), .control_state(), .*);
+    .target_cycle(target_cycle ^ cycle_fault), .restore_hold(1'b0), .restore_load_pos(1'b0), .restore_load_neg(1'b0), .restore_state(484'b0), .control_state(), .*);
 `ifndef GENERATED_TRANSPORT_NETWORK
   always @(posedge root_clock) if(reset) target_cycle<=0; else target_cycle<=target_cycle+1;
   genvar g;
