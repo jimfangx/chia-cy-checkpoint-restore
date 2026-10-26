@@ -1,5 +1,9 @@
 # Transport control-state readout
 
+Iteration 242 adds a separate [atomic shadow staging component](f2-transport-control-snapshot.md).
+It copies this live vector in one edge for immutable bank reads. The production
+widget and complete capture/restore ownership remain unbound.
+
 `CheckpointPhysicalCaptureTransport.control_state` now exposes every sequential
 source register in the transport, deferred cut coordinator and physical cut controller.
 The transport exports 411 bits; the physical controller adds `70 + GATES` bits.

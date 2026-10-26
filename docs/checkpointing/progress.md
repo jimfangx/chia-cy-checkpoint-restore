@@ -35,7 +35,53 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 241,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 242,
+**in_progress**. Added `CheckpointTransportControlSnapshot.sv`: one-edge atomic
+shadowing of the complete transport source-register vector and target label,
+immutable bounded bank reads during source continuation, busy backpressure,
+explicit cut/owner admission, sticky failures and abort/reset recovery. See
+[f2-transport-control-snapshot.md](f2-transport-control-snapshot.md).
+
+Local native Vivado synthesis passes with **552 shadow / 1,052 total register
+cells** and exact raw-clock/polarity/storage accounting. EDA SP2 VCS passes
+**1,614 standalone captures / 80,952 word checks / gate counts 1, 3, 65**, plus
+**eleven integration scenarios** with independently reconstructed pre-edge
+transport state. A separately compiled captured-bit defect fails at its first
+unequal word of snapshot cut **100**, observed at source cycle **107**, word **0**,
+capture **1**; the final audit independently checks both labels in its VCD.
+**Sixteen debug VCDs** are retained. The fixed-source native/EDA comparison and retained **318 checkpoint
+Python / 40 loop / generated-bank / widget / ASan/UBSan host / FCFS / cut** checks
+pass. No Scala source changed; the prior 262-test Scala sweep remains historical.
+The initial synthesized attempt correctly rejects its receipt because testbench
+source changed during execution; its logs and the fixed-source rerun are separate.
+The final negative-wave audit found the immediate DPI exit bypassed VCS flushing;
+explicit `$dumpflush` now precedes failure exits, with another complete native/EDA
+rerun. The first flush injection also matched the DPI declaration; the retained
+EDA syntax diagnostic drove a call-only replacement and declaration guard before
+the final complete rerun. An independent SP2 probe demonstrates that the flush
+needs an end-of-time-slot wait before DPI exit; a one-ps wait preserves both
+nonzero failure status and the waveform without another clock edge. The versioned
+verifier now rejects time-zero-only waves and checks the negative cut/observation
+labels itself. Original wave/path audit failures remain separate and remote paths remain
+unchanged in receipts; local validation resolves their corresponding returned files.
+Commands and evidence belong under `runs/aws-f2/iteration242/`.
+
+This is a staging component, not a complete transport restore owner. Existing
+production widget/inventory/image guards remain unchanged. Cut certificates
+still need actual complete owner wiring; shadow storage mapping, the five native
+FSM encodings, stream/MMIO, FASED/DRAM/host/reset/external-writer ownership,
+immutable descriptors/driver binding and production graft remain pending.
+Full-image localhost P&R/AFI, all-hart FPGA cuts, independent Level-1/Level-2
+restores, finite/live RTL and rolling hardware recovery remain pending. All
+FPGA-origin matrix columns stay pending. AWS/F2, native Vivado/HDK and localhost
+SSH setup pass. No AFI or instance was requested; final inventory retains 42 owned
+images and no loop-tagged runtime instance or native build job. Plans and manager
+inputs retain entry hashes. No staging or commits. Existing controller heads were
+published FireSim first, then Chipyard, and both remote tips match; the local
+tracking-ref write denial is retained. Managed worker startup failed before
+creation; root performed the work without any delegated request outstanding.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 241,
 **in_progress**. Added synthesizable live readout for all 24 sequential
 transport/cut-controller registers, including the falling-edge physical mask.
 The packed vector has `481 + GATES` bits. A pinned Scala schema describes exact

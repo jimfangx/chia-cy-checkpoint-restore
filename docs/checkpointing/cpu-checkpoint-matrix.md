@@ -14,6 +14,20 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 242 adds a synthesizable atomic shadow of the complete transport
+source-register vector and target label. Native Vivado accounts for **552 shadow /
+1,052 total register cells**. EDA VCS passes **1,614 standalone captures / 80,952
+word checks** at gate counts 1, 3 and 65, plus **eleven integration scenarios**,
+retaining **sixteen waves**. A separately compiled captured-bit defect fails at
+snapshot cut **100**, observed at source cycle **107**, word **0**, capture **1**.
+Cross-backend source/evidence matching,
+**318 Python / 40 loop tests**, and retained generated-bank/widget/**ASan/UBSan
+host/FCFS** checks pass. The initial source-change receipt rejection and successful
+fixed-source synthesis are separate. This is a staging component; complete
+transport restore, production cut ownership and image binding remain pending.
+Every FPGA-origin acceptance column stays pending. See
+[f2-transport-control-snapshot.md](f2-transport-control-snapshot.md).
+
 Iteration 241 adds synthesizable live readout of all **24 transport/controller
 registers**, including the falling-edge physical mask, with an exact source-pinned
 layout and a combinational 64-bit bank. All **262 Scala / 318 Python / 40 loop
