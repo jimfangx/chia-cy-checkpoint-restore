@@ -14,6 +14,20 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 241 adds synthesizable live readout of all **24 transport/controller
+registers**, including the falling-edge physical mask, with an exact source-pinned
+layout and a combinational 64-bit bank. All **262 Scala / 318 Python / 40 loop
+tests / 26 native synthesis / 45 EDA scopes**, retained **ASan/UBSan/host/FCFS**
+and combined audits pass after recorded repairs. The readout checks **5,051 samples /
+50,510 words / eleven scenarios**, retains **13 waves** and detects a field swap
+at cycle **2**, sample **75**. Native synthesis accounts for **500 register cells**;
+five additional FSM encoding registers retain unsupported capture/restore mapping.
+Actual retained and fresh compiler epochs are separately bound. This readout
+does not freeze the raw controllers or provide a restore adapter. The widget
+leaves it unused, opaque inventory and image guards still reject, and every
+FPGA-origin acceptance column remains pending. See
+[f2-transport-control-state.md](f2-transport-control-state.md).
+
 Iteration 240 reconstructs all twenty reserved widget routes after native
 inlining, without guessing flattened names or consuming unbound image markers.
 The three Scala tests pass fourteen rejection cases; independent manager/EDA

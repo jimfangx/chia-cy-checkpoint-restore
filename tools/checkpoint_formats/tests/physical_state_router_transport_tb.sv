@@ -58,7 +58,7 @@ module physical_state_router_transport_tb;
 `endif
   // Corruption inputs are deliberately outside the trusted functional owner.
   CheckpointPhysicalCaptureTransport #(.OWNERS(4),.GATES(3),.ENTRIES(5),.EXTERNAL_CLOCK_NETWORK(EXTERNAL_NETWORK),.MANIFEST_SHA256(HASH)) dut(
-    .target_cycle(target_cycle ^ cycle_fault), .*);
+    .target_cycle(target_cycle ^ cycle_fault), .control_state(), .*);
 `ifndef GENERATED_TRANSPORT_NETWORK
   always @(posedge root_clock) if(reset) target_cycle<=0; else target_cycle<=target_cycle+1;
   genvar g;

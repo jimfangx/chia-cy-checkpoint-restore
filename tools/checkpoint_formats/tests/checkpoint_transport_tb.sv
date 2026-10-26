@@ -36,7 +36,7 @@ module checkpoint_transport_tb;
 `define CHECKPOINT_TRANSPORT_MANIFEST_HASH 256'h0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 `endif
     localparam [255:0] HASH = `CHECKPOINT_TRANSPORT_MANIFEST_HASH;
-    CheckpointCaptureTransport #(.OWNERS(4), .ENTRIES(3), .MANIFEST_SHA256(HASH)) dut(.*);
+    CheckpointCaptureTransport #(.OWNERS(4), .ENTRIES(3), .MANIFEST_SHA256(HASH)) dut(.control_state(), .*);
     integer checks=0, step=0, delay_left=0, requests=0, responses=0;
     integer dma_stalls=0, mmio_stalls=0, successful_captures=0;
     reg pending=0, hold_response=0, inject_bank_error=0, inject_high_bits=0;

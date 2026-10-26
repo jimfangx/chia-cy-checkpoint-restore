@@ -35,7 +35,52 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 240,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 241,
+**in_progress**. Added synthesizable live readout for all 24 sequential
+transport/cut-controller registers, including the falling-edge physical mask.
+The packed vector has `481 + GATES` bits. A pinned Scala schema describes exact
+offsets, widths, clock edges and reset values and emits a combinational 64-bit
+bank. An independent source auditor reconstructs the actual storage and packing.
+See [f2-transport-control-state.md](f2-transport-control-state.md).
+
+All **262 Scala / 318 checkpoint Python / 40 loop tests**, **26 localhost
+synthesis / 45 EDA scopes**, retained **ASan/UBSan/host/FCFS** and the combined
+source/state/constraint/wave/resource audits pass after the recorded audit
+repairs. The readout passes **5,051 samples / 50,510 bank words / eleven scenarios**,
+with **13 debug waves**. An independently compiled field swap diverges at target
+cycle **2**, sample **75**. Native synthesis accounts for **500 register cells**,
+all raw-clocked with one falling-edge mask. **Five extra native FSM encoding
+registers** have explicit source/encoding receipts; their capture/restore mapping
+remains unsupported. The joined scheduler preserves its two original audit
+failures and separate recoveries, with a peak of two jobs and no large-Java overlap.
+
+Fresh exact-Rocket generation completes in **636 seconds**; its actual compiler
+diagnostic still rejects the missing FASED CE-owner/common-low-phase cut. The full
+Scala fixture used the retained iteration-239 producer named in its invocation.
+The fresh iteration-241 producer has identical reference RTL and all 2,431 storage
+annotations but distinct history/context. Both epochs are preserved; complete
+fixture audits bind to the actual producer, without normalizing history hashes.
+Initial fixture-order, script-import, implicit-wire, native clock-property and
+encoding-accounting failures are retained with repairs under iteration 241.
+The failed initial Java invocation was cancelled and joined. Managed worker startup failed before
+creation; this central agent runs all work and has no delegated request pending.
+Use iteration-241 scripts/evidence under `runs/aws-f2/iteration241/`.
+
+The readout is live and the widget leaves it unused until an explicit coherent
+capture/restore owner exists. No atomic snapshot is claimed; opaque inventory
+and unbound image-emission guards still reject. Complete transport/stream/MMIO,
+FASED/DRAM/host/reset/external-writer and pre-FAME ownership, immutable descriptor/
+driver binding, production graft, full localhost image P&R/AFI, active all-hart
+FPGA captures, independent restores, finite/live RTL and rolling hardware recovery
+remain pending. Keep all FPGA-origin matrix columns pending. AWS/F2, native
+Vivado/HDK and localhost SSH setup checks pass; no new instance or AFI is requested.
+Plans and initialized manager inputs retain entry hashes. No staging or local
+commits. Existing controller heads were published FireSim first, then Chipyard;
+both remote tips match. The local tracking-ref write denial is retained. Final
+inventory has no active loop-tagged F2 instance or native build job; existing AFIs
+remain inventoried. No new image, AFI or runtime instance was requested.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 240,
 **in_progress**. Added `NativeCheckpointWidgetPeerRouting.inspect(before, after)`
 to reconstruct all twenty reserved endpoints after the actual native inline
 pass, retaining exact phase circuit/annotation identities, original endpoint
