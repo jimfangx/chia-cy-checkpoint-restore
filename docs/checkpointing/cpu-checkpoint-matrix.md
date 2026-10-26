@@ -14,6 +14,20 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 245 adds transactional transport restore **staging**, with exact
+identity/length/cycle binding, ordered complete words, padding/CRC checks and
+one-shot backpressured apply. Native synthesis audits **655 registers / eight
+fields** and rejects an injected hidden latch. EDA SP2 VCS passes **2,092 staged
+restores / 139,884 checks / 159 protocol rejections**, plus three invalid
+specializations, at gate counts 1/3/31/65. The compiled data defect stops at cut
+**100**, word **0**, before any apply acknowledgement; all **eight waves** and
+independent waveform labels are retained. **318 Python / 40 loop** and retained
+EDA generated-bank/widget/**ASan/UBSan host/FCFS**/cut checks pass. The component
+does not physically load transport registers or restore stream/MMIO/host state.
+Full production integration, capture image and every FPGA-origin acceptance
+column remain pending. Commands/receipts: `runs/aws-f2/iteration245/`.
+See [f2-transport-restore-staging.md](f2-transport-restore-staging.md).
+
 Iteration 244 verifies source preservation and complete native transport storage
 census. FSM policy alone left eleven unrepresented replicas; both controller
 state registers now require source-level preservation. Fresh native synthesis

@@ -35,7 +35,64 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 244,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 245,
+**in_progress; transport restore staging component verified**.
+Added a synthesizable transactional staging bank for the exact transport vector:
+nonzero compile-time identity, source-cycle and complete-length binding, strictly
+ascending words, zero padding, CRC32C, separate commit and one-shot backpressured
+apply. Current owner/cycle/command faults suppress apply before its accepting
+edge; abort cannot forgive sticky errors. Source-cycle binding does not compare
+against a fresh destination's target counter. See
+[f2-transport-restore-staging.md](f2-transport-restore-staging.md).
+
+Native localhost Vivado 2025.2 audits every sequential cell: **655 registers /
+eight fields**, raw positive clock, **1,442 LUTs**. Estimated OOC setup +4.874 ns /
+hold +0.067 ns at 140 MHz has unconstrained external I/O; full image timing is
+pending. A separately synthesized hidden latch rejects the complete storage
+census. EDA SP2 VCS passes **2,092 staging restores / 139,884 checks /
+159 protocol rejections**, at gate counts 1/3/31/65, plus three invalid
+specializations. Full-word and padded tails, partial-load cancellation, stalled
+apply, same-edge owner faults, malformed headers, truncated/incompatible staging
+payloads and CRC faults are exercised. The compiled data defect stops at source cut **100**, word
+**0**, with **zero apply acknowledgements**. Independent final auditing verifies
+those labels directly in the negative waveform. All **eight debug waves** remain.
+
+All **318 checkpoint Python / 40 loop tests** pass, along with retained EDA
+generated-bank/widget, **ASan/UBSan host/FCFS** and cut checks. Unchanged Scala
+and other compiler/native scopes retain iteration-244 evidence; they are not
+relabeled as new runs. The first native wrapper failed a mistyped total (755
+versus the independently enumerated 655), and the first separate hidden-latch
+launcher lacked the Python import root. Both original diagnostics remain; their
+corrected complete checks have separate logs/receipts. A managed reviewer found
+two test gaps; both were fixed before accepted synthesis/EDA source epochs. The
+reviewer's requests finished and were collected; no worker remains active.
+
+AWS/F2, native HDK/Vivado and localhost SSH pass. Final scoped inventory has no
+loop-tagged runtime instance or native job and records 45 account-owned images;
+this increment requested no new instance or AFI. Reuse iteration194's localhost
+invocation and the four initialized manager YAMLs. Protected plans/configs match
+entry hashes. Existing controller heads were published FireSim first
+(`8d74491d`), then Chipyard (`aeabdc39`); independent remote tips match. The
+Chipyard push's local tracking-ref update failed on a read-only lock path after
+the successful GitHub update; `ls-remote` independently verifies publication.
+No agent staging/local commits. Publish the next controller checkpoint per
+[github-publication.md](github-publication.md).
+
+This is a restore **staging** component. It does not load the production
+transport's mixed-edge registers or restore stream/MMIO/host obligations.
+Production widget/inventory/image guards remain unchanged. Next: implement and
+verify that physical apply adapter, including the falling-edge mask and complete
+owner/stream state, then bind the immutable generated descriptor/driver and
+production graft. Complete FASED/DRAM/reset/external-writer/pre-FAME state,
+localhost full image/P&R/AFI, active all-hart early/warm/outstanding/late F2 cuts,
+paired complete zero-edge migration, finite replay, sustained live CPU shadow
+beyond trace and rolling hardware recovery remain pending. Every FPGA-origin
+acceptance column remains pending. Exact commands and individual source-bound
+receipts are under `runs/aws-f2/iteration245/`: `verification-commands.json`,
+`summary.json`, `final-inventory.json`, `publication.json` and the native/EDA/
+negative/audit/retained subreceipts referenced by `summary.json`.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 244,
 **in_progress; source-preservation component increment verified**.
 `CheckpointCaptureCut.state` and `CheckpointCaptureTransport.state` now require
 both `fsm_encoding="none"` and `dont_touch="true"`, with exact refreshed Scala
