@@ -35,7 +35,61 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 246,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 247,
+**in_progress; checked widget-to-existing-execution graft implemented**.
+`NativeCheckpointWidgetGraft.connect` reconstructs the selected readout graft
+and wires all twenty real post-inline widget pins inside the existing host.
+It preserves the one execution, host ports/annotations, MMIO and shared DMA.
+Its bounded annotation policy, sentinel descriptor identity, driver-header error
+and production ownership/image guards remain explicit. See
+[f2-native-widget-graft.md](f2-native-widget-graft.md).
+
+Full Scala passes **265/265** across forty suites, plus its two preparation
+tests; focused Scala passes 3/3 with ten rejections. All 29 connected-fixture
+files match the native snapshot byte-for-byte. Native/EDA matching binds 595
+sources and 634 inputs; the connected
+component passes 5,165 VCS checks, four cuts, 136 state words and 900 DMA stalls.
+The independent waveform audit caught buffered loss of the compiled-defect tail.
+The repaired failure path yields after dump flushing; fresh native/EDA/audit
+receipts pass and the final waveform proves cut 81, word 0, byte 42, actual
+payload 0x50 versus expected 0x51 with the target still frozen. Independent
+waveform auditing checks 2,704 stable frozen source-clock samples in the healthy
+run. The original truncated debug epochs remain preserved.
+Fresh exact-recipe production compilation rejects the missing FASED physical
+CE-latch owner/common low-phase cut; no image or hardware checkpoint is emitted.
+Its underlying compiler ran for 112 seconds. These are component/compiler
+results. Current receipts, initial failures and exact invocation scripts are
+under `runs/aws-f2/iteration247/`; `accepted-receipts.json`,
+`scala-full-result.json`, `waveform-audit.json` and `remaining-blockers.json`
+bind the evidence.
+
+Fresh retained EDA ASan/UBSan/host/FCFS/bank/widget/cut and 318 Python/40 loop
+checks pass. Five additional fresh EDA scopes replace four stale historical
+aggregate-log references; their current pins pass while the original historical
+index mismatches remain recorded. The directed audit checks 111 receipts and
+11,747 files; all recorded source and indexed individual-receipt hashes match.
+No historical evidence was rewritten. Unchanged older native/component scopes
+retain their original execution timestamps rather than claiming new synthesis.
+AWS/native/localhost setup passes; existing controller checkpoints were
+published FireSim first (`98571a73`), then Chipyard (`7d965a14`). Plans and
+initialized manager inputs retain entry hashes; no staging or local commits.
+The final independent audit passes. Final inventory has zero tagged runtime
+instances and zero native Vivado/Java jobs; all three managed workers and their
+commands are joined. No AFI or runtime launch was requested. Final command and
+artifact indexes are `verification-commands.json` and `final-audit.json` under
+this iteration's evidence directory. Follow [GitHub publication](github-publication.md)
+for the controller's next checkpoint.
+
+Next: explicitly project production annotations and bind enclosing-host
+descriptors/driver identity; cover the 1,947 functional owners and one FASED
+clock owner outside the selected readout. Complete reset/external-writer,
+functional DRAM, timing, bridge, host and pre-FAME semantic ownership, common
+cut/release and restore remain required. Full localhost image/P&R/AFI, active
+four-hart early/warm/outstanding/late F2 cuts, paired complete zero-edge CPU
+restores, finite replay, sustained live RTL beyond trace and rolling hardware
+recovery remain pending. Every FPGA-origin acceptance column remains pending.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 246,
 **in_progress; parked physical apply component verified**.
 `CheckpointTransportPhysicalRestore` loads the 23 positive-edge fields, then the
 falling-edge mask, independently reads the complete vector and acknowledges

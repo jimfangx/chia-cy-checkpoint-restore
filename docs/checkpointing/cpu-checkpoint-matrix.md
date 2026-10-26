@@ -14,6 +14,29 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 247 connects the real registered checkpoint widget to its existing
+selected execution through a checked post-lowering graft. All twenty routes,
+original host metadata, MMIO and shared DMA are independently audited. The
+bounded native fixture has **three BUFGCEs / 1,646 registers / 5,018 LUTs**;
+**662 raw-clock registers** are checked. EDA SP2 passes **5,165 checks / four
+cuts (81/184/324/36 after reset) / 136 words / 900 DMA stalls**, with complete
+payload/CRC comparison, missing-owner/reset recovery and an actual compiled
+readout defect at **cut 81, word 0, byte 42**. The independent final waveform
+shows the bad payload before release and **2,704 stable frozen source-clock
+samples**. Initial truncated failure-wave epochs remain preserved.
+
+These are component results. The descriptors still use the standalone selected
+namespace; global driver identity, production annotation projection and complete
+owners remain unsupported. Sentinel identity/header and ordinary image-emission
+guards remain active. Fresh exact-recipe compilation still rejects the missing
+FASED physical CE owner/common low-phase cut. All **265 Scala tests**, two
+preparation tests, **318 Python / 40 loop** tests and retained EDA
+**ASan/UBSan/host/FCFS** checks pass. Five fresh EDA scopes replace four stale
+historical aggregate-log references, which remain explicitly failed in the
+historical audit. Final receipts belong under `runs/aws-f2/iteration247/`.
+Every FPGA-origin acceptance column remains pending. See
+[f2-native-widget-graft.md](f2-native-widget-graft.md).
+
 Iteration 246 verifies permanently parked **physical register apply** with
 positive/falling-edge load muxes and complete readback before acknowledgement.
 Native synthesis maps **484 physical bits / 1,041 total registers / 601 LUTs**,
