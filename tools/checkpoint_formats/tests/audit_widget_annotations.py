@@ -20,7 +20,8 @@ MEMORY = 'midas.targetutils.FirrtlMemModelAnnotation'
 BOX = 'midas.core.TargetBoxAnnotation'
 HISTORY = 'firrtl.transforms.DedupedResult'
 XDC = ('midas.InternalXDCAnnotation', 'midas.targetutils.xdc.XDCAnnotation')
-TYPED = {NO_DEDUP, CACHE, TOUCH, MEMORY, BOX, HISTORY, *XDC}
+NO_SYNTH_INIT = 'firrtl.annotations.MemoryNoSynthInit$'
+TYPED = {NO_SYNTH_INIT, NO_DEDUP, CACHE, TOUCH, MEMORY, BOX, HISTORY, *XDC}
 
 
 def digest(text):
@@ -29,8 +30,8 @@ def digest(text):
 
 def serialized(a):
     kind = a['class']
-    if kind == NO_DEDUP:
-        return 'NoCircuitDedupAnnotation'
+    if kind in (NO_DEDUP, NO_SYNTH_INIT):
+        return kind.split('.')[-1].removesuffix('$')
     if kind in (TOUCH, MEMORY, BOX):
         return kind.split('.')[-1] + '(' + a['target'] + ')'
     if kind == HISTORY:
@@ -43,31 +44,12 @@ def serialized(a):
         a['formatString'] + ',List(' + ', '.join(a['argumentList']) + '))'
 
 
-def audit(directory):
-    from tools.checkpoint_formats.tests.audit_widget_graft import instances, sha
-    directory = Path(directory)
-    load = lambda name: json.loads((directory / name).read_text())
-    doc = load('annotation-projection.json')
-    connection = load('connection.json')
-    source, actual = (load(n + '-annotations.json') for n in ('native-inlined', 'connected'))
-    before, after = (parse_modules((directory / (n + '.fir')).read_text())
-                     for n in ('native-inlined', 'connected'))
-    root = re.search(r'^circuit (\w+) :', (directory / 'native-inlined.fir').read_text(), re.M)[1]
+def reconstruct(source, before, after, root):
+    from tools.checkpoint_formats.tests.audit_widget_graft import instances
     old, new = dict(instances(before, root)), dict(instances(after, root))
     require(all(path in new for path in old), 'lost original annotation execution')
-    require(doc['projection_version'] == 1 and doc['scope'] == 'enclosing_host_typed_storage_annotations_only' and
-            all(doc[k] is False for k in ('complete_fpga_capture', 'production_annotations_translated',
-                'deployable_capture_image', 'production_freeze_owners_bound')), 'changed projection admission')
-    require(connection['host_annotation_projection_sha256'] == sha(directory / 'annotation-projection.json'),
-            'unbound widget annotation projection')
-    for key, name in (('source_sha256', 'native-inlined.fir'), ('connected_sha256', 'connected.fir'),
-                      ('source_annotations_sha256', 'native-inlined-annotations.json'),
-                      ('projected_annotations_sha256', 'connected-annotations.json')):
-        require(doc[key] == sha(directory / name), 'changed projection input ' + key)
     storage = [a for a in source if a['class'] in TYPED]
     retained = [a for a in source if a['class'] not in TYPED]
-    require(doc['retained_annotations_sha256'] == digest(protocol_json(retained)), 'changed retained metadata')
-
     def copies(text, reference=False, anchor=False):
         pattern = r'~(\w+)\|(\w+)((?:/\w+:\w+)*)' + (r'>(\w+(?:\.\w+)?)' if reference else '')
         match = re.fullmatch(pattern, text)
@@ -117,7 +99,7 @@ def audit(directory):
         kind = a['class']
         if kind == CACHE:
             continue
-        if kind == NO_DEDUP:
+        if kind in (NO_DEDUP, NO_SYNTH_INIT):
             expected.append(a)
             continue
         if kind == HISTORY:
@@ -158,7 +140,95 @@ def audit(directory):
         mappings.append(dict(source=serialized(a), targets=targets))
     expected.append({'class': NO_DEDUP})
     unique = list({canonical(a): a for a in expected}.values())
-    require(actual == unique + retained, 'lost changed duplicated or broadened annotation')
+    return unique, retained, mappings, storage
+
+
+def audit_source(directory, host_expected):
+    """Rebuild the source projection and typed rebase without trusting its rows."""
+    from tools.checkpoint_formats.tests.audit_widget_graft import sha
+    directory = Path(directory)
+    load = lambda name: json.loads((directory / name).read_text())
+    doc = load('source-policy.json')
+    connection = load('connection.json')
+    require(doc['source_policy_version'] == 1 and doc['scope'] == 'typed_selected_source_contract_merge_only' and
+            all(doc[k] is False for k in ('complete_fpga_capture', 'production_annotations_translated',
+                'deployable_capture_image', 'production_freeze_owners_bound')), 'changed source policy admission')
+    require(connection['source_annotation_projection_sha256'] == sha(directory / 'source-policy.json'),
+            'unbound source policy')
+    for key, name in (('source_sha256', 'original-selected.fir'), ('graft_sha256', 'graft.fir'),
+                      ('connected_sha256', 'connected.fir'),
+                      ('source_annotations_sha256', 'original-selected-annotations.json'),
+                      ('graft_annotations_sha256', 'graft-annotations.json'),
+                      ('merged_annotations_sha256', 'connected-annotations.json')):
+        require(doc[key] == sha(directory / name), 'changed source policy input ' + key)
+    require(doc['host_annotations_sha256'] == digest(protocol_json(host_expected)), 'changed source policy host')
+    source = load('original-selected-annotations.json')
+    require(all(a['class'] in TYPED for a in source) and
+            source.count({'class': NO_DEDUP}) == 1, 'unsupported source annotation policy')
+    before, after = (parse_modules((directory / (n + '.fir')).read_text()) for n in ('original-selected', 'graft'))
+    root = re.search(r'^circuit (\w+) :', (directory / 'original-selected.fir').read_text(), re.M)[1]
+    enclosing = re.search(r'^circuit (\w+) :', (directory / 'connected.fir').read_text(), re.M)[1]
+    expected, retained, _, _ = reconstruct(source, before, after, root)
+    require(not retained and expected == load('graft-annotations.json'),
+            'source contracts differ from original concrete executions')
+    rebased = copy.deepcopy(expected)
+    def target(text):
+        require(text.startswith('~' + root + '|'), 'foreign selected annotation target')
+        return '~' + enclosing + text[len(root) + 1:]
+    for a in rebased:
+        if 'target' in a:
+            a['target'] = target(a['target'])
+        if 'argumentList' in a:
+            a['argumentList'] = list(map(target, a['argumentList']))
+        if a['class'] == HISTORY and a['duplicate'] is not None:
+            a['duplicate'] = target(a['duplicate'])
+        if set(a) == {'class'}:
+            require(a in host_expected, 'global source policy absent from enclosing host')
+    require(doc['rebased_annotations_sha256'] == digest(protocol_json(rebased)), 'changed typed source rebase')
+    normalize = lambda s: s.replace(',ArraySeq(', ',List(')
+    require(list(map(normalize, doc['rebased_annotations'])) == list(map(serialized, rebased)),
+            'source rebase receipt differs from typed targets')
+    merged = host_expected + [a for a in rebased if a not in host_expected]
+    require(doc['merged_annotations_sha256'] == digest(protocol_json(merged)), 'changed merged source policies')
+    return dict(source=len(source), rebased=len(rebased), global_policy_matched=True,
+                physical_fpga_capture=False), merged
+
+
+def audit(directory):
+    from tools.checkpoint_formats.tests.audit_widget_graft import instances, sha
+    directory = Path(directory)
+    load = lambda name: json.loads((directory / name).read_text())
+    doc = load('annotation-projection.json')
+    connection = load('connection.json')
+    source, actual = (load(n + '-annotations.json') for n in ('native-inlined', 'connected'))
+    before, after = (parse_modules((directory / (n + '.fir')).read_text())
+                     for n in ('native-inlined', 'connected'))
+    root = re.search(r'^circuit (\w+) :', (directory / 'native-inlined.fir').read_text(), re.M)[1]
+    old, new = dict(instances(before, root)), dict(instances(after, root))
+    require(all(path in new for path in old), 'lost original annotation execution')
+    require(doc['projection_version'] == 1 and doc['scope'] == 'enclosing_host_typed_storage_annotations_only' and
+            all(doc[k] is False for k in ('complete_fpga_capture', 'production_annotations_translated',
+                'deployable_capture_image', 'production_freeze_owners_bound')), 'changed projection admission')
+    require(connection['host_annotation_projection_sha256'] == sha(directory / 'annotation-projection.json'),
+            'unbound widget annotation projection')
+    for key, name in (('source_sha256', 'native-inlined.fir'), ('connected_sha256', 'connected.fir'),
+                      ('source_annotations_sha256', 'native-inlined-annotations.json')):
+        require(doc[key] == sha(directory / name), 'changed projection input ' + key)
+    storage = [a for a in source if a['class'] in TYPED]
+    retained = [a for a in source if a['class'] not in TYPED]
+    require(doc['retained_annotations_sha256'] == digest(protocol_json(retained)), 'changed retained metadata')
+
+    unique, retained, mappings, storage = reconstruct(source, before, after, root)
+    host_expected = unique + retained
+    require(doc['projected_annotations_sha256'] == digest(protocol_json(host_expected)),
+            'changed host projection annotation digest')
+    merged = host_expected
+    source_policy = None
+    if (directory / 'source-policy.json').is_file():
+        source_policy, merged = audit_source(directory, host_expected)
+    else:
+        require('source_annotation_projection_sha256' not in connection, 'missing bound source policy')
+    require(actual == merged, 'lost changed duplicated or broadened annotation')
     normalize = lambda s: s.replace(',ArraySeq(', ',List(')
     normrow = lambda r: dict(source=normalize(r['source']), targets=list(map(normalize, r['targets'])))
     translation = doc['translation']
@@ -171,7 +241,7 @@ def audit(directory):
     require(sorted(map(normalize, doc['invalidated_path_caches'])) ==
             sorted(serialized(a) for a in storage if a['class'] == CACHE), 'lost invalidated cache history')
     emitted = {'Synthesis': [], 'Implementation': []}
-    for a in unique:
+    for a in merged:
         if a['class'] not in XDC:
             continue
         args = a['argumentList']
@@ -196,13 +266,13 @@ def audit(directory):
     component = directory / 'projected-component.implementation.xdc'
     if component.exists():
         expected_text = '\n'.join([HEADER] + emitted['Implementation'])
-        for a in unique:
+        for a in merged:
             if a['class'] in XDC and not a['argumentList'] and a['destinationFile']['class'].endswith('$Implementation$'):
                 require(expected_text.count(a['formatString']) == 1, 'ambiguous deferred shell constraint')
                 expected_text = expected_text.replace(a['formatString'], '', 1)
         require(component.read_text() == expected_text, 'OOC constraints lost a hierarchy-bound original target')
     return dict(source=len(source), projected=len(actual), storage=len(storage), retained=len(retained),
-                native_constraints_anchored=True, physical_fpga_capture=False)
+                native_constraints_anchored=True, source_policy=source_policy, physical_fpga_capture=False)
 
 
 def corruptions(directory, out):
@@ -217,6 +287,9 @@ def corruptions(directory, out):
                  'projection-admission', 'mapping-loss', 'cache-history', 'xdc-output']
     if (directory / 'projected-component.implementation.xdc').exists():
         names.append('ooc-constraint-loss')
+    if (directory / 'source-policy.json').is_file():
+        names.extend(('source-admission', 'source-row', 'source-graft-loss', 'source-original-target',
+                      'source-global-loss', 'source-format'))
     for name in names:
         case = out / name
         shutil.copytree(directory, case)
@@ -255,8 +328,38 @@ def corruptions(directory, out):
             text = path.read_text()
             line = next(line for line in text.splitlines() if line.startswith('set checkpoint_pins'))
             path.write_text(text.replace(line, '', 1))
+        elif name.startswith('source-'):
+            policy = json.loads((case / 'source-policy.json').read_text())
+            if name == 'source-admission':
+                policy['complete_fpga_capture'] = True
+            elif name == 'source-row':
+                policy['rebased_annotations'][-1] += '_invented'
+            elif name in ('source-graft-loss', 'source-original-target'):
+                filename = 'graft-annotations.json' if name == 'source-graft-loss' else 'original-selected-annotations.json'
+                values = json.loads((case / filename).read_text())
+                touch = next(a for a in values if a['class'] == TOUCH)
+                if name == 'source-graft-loss':
+                    values.remove(touch)
+                else:
+                    touch['target'] = '~SimWrapper|Leaf>missing'
+                (case / filename).write_text(protocol_json(values))
+                policy['graft_annotations_sha256' if name == 'source-graft-loss' else 'source_annotations_sha256'] = sha(case / filename)
+            elif name == 'source-global-loss':
+                annotations.remove(next(a for a in annotations if a['class'] == NO_SYNTH_INIT))
+            elif name == 'source-format':
+                constraint['formatString'] += '; set INVENTED 1'
+            (case / 'source-policy.json').write_bytes(canonical(policy))
         (case / 'connected-annotations.json').write_text(protocol_json(annotations))
         projection['projected_annotations_sha256'] = sha(case / 'connected-annotations.json')
+        if (case / 'source-policy.json').is_file():
+            # The host projection precedes the merge. Keep that original pin
+            # while coherently rehashing the claimed final source union.
+            projection['projected_annotations_sha256'] = json.loads(
+                (directory / 'annotation-projection.json').read_text())['projected_annotations_sha256']
+            policy = json.loads((case / 'source-policy.json').read_text())
+            policy['merged_annotations_sha256'] = sha(case / 'connected-annotations.json')
+            (case / 'source-policy.json').write_bytes(canonical(policy))
+            doc['source_annotation_projection_sha256'] = sha(case / 'source-policy.json')
         (case / 'annotation-projection.json').write_bytes(canonical(projection))
         doc['host_annotation_projection_sha256'] = sha(case / 'annotation-projection.json')
         (case / 'connection.json').write_bytes(canonical(doc))

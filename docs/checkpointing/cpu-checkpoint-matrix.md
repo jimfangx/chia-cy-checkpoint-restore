@@ -14,6 +14,37 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 251 verifies typed selected-source contract merging at the existing
+widget graft. Six source contracts become eight translated contracts through a
+typed circuit rename and a validated union with host contracts. Conflicting
+initialization policies/files, unmatched global policies, circuit-wide source
+inlining and stale source state reject. Source-local XDC is applied in its
+selected module/instance scope, followed by merged host XDC at the root. Exact
+Tcl matching rejects a coherently rehashed scope omission. The initial real
+Vivado unscoped-pin failure remains preserved; no constraint was dropped.
+
+Fresh **271 Scala / 40 suites plus 11 preparation/directed executions / 328
+Python / 40 loop / nine native / nine EDA SP2** scopes pass. All four connected
+variants pass **5,165 checks / four cuts / 136 words / 900 stalls**; the bound
+host initializer retains **20 ASan/UBSan checks**. Source projection rejects
+**28 mutations** and matches **641 sources / 685 inputs**. Twelve full debug
+waves retain **2,704 frozen samples** per healthy variant and first compiled
+corruption at **cut 81 / word 0 / byte 42**, before release. Its OOC component
+uses **4,570 LUTs / 1,655 registers / three BUFGCEs / 671 raw-clock registers**;
+**+0.326/−0.074 ns** setup/hold estimates retain unconstrained I/O and do not
+establish image timing closure. Sixteen byte-identical artifacts include exact
+Rocket FIRRTL/identity after per-call hierarchy reuse. Full Scala duration is
+about 28 minutes versus the prior 38, retaining every test.
+
+Sentinel identity and independent image guards remain active. Fresh exact
+Rocket compilation still rejects the FASED CE owner/common cut, retaining
+**1,947 uncovered functional entries / 298,428 words and one physical CE owner**.
+Complete context/owners, full image/P&R/AFI, actual four-hart cuts and paired
+CPU migration remain pending. No AFI or runtime launch occurred. Every
+FPGA-origin acceptance column remains pending. See
+[f2-widget-source-policy.md](f2-widget-source-policy.md) and
+`runs/aws-f2/iteration251/accepted-receipts.json`.
+
 Iteration 250 adds explicit typed enclosing-host storage annotation projection
 at the existing widget graft. Original concrete executions determine register,
 RAM, hierarchy and correlated XDC targets; shared primitive constraints exclude

@@ -132,7 +132,7 @@ def bindings(parameters,ports,directory):
     return '\n'.join(lines)+'\n'
 
 
-def synthesis_tcl(directory):
+def synthesis_tcl(directory, *, write_component=True):
     files=verilog_files(directory)
     synthesis=list(directory.glob('*.native-inplace-graft.synthesis.xdc'))
     implementation=list(directory.glob('*.native-inplace-graft.implementation.xdc'))
@@ -151,15 +151,30 @@ def synthesis_tcl(directory):
                     a['destinationFile']['class'].endswith('$Implementation$') and not a['argumentList']):
                 require(implementation_text.count(a['formatString']) == 1, 'ambiguous literal shell XDC snippet')
                 implementation_text = implementation_text.replace(a['formatString'], '', 1)
-        (directory/'projected-component.implementation.xdc').write_text(implementation_text)
+        component=directory/'projected-component.implementation.xdc'
+        if write_component:
+            component.write_text(implementation_text)
+        else:
+            require(component.read_text()==implementation_text, 'changed scoped component constraints')
         projected_implementation = 'source generated/projected-component.implementation.xdc\n'
     peer=json.loads((directory/'peer-routing.json').read_text())
     transport='/'.join(peer['transport'].split('.')[1:])
+    connection=json.loads((directory/'connection.json').read_text())
+    selected=connection['selected'].split('.')[1:]
+    selected_module=connection['selected_module']
+    require(selected and all(re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', n) for n in selected+[selected_module]),
+            'literal selected constraint scope required')
+    # Graft files describe the selected source's local circuit. The unified
+    # projected files describe the enclosing host. Exercise both consumers in
+    # their actual scopes; a source-local network/... path cannot resolve at
+    # FPGATop's root. Do not delete the original source constraints to hide it.
+    local_synthesis='read_xdc -ref '+selected_module+' generated/'+synthesis[0].name+'\n'
+    local_implementation='current_instance '+('/'.join(selected))+'\nsource generated/'+implementation[0].name+'\ncurrent_instance\n'
     return '''set_param general.maxThreads 4
 read_verilog -sv '''+' '.join(files)+'''
-read_xdc generated/'''+synthesis[0].name+'\n'+projected_synthesis+'''synth_design -top FPGATop -part xcvu47p-fsvh2892-2-e -mode out_of_context -flatten_hierarchy none
+'''+local_synthesis+projected_synthesis+'''synth_design -top FPGATop -part xcvu47p-fsvh2892-2-e -mode out_of_context -flatten_hierarchy none
 create_clock -name raw_clock -period 7.142857 [get_ports clock]
-source generated/'''+implementation[0].name+'\n'+projected_implementation+'''set gates [get_cells -hier -filter {REF_NAME == BUFGCE}]
+'''+local_implementation+projected_implementation+'''set gates [get_cells -hier -filter {REF_NAME == BUFGCE}]
 if {[llength $gates] != 3} {error "expected original pair of native gates and single root mask"}
 foreach gate $gates {if {[get_property CE_TYPE $gate] ne "SYNC"} {error "changed native gate semantics"}}
 if {[llength [get_cells -hier -filter {REF_NAME == FDRE && IS_C_INVERTED == 1}]] != 1} {error "expected unique falling-edge mask"}
@@ -262,6 +277,8 @@ def main():
             for n,digest in doc[group].items():
                 require((directory/n).stat().st_size and sha(directory/n)==digest,'changed widget graft evidence '+n)
         require(audit(directory/'generated')==doc['audit'],'changed independent widget graft structure')
+        require((directory/'synth.tcl').read_text()==synthesis_tcl(directory/'generated',write_component=False),
+                'changed selected-source or enclosing-host constraint scope')
         original_router(directory/'generated')
         return doc
     summary=dict(status='pass',backend='eda' if args.mode=='vcs' else 'f2',sources=sources,

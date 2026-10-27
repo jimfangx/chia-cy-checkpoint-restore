@@ -35,7 +35,66 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 250,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 251,
+**in_progress; typed selected-source contracts verified**.
+`NativeCheckpointWidgetGraft.connectProjected` independently reconstructs and
+merges typed source contracts through a FIRRTL circuit rename. It validates
+the union, rejects conflicting memory policies/files, requires global policy
+agreement and prevents contracts from broadening outside the selected
+execution. The strict connector, sentinel identity and independent image guard
+remain active. The independent auditor reconstructs both projections, rebasing
+and final XDC. See [f2-widget-source-policy.md](f2-widget-source-policy.md).
+
+Fresh **271 Scala / 40 suites plus two preparation and nine directed executions**,
+**328 Python / bank / widget / ASan/UBSan host / FCFS / cut**, **40 loop**,
+**nine localhost native** and **nine EDA SP2** scopes pass. Every connected
+variant (sentinel, bound, host-projected and source-policy) passes **5,165 checks /
+four cuts / 136 words / 900 stalls**; the bound host initializer retains **20
+ASan/UBSan checks**. Source projection independently reconstructs **six source
+contracts into eight translated contracts**, rejects **28 mutations**, and
+matches **641 sources / 685 inputs**. A separately rehashed Tcl-scope mutation
+rejects before acceptance. All twelve debug waves remain available; independent
+auditing proves **2,704 stable frozen samples** per healthy variant and the
+compiled payload defect at **cut 81 / word 0 / byte 42** before release.
+
+The source-policy component uses **4,570 LUTs / 1,655 registers / three BUFGCEs /
+671 audited raw clocks**. OOC setup/hold estimates **+0.326/−0.074 ns** retain
+unconstrained external I/O and do not establish timing closure. Native synthesis
+exposed unscoped source-local `network/...` XDC applied at FPGATop. The harness
+now consumes source constraints in the selected module/instance scope and final
+host constraints at the root; exact Tcl matching validates both without
+rewriting retained files. The initial native failure and superseded source epochs
+remain intact. All nine native scopes were regenerated with peak concurrency two.
+
+Validation now reuses the enclosing hierarchy within each preflight, rebuilding
+it for every new circuit and retaining every target check. Sixteen generated
+artifacts, including exact-Rocket host/instrumented/reference FIRRTL and global
+identity, are byte-identical to their pre-optimization outputs. The complete
+Scala scope finishes in about **28 minutes**, versus the prior **38 minutes**.
+Three superseded incomplete Scala epochs and the initial overbroad test assertion
+failure remain preserved; the final full scope passes.
+
+Fresh exact Rocket compilation still rejects the FASED physical CE owner/common
+low-phase cut. The current generated census retains **1,947 uncovered functional
+entries / 298,428 words plus one physical CE owner**. Complete source compiler
+context and enclosing identity/owners, reset/external writers/DRAM/timing/bridge/
+host/pre-FAME state, physical CE restore/release, full localhost image/P&R/AFI,
+active four-hart FPGA cuts, complete paired zero-edge migration, finite replay,
+sustained live RTL and rolling hardware recovery remain pending. Every
+FPGA-origin CPU acceptance column remains pending; no image or capture was made.
+
+Native HDK/Vivado/Fabric and AWS/F2 checks pass. Final inventory has zero tagged
+instances and no native Vivado/Java jobs; no AFI request or runtime launch was
+made. Existing controller checkpoints were published FireSim first (`ce3e59c0`),
+then Chipyard (`7e7967ae`), with remote tips matched. The latter's local
+tracking-ref update was read-only after successful publication. Protected plans
+and initialized configs retain entry hashes; no staging/local commits. Managed
+worker startup failed before execution; no worker remains. Central coordination
+and recovery instructions above remain in force. Commands and immutable receipts:
+`runs/aws-f2/iteration251/verification-commands.json`, `accepted-receipts.json`
+and `final-audit-sikuzl_3/summary.json`.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 250,
 **in_progress; typed enclosing-host annotation projection verified**.
 `NativeCheckpointWidgetGraft.connectProjected` now follows original concrete
 host executions into bank-specialized definitions, preserving correlated XDC,

@@ -141,8 +141,9 @@ def audit(directory):
             'changed selected functional or capture interface')
     require(set(original) <= set(graft), 'lost original selected definition')
     allowed = [{'class': 'firrtl.transforms.NoCircuitDedupAnnotation$'}]
-    require(load(directory, 'original-selected-annotations.json') == allowed and
-            load(directory, 'graft-annotations.json') == allowed,
+    require((directory / 'source-policy.json').is_file() or
+            (load(directory, 'original-selected-annotations.json') == allowed and
+            load(directory, 'graft-annotations.json') == allowed),
             'untranslated selected annotation or target')
     require(set(connected) == set(old) | set(graft), 'lost or additional enclosing definition')
     replaced, added = [], []
