@@ -14,6 +14,36 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 253 verifies native-region request/response routing and static selector
+composition for the same original host. The retained exact Rocket DUT/FASED
+selection describes **10,910 entries / all three physical CE identities**, leaving
+**1,189 functional entries / 198,818 words**. Independent original register/RAM/
+pipeline, topology and CE dependency reconstruction rejects **eight rehashed
+mutations**. Global/local ordinals, selectors and CE sample bits are explicit.
+
+Final **276 Scala / 41 suites plus twelve preparation tests / 330 Python / 40 loop /
+ten source-matched native / ten fresh EDA SP2** scopes pass. The router passes
+**6,155 checks / 201 requests / 199 responses / four invalid selectors / 2,380
+stalls / two reset cancellations**, one- and three-region boundary configurations,
+and five time-zero configuration rejections. Independent debug waves prove the
+compiled wrong-owner fault stops at **request 2 / response 1** with both response
+acknowledgements zero. Its OOC fixture uses **99 LUTs / three registers** with
+unconstrained I/O; this is no image timing-closure result. Existing four connected
+variants and ASan/UBSan host/FCFS checks pass. Failed harness attempts remain
+preserved; five affected native scopes were regenerated after the repairs, and
+the complete EDA scope reran. Six older generated FIRRTL/RTL/XDC files remain
+byte-identical. See [f2-native-region-routing.md](f2-native-region-routing.md) and
+`runs/aws-f2/iteration253/accepted-receipts.json`.
+
+The router/metadata does not connect the FASED execution into a production
+common cut. The ordinary single-region census still has **1,947 uncovered
+functional entries / 298,428 words plus the FASED physical CE owner**; fresh
+exact generation still rejects that missing owner. Multi-region in-place graft,
+complete global ownership/identity, image/P&R/AFI, actual four-hart capture and
+paired CPU zero-edge migration, finite/live RTL and rolling recovery remain
+pending. No new runtime or AFI was launched. Every FPGA-origin acceptance column
+remains pending.
+
 Iteration 252 verifies selected-source compiler context at the widget connector.
 Every source context annotation must already occur exactly once in the original
 pre-inline and projected enclosing hosts; history is neither renamed nor inserted.

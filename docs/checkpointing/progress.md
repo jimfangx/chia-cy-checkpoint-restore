@@ -35,7 +35,67 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 252,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 253,
+**in_progress; native multi-region routing verified**.
+`CheckpointRegionStateRouter.sv` routes accepted reads among native bank
+endpoints, pins response ownership through latency/backpressure, translates
+functional bank and physical CE slot ranges, and rejects invalid selectors.
+`CheckpointRegionRouting` emits static parameters and source-bound contracts;
+`CheckpointCaptureDescriptors.fromNativeRegions` rejects mixed original hosts,
+overlapping executions and ABI overflow. Local/global ordinals, selectors and CE
+sample bits remain distinct. See [f2-native-region-routing.md](f2-native-region-routing.md).
+
+The retained exact Rocket DUT plus FASED structural check describes **10,910
+entries / three physical CE identities**, leaving **1,189 functional entries /
+198,818 words** outside the combined descriptor regions. Independent original
+register/RAM/pipeline, topology and CE dependency reconstruction passes, with
+**eight coherently rehashed mutations** rejected. This is descriptor composition,
+not installation of both networks into a production common cut. The ordinary
+single-region production census still has **1,947 uncovered entries / 298,428
+words plus the unbound FASED CE owner**; fresh complete Rocket generation rejects
+that missing physical owner/common cut.
+
+Final validation passes **276 Scala / 41 suites plus twelve preparation tests**,
+**330 Python / bank / widget / ASan/UBSan host / FCFS / cut**, **40 loop**,
+**ten source-matched native** and **ten fresh EDA SP2** scopes. The router passes
+**6,155 checks / 201 requests / 199 responses / four invalid selectors / 2,380
+stalls / two reset cancellations**, one- and three-region boundary cases and
+**five time-zero configuration rejections**. Independent full debug waves show
+the compiled wrong-owner fault at **request 2 / response 1**, with both response
+acknowledgements still zero. Its two-region OOC fixture uses **99 LUTs / three
+registers**; unconstrained I/O prevents any full-image timing-closure claim.
+Six existing generated FIRRTL/RTL/XDC files remain byte-identical. The four
+existing connected variants retain 5,165 checks / four cuts / 136 words / 900
+stalls and their independent waveform/source matching and sanitized initializer.
+
+The superseded Scala attempt and two EDA harness failures remain preserved.
+Boundary generation now preserves parameter names and supplies VCS timescales;
+configuration negatives retain nonzero exits using the existing failure-status
+helper in final blocks, since SP2's bare $fatal returned zero. All five source-
+affected native scopes were regenerated with at most two joined Vivado jobs;
+five unchanged native receipts were independently revalidated. Complete EDA and
+retained scopes were rerun after repair. See `runs/aws-f2/iteration253/recovery-notes.json`.
+
+The next compiler step is a checked multi-region in-place graft with separate
+sideband namespaces, one raw transport and one common atomic cut. Complete
+reset/external writers, functional DRAM, timing, enclosing bridge/host and
+pre-FAME owners, full localhost image/P&R/AFI, active four-hart FPGA cuts, paired
+complete zero-edge CPU migration, finite replay, sustained live RTL and rolling
+hardware recovery remain pending. **No checkpoint-enabled image, FPGA capture
+or CPU migration acceptance was established.** Every FPGA-origin CPU column
+stays pending; physical-owner and image-admission guards remain active.
+
+AWS/HDK/Vivado/localhost checks pass; final inventory has zero tagged instances
+and no native Vivado/Java jobs. No new runtime or AFI launch. Existing controller
+checkpoints were published FireSim first (`adc6c66a`), then Chipyard (`0bbd7c47`),
+with remote tips independently matched. The latter's local tracking-ref update
+was read-only after successful publication. Plans/initialized inputs retain
+entry hashes; no staging or local commits. Managed subagent startup failed before
+execution; no delegated worker remains. Central coordination rules above persist.
+Commands and immutable receipts: `runs/aws-f2/iteration253/verification-commands.json`,
+`accepted-receipts.json` and `final-audit-o98f41n4/summary.json`.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 252,
 **in_progress; selected-source compiler context verified**.
 `connectProjected` now checks the source's inert compiler context against both
 original pre-inline and projected enclosing hosts, without insertion or historical
