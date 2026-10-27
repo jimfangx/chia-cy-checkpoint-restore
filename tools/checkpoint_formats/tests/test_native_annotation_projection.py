@@ -7,9 +7,34 @@ import unittest
 from tools.checkpoint_formats.codec import FormatError
 from tools.checkpoint_formats.tests.audit_native_inplace_annotations import audit, HEADER
 from tools.checkpoint_formats.simulator import PLUSARG_MODEL_SHA256
+from tools.checkpoint_formats.tests.audit_native_inplace_context import context_row, normalized_context
 
 
 class NativeAnnotationProjectionTest(unittest.TestCase):
+    def test_consumed_context_events_accept_only_matching_optional_nested_class_hints(self):
+        for producer, nested in [('firrtl.stage.phases.AddCircuit', 'firrtl.stage.FirrtlFileAnnotation'),
+                                 ('firrtl.options.phases.GetIncludes', 'firrtl.options.InputAnnotationFileAnnotation')]:
+            event = {'class': 'firrtl.annotations.DeletedAnnotation', 'xFormName': producer,
+                     'anno': {'file': 'fixture/input'}}
+            hinted = dict(event, anno=dict(event['anno'], **{'class': nested}))
+            self.assertEqual(normalized_context(hinted), event)
+            self.assertEqual(context_row(hinted), context_row(event))
+            self.assertIn('class', hinted['anno'])  # Auditing never rewrites the original evidence.
+            for bad in [dict(event, anno=dict(event['anno'], **{'class': 'fixture.HiddenOwner'})),
+                        dict(event, xFormName='fixture.UnconsumedInput'),
+                        dict(event, anno=dict(event['anno'], extra='uncontracted'))]:
+                with self.subTest(event=bad), self.assertRaises(FormatError):
+                    context_row(bad)
+
+    def test_context_normalization_does_not_admit_deleted_state_or_unknown_owner_events(self):
+        for event in [
+            {'class': 'firrtl.annotations.DeletedAnnotation', 'xFormName': 'firrtl.stage.phases.AddCircuit',
+             'anno': {'class': 'firrtl.transforms.DontTouchAnnotation', 'target': '~Root|Leaf>value'}},
+            {'class': 'fixture.HiddenOwner', 'target': '~Root|Leaf>value'},
+        ]:
+            with self.subTest(event=event), self.assertRaises(FormatError):
+                context_row(event)
+
     def fixture(self,directory):
         before='''circuit Root :
   module Leaf :

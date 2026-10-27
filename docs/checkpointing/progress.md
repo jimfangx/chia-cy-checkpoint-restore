@@ -35,7 +35,59 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 251,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 252,
+**in_progress; selected-source compiler context verified**.
+`connectProjected` now checks the source's inert compiler context against both
+original pre-inline and projected enclosing hosts, without insertion or historical
+circuit renaming. The first new duplicate-context test exposed FIRRTL annotation
+coalescing; validation now checks the original multiplicity. Independent auditing
+reconstructs context snapshots and inline annotation hashes. Exact matching optional
+nested input-file class hints are supported; deleted owners and mismatched hints
+reject. See [f2-widget-source-context.md](f2-widget-source-context.md).
+
+Fresh **272 Scala / 40 suites plus twelve preparation/directed executions**,
+**330 Python / bank / widget / ASan/UBSan host / FCFS / cut**, **40 loop**,
+**nine localhost native** and **nine EDA SP2** scopes pass. Seven source context
+kinds retain eighteen connector rejections and **34 independent source-variant
+mutations**. Matching binds **641 sources / 686 inputs**. All four connected
+variants pass **5,165 checks / four cuts / 136 words / 900 stalls**; the bound
+host initializer retains **20 ASan/UBSan checks**. Twelve complete debug waves
+prove **2,704 stable frozen samples** per healthy variant and the compiled payload
+defect at **cut 81 / word 0 / byte 42**, before release. Independent auditing also
+rejects coherently rehashed omission of the selected-source Tcl constraint scope.
+
+Six generated FIRRTL/RTL/XDC files are byte-identical to iteration 251. The
+source-context component retains **4,570 LUTs / 1,655 registers / three BUFGCEs /
+671 raw-clock registers**. OOC setup/hold **+0.326/−0.074 ns** retains unconstrained
+I/O and does not establish timing closure. The complete Scala suite finishes in
+about 28 minutes. Independent fresh exact-Rocket context auditing passes **2,456
+source annotations / 25 context annotations / 20 context kinds / 2,379 projected
+storage annotations**. Failed and superseded source epochs remain preserved in
+`runs/aws-f2/iteration252/recovery-notes.json`; the final scope passes in full.
+
+Fresh exact Rocket compilation still rejects its unowned FASED physical CE/common
+low-phase cut. The current generated census retains **1,947 uncovered functional
+entries / 298,428 words plus one physical CE owner**. The next hardware integration
+target is the uncovered FASED timing-model execution and its common-cut/CE owner,
+together with enclosing control and bridge state. Complete global identity/owners,
+reset/external writers/DRAM/timing/host/pre-FAME state, physical CE restore/release,
+full localhost image/P&R/AFI, active four-hart FPGA cuts, paired complete zero-edge
+CPU migration, finite replay, sustained live RTL and rolling hardware recovery
+remain pending. No checkpoint-enabled image, hardware capture or CPU migration
+acceptance was established. Every FPGA-origin CPU acceptance column stays pending.
+
+Native HDK/Vivado/Fabric and AWS/F2 checks pass. Final inventory has zero tagged
+instances and no native Vivado/Java jobs; no new AFI or runtime launch. Existing
+controller checkpoints were published FireSim first (`8ed8b1f5`), then Chipyard
+(`e9c82ac0`), with remote tips matched. The latter's local tracking-ref update was
+read-only after successful publication. Plans and initialized configs retain
+entry hashes; no staging or local commits. Managed worker startup failed before
+execution; no worker remains. Central coordination and recovery instructions above
+remain in force. Commands and immutable receipts:
+`runs/aws-f2/iteration252/verification-commands.json`, `accepted-receipts.json`
+and `final-audit-0tka86tl/summary.json`.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 251,
 **in_progress; typed selected-source contracts verified**.
 `NativeCheckpointWidgetGraft.connectProjected` independently reconstructs and
 merges typed source contracts through a FIRRTL circuit rename. It validates

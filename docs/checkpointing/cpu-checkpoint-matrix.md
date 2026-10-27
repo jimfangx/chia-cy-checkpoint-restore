@@ -14,6 +14,35 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 252 verifies selected-source compiler context at the widget connector.
+Every source context annotation must already occur exactly once in the original
+pre-inline and projected enclosing hosts; history is neither renamed nor inserted.
+The original-input check rejects duplicates that FIRRTL inlining can coalesce.
+Independent auditing reconstructs context snapshots and inline annotation hashes,
+including strict matching of the optional nested consumed-input class hint.
+
+Fresh **272 Scala / 40 suites plus twelve preparation/directed executions / 330
+Python / 40 loop / nine native / nine EDA SP2** scopes pass. Seven source context
+kinds retain eighteen connector rejections and **34 independently rejected
+mutations**, with **641 sources / 686 inputs** matched. All four connected
+variants pass **5,165 checks / four cuts / 136 words / 900 stalls**; the bound
+host initializer retains **20 ASan/UBSan checks**. Twelve full debug waves prove
+**2,704 frozen samples** per healthy variant and the actual compiled defect at
+**cut 81 / word 0 / byte 42**, before release. Six generated FIRRTL/RTL/XDC files
+remain byte-identical to the prior component. Resources stay **4,570 LUTs / 1,655
+registers / three BUFGCEs / 671 raw-clock registers**; OOC setup/hold
+**+0.326/−0.074 ns** retains unconstrained I/O and does not establish timing closure.
+Fresh exact-Rocket bank-context auditing retains **2,456 source / 25 context /
+20 context kinds / 2,379 projected storage annotations**.
+
+Fresh complete Rocket compilation still rejects the FASED CE/common-cut owner;
+**1,947 functional entries / 298,428 words and one physical CE owner** remain
+uncovered. Complete enclosing ownership/identity, image/P&R/AFI, four-hart F2
+captures and paired CPU migration with finite/live RTL and rolling recovery stay
+pending. No image, AFI or runtime launch occurred. All FPGA-origin acceptance
+columns remain pending. See [f2-widget-source-context.md](f2-widget-source-context.md)
+and `runs/aws-f2/iteration252/accepted-receipts.json`.
+
 Iteration 251 verifies typed selected-source contract merging at the existing
 widget graft. Six source contracts become eight translated contracts through a
 typed circuit rename and a validated union with host contracts. Conflicting

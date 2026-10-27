@@ -35,8 +35,11 @@ rewriting retained files. The initial native attempt synthesized successfully
 but rejected unscoped `network/...` source pins at the enclosing top; that
 failure remains intact. No constraint was dropped to repair it.
 
-This supports selected-source storage contracts. Complete compiler context,
-enclosing simulator identity and ownership, physical CE restore and release,
+This supports selected-source storage contracts. Iteration 252 also checks
+[source compiler context](f2-widget-source-context.md) against the original and
+projected enclosing host without inserting or renaming that context.
+Complete production integration, enclosing simulator identity and ownership,
+physical CE restore and release,
 external writers, functional DRAM, bridge/host owners and pre-FAME capture
 remain separate obligations. Sentinel transport identity, guarded host header
 and independent image rejection remain active. No checkpoint-enabled full

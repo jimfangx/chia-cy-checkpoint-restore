@@ -146,6 +146,8 @@ def reconstruct(source, before, after, root):
 def audit_source(directory, host_expected):
     """Rebuild the source projection and typed rebase without trusting its rows."""
     from tools.checkpoint_formats.tests.audit_widget_graft import sha
+    from tools.checkpoint_formats.tests.audit_native_inplace_context import (
+        CONTEXT_CLASSES, context_row, normalized_context)
     directory = Path(directory)
     load = lambda name: json.loads((directory / name).read_text())
     doc = load('source-policy.json')
@@ -163,14 +165,53 @@ def audit_source(directory, host_expected):
         require(doc[key] == sha(directory / name), 'changed source policy input ' + key)
     require(doc['host_annotations_sha256'] == digest(protocol_json(host_expected)), 'changed source policy host')
     source = load('original-selected-annotations.json')
-    require(all(a['class'] in TYPED for a in source) and
+    require(all(a['class'] in TYPED | CONTEXT_CLASSES for a in source) and
             source.count({'class': NO_DEDUP}) == 1, 'unsupported source annotation policy')
+    source_context = [normalized_context(a) for a in source if a['class'] in CONTEXT_CLASSES]
     before, after = (parse_modules((directory / (n + '.fir')).read_text()) for n in ('original-selected', 'graft'))
     root = re.search(r'^circuit (\w+) :', (directory / 'original-selected.fir').read_text(), re.M)[1]
     enclosing = re.search(r'^circuit (\w+) :', (directory / 'connected.fir').read_text(), re.M)[1]
     expected, retained, _, _ = reconstruct(source, before, after, root)
-    require(not retained and expected == load('graft-annotations.json'),
+    require(list(map(normalized_context, retained)) == source_context and expected + source_context ==
+            list(map(normalized_context, load('graft-annotations.json'))),
             'source contracts differ from original concrete executions')
+    context = None
+    if source_context:
+        host_context = [normalized_context(a) for a in host_expected if a['class'] in CONTEXT_CLASSES]
+        require(all(host_context.count(a) == 1 for a in source_context),
+                'source compiler context absent or ambiguous in enclosing host')
+        def snapshot(values, reference, instrumented):
+            rows = [context_row(a) for a in values]
+            multiple = {'enum_type', 'deleted_input', 'pre_link_renaming', 'bridge_extraction',
+                        'golden_gate_output_file'}
+            singleton = [r['kind'] for r in rows if r['kind'] not in multiple]
+            require(len(singleton) == len(set(singleton)), 'duplicate compiler context option')
+            outputs = [r['value']['file_suffix'] for r in rows if r['kind'] == 'golden_gate_output_file']
+            require(len(outputs) == len(set(outputs)), 'duplicate compiler context output suffix')
+            enums = [r['value'] for r in rows if r['kind'] == 'enum_type']
+            require(all(e == other for e in enums for other in enums if e['name'] == other['name']),
+                    'conflicting compiler context enum')
+            for kind in ('deleted_input', 'pre_link_renaming', 'bridge_extraction'):
+                events = [canonical(r) for r in rows if r['kind'] == kind]
+                require(len(events) == len(set(events)) and (kind != 'bridge_extraction' or len(events) <= 1),
+                        'duplicate compiler context history')
+            return dict(context_version=1, scope='compiler_context_only', deployable_capture_image=False,
+                        reference_sha256=sha(directory / reference), instrumented_sha256=sha(directory / instrumented),
+                        annotations=sorted(rows, key=canonical))
+        original_context = [normalized_context(a) for a in load('before-reserved-annotations.json')
+                            if a['class'] in CONTEXT_CLASSES]
+        snapshot(original_context, 'before-reserved.fir', 'before-reserved.fir')
+        require(all(original_context.count(a) == 1 for a in source_context),
+                'source compiler context absent or ambiguous before inlining')
+        context = dict(context_merge_version=1, policy='exact_existing_host_context_only_no_rebase_or_insertion',
+            source_snapshot=snapshot(source_context, 'original-selected.fir', 'graft.fir'),
+            host_snapshot=snapshot(host_context, 'connected.fir', 'connected.fir'),
+            source_annotations_sha256=digest(protocol_json(source_context)),
+            graft_annotations_sha256=digest(protocol_json(source_context)),
+            host_annotations_sha256=digest(protocol_json(host_context)))
+        require(doc.get('compiler_context') == context, 'changed source compiler context binding')
+    else:
+        require('compiler_context' not in doc, 'invented source compiler context')
     rebased = copy.deepcopy(expected)
     def target(text):
         require(text.startswith('~' + root + '|'), 'foreign selected annotation target')
@@ -191,6 +232,7 @@ def audit_source(directory, host_expected):
     merged = host_expected + [a for a in rebased if a not in host_expected]
     require(doc['merged_annotations_sha256'] == digest(protocol_json(merged)), 'changed merged source policies')
     return dict(source=len(source), rebased=len(rebased), global_policy_matched=True,
+                compiler_context_annotations=len(source_context), compiler_context_matched=context is not None,
                 physical_fpga_capture=False), merged
 
 
@@ -290,6 +332,9 @@ def corruptions(directory, out):
     if (directory / 'source-policy.json').is_file():
         names.extend(('source-admission', 'source-row', 'source-graft-loss', 'source-original-target',
                       'source-global-loss', 'source-format'))
+        if 'compiler_context' in json.loads((directory / 'source-policy.json').read_text()):
+            names.extend(('source-context-loss', 'source-context-ratio', 'source-context-duplicate',
+                          'source-context-snapshot', 'source-context-rebase', 'source-context-host-loss'))
     for name in names:
         case = out / name
         shutil.copytree(directory, case)
@@ -348,6 +393,24 @@ def corruptions(directory, out):
                 annotations.remove(next(a for a in annotations if a['class'] == NO_SYNTH_INIT))
             elif name == 'source-format':
                 constraint['formatString'] += '; set INVENTED 1'
+            elif name in ('source-context-loss', 'source-context-ratio', 'source-context-duplicate'):
+                filename = case / 'original-selected-annotations.json'
+                values = json.loads(filename.read_text())
+                clock = next(a for a in values if a['class'] == 'midas.passes.ChannelClockInfoAnnotation')
+                if name == 'source-context-loss':
+                    values.remove(clock)
+                elif name == 'source-context-ratio':
+                    next(iter(clock['infoMap'].values()))['multiplier'] += 1
+                else:
+                    values.append(copy.deepcopy(clock))
+                filename.write_text(protocol_json(values))
+                policy['source_annotations_sha256'] = sha(filename)
+            elif name == 'source-context-snapshot':
+                policy['compiler_context']['source_snapshot']['annotations'].pop()
+            elif name == 'source-context-rebase':
+                policy['compiler_context']['policy'] = 'insert_source_context_into_host'
+            elif name == 'source-context-host-loss':
+                annotations.remove(next(a for a in annotations if a['class'] == 'midas.passes.ChannelClockInfoAnnotation'))
             (case / 'source-policy.json').write_bytes(canonical(policy))
         (case / 'connected-annotations.json').write_text(protocol_json(annotations))
         projection['projected_annotations_sha256'] = sha(case / 'connected-annotations.json')

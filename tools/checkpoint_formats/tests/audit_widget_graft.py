@@ -110,6 +110,10 @@ def audit(directory):
     require(history_doc['input_sha256'] == sha(directory / 'before-reserved.fir') and
             history_doc['output_sha256'] == sha(directory / 'native-inlined.fir'),
             'unbound actual inline circuit')
+    from tools.checkpoint_formats.tests.audit_native_inplace_annotations import protocol_json
+    require(history_doc['input_annotations_sha256'] == sha(directory / 'before-reserved-annotations.json') and
+            history_doc['output_annotations_sha256'] == digest(protocol_json(
+                [a for a in annotations if a != history[0]])), 'unbound actual inline annotations')
     require(peer['source_sha256'] == sha(directory / 'native-inlined.fir') and
             peer['annotations_sha256'] == sha(directory / 'native-inlined-annotations.json') and
             peer['inline_history_sha256'] == digest(history[0]['body']), 'unbound peer phase')

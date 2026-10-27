@@ -9,11 +9,14 @@ cannot collide with the host. The connector changes the twenty explicit
 transaction/CE connections and retains the original host ports, execution
 instances, annotations, MMIO allocation and shared DMA streams.
 
-The current API accepts only an exact, target-free NoCircuitDedup policy on
-the standalone selected source and reconstructed graft. It rejects annotations
-on changed selected definitions in the enclosing host. Production annotation
-projection must be implemented explicitly before using annotated Rocket inputs;
-this restriction must not become a blanket annotation exemption.
+The strict `connect` API accepts only an exact, target-free NoCircuitDedup policy
+on the standalone selected source and reconstructed graft. It rejects annotations
+on changed selected definitions in the enclosing host. The explicit
+`connectProjected` path now supports checked [host storage projection](f2-widget-annotations.md),
+[typed source contracts](f2-widget-source-policy.md) and matching
+[source compiler context](f2-widget-source-context.md). Complete production
+ownership and image integration remain required; these bounded contracts do not
+provide a blanket annotation exemption.
 
 The descriptor identity remains the reservation sentinel. The generated driver
 header still contains its unbound-reservation error, RESTORE_ENABLE stays zero,

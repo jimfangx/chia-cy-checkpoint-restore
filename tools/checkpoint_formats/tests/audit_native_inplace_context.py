@@ -13,6 +13,36 @@ import tempfile
 
 from tools.checkpoint_formats.codec import FormatError, canonical, require
 
+CONTEXT_CLASSES = {
+    'midas.stage.ConfigPackageAnnotation', 'midas.stage.ConfigStringAnnotation',
+    'midas.stage.OutputBaseFilenameAnnotation', 'firrtl.stage.InfoModeAnnotation',
+    'firrtl.stage.OutputFileAnnotation', 'firrtl.options.TargetDirAnnotation',
+    'midas.passes.ChannelClockInfoAnnotation', 'midas.stage.GoldenGateOutputFileAnnotation',
+    'firrtl.stage.AllowUnrecognizedAnnotations$', 'midas.passes.DedupGroupPolicyAnnotation',
+    'midas.passes.DedupGroupResultAnnotation', 'midas.passes.DedupGroupRetirementAnnotation',
+    'midas.passes.SimulationInlineResultAnnotation', 'firrtl.annotations.DeletedAnnotation',
+    'chisel3.experimental.EnumAnnotations$EnumDefAnnotation', 'midas.stage.GoldenGateInputCircuitAnnotation',
+    'midas.stage.GoldenGateEmitterPolicyAnnotation', 'midas.passes.BridgeExtractionResultAnnotation',
+    'midas.passes.PreLinkRenamingResultAnnotation',
+    'midas.passes.xilinx.XilinxClockGateRetirementAnnotation',
+}
+
+
+def normalized_context(a):
+    """JsonProtocol may emit a nested class hint when that class occurs elsewhere
+    in the enclosing annotation list. A context-only list has no such live input.
+    Accept only the two exact consumed input producers and their matching hint.
+    """
+    if a['class'] != 'firrtl.annotations.DeletedAnnotation':
+        return a
+    a = copy.deepcopy(a)
+    nested = {'firrtl.stage.phases.AddCircuit': 'firrtl.stage.FirrtlFileAnnotation',
+              'firrtl.options.phases.GetIncludes': 'firrtl.options.InputAnnotationFileAnnotation'}
+    require(a.get('xFormName') in nested, 'unsupported deleted context producer')
+    hint = a['anno'].pop('class', None)
+    require(hint is None or hint == nested[a['xFormName']], 'mismatched deleted context class hint')
+    return a
+
 
 def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
@@ -23,6 +53,7 @@ def digest(text):
 
 
 def context_row(a):
+    a = normalized_context(a)
     kind = a['class']
     simple = {
         'midas.stage.ConfigPackageAnnotation': ('config_package', 'packageName'),
