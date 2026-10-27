@@ -143,8 +143,8 @@ module widget_graft_tb;
         check(`MASK && `RESERVEDFREEZE && `CYCLE==saved_cycle,"state remains frozen through actual DMA");
         check(frame[63:0]==64'h3154504b434d5346 && frame[79:64]==1 && frame[159:96]==saved_cycle,
           "captured frame magic/version/common target cut");
-        if(frames==0) check(frame[95:80]==1 && frame[255:224]==7 && &frame[511:256],
-          "sentinel manifest remains explicitly unbound");
+        if(frames==0) check(frame[95:80]==1 && frame[255:224]==7 && frame[511:256]===EXPECTED_MANIFEST,
+          "captured header matches independently bound manifest");
         else if(frames<35) begin
           reg [31:0] e,a; reg [63:0] expected;
           e=frame[255:224];a=frame[287:256];
@@ -190,7 +190,7 @@ module widget_graft_tb;
     commonReset();
     readReg(CAPTURE_BASE+'h20,value);check(value==7,"actual registered entry count");
     for(integer i=0;i<8;i++) begin
-      readReg(CAPTURE_BASE+'h40+4*i,value);check(value===32'hffffffff,"sentinel MMIO identity never admitted");
+      readReg(CAPTURE_BASE+'h40+4*i,value);check(value===EXPECTED_MANIFEST[32*i+:32],"MMIO manifest matches descriptor identity");
     end
     if(missing_owner) begin
       @(negedge clock);`RESERVEDPRESENT=1;`RESERVEDFROZEN=3;

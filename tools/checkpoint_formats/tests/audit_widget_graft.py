@@ -60,6 +60,9 @@ def capture_ports(gates):
 
 def audit(directory):
     directory = Path(directory)
+    if (directory / 'identity.json').is_file():
+        from tools.checkpoint_formats.tests.audit_widget_identity import audit as audit_identity
+        return audit_identity(directory)
     doc = load(directory, 'connection.json')
     peer = load(directory, 'peer-routing.json')
     before = parse_modules((directory / 'before-reserved.fir').read_text())
@@ -275,6 +278,9 @@ def audit(directory):
 
 def corruptions(directory, out):
     directory, out = Path(directory), Path(out)
+    if (directory / 'identity.json').is_file():
+        from tools.checkpoint_formats.tests.audit_widget_identity import corruptions as identity_corruptions
+        return identity_corruptions(directory, out)
     out.mkdir(parents=True, exist_ok=True)
     rejected = []
     for name in ('capture-admission', 'identity-admission', 'missing-pin', 'return-swap',

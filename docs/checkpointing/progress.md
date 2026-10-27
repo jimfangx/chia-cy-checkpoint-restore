@@ -35,7 +35,63 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 248,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 249,
+**in_progress; selected widget transport/host identity verified**.
+`NativeCheckpointWidgetIdentity.bind` reconstructs the existing graft and its
+selected descriptors, binds the real transport manifest parameter and emits
+matching registered host metadata and constructor. It checks both original and
+lowered header cardinality: native lowering can deduplicate ambiguous originals.
+The incomplete-owner header error and external-clock-network image guard remain
+active even after all annotations are stripped. This is selected readout identity,
+not complete F1Shim identity or FPGA-image admission. See
+[f2-widget-identity.md](f2-widget-identity.md).
+
+The repaired complete Scala sweep passes **267/267 plus two preparation tests**;
+the initial **266/267** duplicate-header rejection failure remains intact. All
+**seven EDA SP2 scopes** pass in a fresh explicitly selected attempt. Sentinel
+and bound variants each pass **5,165 checks / four cuts / 136 words / 900 stalls**.
+The bound variant adds **20 ASan/UBSan checks** of the actual generated C++
+initializer against four actual VCS capture streams and rejects the complete
+host header at its coverage guard. Twelve independently rehashed identity
+corruptions reject. Native/EDA matching binds **639 sources / 678 sentinel or
+708 bound inputs**. Both waveform audits prove **2,704 stable frozen samples**
+and the compiled actual data defect at **cut 81 / word 0 / byte 42** before
+release, retaining all six full debug waves.
+
+All five affected native scopes synthesize on localhost with at most two joined
+Vivado jobs. The bound component has **4,753 LUTs / 1,647 registers / three
+BUFGCEs / 662 audited raw register clocks**. OOC setup/hold estimates are
+**+0.437/−0.074 ns**, with unconstrained external I/O; timing closure/full-image
+implementation remain pending. The first seven-process EDA execution completed
+but its aggregate rejected an empty successful C++ compiler log. The logger now
+retains actual argv/cwd without weakening nonempty-file validation. Two affected
+native scopes were regenerated and all seven EDA scopes rerun; unchanged native
+inputs retain their original execution dates. Both failed epochs are preserved.
+Fresh current-source **328 Python / bank / widget / ASan/UBSan host / FCFS / cut**
+and **40 loop** checks pass. Final independent auditing passes.
+
+Fresh exact Rocket compilation still rejects its FASED physical CE-latch owner
+and common low-phase cut (underlying compiler: 116s). The exact generated
+projection leaves **1,947 functional entries / 298,428 words plus one FASED
+physical CE owner** outside the selected readout. Complete reset/external-writer,
+functional DRAM, timing, bridge/host and pre-FAME ownership, common-cut release/
+restore, full localhost image/P&R/AFI, active four-hart FPGA cuts, paired complete
+zero-edge migration, finite replay, sustained live RTL and rolling hardware
+recovery remain pending. All FPGA-origin CPU acceptance columns remain pending.
+
+Native Vivado 2025.2/HDK/shell/Fabric localhost and AWS/F2 setup checks pass.
+Final scoped inventory has zero tagged runtime instances and no native Vivado/
+Java jobs. No AFI request or runtime launch was made. Existing controller
+checkpoints were published FireSim first (`59508180`), then Chipyard (`19e520c4`),
+with remote tips matched; the latter's local tracking-ref update failed read-only
+after successful publication. Protected plans and initialized manager configs
+retain entry hashes; no staging/local commits. Worker startup failed before
+execution and no managed worker remains. Commands and immutable receipts are in
+`runs/aws-f2/iteration249/verification-commands.json`, `accepted-receipts.json`
+and `final-audit-6cvjxsj6/summary.json`. Follow
+[GitHub publication](github-publication.md) for the next controller checkpoint.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 248,
 **in_progress; controller rerun receipt-selection failure repaired**.
 The previous controller verification passed retained sanitizer/FCFS checks but
 stopped before connected execution: the replacement runner globbed all previous

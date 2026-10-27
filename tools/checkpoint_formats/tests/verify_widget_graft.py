@@ -41,7 +41,10 @@ def source_files():
     files.add(scala/'test/resources/checkpoint/NativeStorage.firrtl')
     files.update((ROOT/'tools/checkpoint_formats').rglob('*.py'))
     files.update(ROOT/TESTS/n for n in ('verify_widget_graft.py', 'widget_graft_tb.sv',
-                 'audit_widget_graft.py', 'checkpoint_generated_network_exit.cc'))
+                 'audit_widget_graft.py', 'checkpoint_generated_network_exit.cc', 'widget_identity_host.cc'))
+    for folder in ('core','bridges'):
+        files.update((ROOT/'sims/firesim/sim/midas/src/main/cc'/folder).glob('*.h'))
+    files.add(ROOT/'sims/firesim/sim/midas/src/main/cc/core/checkpoint_capture.cc')
     files.update(ROOT/'sims/firesim/sim/midas/src/main/verilog'/n for n in RTL)
     files.add(ROOT/'sims/firesim/sim/midas/src/main/verilog/CheckpointPhysicalStateRouter.sv')
     files.update([scala/'main/scala/midas/core/FPGATop.scala',
@@ -97,6 +100,9 @@ def original_router(directory):
 
 def bindings(parameters,ports,directory):
     lines=[f'localparam [63:0] {k.upper()}={v};' for k,v in parameters.items()]
+    identity=directory/'identity.json'
+    manifest=json.loads(identity.read_text())['descriptor_manifest_sha256'] if identity.is_file() else 'f'*64
+    lines.append(f"localparam [255:0] EXPECTED_MANIFEST=256'h{manifest};")
     for suffix,width in [('reservedCycle','[63:0]'),('reservedPresent','[1:0]'),
                          ('reservedFrozen','[1:0]'),('reservedError','[1:0]'),('reservedFreeze','')]:
         matches=[n for _,w,n in ports if w==width and (n==suffix or n.endswith('_'+suffix))]
@@ -164,6 +170,8 @@ puts "WIDGET_GRAFT_SYNTH_PASS raw_registers=$checked gates=3"
 
 def audit_frames(directory,work):
     rows=descriptor_rows(directory);audits=[]
+    identity=directory/'identity.json'
+    manifest=int(json.loads(identity.read_text())['descriptor_manifest_sha256'],16) if identity.is_file() else 2**256-1
     complete_order=[(ordinal,address) for ordinal,row in enumerate(rows) for address in range(row['depth'])]
     for path in sorted(work.glob('capture-*.hex')):
         raw=[int(line,16).to_bytes(64,'little') for line in path.read_text().splitlines()]
@@ -178,7 +186,7 @@ def audit_frames(directory,work):
                     'changed fixture frame identity/cut')
             require(field(frame,80,16)==(1 if index==0 else 3 if index==35 else 2),'bad frame order')
             if index==0:
-                require(field(frame,224,32)==7 and field(frame,256,256)==2**256-1,'sentinel identity replaced')
+                require(field(frame,224,32)==7 and field(frame,256,256)==manifest,'captured transport identity mismatch')
             elif index==35:
                 require(field(frame,160,64)==34 and field(frame,224,32)==crc32c(b''.join(raw[:-1]))^0xffffffff,
                         'fixture CRC or complete word count changed')
@@ -220,6 +228,11 @@ def main():
         row=dict(argv=list(map(str,argv)),cwd=str(cwd),log=str(out/(name+'.log')))
         commands.append(row)
         with Path(row['log']).open('w') as stream:
+            # Successful C++ compilation can be silent. Retain the actual
+            # invocation in every log so its nonempty evidence pin remains
+            # auditable without weakening the regression receipt contract.
+            stream.write('argv='+json.dumps(row['argv'])+'\ncwd='+str(cwd)+'\n')
+            stream.flush()
             proc=subprocess.run(row['argv'],cwd=cwd,stdout=stream,stderr=subprocess.STDOUT)
         row['returncode']=proc.returncode
         (out/'commands.json').write_text(json.dumps(commands,indent=2)+'\n')
@@ -313,6 +326,33 @@ def main():
         summary['compiled_payload_defect']=dict(source='corrupt-adapter.sv',first_word=0,first_frame_payload_byte=42,
                                                 mutation_before=before,mutation_after=after)
         artifacts += ['corrupt-adapter.sv','corrupt-compile.log','corrupt.log','corrupt/widget-graft.vcd']
+        if (out/'generated/identity.json').is_file():
+            header=(out/'generated/reserved.h').read_text()
+            expressions=re.findall(r'^  (checkpoint_capture_manifest_t.*)\)\);$',header,re.M)
+            require(len(expressions)==1,'one actual generated host initializer required')
+            (out/'bound_manifest.svh').write_text(expressions[0]+'\n')
+            cc=ROOT/'sims/firesim/sim/midas/src/main/cc'
+            common=[os.environ['CXX'],'-std=c++17','-Wall','-Wextra','-Werror','-Wno-unused-parameter',
+                    '-g','-O1','-fno-omit-frame-pointer','-fsanitize=address,undefined','-I'+str(cc),'-I'+str(out)]
+            # The full registered header must still reject compilation. This
+            # negative is separate from testing its extracted data initializer.
+            (out/'guard.cc').write_text('#include "core/checkpoint_capture.h"\n#include "generated/reserved.h"\n')
+            text=run([*common,'-c','guard.cc','-o','guard.o'],'host-guard',expected=1)
+            require('Incomplete_checkpoint_hardware_coverage' in text,'incomplete-owner host guard escaped')
+            run([*common,cc/'core/checkpoint_capture.cc','sources/'+TESTS+'widget_identity_host.cc',
+                 '-o','identity-host'],'host-compile')
+            captures=[]
+            for source in sorted((out/'healthy').glob('capture-*.hex')):
+                dest=source.with_suffix('.bin')
+                dest.write_bytes(b''.join(int(row,16).to_bytes(64,'little') for row in source.read_text().splitlines()))
+                captures.append(dest)
+            require(len(captures)==4,'four actual captured VCS frame inputs required')
+            text=run([out/'identity-host',*captures],'host-run')
+            require('WIDGET_IDENTITY_HOST_PASS checks=20 cuts=4' in text,'generated host metadata failed')
+            summary['identity_host']=dict(checks=20,cuts=4,sanitizers=['address','undefined'],
+                production_header_rejected=True,actual_constructor_signature_checked=True)
+            artifacts += ['bound_manifest.svh','guard.cc','host-guard.log','host-compile.log','host-run.log']
+            artifacts += [str(p.relative_to(out)) for p in captures]
         summary['artifacts']={n:sha(out/n) for n in artifacts}
     else:
         native,eda=validate(args.native,'f2'),validate(args.eda,'eda')

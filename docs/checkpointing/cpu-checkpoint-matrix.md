@@ -14,6 +14,28 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 249 binds the selected widget's reconstructed manifest to its actual
+transport parameter and registered host metadata/constructor. All **267 Scala
+plus two preparation / 328 Python / 40 loop** checks and the full **seven-scope
+EDA SP2** attempt pass. Sentinel and bound transports each pass **5,165 checks /
+four cuts / 136 words / 900 stalls**; the bound initializer passes **20 ASan/UBSan
+checks** against actual VCS streams. Twelve identity mutations reject. Matching
+binds **639 sources / 678 or 708 inputs**, with **2,704 frozen waveform samples**
+per healthy variant and a real compiled payload defect at **cut 81 / word 0 /
+byte 42**, before release. Native synthesis reports **4,753 LUTs / 1,647 registers /
+three BUFGCEs / 662 checked raw clocks** for the bound component. OOC estimates
+remain **+0.437/−0.074 ns** with unconstrained external I/O; full-image timing is
+pending. Original Scala failure and empty-compiler-log aggregate rejection remain
+preserved; both source repairs have fresh complete verification. The host coverage
+error and independent image guard remain active, including after annotation removal.
+The manifest covers the supplied selected context; complete F1Shim identity and
+ownership remain unsupported. Fresh exact Rocket compilation still rejects the
+FASED physical CE owner/common cut, with **1,947 functional entries / 298,428 words
+and one physical CE owner** outside the selected readout. No new FPGA capture,
+image or CPU migration acceptance is established. All hardware-origin columns
+remain pending. See [f2-widget-identity.md](f2-widget-identity.md) and
+`runs/aws-f2/iteration249/accepted-receipts.json`.
+
 Iteration 248 repairs controller reruns without changing hardware acceptance:
 each regression invocation gets an exclusive attempt directory and an explicit,
 fully pinned receipt index. Two complete EDA SP2 runs against the populated scope
