@@ -14,6 +14,29 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 250 adds explicit typed enclosing-host storage annotation projection
+at the existing widget graft. Original concrete executions determine register,
+RAM, hierarchy and correlated XDC targets; shared primitive constraints exclude
+the inserted mask gate. Other host metadata stays intact, and unknown targets
+on unused original selected leaves reject. The complete final XDC is retained;
+FPGATop OOC defers literal board-pad placement to final image implementation and
+checks every hierarchy-bound constraint independently. Fresh **269 Scala plus
+two preparation / 328 Python / 40 loop / eight native / eight EDA SP2** scopes
+pass. All three connected variants pass **5,165 checks / four cuts / 136 words /
+900 stalls**; the bound host initializer passes **20 ASan/UBSan checks**. The
+projection rejects **22 mutations**, retains nine debug waves across variants,
+and independently matches **641 sources / 684 projected inputs**. Its component
+uses **4,517 LUTs / 1,646 registers / three BUFGCEs / 662 audited raw clocks**;
+OOC setup/hold **+0.326/−0.074 ns** has unconstrained I/O and does not establish
+timing closure. The initial invalid CE timing-startpoint constraint and all
+superseded epochs remain preserved; the correction passed the complete fresh
+scope. Sentinel identity and image guards remain active; source annotation
+policy, complete enclosing identity/owners and physical CPU capture remain
+unsupported. Exact Rocket compilation still rejects the FASED physical
+CE-latch owner/common cut. Every FPGA-origin acceptance column remains pending.
+See [f2-widget-annotations.md](f2-widget-annotations.md) and
+`runs/aws-f2/iteration250/`.
+
 Iteration 249 binds the selected widget's reconstructed manifest to its actual
 transport parameter and registered host metadata/constructor. All **267 Scala
 plus two preparation / 328 Python / 40 loop** checks and the full **seven-scope

@@ -137,15 +137,29 @@ def synthesis_tcl(directory):
     synthesis=list(directory.glob('*.native-inplace-graft.synthesis.xdc'))
     implementation=list(directory.glob('*.native-inplace-graft.implementation.xdc'))
     require(len(synthesis)==len(implementation)==1,'original native graft constraints required')
+    projected_synthesis = 'read_xdc generated/projected.synthesis.xdc\n' if (directory/'annotation-projection.json').is_file() else ''
+    projected_implementation = ''
+    if projected_synthesis:
+        # FPGATop OOC has no board clock pads. Preserve and independently audit
+        # the full final XDC, but defer its literal (zero-target) shell placement
+        # snippets to F1Shim/image implementation. Apply EVERY hierarchy-bound
+        # implementation constraint to this OOC netlist.
+        annotations = json.loads((directory/'connected-annotations.json').read_text())
+        implementation_text = (directory/'projected.implementation.xdc').read_text()
+        for a in annotations:
+            if (a['class'] in ('midas.InternalXDCAnnotation', 'midas.targetutils.xdc.XDCAnnotation') and
+                    a['destinationFile']['class'].endswith('$Implementation$') and not a['argumentList']):
+                require(implementation_text.count(a['formatString']) == 1, 'ambiguous literal shell XDC snippet')
+                implementation_text = implementation_text.replace(a['formatString'], '', 1)
+        (directory/'projected-component.implementation.xdc').write_text(implementation_text)
+        projected_implementation = 'source generated/projected-component.implementation.xdc\n'
     peer=json.loads((directory/'peer-routing.json').read_text())
     transport='/'.join(peer['transport'].split('.')[1:])
     return '''set_param general.maxThreads 4
 read_verilog -sv '''+' '.join(files)+'''
-read_xdc generated/'''+synthesis[0].name+'''
-synth_design -top FPGATop -part xcvu47p-fsvh2892-2-e -mode out_of_context -flatten_hierarchy none
+read_xdc generated/'''+synthesis[0].name+'\n'+projected_synthesis+'''synth_design -top FPGATop -part xcvu47p-fsvh2892-2-e -mode out_of_context -flatten_hierarchy none
 create_clock -name raw_clock -period 7.142857 [get_ports clock]
-source generated/'''+implementation[0].name+'''
-set gates [get_cells -hier -filter {REF_NAME == BUFGCE}]
+source generated/'''+implementation[0].name+'\n'+projected_implementation+'''set gates [get_cells -hier -filter {REF_NAME == BUFGCE}]
 if {[llength $gates] != 3} {error "expected original pair of native gates and single root mask"}
 foreach gate $gates {if {[get_property CE_TYPE $gate] ne "SYNC"} {error "changed native gate semantics"}}
 if {[llength [get_cells -hier -filter {REF_NAME == FDRE && IS_C_INVERTED == 1}]] != 1} {error "expected unique falling-edge mask"}
@@ -260,6 +274,7 @@ def main():
         require(ROOT==Path('/home/ubuntu/chia-cy-checkpoint-restore') and shutil.which('vivado'),'native localhost Vivado required')
         require(args.generated and args.generated.resolve().is_relative_to(RUNS),'generated input below runs required')
         shutil.copytree(args.generated,out/'generated')
+        synth = synthesis_tcl(out/'generated')
         summary['audit']=audit(out/'generated')
         original_router(out/'generated')
         summary['rejected_corruptions']=corruptions(out/'generated',out/'corruptions')
@@ -275,7 +290,13 @@ def main():
         port_text,ports=port_header(out/'generated');(out/'top_ports.svh').write_text(port_text)
         parameters=header_parameters(out/'generated')
         (out/'top_bindings.svh').write_text(bindings(parameters,ports,out/'generated'))
-        (out/'synth.tcl').write_text(synthesis_tcl(out/'generated'))
+        (out/'synth.tcl').write_text(synth)
+        if (out/'generated/annotation-projection.json').is_file():
+            annotations = json.loads((out/'generated/connected-annotations.json').read_text())
+            summary['ooc_deferred_shell_constraints'] = [dict(format_sha256=hashlib.sha256(a['formatString'].encode()).hexdigest(),
+                destination='Implementation', reason='literal board-pad placement outside FPGATop OOC') for a in annotations
+                if a['class'] in ('midas.InternalXDCAnnotation', 'midas.targetutils.xdc.XDCAnnotation') and
+                a['destinationFile']['class'].endswith('$Implementation$') and not a['argumentList']]
         summary['inputs']={str(p.relative_to(out)):sha(p) for p in out.rglob('*')
                            if p.is_file() and 'corruptions' not in p.relative_to(out).parts}
         text=run(['vivado','-mode','batch','-source','synth.tcl'],'synth')

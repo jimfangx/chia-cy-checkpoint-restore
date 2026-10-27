@@ -35,7 +35,53 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 249,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 250,
+**in_progress; typed enclosing-host annotation projection verified**.
+`NativeCheckpointWidgetGraft.connectProjected` now follows original concrete
+host executions into bank-specialized definitions, preserving correlated XDC,
+register/RAM/hierarchy contracts and other host metadata. Both connector paths
+reject unsupported selected-source targets even when an unused original shared
+leaf definition remains. The downstream XDC consumer emits actual constraints
+before Verilog emission. Sentinel identity and independent image guards remain
+active. See [f2-widget-annotations.md](f2-widget-annotations.md).
+
+Fresh **269 Scala / 40 suites plus two preparation**, **328 Python / bank /
+widget / ASan/UBSan host / FCFS / cut**, **40 loop**, **eight localhost native**
+and **eight EDA SP2** scopes pass. All native receipts were regenerated, with
+peak concurrency two. Sentinel, identity-bound and projected variants each pass
+**5,165 checks / four cuts / 136 words / 900 stalls**; the bound initializer adds
+**20 ASan/UBSan checks**. The projection rejects **22 mutations**. Matching binds
+**641 sources / 680 sentinel, 710 bound or 684 projected inputs**. Independent
+waveform audits prove **2,704 stable frozen samples** per healthy variant and the
+actual compiled payload defect at **cut 81 / word 0 / byte 42** before release;
+all nine debug waves remain available.
+
+The projected component uses **4,517 LUTs / 1,646 registers / three BUFGCEs /
+662 audited raw clocks**. OOC setup/hold estimates **+0.326/−0.074 ns** have
+unconstrained external I/O; full-image timing is pending. Real Vivado rejected
+the initial CE timing-startpoint fixture. Its repaired pin-cardinality and
+`DONT_TOUCH` constraint passed direct native checking, then the complete fresh
+Scala/native/EDA sweep. All failed and superseded source epochs remain intact.
+Final independent auditing passes; commands and receipts are in
+`runs/aws-f2/iteration250/verification-commands.json`, `accepted-receipts.json`
+and `final-audit-u_nf6_kt/summary.json`.
+
+Fresh exact Rocket compilation still rejects the FASED physical CE owner/common
+low-phase cut. The new generated census retains **1,947 uncovered functional
+entries / 298,428 words plus one physical CE owner**. Source annotation policy,
+complete enclosing identity/owners, reset/external writers/DRAM/timing/bridge/
+host/pre-FAME state, common-cut release/restore, localhost full image/P&R/AFI,
+active four-hart FPGA cuts, complete paired zero-edge migration, finite replay,
+sustained live RTL and rolling hardware recovery remain pending. No AFI request
+or runtime launch was made; final inventory has zero tagged instances and no
+native Vivado/Java jobs. Native HDK/Vivado/Fabric and AWS/F2 setup pass. Existing
+controller checkpoints were published FireSim first (`97d8b663`), then Chipyard
+(`5bfbb620`), with remote tips matched; the latter's local tracking-ref update
+was read-only after successful publication. Plans and initialized configs retain
+entry hashes; no staging/local commits. Worker startup failed before execution
+and no managed worker remains.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 249,
 **in_progress; selected widget transport/host identity verified**.
 `NativeCheckpointWidgetIdentity.bind` reconstructs the existing graft and its
 selected descriptors, binds the real transport manifest parameter and emits

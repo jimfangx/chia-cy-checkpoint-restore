@@ -96,8 +96,14 @@ def audit(directory):
             'changed selected graft inputs or scope')
     # Native history remains an immutable record of the actual inline operation.
     annotations = load(directory, 'native-inlined-annotations.json')
-    require(load(directory, 'connected-annotations.json') == annotations,
-            'changed enclosing annotations or foreign selected targets')
+    projection = None
+    if (directory / 'annotation-projection.json').is_file():
+        from tools.checkpoint_formats.tests.audit_widget_annotations import audit as audit_annotations
+        projection = audit_annotations(directory)
+    else:
+        require('host_annotation_projection_sha256' not in doc, 'missing bound annotation projection')
+        require(load(directory, 'connected-annotations.json') == annotations,
+                'changed enclosing annotations or foreign selected targets')
     history = [a for a in annotations if a['class'] == 'midas.passes.SimulationInlineResultAnnotation']
     require(len(history) == 1, 'missing native inline history')
     history_doc = json.loads(history[0]['body'])
@@ -273,7 +279,7 @@ def audit(directory):
             'lost executing selected instance')
     return dict(pins=len(rows), selected=selected_path, replaced_modules=len(replaced), added_modules=len(added),
                 physical_fpga_capture=False, descriptor_identity_bound=False,
-                transport_state_owner='unsupported_no_state_adapter')
+                transport_state_owner='unsupported_no_state_adapter', **({'annotation_projection': projection} if projection else {}))
 
 
 def corruptions(directory, out):
@@ -332,4 +338,7 @@ def corruptions(directory, out):
             rejected.append(dict(case=name, error=str(error)))
         else:
             raise AssertionError('accepted coherently rehashed connection corruption ' + name)
+    if (directory / 'annotation-projection.json').is_file():
+        from tools.checkpoint_formats.tests.audit_widget_annotations import corruptions as annotation_corruptions
+        rejected.extend(annotation_corruptions(directory, out / 'annotations'))
     return rejected
