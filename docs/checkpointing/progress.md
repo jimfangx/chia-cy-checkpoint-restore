@@ -35,7 +35,54 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 254,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 255,
+**in_progress; EDA verification capacity recovered and full regressions pass**.
+The incoming controller failure was input rsync ENOSPC before VCS execution:
+EDA had 9.6 MiB free and 846 GiB of mirrored run artifacts. Added explicit
+copy-on-write extent deduplication for generated artifacts using XFS/Linux
+`FIDEDUPERANGE`. The kernel compares bytes before sharing; original contents,
+paths, independent inodes and modification times survive. No historical files
+are deleted or excluded from synchronization. See
+[eda-artifact-capacity.md](eda-artifact-capacity.md).
+
+Actual EDA self-tests pass equal/unequal extent, metadata and subsequent-write
+isolation checks. Independent full-file SHA-256, metadata and inode auditing
+passes for 145 completed request pairs / 5,238,956,032 shared bytes. Both sweeps
+were deliberately stopped after recovering verification capacity; their partial
+receipts and interruption logs remain intact. The 16 GiB sweep target was not
+reached. About 3 GiB remains free after syncing all inputs and running checks;
+perform further maintenance before another large exact-Rocket generation.
+
+Fresh full **330 Python / bank / widget / ASan/UBSan host / FCFS / cut / eleven
+pinned component VCS** scopes pass in unique iteration-255 output paths. The
+multi-region component retains 8,242 checks / four cuts / 280 words / 840 stalls;
+independent debug-wave auditing passes, including the compiled CE defect before
+acknowledgement. All **45 controller tests** pass on the native F2 manager.
+An extra manager-only controller invocation on EDA failed importing Ray under
+its native Python 3.9.25. That attempt remains recorded; the same complete scope
+executes on the manager's existing Chia/Ray environment without omissions or
+stubs. The corrected full VCS batch was independently rerun and passed.
+Native/Scala/RTL sources are unchanged; existing native pins are re-audited,
+with no claim of fresh synthesis this iteration.
+Fresh AWS access, native Vivado 2025.2/F2 HDK and localhost Fabric checks pass.
+Scoped inventory contains no loop-tagged runtime instance or new AFI request.
+Existing controller checkpoints were published FireSim first (`01685716`), then
+Chipyard (`636db36f`); remote tips independently match. Chipyard's local tracking
+ref update reported read-only storage after the successful push; no history was
+changed. Plans and initialized manager inputs remain read-only.
+
+This increment repairs verification infrastructure. Production FASED physical
+CE/common-cut ownership, complete enclosing memory/bridge/host/pre-FAME binding,
+localhost checkpoint image/P&R/AFI, active all-hart hardware cuts and paired CPU
+zero-edge/finite/live/rolling acceptance remain pending. No FPGA capture or CPU
+migration is claimed. Managed worker startup failed before execution; the central
+agent remains the only agent. Diagnostics, immutable fresh receipts and exact
+commands are beneath `runs/aws-f2/iteration255/`; see `verification-commands.json`,
+`recovery-attempts.json` and `final-audit-selected.json` there. Plans and initialized
+manager inputs match the protected snapshot; no staging, commits or new runtime/
+AFI launch occurred. No delegated worker or maintenance job remains.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 254,
 **in_progress; checked multi-region graft and shared readout verified**.
 `NativeCheckpointRegions` installs independently reconstructed native banks in
 disjoint executions of one original host. Shared ancestors retain original

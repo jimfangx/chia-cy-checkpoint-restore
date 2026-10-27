@@ -14,6 +14,23 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 255 repairs the EDA input-sync ENOSPC failure through kernel-verified
+copy-on-write extent sharing, preserving historical contents, independent inodes
+and modification times. Independent full-file SHA-256/metadata auditing checks
+145 completed pairs; actual XFS self-tests check unequal-data rejection and
+subsequent-write isolation. Fresh complete 330 Python / bank / widget / ASan/
+UBSan host / FCFS / cut and eleven pinned EDA SP2 component scopes pass. All 45
+controller tests pass on the native manager. The first extra controller run on
+EDA failed importing Ray; backend correction preserves the full test scope,
+and the complete VCS batch reran successfully with fresh receipts. The shared
+multi-region fixture retains 8,242 checks / four cuts / 280 words / 840 stalls
+and independent full debug/first-divergence waveform auditing. Native/Scala/RTL
+sources are unchanged and existing synthesis evidence is re-audited. Capacity
+remains limited; see [eda-artifact-capacity.md](eda-artifact-capacity.md).
+No new checkpoint image, FPGA capture or CPU migration acceptance follows.
+All hardware-origin columns and the production common-cut/owner deficits remain
+pending. Commands and immutable receipts: `runs/aws-f2/iteration255/`.
+
 Iteration 254 implements the checked multi-region in-place graft and one raw
 readout/descriptor adapter with a shared mask/reset/read interface. Final repaired
 Scala passes 280 tests / 42 suites plus twelve preparation tests. Independent
