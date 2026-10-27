@@ -35,7 +35,68 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 257,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 258,
+**in_progress; ordered whole-host regional source policy verified as a component**.
+`ReservedCheckpointInventory.forReservedWidgetSource` derives and binds typed
+storage contracts and inert compiler context in original order from the actual
+post-inline host. It checks pre-inline context before coalescing can hide
+identical options, retains the full original/opaque-owner identity and preserves
+the legacy permission. Regional generation/connection validate this permission,
+retain compiler context and check the complete host/generated storage union.
+See [f2-region-source-policy.md](f2-region-source-policy.md).
+
+Read-only review found an existing unknown-owner gap: unchanged shared definitions
+can lose executions to specialized banks or gain new mask-gate executions.
+Compiler and independent auditor now compare concrete execution-path sets as well
+as definition bodies. New negatives cover both cases. The source-policy audit
+reconstructs all 152 original annotations (119 typed storage, 33 retained) into
+153 connected annotations; 550 original functional entries and the opaque
+transport owner remain uncovered. Nine compiler rejection cases and six Python
+adversarial tests retain exact source/context and execution coverage contracts.
+
+Full **287 Scala / 43 suites plus twelve preparation tests, 336 Python / 45
+manager tests, fourteen native and fourteen fresh source-pinned EDA SP2 scopes**
+pass, retaining ASan/UBSan host, FCFS and cut checks. The new source-policy
+component passes **8,157 checks / four cuts / 272 words / 1,716 stalls**. Its
+independent waves retain 4,064 healthy frozen samples and stop the actual compiled
+payload defect at **cut 81 / word 32 / entry 5 / payload byte 42**, with both
+counters held and no release. Retained bound identity has twenty generated-host
+sanitizer checks; retained multi-region execution and all four independent wave
+audits pass. Native source-policy OOC resources are **5,276 LUTs / 1,979 registers /
+six BUFGCEs**; 140 MHz setup/hold −0.031/−0.074 ns with unconstrained I/O establishes
+no full-image timing closure. All twenty rehashed connection mutations still reject.
+
+The initial full Scala sweep was deliberately interrupted (exit 130) for the
+review fix; the complete final-source rerun passes. Original logs, the corrected
+ad hoc resource-field lookup and development history remain in
+`runs/aws-f2/iteration258/development-attempts.json`. Native synthesis waited for
+the large Java sweep and peaked at two jobs. EDA returned all artifacts before
+the final independent source/receipt/resource/wave audit passed. Recovery files
+include `verification-commands.json`, `native-selected.json`,
+`component-regressions/selected.json`, `region-source-policy-wave-selected.json`,
+`source-policy-resources-selected.json`, `final-audit-selected.json` and
+`remaining-blockers.json` under that invocation.
+
+The fresh exact-Rocket compiler still rejects the FASED physical CE/common-low-
+phase-cut owner. Production source-context hookup and complete enclosing reset/
+external-writer/memory/timing/bridge/host/pre-FAME ownership, router/mask/control
+capture or checked exclusion/restore, full localhost image/P&R/AFI and all-hart
+FPGA cuts and paired CPU zero-edge/finite/live/rolling migration remain pending.
+No checkpoint-enabled image or FPGA-origin capture is claimed. Reuse
+iteration194's ExternallyProvisioned localhost invocation and initialized inputs.
+
+Fresh AWS, native Vivado 2025.2/F2 HDK and manager/Fabric localhost checks pass.
+The final scoped inventory records no active local Vivado build or tagged F2
+runtime and no new AFI request. Existing controller checkpoints were published FireSim first
+(`3ec3d925`), then Chipyard (`c07853db`); remote tips match. Chipyard's read-only
+local tracking-ref update warning is preserved. Plans and all four initialized
+manager YAMLs keep their entry hashes; no staging or local commits. Managed
+full-context worker startup failed before execution; a read-only reviewer started
+with no inherited history, returned the execution-set finding, rechecked the fix
+and finished. All delegated work is joined. Follow
+[github-publication.md](github-publication.md) for the next controller checkpoint.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 257,
 **in_progress; shared regional transport/host identity verified as a component**.
 `NativeCheckpointWidgetIdentity.bindRegions` reconstructs the complete regional
 network and binds its combined descriptor digest to the actual reserved transport

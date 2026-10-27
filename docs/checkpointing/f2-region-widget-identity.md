@@ -48,12 +48,12 @@ six BUFGCEs. Setup/hold estimates at 140 MHz are −0.031/−0.074 ns with
 unconstrained I/O; these are component measurements and establish no timing
 closure or complete image implementation.
 
-The next source-context integration has two explicit policy boundaries:
-`ReservedCheckpointInventory.analysisFor` currently permits only the exact
-NoCircuitDedup storage policy, and `NativeCheckpointRegionWidgetGraft.connect`
-requires that same source policy. Lift neither by dropping annotations. Extend
-the permission, original/generated context snapshots and typed storage projection
-together, retaining exact original annotation order and opaque-owner identity.
-`NativeCheckpointWidgetAnnotations.mergeSource` shows the existing single-region
-contract, including rejection of broader constraints and conflicting global
-memory policies; regional composition needs equivalent whole-host checks.
+Iteration 258 extends those source-context boundaries through the explicit
+`ReservedCheckpointInventory.forReservedWidgetSource` permission. The legacy
+permission retains its NoCircuitDedup-only source. The new mode derives and binds
+ordered whole-host storage/context, checks original pre-inline context and
+preserves typed projection and opaque-owner identity through regional connection.
+Unknown annotations cannot lose shared-leaf executions or broaden to newly added
+mask gates without rejection. See [f2-region-source-policy.md](f2-region-source-policy.md).
+Production source-context hookup and all complete hardware ownership/image
+requirements remain pending; this permission grants no capture or restore owner.

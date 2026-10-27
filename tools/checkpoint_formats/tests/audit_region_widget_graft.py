@@ -49,6 +49,56 @@ def text_digest(value):
     return hashlib.sha256(value.encode()).hexdigest()
 
 
+def regional_serialized(row):
+    """Exact bounded Scala annotation spellings used by this fixture audit."""
+    from tools.checkpoint_formats.tests.audit_widget_annotations import serialized, TYPED
+    if row['class'] in TYPED:
+        return serialized(row)
+    simple = {'midas.stage.ConfigStringAnnotation': 'configString',
+              'midas.passes.SimulationInlineResultAnnotation': 'body'}
+    if row['class'] in simple:
+        return row['class'].split('.')[-1] + '(' + row[simple[row['class']]] + ')'
+    require(row['class'] == 'midas.stage.GoldenGateOutputFileAnnotation',
+            'unsupported bounded regional context serialization')
+    return 'GoldenGateOutputFileAnnotation(' + row['body'] + ',' + row['fileSuffix'] + ')'
+
+
+def context_snapshot(rows, reference, instrumented):
+    from tools.checkpoint_formats.tests.audit_native_inplace_context import context_row
+    values = [context_row(row) for row in rows]
+    singleton = [value['kind'] for value in values if value['kind'] not in {
+        'enum_type', 'deleted_input', 'pre_link_renaming', 'bridge_extraction', 'golden_gate_output_file'}]
+    require(len(singleton) == len(set(singleton)), 'duplicate regional compiler context option')
+    suffixes = [v['value']['file_suffix'] for v in values if v['kind'] == 'golden_gate_output_file']
+    require(len(suffixes) == len(set(suffixes)), 'duplicate regional passive output suffix')
+    require(len(rows) == len({canonical(row) for row in rows}), 'duplicate regional context annotation')
+    return dict(context_version=1, scope='compiler_context_only', deployable_capture_image=False,
+                reference_sha256=reference, instrumented_sha256=instrumented,
+                annotations=sorted(values, key=canonical))
+
+
+def audit_source_policy(directory, inventory_doc, annotations):
+    """Derive the exact source from the full original sequence, never a sidecar list."""
+    from tools.checkpoint_formats.tests.audit_widget_annotations import TYPED
+    from tools.checkpoint_formats.tests.audit_native_inplace_context import CONTEXT_CLASSES
+    source = read(directory, 'host-annotations.json')
+    if 'source_policy' not in inventory_doc:
+        require(source == [{'class': NO_DEDUP}], 'unsupported regional source annotation policy')
+        return None
+    approved = [a for a in annotations if a['class'] in TYPED | CONTEXT_CLASSES]
+    require(source == approved, 'regional source policy lost/reordered/changed original annotations')
+    context = [a for a in source if a['class'] in CONTEXT_CLASSES]
+    before = [a for a in read(directory, 'before-reserved-annotations.json') if a['class'] in CONTEXT_CLASSES]
+    require(all(context.count(a) == 1 for a in before), 'lost or ambiguous original regional compiler context')
+    expected = dict(policy_version=1, scope='exact_ordered_whole_host_typed_storage_and_inert_context',
+        source_annotations_sha256=text_digest(protocol_json(source)),
+        retained_annotations_sha256=text_digest(protocol_json([a for a in annotations if a not in source])),
+        original_context=context_snapshot(before, sha(directory/'before-reserved.fir'), sha(directory/'before-reserved.fir')),
+        source_context=context_snapshot(context, sha(directory/'native-inlined.fir'), sha(directory/'native-inlined.fir')))
+    require(inventory_doc['source_policy'] == expected, 'regional source/context permission differs from original')
+    return expected
+
+
 def read(directory, name):
     return json.loads((directory / name).read_text())
 
@@ -469,12 +519,22 @@ def audit_annotations(directory, original, connected, root, connection):
     actual = read(directory, 'connected-annotations.json')
     unique, retained, mappings, storage = reconstruct(source, original, connected, root)
     generated = read(directory, 'grafted-annotations.json')
+    from tools.checkpoint_formats.tests.audit_native_inplace_context import CONTEXT_CLASSES
+    context = [row for row in read(directory, 'host-annotations.json') if row['class'] in CONTEXT_CLASSES]
+    require([row for row in generated if row['class'] in CONTEXT_CLASSES] == context,
+            'generated regional compiler context changed')
+    generated = [row for row in generated if row['class'] not in CONTEXT_CLASSES]
     require(all(row['class'] in TYPED for row in generated), 'unsupported generated regional annotation contract')
     expected = unique + retained
     expected += [row for row in generated if row['class'] != NO_DEDUP and row not in expected]
     require(actual == expected and len(actual) == len({canonical(row) for row in actual}),
             'lost, duplicated or changed host/generated annotation')
-    changed = {name for name in original if original[name] != connected[name]}
+    old_executions, new_executions = {}, {}
+    for paths, modules in ((old_executions, original), (new_executions, connected)):
+        for path, name in instances(modules, root):
+            paths.setdefault(name, set()).add(path)
+    changed = {name for name in original if original[name] != connected[name] or
+               old_executions.get(name, set()) != new_executions.get(name, set())}
     clocks = [row for row in source if row['class'] == 'midas.passes.HostClockSource']
     host = dict(instances(original, root))[connection['host']]
     require(len(clocks) == 1 and clocks[0] == dict(**{'class': 'midas.passes.HostClockSource'},
@@ -781,7 +841,6 @@ def _audit(directory):
     directory = Path(directory)
     source_text = (directory / 'native-inlined.fir').read_text()
     require((directory / 'host.fir').read_text() == source_text, 'regional source differs from actual inlined execution')
-    require(read(directory, 'host-annotations.json') == [{'class': NO_DEDUP}], 'unsupported regional source annotation policy')
     root = root_of(source_text)
     original = parse_modules(source_text)
     merged = parse_modules((directory / 'instrumented.fir').read_text())
@@ -824,6 +883,9 @@ def _audit(directory):
     expected_inventory = dict(inventory_permission_version=1, scope='reserved_widget_global_analysis_only',
         host_sha256=sha(directory / 'native-inlined.fir'), host_annotations_sha256=sha(directory / 'native-inlined-annotations.json'),
         peer_routing_sha256=sha(directory / 'peer-routing.json'), unsupported_external_owners=[unsupported], **{key: False for key in FLAGS})
+    source_policy = audit_source_policy(directory, inventory_doc, annotations)
+    if source_policy is not None:
+        expected_inventory['source_policy'] = source_policy
     require(inventory_doc == expected_inventory, 'unsupported external owner omitted, reclassified or changed')
     for doc in [connection, binding, manifest, descriptor] + [value for local in descriptor['regions'] for value in (local['manifest'], local['binding'])]:
         require(doc.get('unsupported_external_owners') == [unsupported], 'hidden or changed unsupported external owner')
@@ -831,12 +893,15 @@ def _audit(directory):
             require(doc.get('reserved_inventory_binding_sha256') == digest(inventory_doc), 'unbound reserved inventory permission')
     checked = audit_descriptors(directory, source_text, root, binding, manifest, descriptor, routing)
     original_executions = audit_region_hierarchy(directory, original, merged, root, binding)
-    from tools.checkpoint_formats.tests.audit_widget_annotations import serialized
     for label in ('host', 'instrumented'):
         values = read(directory, label + '-annotations.json')
         require(len(values) == len({canonical(row) for row in values}) and
-            binding.get(label + '_annotations_sha256') == text_digest(protocol_json(sorted(values, key=serialized))),
+            binding.get(label + '_annotations_sha256') == text_digest(protocol_json(sorted(values, key=regional_serialized))),
             'unbound original/projected regional annotation policy')
+    from tools.checkpoint_formats.tests.audit_native_inplace_context import CONTEXT_CLASSES
+    source_context = [a for a in read(directory, 'host-annotations.json') if a['class'] in CONTEXT_CLASSES]
+    require(binding.get('context') == context_snapshot(source_context,
+        sha(directory/'host.fir'), sha(directory/'instrumented.fir')), 'changed generated regional compiler context binding')
     audit_graft(directory, original, merged, graft, root, binding, manifest, descriptor, routing)
     require(execution.get('entries') == checked['entries'] and execution.get('gates') == checked['physical_clock_gates'],
             'reservation does not match complete selected descriptor geometry')

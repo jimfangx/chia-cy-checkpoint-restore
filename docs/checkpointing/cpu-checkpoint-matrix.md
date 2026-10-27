@@ -14,6 +14,25 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 258 adds an explicit ordered whole-host source-policy permission for
+regional banking, retaining typed storage, compiler history and opaque-owner
+identity. Compiler and independent auditor reject unknown annotations whose
+concrete execution sets change through shared-leaf specialization or added mask
+gates. Full **287 Scala / 43 suites plus twelve preparation tests, 336 Python /
+45 manager, fourteen native and fourteen fresh EDA SP2 scopes** pass, retaining
+ASan/UBSan host, FCFS and cut checks. The new component passes 8,157 checks / four
+cuts / 272 words / 1,716 stalls. Independent waves retain 4,064 frozen samples and
+stop the compiled payload defect at cut 81 / word 32 before release. Nine compiler
+source-policy rejection cases and six adversarial Python tests pass. Native OOC
+resources are 5,276 LUTs / 1,979 registers / six BUFGCEs, with negative 140 MHz
+setup/hold estimates and no full-image timing closure. The fixture retains forty
+original executions / fourteen descriptors / twenty routes; **550 functional
+entries plus transport state remain uncovered**. Exact production still rejects
+the FASED physical CE/common-cut owner. Production hookup, complete ownership,
+image/P&R/AFI and every hardware-origin CPU migration column remain pending. See
+[f2-region-source-policy.md](f2-region-source-policy.md), the progress entry and
+`runs/aws-f2/iteration258/verification-commands.json`.
+
 Iteration 257 binds the combined regional descriptor identity to the real
 reserved transport and registered host constructor. Full **285 Scala / 43 suites
 plus twelve preparation tests, 330 Python / 45 manager, thirteen native and
