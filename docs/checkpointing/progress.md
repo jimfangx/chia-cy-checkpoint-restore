@@ -35,7 +35,76 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 255,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 256,
+**in_progress; existing widget connected to disjoint native regions**.
+`NativeCheckpointRegionWidgetGraft` routes twenty typed signals between the
+common-root readout and the actual reserved widget through existing ancestors,
+internalizes root capture ports and retains original execution/public interfaces.
+It checks pre/post-inline history, reserved counts, the unchanged host clock
+source, typed annotation projection and generated constraints. The immutable
+`ReservedCheckpointInventory` permission is analysis-only: original transport
+RTL remains emitted and its unsupported owner remains explicit in every region
+identity/combined descriptor. Strict default inventory/image guards still reject.
+See [f2-region-widget-graft.md](f2-region-widget-graft.md).
+
+The sibling fixture retains **40 original executions / 14 descriptors / four CE
+identities / twenty routes**; **550 original functional entries / 638 words and
+the opaque transport owner remain uncovered**. Twenty independently rehashed
+mutations reject. Final **283 Scala / 43 suites plus twelve preparation tests,
+330 Python / 45 manager tests, all twelve current-source native and EDA SP2
+component scopes**, retained ASan/UBSan host, FCFS and cut checks pass. Real
+registered NASTI/MMIO/CPU-DMA execution passes **8,157 checks / four component
+cuts / 272 words / 1,716 stalls**, delayed owners, cancellation/reset recovery
+and missing-owner rejection. Independent VCD audit retains **4,064 frozen
+samples** and the actual compiled payload defect at **cut 81 / word 32 / entry
+5 / payload byte 42**, with both target counters held. Retained multi-region
+checks remain 8,242 / four cuts / 280 words / 840 stalls, with independent waves.
+These are component checks, not FPGA-origin checkpoints or CPU migration.
+
+Native synthesis consumes complete final-host XDC from the actual compiled
+`WriteXDCFile` pass, independently reconstructs both host RAM hints, and retains
+all original bytes. Only four exact literal board-pad placements are deferred
+outside the ReservationShell OOC boundary. Resources are **5,276 LUTs / 1,979
+registers / six BUFGCEs**; 140 MHz OOC setup/hold **−0.031/−0.074 ns**, with
+unconstrained I/O, establishes no timing closure. Both standalone XDC-runner
+compiler failures and the first native audit's guessed transport-name failure
+remain preserved. The query now follows the checked actual instance path.
+After joining the original sweep, actual synthesis rebuilt that scope and the
+source-policy receipt whose broad source pin became stale; ten untouched
+current-source scopes retain their original passing receipts. No receipt was
+relabelled or rewritten. Final source/receipt/wave/protected-input audit passes.
+
+EDA capacity was recovered without deleting/excluding history: 91 completed
+initial requests retain full SHA/metadata/inode/COW audit, and a bounded pass over
+two completed Scala trees shares 110 additional identical pairs. The latter
+increases free space from about 1.2 to 3.6 GB before VCS; its independent audit
+also passes. The initial 12 GiB free-space target was not reached; its explicit
+SIGINT receipt and partial completed-request history remain intact. The initial
+retained EDA pass is superseded by a complete final-source rerun after harness
+repairs. Keep this maintenance available before future large mirrored batches.
+
+Fresh AWS, native Vivado 2025.2/F2 HDK and manager/Fabric localhost checks pass.
+A standalone SSH-key probe failed public-key authentication; the initialized
+manager/Fabric path passes. Final scoped inventory has no active loop runtime,
+new AFI request or local build job. Existing controller checkpoints were pushed
+FireSim first (`1d9e5d48`), then Chipyard (`5e6f1b51`); remote tips match. Both
+managed workers completed and were joined. Plans and initialized manager inputs
+retain their entry hashes; no staging, local commits, new runtime or AFI launch.
+Follow [github-publication.md](github-publication.md) for the next controller commit.
+
+The fresh exact-Rocket compiler still rejects the FASED physical CE/common-cut
+owner. Production source-context projection and global descriptor identity,
+complete enclosing state/reset/external-writer/functional-memory/bridge/host/
+pre-FAME ownership, new router/mask/control capture or exclusion/restore, image
+P&R/AFI, all-hart active FPGA cuts and paired zero-edge/finite/live/rolling CPU
+migration remain pending. No checkpoint-enabled image or hardware checkpoint is
+claimed. Reuse iteration194's localhost invocation. Commands and individual
+immutable receipts are under `runs/aws-f2/iteration256/`, including
+`verification-commands.json`, `native-selected.json`, `remaining-blockers.json`,
+`component-regressions/selected.json`, `region-widget-wave-selected.json`,
+`bounded-capacity-audit-selected.json` and `final-audit-selected.json`.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 255,
 **in_progress; EDA verification capacity recovered and full regressions pass**.
 The incoming controller failure was input rsync ENOSPC before VCS execution:
 EDA had 9.6 MiB free and 846 GiB of mirrored run artifacts. Added explicit

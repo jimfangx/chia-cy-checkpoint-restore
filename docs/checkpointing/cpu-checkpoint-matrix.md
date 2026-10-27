@@ -14,6 +14,30 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 256 connects the shared disjoint-region readout to the **existing**
+registered widget across concrete enclosing ancestors. An immutable permission
+allows global analysis of the exact reserved transport while preserving its
+unsupported owner and actual emitted RTL; default inventory/image admission stays
+strict. The new fixture retains 40 original executions / fourteen descriptors /
+four CE identities / twenty routes and leaves 550 functional entries / 638 words
+plus transport state uncovered. Twenty rehashed mutations reject. Final full
+283 Scala / 43 suites plus twelve preparation tests, 330 Python / 45 manager,
+twelve native and twelve fresh EDA SP2 scopes pass, including ASan/UBSan host and
+FCFS checks. Actual component MMIO/DMA passes 8,157 checks / four cuts / 272 words /
+1,716 stalls. Independent waves retain 4,064 frozen samples and stop the compiled
+payload defect at cut 81 / word 32 before release. Complete native final-host XDC
+includes both RAM hints; four literal board-pad placements are explicitly deferred
+from OOC. Resources 5,276 LUTs / 1,979 registers / six BUFGCEs and 140 MHz OOC
+setup/hold −0.031/−0.074 ns establish no full-image closure. Failed attempts remain
+preserved; only failed/stale native receipts were actually regenerated after the
+repair, with all twelve scopes retained. Independent bounded EDA COW maintenance
+preserves all history and the full regression scope. Exact production generation
+still rejects the FASED physical CE/common-cut owner. Production source-context,
+identity, complete simulator/host/pre-FAME ownership, image/P&R/AFI and every
+hardware-origin capture/CPU migration column remain pending. See
+[f2-region-widget-graft.md](f2-region-widget-graft.md), the progress entry and
+`runs/aws-f2/iteration256/verification-commands.json`.
+
 Iteration 255 repairs the EDA input-sync ENOSPC failure through kernel-verified
 copy-on-write extent sharing, preserving historical contents, independent inodes
 and modification times. Independent full-file SHA-256/metadata auditing checks
