@@ -14,6 +14,26 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 254 implements the checked multi-region in-place graft and one raw
+readout/descriptor adapter with a shared mask/reset/read interface. Final repaired
+Scala passes 280 tests / 42 suites plus twelve preparation tests. Independent
+original/installed storage auditing retains all 2,292 original executions and
+10,910 selected entries / three CE identities, with 1,189 functional entries /
+198,818 words still uncovered. Nine graft mutations and eight retained region
+mutations reject. The new component passes native synthesis and source-matched
+EDA SP2: 8,242 checks / four cuts / 280 words / 840 stalls, reset cancellation and
+owner failures. Its independent waves retain 1,407 frozen samples and stop the
+compiled CE defect at cut 1 / cycle 36 / word 66 before response acknowledgement.
+OOC resources are 2,047 LUTs / 995 registers / six BUFGCEs; setup/hold +2.027/−0.074
+ns has unconstrained I/O and establishes no full-image closure. The complete
+repaired scope passes 330 Python / 40 loop / eleven source-matched native /
+eleven fresh EDA SP2 checks, preserving all ASan/UBSan host, FCFS and connected
+fixture scopes. Final source/receipt/wave/resource auditing passes; failed
+attempts and source-epoch rejections remain preserved. See
+[f2-native-region-graft.md](f2-native-region-graft.md) and the progress entry.
+Production common-cut/widget admission remains unbound. No checkpoint image,
+FPGA capture or CPU restore acceptance follows; all hardware columns stay pending.
+
 Iteration 253 verifies native-region request/response routing and static selector
 composition for the same original host. The retained exact Rocket DUT/FASED
 selection describes **10,910 entries / all three physical CE identities**, leaving

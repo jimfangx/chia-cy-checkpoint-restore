@@ -35,7 +35,66 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 253,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 254,
+**in_progress; checked multi-region graft and shared readout verified**.
+`NativeCheckpointRegions` installs independently reconstructed native banks in
+disjoint executions of one original host. Shared ancestors retain original
+execution and raw clocks, carrying separate sidebands. Storage definitions and
+all generated references are namespaced; original annotations are translated
+once against the combined hierarchy. `NativeCheckpointRegionGraft` supplies one
+raw-clock request/response router and descriptor ROM, a common mask/reset/read
+interface and region-ordered logical/captured CE vectors. Rehashed changes to
+source, context, identities or owners reject. See
+[f2-native-region-graft.md](f2-native-region-graft.md).
+
+Final repaired Scala generation passes **280 tests / 42 suites plus twelve
+preparation tests**. Independent original/storage/hierarchy auditing verifies
+**2,292 original executions retained**, **10,907 installed functional entries /
+three CE identities**, and **1,189 uncovered functional entries / 198,818 words**.
+The exact Rocket DUT/FASED banks now coexist in their original host. Nine rehashed
+graft mutations and eight retained region mutations reject; five source
+annotations become eleven valid annotations and ten correctly scoped XDC lines.
+Six existing default FIRRTL/RTL/XDC outputs remain byte-identical. Fresh ordinary
+production compilation still rejects its unbound FASED CE/common-cut owner.
+
+The final shared-graft fixture synthesizes locally with **2,047 LUTs / 995
+registers / six BUFGCEs / 272 raw-clock control/readout registers**. OOC setup/hold
+estimates are **+2.027/−0.074 ns**, with unconstrained I/O; this is no image timing
+closure. Source-matched fresh EDA SP2 passes **8,242 checks / four cuts / 280 words /
+840 stalls**, reset cancellation and both owner rejections. Independent debug
+waves verify **1,407 stable frozen samples** while both raw ancestors advance.
+The compiled wrong-CE routing defect stops at **cut 1 / target cycle 36 / word 66**,
+with response acknowledgement zero. These are component results, not CPU restore
+or hardware-origin acceptance.
+
+Failed attempts remain immutable in `runs/aws-f2/iteration254/recovery-notes.json`.
+VCS exposed an ANSI-port collision in the hand-built fixture (`other` versus
+`other_cycle`); its instance now uses `peer`, and redeclaration warnings reject.
+The CE-drift label had formatting padding; the verifier now checks its exact
+label with whitespace tolerance while retaining all rejection predicates. Two
+native receipts rejected verifier edits during their execution. The complete
+Scala scope reran after repair, and **all eleven source-matched native / eleven
+fresh EDA SP2 scopes pass**. The **330 Python/bank/widget/ASan/UBSan host/FCFS/cut**
+and **40 loop** scopes pass with current source snapshots. Four existing connected
+variants retain 5,165 checks / four cuts / 136 words / 900 stalls, their complete
+independent debug waves and the 20-check ASan/UBSan host initializer.
+`final-audit-iy9345rp/summary.json` passes all source/receipt/wave/deficit/resource
+checks. Final inventory has zero tagged instances and no native Vivado/Java jobs.
+Commands and 31 immutable receipts are indexed by
+`runs/aws-f2/iteration254/verification-commands.json` and `accepted-receipts.json`.
+
+Production widget/complete common-cut integration, reset/external writers,
+functional DRAM/timing/bridge/host/pre-FAME ownership, full localhost image/P&R/
+AFI, actual active four-hart FPGA cuts, complete paired zero-edge CPU restore,
+finite replay, sustained live RTL and rolling hardware recovery remain pending.
+**No checkpoint-enabled image, FPGA capture or CPU migration acceptance exists.**
+All FPGA-origin CPU matrix columns remain pending. AWS/native HDK/localhost checks
+pass; no new AFI or runtime was launched. Existing controller checkpoints were
+published FireSim first (`fe9b88c7`), then Chipyard (`787be4e4`), with remote tips
+matched. Plans and initialized configs retain entry hashes. No staging/commits.
+Managed worker startup failed before execution; the root remains the only agent.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 253,
 **in_progress; native multi-region routing verified**.
 `CheckpointRegionStateRouter.sv` routes accepted reads among native bank
 endpoints, pins response ownership through latency/backpressure, translates
