@@ -35,7 +35,64 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 258,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 259,
+**in_progress; exact Rocket regional compiler/widget/host identity hookup runs**.
+The opt-in compiler probe now reconstructs and connects the actual Rocket DUT
+and FASED regions through the registered widget. Its generated transport digest
+and host constructor bind **10,910 descriptors / three original physical CE
+slots**, MMIO base **0x200** and CPU stream **4**. The final exact-recipe run
+reaches `identity_bound_incomplete_image_guard_required`; the existing image
+emission guard then rejects. The manifest retains **1,241 uncovered functional
+entries and one unsupported transport owner**. No checkpoint image or hardware
+capture is claimed. See [f2-region-compiler-probe.md](f2-region-compiler-probe.md).
+
+The probe resolves constant-generated metadata before recording inline history.
+Its regional-only v3 inline producer also resolves native output Block/type/flow
+metadata before its receipt, requiring identical FIRRTL, annotations and storage.
+Strict regional AST comparison remains unchanged. A probe-only wrapper uses the
+documented retaining host-clock API and validates the original scalar input;
+the exact compiler retains `~F1Shim|FPGATop>clock`. Default native wiring and v2
+compilation remain unchanged. Durable hashed diagnostics survive image rejection.
+All **36 focused checks / five suites**, **302 full Scala tests / 45 suites**
+and all **twelve preparation tests** pass on the final source. All **336 Python /
+45 manager tests**, **fourteen native synthesis scopes** (two-job peak) and
+**fourteen fresh source-pinned EDA SP2 scopes** pass, retaining ASan/UBSan host,
+FCFS and atomic-cut checks. All four independent waveform audits and nine
+fully rehashed metadata negatives pass. Native source-policy OOC resources are
+5,276 LUTs / 1,979 registers / six BUFGCEs; 140 MHz setup/hold −0.031/−0.074 ns
+with unconstrained I/O establishes no full-image timing closure.
+
+Earlier exact trials exposed `LoadMemWidget` block nesting (317→437 statements)
+and consumption of the native clock-source label. Both fixes retain their actual
+producer history; no annotation or owner acknowledgement was invented. Two
+partial Scala sweeps were deliberately interrupted and joined before any native
+sweep; the complete final-source rerun supersedes them. Original failures,
+parser/receipt repairs and logs remain under `runs/aws-f2/iteration259/`.
+
+Complete production reset/external-writer/common-cut, functional-memory/timing,
+bridge/host/pre-FAME and added router/mask/control/transport ownership or checked
+exclusion/restore, full localhost image/P&R/AFI, all-hart physical cuts and paired
+zero-edge/finite/live/rolling migration remain required. Reuse the initialized
+manager inputs and iteration194's ExternallyProvisioned localhost invocation.
+
+Fresh AWS/manager/native HDK/Vivado/Fabric setup passes. Final inventory has
+no active tagged F2 runtime or local Java/Vivado job and no new AFI request.
+All managed workers finished and their results were integrated. Protected plans
+and four initialized YAMLs retain their original hashes; both indexes remain
+unstaged. Existing controller checkpoints were published FireSim first
+(`4f6fafb3`), then Chipyard (`d26230cf`); remote tips match. Chipyard's read-only
+tracking-ref warning is preserved. The loop owns new commits and publication.
+
+Recovery: `verification-commands.json`, `scala-selected.json`,
+`native-selected.json`, `retained-selected.json`, `component-regressions/selected.json`,
+`probe-audit-selected.json`, `final-audit-selected.json`, `development-attempts.json`
+and `delegation.json` under `runs/aws-f2/iteration259/`. The actual successful
+compiler diagnostic is `rocket-region-production-2xpokng1/`; its durable status,
+source/descriptor/identity manifests and original compiler rejection log are
+retained. Final independent source/receipt/resource/wave audit passes. No
+physical capture, CPU migration or complete FPGA image is claimed.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 258,
 **in_progress; ordered whole-host regional source policy verified as a component**.
 `ReservedCheckpointInventory.forReservedWidgetSource` derives and binds typed
 storage contracts and inert compiler context in original order from the actual
