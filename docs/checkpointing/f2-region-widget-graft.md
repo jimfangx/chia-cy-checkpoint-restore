@@ -18,6 +18,9 @@ production compiler context and source contracts need explicit projection.
 Descriptor identity, complete cut ownership and image admission remain
 separate requirements. New adapter/router state and generated mask-gate/control
 state also need capture or explicit exclusion/restore ownership before admission.
+The subsequent checked [regional identity binding](f2-region-widget-identity.md)
+binds the reconstructed combined manifest to this transport and its host header;
+the connector itself retains its unbound identity contract.
 
 The reserved physical transport is opaque to FIRRTL inventory. The immutable
 `ReservedCheckpointInventory` permission checks the actual widget ABI, parameters,

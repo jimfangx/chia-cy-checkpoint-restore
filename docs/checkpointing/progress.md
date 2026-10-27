@@ -35,7 +35,59 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 256,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 257,
+**in_progress; shared regional transport/host identity verified as a component**.
+`NativeCheckpointWidgetIdentity.bindRegions` reconstructs the complete regional
+network and binds its combined descriptor digest to the actual reserved transport
+and registered host constructor. The shared implementation preserves selectors,
+MMIO/stream allocation, digest byte order and owner metadata. Only one manifest
+parameter and its registered header change. The unsupported transport owner,
+550 uncovered functional entries and all image/restore guards remain explicit,
+including after annotation removal. See
+[f2-region-widget-identity.md](f2-region-widget-identity.md).
+
+Full **285 Scala / 43 suites plus twelve preparation tests, 330 Python / 45
+manager tests, thirteen fresh native and thirteen source-pinned EDA SP2 scopes**
+pass, retaining ASan/UBSan host, FCFS and cut checks. The bound regional fixture
+passes **8,157 checks / four component cuts / 272 words / 1,716 stalls**, plus
+**20 generated-host sanitizer checks**. Twelve rehashed identity corruptions and
+twenty retained connection corruptions reject. Independent bound/unbound waves
+retain 4,064 healthy frozen samples each and stop the compiled payload defect at
+**cut 81 / word 32 / entry 5 / payload byte 42**, with both counters held and no
+release. The retained multi-region wave audit also passes. Native bound OOC
+resources are **5,424 LUTs / 1,980 registers / six BUFGCEs**; 140 MHz setup/hold
+−0.031/−0.074 ns with unconstrained I/O establishes no timing closure.
+
+Initial focused immutable-descriptor compile and AnnotationSeq assertion failures
+remain in `development-attempts.json`; corrected full checks pass. One EDA input
+sync stopped before VCS because a temporary Git index.lock vanished; the unchanged
+command retried successfully without exclusions. The invocation-only multi-region
+wave selector was repaired before execution to consume the complete fresh receipt
+index. Recovery receipts and final independent source/receipt/wave audit are under
+`runs/aws-f2/iteration257/`, including `verification-commands.json`,
+`final-audit-selected.json`, `native-selected.json`, `remaining-blockers.json`,
+`component-regressions/selected.json` and `region-identity-wave-selected.json`.
+
+The fresh exact-Rocket compile still rejects the FASED physical CE/common-low-phase
+cut owner. Production source-context projection, complete enclosing memory/reset/
+external-writer/bridge/host/pre-FAME ownership, added router/mask/control capture
+or checked exclusion/restore, localhost full image/P&R/AFI, all-hart active FPGA
+cuts and paired CPU zero-edge/finite/live/rolling migration remain pending. No
+checkpoint-enabled image or FPGA-origin checkpoint is claimed. Reuse
+iteration194's localhost invocation and the initialized manager inputs.
+
+Fresh AWS, native Vivado 2025.2/F2 HDK and manager/Fabric localhost checks pass.
+EDA's capacity probe has about 2 TiB available; no history was removed or newly excluded.
+Final scoped inventory contains no loop runtime, active native job or new AFI
+request. Existing controller checkpoints were published FireSim first (`49371e0d`), then
+Chipyard (`74cc5778`); remote tips match. Chipyard's successful push also reported
+a read-only local tracking-ref update; its original log is retained. Plans and
+initialized manager inputs retain their entry hashes; no agent staging or local
+commits. Managed worker startup failed before execution; the central agent ran
+all work and no delegated worker remains. Follow
+[github-publication.md](github-publication.md) for the controller's next checkpoint.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 256,
 **in_progress; existing widget connected to disjoint native regions**.
 `NativeCheckpointRegionWidgetGraft` routes twenty typed signals between the
 common-root readout and the actual reserved widget through existing ancestors,

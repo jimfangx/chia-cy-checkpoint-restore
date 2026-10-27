@@ -15,14 +15,16 @@ int main(int argc, char **argv) {
     const auto manifest =
 #include "bound_manifest.svh"
         ;
-    if (argc != 5 || manifest.entries.size() != 7)
+    if (argc != 5 || manifest.entries.empty())
       throw std::runtime_error("complete four-cut manifest exercise required");
     unsigned checks = 0;
     for (int i = 1; i < argc; ++i) {
       std::ifstream stream(argv[i], std::ios::binary);
       if (!stream) throw std::runtime_error("missing VCS capture stream");
       std::vector<uint8_t> frames((std::istreambuf_iterator<char>(stream)), {});
-      if (frames.size() != 36 * 64) throw std::runtime_error("incomplete frame input");
+      uint64_t words = 0;
+      for (const auto &entry : manifest.entries) words += entry.depth;
+      if (frames.size() != (words + 2) * 64) throw std::runtime_error("incomplete frame input");
       uint64_t cycle = 0;
       for (unsigned b = 0; b < 8; ++b) cycle |= uint64_t(frames[12 + b]) << (8*b);
       checkpoint_capture_session_t::validate_frames(frames, manifest, cycle);

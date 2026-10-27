@@ -14,6 +14,24 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 257 binds the combined regional descriptor identity to the real
+reserved transport and registered host constructor. Full **285 Scala / 43 suites
+plus twelve preparation tests, 330 Python / 45 manager, thirteen native and
+thirteen fresh EDA SP2 scopes** pass, retaining ASan/UBSan host and FCFS checks.
+The bound component passes 8,157 checks / four cuts / 272 words / 1,716 stalls and
+20 generated-host sanitizer checks. Twelve rehashed identity mutations reject;
+twenty retained connection mutations also reject. Independent waves retain 4,064
+frozen samples and stop the actual compiled payload defect at cut 81 / word 32
+before release. OOC resources are 5,424 LUTs / 1,980 registers / six BUFGCEs;
+negative 140 MHz setup/hold estimates establish no timing closure. The generated
+header/image guards remain active, with 550 original functional entries and
+opaque transport state uncovered. Exact production still rejects the FASED
+physical CE/common-cut owner. Source-context and complete simulator/host/pre-FAME
+ownership, new control-state capture/exclusion, image/P&R/AFI and every
+hardware-origin CPU migration column remain pending. See
+[f2-region-widget-identity.md](f2-region-widget-identity.md), the progress entry and
+`runs/aws-f2/iteration257/verification-commands.json`.
+
 Iteration 256 connects the shared disjoint-region readout to the **existing**
 registered widget across concrete enclosing ancestors. An immutable permission
 allows global analysis of the exact reserved transport while preserving its

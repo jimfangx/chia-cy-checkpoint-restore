@@ -13,20 +13,27 @@ def audit(directory):
     directory = Path(directory)
     original = directory / 'unbound'
     require(not (original / 'identity.json').exists(), 'nested identity projection')
-    base_audit = audit_unbound(original)
     doc = load(directory, 'identity.json')
+    regional = doc.get('scope') == 'disjoint_regions_transport_and_host_identity_only'
+    if regional:
+        from tools.checkpoint_formats.tests.audit_region_widget_graft import audit as audit_unbound
+    base_audit = audit_unbound(original)
     require(doc['identity_version'] == 1 and
-            doc['scope'] == 'selected_readout_transport_and_host_identity_only' and
+            doc['scope'] == ('disjoint_regions_transport_and_host_identity_only' if regional else
+                             'selected_readout_transport_and_host_identity_only') and
             doc['descriptor_identity_bound'] is True and
             doc['external_transport_state_owner'] == 'unsupported_no_state_adapter' and
             all(doc[k] is False for k in ('production_annotations_translated',
                     'production_freeze_owners_bound', 'complete_fpga_capture',
                     'deployable_capture_image', 'metasim_restore_supported')),
             'identity projection falsely admits owner or image')
+    require(not (original/'identity').exists(), 'nested regional identity output')
     originals = {p.name for p in original.iterdir() if p.is_file()}
     require({p.name for p in directory.iterdir() if p.is_file()} == originals | {'identity.json'},
             'identity projection missing or adding files')
     changed = {'connected.fir', 'connected.sv', 'connected-annotations.json', 'reserved.h'}
+    if regional:
+        changed.add('connected-xdc-emission.json')
     require(all(sha(directory / n) == sha(original / n) for n in originals - changed),
             'identity projection changed unrelated input')
     for key, parent, filename in (
@@ -36,7 +43,7 @@ def audit(directory):
         ('header_before_sha256', original, 'reserved.h'),
         ('header_after_sha256', directory, 'reserved.h')):
         require(doc[key] == sha(parent / filename), 'stale identity input ' + key)
-    descriptors = list(directory.glob('*.native-inplace-graft-descriptors.json'))
+    descriptors = [directory/'manifest.json'] if regional else list(directory.glob('*.native-inplace-graft-descriptors.json'))
     require(len(descriptors) == 1, 'ambiguous identity manifest')
     manifest = json.loads(descriptors[0].read_text())
     require(doc['descriptor_manifest_sha256'] == sha(descriptors[0]), 'wrong global manifest identity')
@@ -94,7 +101,7 @@ def audit(directory):
     rows = manifest['state']
     require(doc['base'] == base and doc['stream'] == stream and
             doc['entries'] == execution['entries'] == len(rows) and
-            doc['gates'] == execution['gates'] == manifest['physical_clock_gates'] and
+            doc['gates'] == execution['gates'] == (sum(r['domain'] == 'physical_ce' for r in rows) if regional else manifest['physical_clock_gates']) and
             doc['owners'] == execution['owners'] and doc['queue_depth'] == execution['queueDepth'],
             'identity allocation or descriptor geometry mismatch')
     prefix = 'CHECKPOINT_CAPTURE'
@@ -169,7 +176,7 @@ def corruptions(directory, out):
             after = f".MANIFEST_SHA256({(int(value)^1).bit_length()}'d{int(value)^1})"
             (case/'connected.sv').write_text(text.replace(before, after))
         elif name == 'descriptor-source':
-            path = next(case.glob('*.native-inplace-graft-descriptors.json'))
+            path = case/'manifest.json' if (case/'manifest.json').is_file() else next(case.glob('*.native-inplace-graft-descriptors.json'))
             value = json.loads(path.read_text());value['state'][0]['slot'] += 1
             path.write_text(json.dumps(value))
             doc['descriptor_manifest_sha256'] = sha(path)

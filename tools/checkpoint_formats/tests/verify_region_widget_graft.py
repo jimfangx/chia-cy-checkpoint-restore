@@ -31,6 +31,10 @@ def sources():
         'sims/firesim/sim/midas/src/test/scala/midas/checkpoint/NativeCheckpointRegionWidgetGraftSpec.scala'}))
 
 
+def manifest_digest(directory):
+    return json.loads((directory/'identity.json').read_text())['descriptor_manifest_sha256'] if (directory/'identity.json').is_file() else 'f'*64
+
+
 def rows(directory):
     result = json.loads((directory/'manifest.json').read_text())['state']
     require(len(result) == 14 and sum(r['depth'] for r in result) == 68 and
@@ -56,7 +60,7 @@ def headers(directory):
     port_text += '\nReservationShell dut('+','.join(f'.{n}({n})' for _, _, n in ports)+');\n'
     params = header_parameters(directory)
     lines = [f'localparam [63:0] {k.upper()}={v};' for k, v in params.items()]
-    lines += ["localparam [255:0] EXPECTED_MANIFEST=256'h"+'f'*64+';',
+    lines += ["localparam [255:0] EXPECTED_MANIFEST=256'h"+manifest_digest(directory)+';',
               'localparam integer ENTRIES=14, WORDS=68, FRAMES=70;']
     for suffix, width in [('reservedCycle', '[63:0]'), ('reservedPresent', '[1:0]'),
                           ('reservedFrozen', '[1:0]'), ('reservedError', '[1:0]'), ('reservedFreeze', '')]:
@@ -209,7 +213,7 @@ def audit_frames(directory, work):
                     field(frame, 96, 64) == cut, 'frame identity/common cut changed')
             require(field(frame, 80, 16) == (1 if index == 0 else 3 if index == 69 else 2), 'frame order')
             if index == 0:
-                require(field(frame, 224, 32) == 14 and field(frame, 256, 256) == 2**256-1, 'sentinel/count changed')
+                require(field(frame, 224, 32) == 14 and field(frame, 256, 256) == int(manifest_digest(directory), 16), 'sentinel/count changed')
             elif index == 69:
                 require(field(frame, 160, 64) == 68 and field(frame, 224, 32) == crc32c(b''.join(data[:-1])) ^ 0xffffffff,
                         'CRC/completeness mismatch')
@@ -270,6 +274,8 @@ def main():
         require(ROOT == Path('/home/ubuntu/chia-cy-checkpoint-restore') and shutil.which('vivado'), 'native localhost Vivado required')
         require(args.generated is not None and args.native is None, 'explicit generated input required')
         shutil.copytree(args.generated, out/'generated')
+        if (out/'generated/identity.json').is_file():
+            from tools.checkpoint_formats.tests.audit_widget_identity import audit, corruptions
         summary['audit'] = audit(out/'generated')
         summary['rejected_corruptions'] = corruptions(out/'generated', out/'corruptions')
         for name in pins:
@@ -294,6 +300,8 @@ def main():
         require(str(ROOT).startswith('/scratch/') and shutil.which('vcs') == toolchain.VCS == '/tools/Synopsys/vcs/Y-2026.03-SP2/bin/vcs', 'EDA SP2 only')
         require(args.native is not None and args.generated is None, 'explicit native input required')
         native = json.loads((args.native/'summary.json').read_text())
+        if (args.native/'generated/identity.json').is_file():
+            from tools.checkpoint_formats.tests.audit_widget_identity import audit, corruptions
         require(native['status'] == 'pass' and native['backend'] == 'f2' and native['sources'] == pins, 'stale native source pins')
         for group in ('inputs', 'artifacts'):
             for name, digest in native[group].items(): require(sha(args.native/name) == digest, 'changed native evidence '+name)
@@ -336,8 +344,33 @@ def main():
         word = sum(r['depth'] for r in state[:first])
         require(match and (int(match[2]), int(match[3])) == (word, first), 'defect did not stop at first second-region word')
         summary['compiled_defect'] = dict(target_cut=int(match[1]), word=word, entry=first, payload_byte=42)
+        if (out/'generated/identity.json').is_file():
+            header=(out/'generated/reserved.h').read_text()
+            expressions=re.findall(r'^  (checkpoint_capture_manifest_t.*)\)\);$',header,re.M)
+            require(len(expressions)==1,'one actual generated host initializer required')
+            (out/'bound_manifest.svh').write_text(expressions[0]+'\n')
+            cc=ROOT/'sims/firesim/sim/midas/src/main/cc'
+            common=[os.environ['CXX'],'-std=c++17','-Wall','-Wextra','-Werror','-Wno-unused-parameter',
+                    '-g','-O1','-fno-omit-frame-pointer','-fsanitize=address,undefined','-I'+str(cc),'-I'+str(out)]
+            # The full registered header must still reject compilation. This
+            # negative is separate from testing its extracted data initializer.
+            (out/'guard.cc').write_text('#include "core/checkpoint_capture.h"\n#include "generated/reserved.h"\n')
+            text=run([*common,'-c','guard.cc','-o','guard.o'],'host-guard',expected=1)
+            require('Incomplete_checkpoint_hardware_coverage' in text,'incomplete-owner host guard escaped')
+            run([*common,cc/'core/checkpoint_capture.cc','sources/'+TESTS+'widget_identity_host.cc',
+                 '-o','identity-host'],'host-compile')
+            captures=[]
+            for source in sorted((out/'healthy').glob('capture-*.hex')):
+                dest=source.with_suffix('.bin')
+                dest.write_bytes(b''.join(int(row,16).to_bytes(64,'little') for row in source.read_text().splitlines()))
+                captures.append(dest)
+            require(len(captures)==4,'four actual captured VCS frame inputs required')
+            text=run([out/'identity-host',*captures],'host-run')
+            require('WIDGET_IDENTITY_HOST_PASS checks=20 cuts=4' in text,'generated host metadata failed')
+            summary['identity_host']=dict(checks=20,cuts=4,sanitizers=['address','undefined'],
+                production_header_rejected=True,actual_constructor_signature_checked=True)
         summary['artifacts'] = {str(p.relative_to(out)): sha(p) for p in out.rglob('*') if p.is_file() and
-                                (p.suffix in ('.vcd', '.hex', '.log') or p == out/'corrupt-adapter.sv')}
+                                (p.suffix in ('.vcd', '.hex', '.bin', '.svh', '.cc', '.log') or p == out/'corrupt-adapter.sv')}
         summary['artifacts']['commands.json'] = sha(out/'commands.json')
     require(pins == {n: sha(ROOT/n) for n in pins}, 'source epoch changed')
     summary['status'] = 'pass'; (out/'summary.json').write_text(json.dumps(summary, indent=2)+'\n')
