@@ -42,6 +42,16 @@ It does not prove that quota, a particular AMI, SSH connectivity, a loaded FPGA
 image or workload execution works. Record the actual error for any blocked
 operation. Missing access must never cause substitution of metasim capture.
 
+For replayable preflight evidence, run `automations/checkpoint_loop/f2_preflight.py`
+through `f2.py run`. Supply the retained invocation, a protected-input hash
+mapping, an output directory beneath `runs/`, and an optional selection file.
+Every attempt owns a new directory containing its receipt, native-tool log and
+AWS inventory. Only a successful attempt updates the selection, atomically.
+Audit the selected receipt and all its bound artifacts with `audit_receipt`;
+retain previous selections when comparing observations. Never overwrite a
+receipt already referenced by an audit: AWS response IDs, timestamps and process
+inventories legitimately change between observations.
+
 ## Baseline hardware run
 
 Start with a fresh invocation directory and an installed self-checking FireSim

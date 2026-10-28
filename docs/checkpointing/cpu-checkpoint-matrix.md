@@ -14,6 +14,34 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 265 shares the actual widget endpoint equations with an opt-in
+common-epoch restore component: eight local plus 38 adapter registers, 758
+canonical bits. Production retains absent restore controls and all complete
+ownership guards. Final 320 Scala / 50 suites plus twelve preparation, 337 Python /
+52 manager tests, 23 native OOCs and 23 fresh native-bound EDA SP2 component scopes
+pass, including ASan/UBSan, FCFS, atomic-cut and independent wave/corruption audits.
+The new 32/4 and exact Rocket 32/12 endpoint matrix passes twelve explicit cuts /
+24,000 continuation cycles and four negatives; the retained adapter matrix adds
+72,000 cycles / sixteen negatives. Independent original-register waves find
+compiled localData corruption at bit 195 while held with zero normal edges and
+no interface acknowledgement. Exact Rocket endpoint OOC uses 700 LUTs / 519 flops,
+including separately unsupported shadow storage. All original registers remain
+on the raw positive clock. These are component results, with no full-image timing
+closure. No hardware migration column advances. See
+[f2-widget-epoch.md](f2-widget-epoch.md).
+
+The iteration-264 controller replay failed its final integrity audit: rerunning
+preflight overwrote a pinned setup receipt. Iteration 265 preserves that failure
+and uses unique, artifact/source-bound preflight attempts with atomic selection.
+Real repeated AWS/native checks, strict source/receipt/protection/resource audits
+and corruption rejection pass. Diagnostic helper-copy, inherited source-list and
+positional fixture failures were preserved and fully recovered without reducing
+scope. Exact production still rejects CE/common-cut ownership and eight live
+transport-local conflicts, retaining 1,062 uncovered entries. Image P&R/AFI,
+checkpoint-enabled F2 cuts, paired hardware-origin migration, live CPU shadowing
+and rolling FPGA recovery remain pending/in_progress. Receipts and runnable
+commands are under `runs/aws-f2/iteration265/`.
+
 Iteration 264 adds opt-in held restoration of all 38 original NASTI adapter
 registers. Production keeps the port absent and retains all ownership guards.
 Final 319 Scala / 49 suites plus twelve preparation, 336 Python / 45 manager,

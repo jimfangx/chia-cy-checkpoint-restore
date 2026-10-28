@@ -72,6 +72,8 @@ puts "PHYSICAL_WIDGET_SYNTH_PASS external_network=1 falling_edge_masks=1 duplica
 '''
 
 
+SOURCES = (*SOURCES, 'sims/firesim/sim/midas/src/main/scala/midas/widgets/CheckpointWidgetEndpoint.scala')
+
 def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 

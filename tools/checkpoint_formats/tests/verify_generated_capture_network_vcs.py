@@ -49,6 +49,7 @@ SOURCES = (
     'sims/firesim/sim/midas/src/main/cc/bridges/checkpoint_capture.h',
     'tools/checkpoint_formats/tests/checkpoint_generated_network_exit.cc',
     'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/GeneratedStateBankAnnotations.scala',
+    'sims/firesim/sim/midas/src/main/scala/midas/widgets/CheckpointWidgetEndpoint.scala',
 )
 
 

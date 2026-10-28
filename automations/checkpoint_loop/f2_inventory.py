@@ -69,7 +69,7 @@ def build_processes(invocation: Path) -> dict:
     return dict(backend="localhost SSH /proc", argv=argv, processes=json.loads(result.stdout))
 
 
-def collect(invocation: Path, session) -> dict:
+def collect(invocation: Path, session, *, process_directory: Path | None = None) -> dict:
     manifest, runtime, tag = scoped_runtime(invocation)
     # FireSim AWSEC2F2 tags runtime instances with fsimcluster, not firesim.
     # Include stopped/terminated instances as well so cleanup remains auditable.
@@ -84,7 +84,8 @@ def collect(invocation: Path, session) -> dict:
         scope="resource inventory only; no FPGA workload/checkpoint acceptance",
         manager_root=str(ROOT), invocation=str(invocation.resolve()),
         aws_identity=session.client("sts").get_caller_identity(), region=session.region_name,
-        instance_filters=filters, instances=instances, local_build_processes=build_processes(invocation),
+        instance_filters=filters, instances=instances,
+        local_build_processes=build_processes(process_directory if process_directory is not None else invocation),
         build_execution=manifest["build_execution"], build_dir=manifest["build_dir"],
         config_sha256={p.name: hashlib.sha256(p.read_bytes()).hexdigest()
                        for p in sorted(invocation.glob("config_*.yaml"))},

@@ -103,6 +103,8 @@ puts "NATIVE_WIDGET_SYNTH_PASS gates=3 falling_edge_masks=1 raw_clock_endpoints=
 '''
 
 
+SOURCES = tuple(dict.fromkeys((*SOURCES, 'sims/firesim/sim/midas/src/main/scala/midas/widgets/CheckpointWidgetEndpoint.scala')))
+
 def audit(generated):
     generated=Path(generated)
     path=lambda s:generated/(PREFIX+s)

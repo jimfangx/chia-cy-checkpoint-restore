@@ -49,6 +49,8 @@ PINS = {
     'response_ready':('bankResponseReady',1,True),'response_data':('bankResponseData',64,False),
     'response_error':('bankResponseError',1,False)}
 
+SOURCES = (*SOURCES, 'sims/firesim/sim/midas/src/main/scala/midas/widgets/CheckpointWidgetEndpoint.scala')
+
 def sha(p): return hashlib.sha256(Path(p).read_bytes()).hexdigest()
 
 def audit(g):

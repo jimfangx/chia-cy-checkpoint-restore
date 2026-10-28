@@ -52,6 +52,8 @@ WIDGET_FILES = ('rom/NativeDescriptorROMProbe.v', 'constants.h', 'widget/Checkpo
     'widget/CheckpointPhysicalCaptureTransport.sv', 'widget/CheckpointPhysicalClockCut.sv')
 
 
+SOURCES = (*SOURCES, 'sims/firesim/sim/midas/src/main/scala/midas/widgets/CheckpointWidgetEndpoint.scala')
+
 def audit(generated, widget=False):
     """Reconstruct both domains from the complete native source, not composition rows."""
     generated = Path(generated)

@@ -28,14 +28,20 @@ GENERATED = (
 )
 STANDALONE = tuple(f"live-snapshot/{bits}/CheckpointLiveWidgetSnapshot.v" for bits in (1169, 1242))
 ADAPTERS = tuple(f"adapter-state/{a}-{i}/CheckpointNastiAdapter.v" for a,i in ((8,1),(32,4),(64,64)))
+NASTI_TEMPLATE = "sims/firesim/sim/midas/src/test/resources/checkpoint/checkpoint_nasti_adapter_tb.sv"
+WIDGET_TEMPLATE = "sims/firesim/sim/midas/src/test/resources/checkpoint/checkpoint_capture_widget_tb.sv"
+TRANSPORT_RTL = "sims/firesim/sim/midas/src/main/verilog/CheckpointCaptureTransport.sv"
+CUT_RTL = "sims/firesim/sim/midas/src/main/verilog/CheckpointCaptureCut.sv"
+NASTI_STATE_TB = "tools/checkpoint_formats/tests/checkpoint_nasti_state_tb.sv"
+SNAPSHOT_TB = "tools/checkpoint_formats/tests/live_widget_snapshot_tb.sv"
 SOURCE = (
     "sims/firesim/sim/build.sbt",
     "sims/firesim/sim/midas/src/main/scala/midas/widgets/CheckpointCaptureWidget.scala",
     "sims/firesim/sim/midas/src/test/scala/midas/widgets/CheckpointCaptureWidgetSpec.scala",
-    "sims/firesim/sim/midas/src/test/resources/checkpoint/checkpoint_nasti_adapter_tb.sv",
-    "sims/firesim/sim/midas/src/test/resources/checkpoint/checkpoint_capture_widget_tb.sv",
-    "sims/firesim/sim/midas/src/main/verilog/CheckpointCaptureTransport.sv",
-    "sims/firesim/sim/midas/src/main/verilog/CheckpointCaptureCut.sv",
+    NASTI_TEMPLATE,
+    WIDGET_TEMPLATE,
+    TRANSPORT_RTL,
+    CUT_RTL,
     "tools/checkpoint_formats/tests/verify_checkpoint_widget_vcs.py",
     "sims/firesim/sim/midas/src/main/scala/midas/widgets/CheckpointLiveWidgetSnapshot.scala",
     "sims/firesim/sim/midas/src/main/scala/midas/checkpoint/CheckpointTransportControlState.scala",
@@ -47,8 +53,9 @@ SOURCE = (
     "sims/firesim/sim/midas/src/test/scala/midas/widgets/CheckpointCaptureSnapshotSpec.scala",
     "sims/firesim/sim/midas/src/main/scala/midas/widgets/CheckpointNastiState.scala",
     'sims/firesim/sim/midas/src/test/scala/midas/widgets/CheckpointCaptureNastiStateSpec.scala',
-    "tools/checkpoint_formats/tests/checkpoint_nasti_state_tb.sv",
-    "tools/checkpoint_formats/tests/live_widget_snapshot_tb.sv",
+    NASTI_STATE_TB,
+    SNAPSHOT_TB,
+    "sims/firesim/sim/midas/src/main/scala/midas/widgets/CheckpointWidgetEndpoint.scala",
 )
 
 
@@ -71,10 +78,10 @@ def main():
                 f"missing Scala-generated artifact: {name}")
     # Refuse stale resource/fixture copies rather than testing a different adapter.
     for name, source in (
-        ("widget/CheckpointCaptureTransport.sv", SOURCE[5]),
-        ("widget/CheckpointCaptureCut.sv", SOURCE[6]),
-        ("checkpoint_nasti_adapter_tb.sv", SOURCE[3]),
-        ("widget/checkpoint_capture_widget_tb.sv", SOURCE[4]),
+        ("widget/CheckpointCaptureTransport.sv", TRANSPORT_RTL),
+        ("widget/CheckpointCaptureCut.sv", CUT_RTL),
+        ("checkpoint_nasti_adapter_tb.sv", NASTI_TEMPLATE),
+        ("widget/checkpoint_capture_widget_tb.sv", WIDGET_TEMPLATE),
     ):
         require(sha(generated / name) == sha(ROOT / source), f"stale generated resource: {name}")
     root.mkdir(parents=True, exist_ok=True)
@@ -129,7 +136,7 @@ def main():
         run([toolchain.VCS, "-full64", "-sverilog", "-timescale=1ns/1ps", "-Mupdate",
              "-debug_access+all", f"+define+NASTI_ADDR_BITS={addr}", f"+define+NASTI_ID_BITS={ident}",
              "-top", "checkpoint_nasti_state_tb", f"-Mdir={work / 'csrc'}", "-o", str(work / "simv"),
-             str(out / "generated-snapshots" / source), str(ROOT / SOURCE[-2]), str(ROOT / EXIT)],
+             str(out / "generated-snapshots" / source), str(ROOT / NASTI_STATE_TB), str(ROOT / EXIT)],
              work / "compile.log", work)
         text = run([str(work / "simv"), "-no_save"], work / "run.log", work)
         match = re.search(rf"CHECKPOINT_NASTI_STATE_PASS addr={addr} id={ident} state_checks=(\d+) random_steps=3000",text)
@@ -146,7 +153,7 @@ def main():
     run([toolchain.VCS,"-full64","-sverilog","-timescale=1ns/1ps","-Mupdate","-debug_access+all",
          "+define+NASTI_ADDR_BITS=64","+define+NASTI_ID_BITS=64","-top","checkpoint_nasti_state_tb",
          f"-Mdir={work / 'csrc'}","-o",str(work / "simv"),str(work / "adapter.v"),
-         str(ROOT / SOURCE[-2]),str(ROOT / EXIT)],work / "compile.log",work)
+         str(ROOT / NASTI_STATE_TB),str(ROOT / EXIT)],work / "compile.log",work)
     text = run([str(work / "simv"),"-no_save"],work / "run.log",work,expected=1)
     require("NASTI_STATE_DIVERGENCE complete canonical original register vector" in text and
             "CHECKPOINT_NASTI_STATE_PASS" not in text,"compiled adapter corruption escaped original register oracle")
@@ -177,7 +184,7 @@ def main():
         run([toolchain.VCS, "-full64", "-sverilog", "-timescale=1ns/1ps", "-Mupdate",
              "-debug_access+all", f"+define+SHADOW_BITS={bits}", "-top", "live_widget_snapshot_tb",
              f"-Mdir={work / 'csrc'}", "-o", str(work / "simv"),
-             str(out / "generated-snapshots" / source), str(ROOT / SOURCE[-1]), str(ROOT / EXIT)],
+             str(out / "generated-snapshots" / source), str(ROOT / SNAPSHOT_TB), str(ROOT / EXIT)],
             work / "compile.log", work)
         text = run([str(work / "simv"), "-no_save"], work / "run.log", work)
         match = re.search(rf"LIVE_WIDGET_SNAPSHOT_PASS bits={bits} captures=65 words=(\d+) checks=(\d+)", text)

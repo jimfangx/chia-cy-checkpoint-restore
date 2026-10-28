@@ -69,6 +69,15 @@ class InventoryTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "AccessDenied"):
             f2_inventory.collect(self.invocation, session)
 
+    def test_process_observation_can_use_fresh_evidence_directory(self):
+        session = MagicMock(region_name="us-west-2")
+        session.client.return_value.get_paginator.return_value.paginate.return_value = []
+        observation = self.invocation / "fresh-observation"
+        with patch.object(f2_inventory, "build_processes", return_value={"processes": []}) as processes:
+            result = f2_inventory.collect(self.invocation, session, process_directory=observation)
+        processes.assert_called_once_with(observation)
+        self.assertEqual(result["invocation"], str(self.invocation))
+
 
 if __name__ == "__main__":
     unittest.main()

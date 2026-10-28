@@ -35,7 +35,79 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 264,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 265,
+**in_progress; synthesized common-epoch widget/adapter restore and immutable evidence**.
+The real widget now uses a shared endpoint builder preserving its eight original
+locals and adapter/snapshot hierarchy. Its opt-in interface loads all 46 original
+registers (758 canonical bits) on one accepted edge, suppressing AXI/MMIO/stream
+handshakes, local updates and shadow access during hold/load. Epoch, owner,
+reset and padding failures reject before restore writes. Production retains no
+restore controls and all complete-image ownership guards. See
+[f2-widget-epoch.md](f2-widget-epoch.md).
+
+Final-source verification passes **320 Scala tests / 50 suites plus twelve
+preparation checks, 337 Python / 52 manager tests, 23 native component OOCs and
+23 native-bound fresh EDA SP2 component scopes**. ASan/UBSan host, FCFS/atomic-cut,
+all retained debug waves and independent physical corruption audits pass.
+The new integrated endpoint matrix covers 32/4 and exact Rocket 32/12 at six
+explicit protocol cuts, with complete independent original-register readback,
+every implemented bit loaded both ways, 24,000 continuation cycles and four
+negative processes. Restored continuations execute 1,910 successful reads /
+1,630 successful writes / 1,724 backend requests / 8,140 accepted stream frames.
+Compiled localData faults stop at canonical bit 195 while held, before any normal
+edge or interface acknowledgement. The retained adapter matrix separately passes
+72,000 cycles / sixteen negative processes. These fixture images and epoch labels
+are not FPGA-produced checkpoints or CPU live acceptance.
+
+Exact Rocket endpoint OOC uses **700 LUTs / 519 raw positive-clock flops**;
+486 bits belong to original endpoint registers, with shadow ownership separate.
+Source-policy OOC retains 5,872 LUTs / 3,114 registers / six BUFGCEs and negative
+140 MHz setup/hold estimates of -0.179/-0.074 ns with unconstrained I/O.
+Full-image place/route and timing closure remain unestablished. Native concurrency
+never exceeded two jobs and no native synthesis overlapped Java generation.
+
+Fresh exact Rocket diagnostics retain **11,093 descriptors / 1,062 uncovered
+entries / eight live-transport freeze conflicts** and reject the physical FASED
+CE/common-low-phase owner. No deployable image is emitted. Complete transport,
+stream, upstream/backend, host/reset, functional-memory and pre-FAME/common-cut
+ownership remain pending. Full localhost image/P&R/AFI, checkpoint-enabled F2
+execution, actual all-hart cuts, FPGA-origin paired migration/finite replay/live
+clean RTL and rolling hardware recovery remain pending. No hardware migration
+column advances. Next implementation target: concrete production owner/common-cut
+binding, followed by complete localhost image generation and real F2 capture.
+
+Iteration 264 correction: controller replay failed its final integrity audit
+because preflight overwrote a pinned receipt. That receipt and failing audit
+remain unchanged. New preflights use unique source/artifact-bound directories,
+strict independent auditing and atomic success-only selection. Repeated real
+AWS/native observations preserve prior pins; changed real inventories reject.
+The final current-source/input/receipt/protection/resource integrity audit passes.
+All 52 manager tests also retain immutable per-attempt logs and source bindings.
+
+Preserved development failures include initial Scala imports/naming, the partial
+Scala sweep restarted for exact 32/12 coverage, unreachable random cut selection,
+EDA Python3.9 population-count compatibility, a missing copied metadata helper,
+a duplicate inherited native source path and a positional testbench lookup.
+The latter two now have order-preserving source deduplication, a closure
+regression and named fixture paths. Complete recovery audited unchanged native
+inputs and reran every affected closure; no test scope or sanitizer was removed.
+
+Recovery receipts and raw commands are under `runs/aws-f2/iteration265/`:
+`verification-commands.json`, `scala-selected.json`, `native-selected.json`,
+`endpoint-native-selected.json`, `endpoint-eda-selected.json`,
+`component-regressions/selected.json`, `retained-selected.json`,
+`receipt-integrity-selected.json`, `diagnostics-selected.json`,
+`physical-audit-selected.json`, `final-inventory-selected.json` and
+`final-audit-selected.json`. The final inventory has no active tagged F2 runtime,
+pending AFI or local Java/Vivado job. Reuse iteration194's initialized localhost
+invocation; retain all native outputs and failed attempts. All three managed
+workers, including the native-source recovery follow-up, completed and joined;
+no delegated LLM work remains. Existing controller commits were published
+FireSim first (`ce84b22e`), then Chipyard (`9595fad1`); remote tips match.
+The Chipyard read-only local tracking-ref warning is retained. Plans, initialized
+YAMLs and conda inputs were not edited; no staging or local commits were made.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 264,
 **in_progress; synthesized opt-in complete NASTI adapter restoration**.
 The adapter now holds both interfaces and atomically loads all 38 original
 registers, rejecting geometry padding before mutation. Production keeps the

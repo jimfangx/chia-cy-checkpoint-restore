@@ -48,6 +48,8 @@ puts "NASTI_RESTORE_SYNTH_PASS flops=[llength $flops] raw_clock=1"
 '''
 
 
+SOURCES = (*SOURCES, 'sims/firesim/sim/midas/src/main/scala/midas/widgets/CheckpointWidgetEndpoint.scala')
+
 def sha(p):
     return hashlib.sha256(Path(p).read_bytes()).hexdigest()
 

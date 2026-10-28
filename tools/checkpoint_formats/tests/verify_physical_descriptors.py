@@ -63,6 +63,8 @@ puts "PHYSICAL_DESCRIPTOR_WIDGET_SYNTH_PASS immutable_rom=1 external_network=1"
 '''
 
 
+SOURCES = (*SOURCES, 'sims/firesim/sim/midas/src/main/scala/midas/widgets/CheckpointWidgetEndpoint.scala')
+
 def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 

@@ -45,6 +45,7 @@ def source_files():
     for folder in ('core','bridges'):
         files.update((ROOT/'sims/firesim/sim/midas/src/main/cc'/folder).glob('*.h'))
     files.add(ROOT/'sims/firesim/sim/midas/src/main/cc/core/checkpoint_capture.cc')
+    files.add(ROOT/'sims/firesim/sim/midas/src/main/scala/midas/widgets/CheckpointWidgetEndpoint.scala')
     files.update(ROOT/'sims/firesim/sim/midas/src/main/verilog'/n for n in RTL)
     files.add(ROOT/'sims/firesim/sim/midas/src/main/verilog/CheckpointPhysicalStateRouter.sv')
     files.update([scala/'main/scala/midas/core/FPGATop.scala',
