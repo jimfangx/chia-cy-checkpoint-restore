@@ -36,12 +36,16 @@ check also retains all four per-hart register-file model annotations.
 
 The exact generated Rocket source contains **181 FPGATop local registers and two
 F1Shim local counters**. Separate shell invocations can bank these 183 original
-owners. They are not yet composed with the 10,910 regional descriptors or the
-registered widget. The production manifest therefore still reports **1,241
-uncovered functional entries and one unsupported transport owner**. The remaining
-original entries include 956 under 22 unique raw subtrees and 102 under eleven
-shared-definition subtrees. Freezing the whole stream or control subtree would
-also stop checkpoint DMA/MMIO, so those owners require explicit separation.
+owners. Iteration 260 generated these separately from the 10,910 regional
+descriptors. Iteration 261 composes the local and regional readout in one
+diagnostic network, with **11,093 descriptors / 1,058 uncovered original
+functional entries**. Connection to the registered widget now explicitly rejects
+eight inlined widget-local owners whose freeze would stop the checkpoint stream.
+See [f2-shell-region-routing.md](f2-shell-region-routing.md). The opaque transport
+owner remains unsupported. Remaining original entries include 956 under 22 unique
+raw subtrees and 102 under eleven shared-definition subtrees. Stream/control
+owners and the eight transport locals require explicit separation and atomic
+capture ownership; a readout descriptor alone does not establish that ownership.
 
 Iteration 260 evidence and exact commands are retained under
 `automations/checkpoint_loop/runs/aws-f2/iteration260/`. The directed component

@@ -68,3 +68,14 @@ The exact Rocket diagnostic binds 10,910 selected descriptors and three CE slots
 at MMIO 0x200 / stream 4. It retains 1,241 uncovered functional entries and the
 opaque transport owner, and ends at the mandatory incomplete-image guard.
 This establishes compiler integration, not physical checkpoint acceptance.
+
+Iteration 261 adds the optional `--simulator-native-shell-compiler-probe` request
+for concrete root/ancestor local storage alongside disjoint child regions. The
+probe preserves every local reference/mapping/bank and a separately reconstructed
+`transport-freeze-conflicts.json`. A shell overlapping original registered-widget
+storage rejects before connection. Native inline storage history supplies its
+actual owners; guessed flattened register prefixes are insufficient. The exact
+Rocket diagnostic network has 11,093 descriptors and 1,058 uncovered original
+functional entries, and rejects eight live widget-local owners. This remains
+nondeployable and retains every original physical/image/restore guard. See
+[f2-shell-region-routing.md](f2-shell-region-routing.md).

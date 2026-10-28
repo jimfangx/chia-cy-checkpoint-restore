@@ -35,7 +35,64 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 260,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 261,
+**in_progress; local ancestor/region readout composition and live-transport guard**.
+`NativeCheckpointRegions.generate(..., shellTargets=...)` now reconstructs local
+ancestor banks alongside disjoint native child regions. Exact Rocket reconstructs
+**11,093 descriptors / 1,058 uncovered original functional entries**, including
+181 FPGATop and two F1Shim original local owners. Connection explicitly rejects
+**eight inlined CheckpointCaptureWidget owners** whose freeze would stop the same
+MMIO/DMA stream required to drain capture. The guard follows original registered-
+widget identity through actual native storage mappings, retains
+`transport-freeze-conflicts.json` and emits no connected production image.
+Independent source auditing checks local hold equations/selectors and all four
+concrete original/composed hart RF memory owners and shapes. See
+[f2-shell-region-routing.md](f2-shell-region-routing.md).
+
+Full final-source validation passes **316 Scala tests / 47 suites plus twelve
+preparation tests, 336 checkpoint Python / 45 manager tests, sixteen native OOC
+and sixteen fresh EDA SP2 scopes**, with ASan/UBSan host, FCFS and atomic-cut
+checks retained. All **six independent waveform audits** pass. The mixed
+component passes **8,452 checks / four component cuts / 288 reads / 864 stalls**.
+Native OOC uses **2,165 LUTs / 1,128 registers**, with 405 audited raw-clock state
+registers and four original gates plus two generated root-mask gates. Eight
+rehashed corruptions reject. Independent waves check 1,672 healthy falling-edge
+samples, including 1,447 frozen samples. Separate compiled CE and local-payload
+defects retain their exact source/log/waves. The local defect stops at fixture
+cycle 36 / first local word 64 with freeze held and acknowledgment low. These
+are component labels, not CPU cuts. No full-image timing closure is claimed.
+
+Fresh initialized AWS/manager, native Vivado 2025.2/F2 HDK and Fabric localhost
+checks pass. Native synthesis followed Java generation and peaked at two jobs.
+Final resource inventory records no active tagged F2 runtime, pending AFI or
+native Java/Vivado job; no new instance or AFI was requested. Complete independent
+source/receipt/protection/resource/component auditing passes. Existing controller
+checkpoints were published FireSim first (`0feb16b3`), then Chipyard (`38979b24`);
+independent remote tips match. The read-only Chipyard tracking-ref warning is
+retained. Both plans and initialized manager YAMLs retain entry hashes. No
+staging/commits or dirty conda edits. Two managed spawn attempts failed before
+startup; no worker was created and all LLM work remained central.
+
+Recovery: `verification-commands.json`, `scala-selected.json`, `native-selected.json`,
+`rocket-region-probe-selected.json`, `rocket-composition-audit-selected.json`,
+`probe-audit-selected.json`, `component-regressions/selected.json`,
+`shell-regions-wave-selected.json`, `final-audit-selected.json`,
+`final-inventory-selected.json`, `development-attempts.json` and `delegation.json`
+under `runs/aws-f2/iteration261/`. Original Scala syntax/type/equality diagnostics,
+the interrupted stale-source exploratory JVM, source-info audit/parser repair,
+standalone OpenSSH key failure (Fabric/plain manager inventory succeeds) and
+fault-source provenance correction are preserved. No failed or interrupted
+attempt is final verification. Follow [github-publication.md](github-publication.md).
+
+Next: explicit atomic ownership of the eight live widget locals and opaque
+transport, 1,058 remaining original raw/shared entries, common cut/reset/external
+writers, functional DRAM, bridge/host/pre-FAME and added bank/router/control state.
+Full localhost image/P&R/AFI, active all-hart early/warm/outstanding/late FPGA
+captures, paired complete zero-edge/finite/live continuation beyond the trace,
+full CPU debug waves and rolling hardware recovery remain required. Reuse
+iteration194's initialized ExternallyProvisioned localhost invocation.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 260,
 **in_progress; enclosing-module banked readout and annotation ownership fix**.
 `NativeCheckpointShellStateAccess` banks local storage without replacing or
 freezing original children. Separate exact-Rocket invocations reconstruct

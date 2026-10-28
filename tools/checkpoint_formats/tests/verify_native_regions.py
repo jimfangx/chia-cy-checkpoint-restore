@@ -15,7 +15,7 @@ import subprocess
 import tempfile
 from tools.checkpoint_formats import toolchain
 from tools.checkpoint_formats.codec import require
-from tools.checkpoint_formats.tests.audit_native_regions import audit
+from tools.checkpoint_formats.tests.audit_native_regions import audit, audit_local_negatives
 from tools.checkpoint_formats.tests.verify_native_functional_bank import sha
 
 ROOT=Path(__file__).resolve().parents[3]
@@ -38,6 +38,8 @@ SOURCES=tuple(sorted(set(SOURCES) | {
     str(p.relative_to(ROOT)) for p in (ROOT/'sims/firesim/sim/midas/src/main/scala/midas/checkpoint').glob('*.scala')
 } | {
     'sims/firesim/sim/midas/src/test/scala/midas/checkpoint/NativeCheckpointInPlaceSpec.scala',
+    'sims/firesim/sim/midas/src/test/scala/midas/checkpoint/NativeCheckpointShellRegionsSpec.scala',
+    'tools/checkpoint_formats/tests/native_shell_regions_tb.sv',
     'tools/checkpoint_formats/tests/audit_checkpoint_regions.py',
     'tools/checkpoint_formats/tests/audit_physical_clock_plan.py',
     'tools/checkpoint_formats/tests/audit_native_inplace_annotations.py',
@@ -59,6 +61,7 @@ def selectors(manifest):
             path=r['hierarchy'].split('.')[-1]
             other='other_' if r['region']==1 else ''
             if path=='cycles': values=['expected_cycle']
+            elif path in ('host_ticks','control_ticks'): values=['expected_raw']
             elif path=='value':
                 side='left' if '.left_.' in r['hierarchy'] else 'right'
                 values=[f'64\'(expected_{other}{side} >> {64*i})' for i in range(r['depth'])]
@@ -73,8 +76,11 @@ def selectors(manifest):
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--mode',choices=('vivado','vcs'),required=True)
+    p.add_argument('--local-shells',action='store_true',help='Include both original raw ancestor counters in shared readout')
     p.add_argument('--generated',type=Path);p.add_argument('--native',type=Path);p.add_argument('--out',type=Path,required=True)
     a=p.parse_args();require(a.out.resolve().is_relative_to(RUNS),'evidence under runs required')
+    entries=16 if a.local_shells else 14
+    words=288 if a.local_shells else 280
     a.out.mkdir(parents=True,exist_ok=True);out=Path(tempfile.mkdtemp(prefix=a.mode+'-',dir=a.out.resolve()))
     sources={n:sha(ROOT/n) for n in SOURCES};commands=[]
     def run(argv,name,expected=0):
@@ -85,20 +91,22 @@ def main():
         return Path(row['log']).read_text()
     doc=dict(status='running',backend='f2' if a.mode=='vivado' else 'eda',observed_utc=datetime.now(timezone.utc).isoformat(),
         host=socket.gethostname(),source_root=str(ROOT),sources=sources,physical_fpga_capture=False,
-        scope='multi-region graft component only; production owners and full image remain incomplete')
+        scope='multi-region graft component only; production owners and full image remain incomplete',local_shells=a.local_shells)
     (out/'summary.json').write_text(json.dumps(doc,indent=2)+'\n')
     print(out,flush=True)
     if a.mode=='vivado':
         require(ROOT==Path('/home/ubuntu/chia-cy-checkpoint-restore') and shutil.which('vivado'),'native localhost Vivado required')
         require(a.generated is not None and a.native is None,'explicit generated input required')
         shutil.copytree(a.generated,out/'generated');doc['audit']=audit(out/'generated')
+        if a.local_shells:doc['negative_audits']=audit_local_negatives(out/'generated',out/'audit-negatives')
         for name in SOURCES:
             dest=out/'sources'/Path(name).name;require(not dest.exists(),'source basename collision')
             dest.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(ROOT/name,dest)
         vendor=Path(os.environ['XILINX_VIVADO'])/'data/verilog/src'
         for name,path in [('BUFGCE.v',vendor/'unisims/BUFGCE.v'),('glbl.v',vendor/'glbl.v')]:shutil.copyfile(path,out/name)
         manifest=json.loads((out/'generated/manifest.json').read_text())
-        require(len(manifest['state'])==14 and manifest['uncovered_physical_gates']==[],'wrong directed fixture')
+        require(len(manifest['state'])==entries and manifest['uncovered_physical_gates']==[],'wrong directed fixture')
+        require(doc['audit']['local_shells']==(2 if a.local_shells else 0),'wrong local-shell coverage')
         (out/'native-regions-selectors.svh').write_text(selectors(manifest))
         # The test emitter records the original shell placement. Bind the
         # explicit component-fixture placement conversion; preserve originals.
@@ -147,19 +155,21 @@ puts "NATIVE_REGIONS_SYNTH_PASS raw_registers=$raw_registers gates=6"
         require(str(ROOT).startswith('/scratch/') and toolchain.VCS=='/tools/Synopsys/vcs/Y-2026.03-SP2/bin/vcs','EDA SP2 only')
         require(a.native is not None and a.generated is None,'explicit native receipt required')
         native=json.loads((a.native/'summary.json').read_text())
-        require(native['status']=='pass' and native['backend']=='f2' and native['sources']==sources,'stale native source pins')
+        require(native['status']=='pass' and native['backend']=='f2' and native['sources']==sources and
+            native['local_shells']==a.local_shells,'stale native source pins or different local coverage')
         for group in ('inputs','artifacts'):
             for name,value in native[group].items():require(sha(a.native/name)==value,'changed native input/artifact '+name)
         for name in native['inputs']:
             dest=out/name;dest.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(a.native/name,dest)
         doc['audit']=audit(out/'generated');doc['native_receipt_sha256']=sha(a.native/'summary.json')
-        files=json.loads((out/'files.json').read_text())+['BUFGCE.v','glbl.v','sources/native_regions_tb.sv','sources/checkpoint_widget_exit.cc']
+        bench='native_shell_regions_tb' if a.local_shells else 'native_regions_tb'
+        files=json.loads((out/'files.json').read_text())+['BUFGCE.v','glbl.v','sources/'+bench+'.sv','sources/checkpoint_widget_exit.cc']
         common=[toolchain.VCS,'-full64','-sverilog','-timescale=1ns/1ps','-Mupdate','-debug_access+all',
-            '+incdir+'+str(out),'-top','native_regions_tb','-top','glbl']
+            '+incdir+'+str(out),'-top',bench,'-top','glbl']
         compiled=run([*common,'-Mdir=csrc','-o','simv',*files],'compile')
         require('Warning-[IPDASP]' not in compiled,'emitted ANSI-port/wire collision; inspect compile.log')
         text=run([out/'simv','-no_save'],'healthy')
-        require(re.search(r'NATIVE_REGIONS_PASS checks=\d+ cuts=4 words=280 stalls=840 target_cycle=\d+',text),'incomplete four-cut execution')
+        require(re.search(r'NATIVE_REGIONS_PASS checks=\d+ cuts=4 words='+str(words)+r' stalls='+str(words*3)+r' target_cycle=\d+',text),'incomplete four-cut execution')
         doc['execution']=re.search(r'NATIVE_REGIONS_PASS .*',text)[0]
         shutil.move(out/'native-regions.vcd',out/'healthy.vcd')
         for fault in ('missing-owner','ce-drift'):
@@ -177,6 +187,20 @@ puts "NATIVE_REGIONS_SYNTH_PASS raw_registers=$raw_registers gates=6"
         text=run([out/'fault-simv','-no_save'],'wrong-ce',1)
         require('reason=exact selected regional word/error' in text and 'response_ack=0' in text,'fault acknowledged or failed at wrong boundary')
         shutil.move(out/'native-regions.vcd',out/'wrong-ce.vcd')
+        if a.local_shells:
+            # A separately compiled payload defect on the first local owner.
+            # The public-output oracle must stop before acknowledging its word.
+            needle='assign region_response_data[128 +: 64] = checkpoint_shell_region0_ckpt_resp_data;'
+            require(good.count(needle)==1,'ambiguous local payload fault site')
+            shellfault=out/'wrong-shell.sv'
+            shellfault.write_text(good.replace(needle, needle[:-1]+" ^ 64'd1;"))
+            shellfaultfiles=[str(shellfault) if f==str(path.relative_to(out)) else f for f in files]
+            run([*common,'-Mdir=shell-fault-csrc','-o','shell-fault-simv',*shellfaultfiles],'shell-fault-compile')
+            text=run([out/'shell-fault-simv','-no_save'],'wrong-shell',1)
+            require('reason=exact selected regional word/error' in text and 'response_ack=0' in text,
+                'local payload corruption acknowledged or failed at wrong boundary')
+            require(re.search(r'cut=1 cycle=\d+ word=64\b',text),'local corruption did not stop at its first word')
+            shutil.move(out/'native-regions.vcd',out/'wrong-shell.vcd')
         doc['inputs']=native['inputs']
         doc['artifacts']={str(p.relative_to(out)):sha(p) for p in out.iterdir() if p.is_file() and p.name not in ('summary.json',) and p.suffix in ('.vcd','.log','.sv','.json')}
     require(sources=={n:sha(ROOT/n) for n in SOURCES},'source epoch changed during verification')

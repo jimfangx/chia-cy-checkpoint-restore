@@ -10,9 +10,28 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 
 | Family | F2 workload / custom capture image | FPGA Level-1 to EDA metasim | FPGA Level-2 finite RTL replay | Live RTL / rolling hardware recovery |
 | --- | --- | --- | --- | --- |
-| Rocket (all four harts) | baseline verified: real F2 slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress: bank/MMIO/DMA fixtures synthesize locally, ordinary whole-root bank trial enforces 2,120 typed dedup groups and passes exact native BUFGCE XDC pin contracts and retires only NoDedup definitions removed by actual native inlining; exact native RAM-style memory hints now translate and the final consumer emits late public host-widget XDC; native SimulationMapping now links and renames the exact TargetBox boundary and all local/nonlocal targets together; the next exact-recipe rejection is the FASED physical BUFGCE CE latch lacking a synthesized capture owner/common-low-phase cut; post-mapping InlineInstances runs before inventory/banking with complete concrete register/RAM rename provenance; exact stage emitter policy and retired abstract clock-gate source have immutable final-emission/history provenance; passive generated headers/defines retain exact-byte emission provenance; stage input retains immutable circuit/module history; consumed bridge extraction retains immutable circuit/connectivity history; consumed pre-link requests retain immutable circuit/mapping history; deduplication-history and target-box instance paths, global memory policies, consumed-input/channel-frequency context, XDC and memory-model labels translate with provenance; all seven FPGA plusarg instances have source-checked constant semantics; three physical BUFGCE owners, complete common-cut/memory/host binding and image P&R/AFI remain pending | pending | pending | pending |
+| Rocket (all four harts) | baseline verified: real F2 slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress: bank/MMIO/DMA fixtures synthesize locally, ordinary whole-root bank trial enforces 2,120 typed dedup groups and passes exact native BUFGCE XDC pin contracts and retires only NoDedup definitions removed by actual native inlining; exact native RAM-style memory hints now translate and the final consumer emits late public host-widget XDC; native SimulationMapping now links and renames the exact TargetBox boundary and all local/nonlocal targets together; the ordinary whole-root trial rejects the FASED physical BUFGCE CE latch lacking a synthesized capture owner/common-low-phase cut; the regional/local probe also rejects eight inlined widget-local MMIO/DMA owners before connection; post-mapping InlineInstances runs before inventory/banking with complete concrete register/RAM rename provenance; exact stage emitter policy and retired abstract clock-gate source have immutable final-emission/history provenance; passive generated headers/defines retain exact-byte emission provenance; stage input retains immutable circuit/module history; consumed bridge extraction retains immutable circuit/connectivity history; consumed pre-link requests retain immutable circuit/mapping history; deduplication-history and target-box instance paths, global memory policies, consumed-input/channel-frequency context, XDC and memory-model labels translate with provenance; all seven FPGA plusarg instances have source-checked constant semantics; three physical BUFGCE owners, complete common-cut/memory/host binding and image P&R/AFI remain pending | pending | pending | pending |
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
+
+Iteration 261 composes the 181 FPGATop and two F1Shim original local owners
+with the existing regional readout, yielding 11,093 diagnostic descriptors and
+1,058 uncovered original functional entries. Independent exact-source audit
+checks all local identities, equations, selectors and four hart RF annotations.
+The actual compiler explicitly rejects eight inlined CheckpointCaptureWidget
+owners: freezing them would stop the same MMIO/DMA transport required to drain
+capture. Their original widget identity and exact native storage renames bind
+`transport-freeze-conflicts.json`; no connected image or physical capture is
+emitted. The opaque transport and full atomic/memory/host/pre-FAME coverage remain
+unsupported. Full 316 Scala / 47 suites plus twelve preparation tests, 336 Python /
+45 manager tests, sixteen native and sixteen fresh EDA SP2 scopes, ASan/UBSan,
+FCFS/cut checks and six waveform audits pass. The mixed component uses 2,165 LUTs /
+1,128 registers and passes 8,452 checks / four fixture cuts / 288 reads / 864
+stalls. Eight rehashed corruptions reject, and the compiled local defect stops at
+its first word with freeze held and no acknowledgment. Final source/receipt/
+resource/protection audit passes. Receipts and raw commands are under
+`runs/aws-f2/iteration261/`. Every physical migration column remains pending. See
+[f2-shell-region-routing.md](f2-shell-region-routing.md).
 
 Iteration 260 adds enclosing-module local-state banks, separately reconstructing
 181 FPGATop and two F1Shim original owners while retaining original children and
