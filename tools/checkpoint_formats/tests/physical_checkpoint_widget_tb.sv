@@ -53,6 +53,48 @@ module physical_checkpoint_widget_tb;
   reg [511:0] heldFrame;
   reg stalled=0, corrupt=0;
   string fault, frames_path;
+  reg [711:0] shadow_expected;
+  integer shadow_captures=0,shadow_word_checks=0,sw;
+  reg [63:0] shadow_word;
+  always @(posedge clock) begin
+    if(!reset && dut.adapter.io_request_valid && dut.adapter.io_request_ready &&
+       dut.adapter.io_request_bits_write && dut.adapter.io_request_bits_address=='h78 &&
+       dut.adapter.io_request_bits_data==1 && !dut.snapshot.io_error) begin
+      shadow_expected={dut.localError,
+        dut.localData,
+        dut.localValid,
+        dut.counterOverflow,
+        dut.hostDrainedFrames,
+        dut.producedSnapshot,
+        dut.producedFrames,
+        dut.invalid,
+        dut.transport_physicalTransport.physical.error,
+        dut.transport_physicalTransport.physical.cut_cycle,
+        dut.transport_physicalTransport.physical.captured_ce,
+        dut.transport_physicalTransport.physical.release_pending,
+        dut.transport_physicalTransport.physical.sampled,
+        dut.transport_physicalTransport.physical.freeze_low,
+        dut.transport_physicalTransport.transport.cut.error,
+        dut.transport_physicalTransport.transport.cut.cut_cycle,
+        dut.transport_physicalTransport.transport.cut.state,
+        dut.transport_physicalTransport.transport.address,
+        dut.transport_physicalTransport.transport.descriptor_entry,
+        dut.transport_physicalTransport.transport.mmio_response_error,
+        dut.transport_physicalTransport.transport.mmio_rdata,
+        dut.transport_physicalTransport.transport.mmio_response_valid,
+        dut.transport_physicalTransport.transport.transport_error,
+        dut.transport_physicalTransport.transport.outstanding,
+        dut.transport_physicalTransport.transport.stream_crc,
+        dut.transport_physicalTransport.transport.words,
+        dut.transport_physicalTransport.transport.saved_data,
+        dut.transport_physicalTransport.transport.saved_depth,
+        dut.transport_physicalTransport.transport.saved_width,
+        dut.transport_physicalTransport.transport.saved_slot,
+        dut.transport_physicalTransport.transport.saved_bank,
+        dut.transport_physicalTransport.transport.state};
+      shadow_captures++;
+    end
+  end
   localparam [255:0] HASH=256'h0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef;
   PhysicalTransportNetwork network(.clock(clock),.reset(reset),.target_cycle(target_cycle),
     .state0(state[0]),.state1(state[1]),.state2(state[2]),
@@ -130,6 +172,17 @@ module physical_checkpoint_widget_tb;
   end endtask
   task command(input [31:0] value, input [1:0] expected); begin aw(0); w(value,1); b(expected); end endtask
   task readReg(input [31:0] offset, input [31:0] value); begin ar(offset); r(0,1,value); end endtask
+  task shadowCommand(input [31:0] value, input [1:0] status); begin
+    aw('h78); w(value,1); b(status);
+  end endtask
+  task readShadow; begin
+    readReg('h88,1); readReg('h8c,saved_cycle[31:0]); readReg('h90,saved_cycle[63:32]);
+    readReg('h94,12);
+    for(sw=0;sw<12;sw++) begin
+      aw('h7c); w(sw,1); b(0); shadow_word=shadow_expected>>(sw*64);
+      readReg('h80,shadow_word[31:0]); readReg('h84,shadow_word[63:32]); shadow_word_checks++;
+    end
+  end endtask
   always @(posedge clock) begin
     step++;
     if(reset) begin
@@ -210,12 +263,15 @@ module physical_checkpoint_widget_tb;
       #2; check(!streamValid && !bankValid && !physical_read_enable,"fault suppresses read/publication");
       repeat(4) tick();
       check(physical_failed && freeze && streamAbort,"physical fault is sticky and stream invalid");
+      shadowCommand(1,2); readReg('h88,0);
       command(4,0);
       repeat(8) begin tick(); check(target_cycle==saved_cycle && freeze,"failed cut acknowledges zero edges"); end
       readReg('h60,1);
       $display("PHYSICAL_WIDGET_REJECT fault=%s cycle=%0d acknowledged_edges=0",fault,saved_cycle);
       $finish;
     end
+    readReg('h60,0); shadowCommand(1,0); readShadow();
+    shadowCommand(1,2); // preserve occupied epoch, never resample
     repeat(6) tick();
     while(frames<9) begin
       @(negedge clock); streamReady=step%4==0;
@@ -224,6 +280,7 @@ module physical_checkpoint_widget_tb;
     @(negedge clock); streamReady=0;
     repeat(5) begin tick(); check(target_cycle==saved_cycle && freeze,"publication stall preserves cut"); end
     readReg(4,10); readReg('h18,7); readReg('h20,5);
+    readShadow(); shadowCommand(2,0); readReg('h88,0);
     command(2,0);
     while(physical_stopped || freeze) tick();
     cuts++;
@@ -253,6 +310,8 @@ module physical_checkpoint_widget_tb;
     @(negedge clock); reset=0; frames=0; words=0;
     snapshot(17);
     while(target_cycle<96) tick();
+    check(shadow_captures==6 && shadow_word_checks==144,"complete physical shadow readback");
+    $display("PHYSICAL_WIDGET_SHADOW_PASS captures=%0d words=%0d",shadow_captures,shadow_word_checks);
     $display("PHYSICAL_WIDGET_PASS checks=%0d cuts=%0d stalls=%0d recovered_cycles=%0d",checks,cuts,stalls,target_cycle);
     if(fd) $fclose(fd);
     $finish;

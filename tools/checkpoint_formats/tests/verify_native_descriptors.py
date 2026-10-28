@@ -25,6 +25,8 @@ SCALA = 'sims/firesim/sim/midas/src/'
 SOURCES = (
     SCALA+'main/scala/midas/widgets/CheckpointCaptureDescriptors.scala',
     SCALA+'main/scala/midas/widgets/CheckpointCaptureWidget.scala',
+    SCALA+'main/scala/midas/widgets/CheckpointLiveWidgetSnapshot.scala',
+    SCALA+'main/scala/midas/checkpoint/CheckpointTransportControlState.scala',
     SCALA+'main/scala/midas/checkpoint/GeneratedStateBankAccess.scala',
     SCALA+'main/scala/midas/checkpoint/NativeFunctionalBankProbe.scala',
     SCALA+'main/scala/midas/checkpoint/PhysicalClockStateBank.scala',

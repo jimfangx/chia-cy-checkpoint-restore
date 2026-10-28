@@ -17,6 +17,7 @@ import tempfile
 
 from tools.checkpoint_formats import toolchain
 from tools.checkpoint_formats.codec import require
+from tools.checkpoint_formats.tests.audit_widget_shadow import audit as audit_shadow
 from tools.checkpoint_formats.tests.verify_physical_state_router_transport import (
     audit_frames, check_network, audit_ce as check_ce, CE_FILES, NETWORK_FILES,
     SOURCES as ROUTER_SOURCES)
@@ -29,6 +30,10 @@ TB = 'tools/checkpoint_formats/tests/physical_checkpoint_widget_tb.sv'
 HEADER = 'tools/checkpoint_formats/tests/physical_state_router_fixture.svh'
 EXIT = 'tools/checkpoint_formats/tests/checkpoint_widget_exit.cc'
 SOURCES = tuple(dict.fromkeys((WIDGET,
+    'sims/firesim/sim/midas/src/main/scala/midas/widgets/CheckpointLiveWidgetSnapshot.scala',
+    'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/CheckpointTransportControlState.scala',
+    'tools/checkpoint_formats/tests/audit_widget_shadow.py',
+    'tools/checkpoint_formats/tests/verify_transport_control_state.py',
     'sims/firesim/sim/midas/src/main/scala/midas/widgets/CheckpointCaptureDescriptors.scala',
     'sims/firesim/sim/midas/src/test/scala/midas/widgets/CheckpointCaptureDescriptorsSpec.scala',
     'sims/firesim/sim/midas/src/test/scala/midas/widgets/CheckpointCaptureWidgetSpec.scala',
@@ -46,6 +51,18 @@ synth_design -top CheckpointCaptureWidget -part xcvu47p-fsvh2892-2-e -mode out_o
 create_clock -name host_clock -period 7.142857 [get_ports clock]
 if {[llength [get_cells -hier -filter {REF_NAME == BUFGCE}]] != 0} {error "physical widget must use the compiler external gate network"}
 if {[llength [get_cells -hier -filter {REF_NAME == FDRE && IS_C_INVERTED == 1}]] != 1} {error "missing unique falling-edge mask"}
+set shadow [get_cells -hier -filter {NAME =~ snapshot/* && REF_NAME =~ FD*}]
+if {[llength $shadow] < 700} {error "missing immutable live-widget snapshot storage"}
+set raw [get_nets -of_objects [get_ports clock]]
+set sf [open shadow-registers.tsv w]
+foreach cell $shadow {
+  set pin [get_pins -of_objects $cell -filter {REF_PIN_NAME == C}]
+  if {[llength $pin] != 1 || [get_property IS_INVERTED $pin] != 0 ||
+      [lsearch -exact [get_nets -segments -of_objects $pin] $raw] < 0} {error "snapshot lost ungated posedge $cell"}
+  puts $sf "$cell\t[get_property REF_NAME $cell]"
+}
+close $sf
+puts "LIVE_WIDGET_SNAPSHOT_SYNTH_PASS registers=[llength $shadow] ungated=1"
 report_utilization -file utilization.rpt
 report_timing_summary -file timing.rpt
 write_checkpoint -force physical-widget.dcp
@@ -134,7 +151,7 @@ def main():
         text=run(['vivado','-mode','batch','-source','synth.tcl'],'synth')
         require('PHYSICAL_WIDGET_SYNTH_PASS external_network=1 falling_edge_masks=1 duplicate_gates=0' in text and
                 not re.search(r'ERROR:|CRITICAL WARNING:',text),'physical Widget native synthesis failed')
-        summary['artifacts']={n:sha(out/n) for n in ('physical-widget.dcp','utilization.rpt','timing.rpt','synth.log','commands.json')}
+        summary['artifacts']={n:sha(out/n) for n in ('physical-widget.dcp','utilization.rpt','timing.rpt','synth.log','commands.json','shadow-registers.tsv')}
     elif args.mode=='vcs':
         require(os.environ.get('VCS_HOME')==toolchain.VCS_HOME and Path(toolchain.VCS).is_file(), 'EDA native VCS SP2 required')
         native=validate(args.native,'f2'); summary['endpoint_module']=native['endpoint_module']
@@ -154,6 +171,9 @@ def main():
         text=run([healthy/'simv','-no_save','+frames='+str(healthy/'frames.hex')],'healthy',healthy)
         match=re.search(r'PHYSICAL_WIDGET_PASS checks=(\d+) cuts=6 stalls=(\d+) recovered_cycles=96',text)
         require(match is not None,'incomplete physical Widget execution')
+        require('PHYSICAL_WIDGET_SHADOW_PASS captures=6 words=144' in text,
+                'missing complete physical transport/local shadow readback')
+        summary['shadow_wave_audit'] = audit_shadow(healthy/'physical-widget.vcd', physical=True)
         summary.update(checks=int(match[1]),cuts=6,dma_stalls=int(match[2]),recovered_cycles=96)
         captures=re.findall(r'PHYSICAL_WIDGET_CAPTURE requested=(\d+) accepted=(\d+) cut=(\d+) words=7',text)
         require(len(captures)==6 and all(int(c)==int(a) for _,a,c in captures),'bad actual adapter edge cut labels')

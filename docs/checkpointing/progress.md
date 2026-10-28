@@ -35,7 +35,76 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 261,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 262,
+**in_progress; synthesized live-widget shadow MMIO and host observation/recovery**.
+The actual CheckpointCaptureWidget now atomically copies its versioned source
+control vector and eight original local registers into an immutable raw-clock
+MMIO bank. Capture requires an acknowledged coordinator cut with the exact
+label, every declared owner present/frozen and, in physical mode, the matching
+post-stop sampler. MMIO/DMA continue during readout. The generated header binds
+layout/offsets; the host session checks selectors, padding and both cut labels,
+retains freeze on failures and explicitly discards uncertain writes. Existing
+foreign staging history is preserved. See
+[f2-live-widget-shadow.md](f2-live-widget-shadow.md).
+
+Final verification passes **317 Scala / 48 suites plus twelve preparation tests,
+336 checkpoint Python / 45 manager tests, seventeen native OOC and seventeen
+source-matched fresh EDA SP2 component scopes**, retaining ASan/UBSan host, FCFS
+and atomic-cut checks. All six retained independent waveform audits and the new
+widget shadow waveform audits pass. Host ASan/UBSan executes **1,774 checks**, four
+successful shadow reads and eleven failure/recovery cases. Both concrete widths
+exercise **130 standalone captures / 2,816 word reads**. The actual MMIO widget
+checks thirty retained word reads; the physical widget checks **six component
+cuts / 144 complete word reads / 43,233 checks / 2,459 stalled cycles**, with
+reset recovery to target cycle 96. A separately compiled staging defect stops at
+component cut 42 / word 0 with AXI read-ready low. These are component labels,
+not CPU or FPGA workload cuts.
+
+Native physical-widget OOC uses **2,641 LUTs / 1,661 registers**. Its **811**
+shadow registers are all on the ungated positive clock: 712 saved bits, 64 label
+bits, 32 index bits, one valid bit and two native index replicas. The source-policy
+component uses 5,714 LUTs / 2,757 registers / six BUFGCEs; 140 MHz OOC setup/hold
+estimates remain **−0.172/−0.074 ns**, with unconstrained I/O. No full-image timing
+closure is established. Independent physical source/native/EDA/frame/debug audit
+and eight rehashed evidence corruptions pass; identity-header reconstruction and
+all sixteen rehashed identity corruptions pass. Final independent current-source,
+receipt, waveform, protected-input and resource integrity audit passes
+(`final-audit-selected.json`).
+
+Fresh exact Rocket diagnostics retain **11,093 descriptors / 1,062 uncovered
+functional entries**, including four new staging registers. Connection still
+rejects the eight original self-freezing widget locals. Ordinary production
+compilation still rejects the FASED physical CE owner/common-cut contract. No
+image is emitted or ownership exemption added. Complete transport/adapter/stream,
+reset/external writer, functional DRAM, bridge/host and pre-FAME ownership and
+restore mapping remain required. Full localhost P&R/AFI, real all-hart active cuts,
+paired FPGA-origin zero-edge/finite/live migration beyond the recorded trace,
+CPU debug waves and rolling FPGA recovery remain pending.
+
+Recovery: `verification-commands.json`, `scala-selected.json`,
+`rocket-region-probe-selected.json`, `rocket-composition-audit-selected.json`,
+`probe-audit-selected.json`, `native-selected.json`, `component-regressions/selected.json`,
+`retained-selected.json`, `physical-native-selected.json`,
+`physical-eda-selected.json`, `physical-audit-selected.json`,
+`source-policy-resources-selected.json`, `final-inventory-selected.json` and
+`final-audit-selected.json` under `runs/aws-f2/iteration262/`. Original stale-JVM,
+premature/mis-mapped EDA and old-header-audit failures remain in
+`development-attempts.json`. Native recovery retains fourteen passing current-turn
+receipts only after exact current source/input/artifact validation and reruns both
+failed/stale scopes; original receipts are unchanged. The final retained EDA run
+uses stable full Scala inputs and corrected manager-to-EDA path mapping.
+
+Initialized AWS, Vivado 2025.2/F2 HDK and Fabric localhost checks pass. Native
+concurrency never exceeds two, with no large Java/synthesis overlap. Final scoped
+inventory records no active tagged F2 runtime, pending AFI or native Java/Vivado
+job; none was requested. Reuse iteration194's initialized localhost invocation.
+Existing controller checkpoints were published FireSim first (`20a41f34`), then
+Chipyard (`7e8b26e7`); independent remote tips match. The Chipyard read-only
+tracking-ref warning is retained. Plans and initialized YAML entry hashes remain
+unchanged; no staging/local commits or conda edits. Managed delegation failed
+before startup; no worker exists, and every central tool session is joined.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 261,
 **in_progress; local ancestor/region readout composition and live-transport guard**.
 `NativeCheckpointRegions.generate(..., shellTargets=...)` now reconstructs local
 ancestor banks alongside disjoint native child regions. Exact Rocket reconstructs

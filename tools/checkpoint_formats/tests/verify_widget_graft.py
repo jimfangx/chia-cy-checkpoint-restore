@@ -49,6 +49,8 @@ def source_files():
     files.add(ROOT/'sims/firesim/sim/midas/src/main/verilog/CheckpointPhysicalStateRouter.sv')
     files.update([scala/'main/scala/midas/core/FPGATop.scala',
                   scala/'main/scala/midas/widgets/CheckpointCaptureWidget.scala',
+                  scala/'main/scala/midas/widgets/CheckpointLiveWidgetSnapshot.scala',
+                  scala/'main/scala/midas/checkpoint/CheckpointTransportControlState.scala',
                   scala/'main/scala/midas/stage/GoldenGateCompilerPhase.scala'])
     return tuple(sorted(str(p.relative_to(ROOT)) for p in files))
 

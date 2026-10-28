@@ -14,6 +14,19 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 262 connects an immutable live-widget MMIO shadow and host-session
+observation/recovery API. Final 317 Scala / 48 suites plus twelve preparation,
+336 Python / 45 manager, seventeen native OOC and seventeen source-matched EDA
+component scopes pass, retaining ASan/UBSan host, FCFS, atomic-cut and all waveform
+audits. Physical-widget OOC uses 2,641 LUTs / 1,661 registers, with 811 audited
+raw positive-edge shadow registers. Six fixture cuts / 144 word reads pass;
+a compiled staging defect stops at its first word without AXI acknowledgement.
+Exact Rocket still refuses eight self-freezing locals and retains 1,062 uncovered
+entries, including four staging owners. No complete owner mapping, image, AFI,
+FPGA capture or CPU migration is established. All physical migration columns stay
+pending. Exact receipts/commands are under `runs/aws-f2/iteration262/`. See
+[f2-live-widget-shadow.md](f2-live-widget-shadow.md).
+
 Iteration 261 composes the 181 FPGATop and two F1Shim original local owners
 with the existing regional readout, yielding 11,093 diagnostic descriptors and
 1,058 uncovered original functional entries. Independent exact-source audit

@@ -17,13 +17,16 @@ import tempfile
 
 from tools.checkpoint_formats import toolchain
 from tools.checkpoint_formats.codec import require
+from tools.checkpoint_formats.tests.audit_widget_shadow import audit as audit_shadow
 
 ROOT = Path(__file__).resolve().parents[3]
+EXIT = "tools/checkpoint_formats/tests/checkpoint_widget_exit.cc"
 GENERATED = (
     "CheckpointNastiAdapter.v", "checkpoint_nasti_adapter_tb.sv", "checkpoint_widget_constants.h",
     "widget/CheckpointCaptureWidget.v", "widget/CheckpointCaptureTransport.sv",
     "widget/CheckpointCaptureCut.sv", "widget/checkpoint_capture_widget_tb.sv",
 )
+STANDALONE = tuple(f"live-snapshot/{bits}/CheckpointLiveWidgetSnapshot.v" for bits in (639, 712))
 SOURCE = (
     "sims/firesim/sim/build.sbt",
     "sims/firesim/sim/midas/src/main/scala/midas/widgets/CheckpointCaptureWidget.scala",
@@ -33,6 +36,15 @@ SOURCE = (
     "sims/firesim/sim/midas/src/main/verilog/CheckpointCaptureTransport.sv",
     "sims/firesim/sim/midas/src/main/verilog/CheckpointCaptureCut.sv",
     "tools/checkpoint_formats/tests/verify_checkpoint_widget_vcs.py",
+    "sims/firesim/sim/midas/src/main/scala/midas/widgets/CheckpointLiveWidgetSnapshot.scala",
+    "sims/firesim/sim/midas/src/main/scala/midas/checkpoint/CheckpointTransportControlState.scala",
+    "tools/checkpoint_formats/tests/checkpoint_widget_exit.cc",
+    "tools/checkpoint_formats/tests/audit_widget_shadow.py",
+    "tools/checkpoint_formats/tests/verify_transport_control_state.py",
+    "sims/firesim/sim/midas/src/main/verilog/CheckpointPhysicalCaptureTransport.sv",
+    "sims/firesim/sim/midas/src/main/verilog/CheckpointPhysicalClockCut.sv",
+    "sims/firesim/sim/midas/src/test/scala/midas/widgets/CheckpointCaptureSnapshotSpec.scala",
+    "tools/checkpoint_formats/tests/live_widget_snapshot_tb.sv",
 )
 
 
@@ -50,7 +62,7 @@ def main():
     generated = args.generated.resolve()
     root = args.out.resolve()
     require(root.is_relative_to(ROOT / "automations/checkpoint_loop/runs"), "evidence must be beneath runs/")
-    for name in GENERATED:
+    for name in (*GENERATED, *STANDALONE):
         require((generated / name).is_file() and (generated / name).stat().st_size > 0,
                 f"missing Scala-generated artifact: {name}")
     # Refuse stale resource/fixture copies rather than testing a different adapter.
@@ -64,22 +76,22 @@ def main():
     root.mkdir(parents=True, exist_ok=True)
     out = Path(tempfile.mkdtemp(prefix="widget-", dir=root))
     hashes = {name: sha(ROOT / name) for name in SOURCE}
-    generated_hashes = {name: sha(generated / name) for name in GENERATED}
-    for group, base, names in (("source-snapshots", ROOT, SOURCE), ("generated-snapshots", generated, GENERATED)):
+    generated_hashes = {name: sha(generated / name) for name in (*GENERATED, *STANDALONE)}
+    for group, base, names in (("source-snapshots", ROOT, SOURCE), ("generated-snapshots", generated, (*GENERATED, *STANDALONE))):
         for name in names:
             dest = out / group / name
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_bytes((base / name).read_bytes())
     commands = []
 
-    def run(argv, log, cwd):
+    def run(argv, log, cwd, expected=0):
         commands.append(dict(argv=[str(a) for a in argv], cwd=str(cwd), log=str(log)))
         (out / "commands.json").write_text(json.dumps(commands, indent=2) + "\n")
         with log.open("w") as stream:
             result = subprocess.run(argv, cwd=cwd, stdout=stream, stderr=subprocess.STDOUT, text=True)
         commands[-1]["returncode"] = result.returncode
         (out / "commands.json").write_text(json.dumps(commands, indent=2) + "\n")
-        require(result.returncode == 0, f"command failed; inspect {log}")
+        require(result.returncode == expected, f"command failed; inspect {log}")
         return log.read_text()
 
     cases = (
@@ -93,8 +105,10 @@ def main():
         case = out / name
         case.mkdir()
         run([toolchain.VCS, "-full64", "-sverilog", "-timescale=1ns/1ps", "-Mupdate",
+             "-debug_access+all",
              "-top", top, f"-Mdir={case / 'csrc'}", "-o", str(case / "simv"),
-             *[str(out / "generated-snapshots" / source) for source in sources]], case / "compile.log", case)
+             *[str(out / "generated-snapshots" / source) for source in sources],
+             str(ROOT / EXIT)], case / "compile.log", case)
         text = run([str(case / "simv"), "-no_save"], case / "run.log", case)
         matches = re.findall(marker, text)
         require(len(matches) == 1, f"missing or repeated successful marker for {top}")
@@ -102,7 +116,42 @@ def main():
         require(int(counts[0]) > 0, f"no checks executed for {top}")
         if name == "widget":
             require(int(counts[1]) == 5, "widget did not transfer exactly header/3words/trailer")
+            require("CHECKPOINT_WIDGET_SHADOW_PASS captures=1 words=30" in text,
+                    "missing complete immutable transport/local readback")
         results[name] = dict(checks=int(counts[0]), marker=matches[0])
+    # Compile an actual bad staging bank. The independent MMIO oracle must
+    # stop on the first differing word while the AXI read remains unacknowledged.
+    bad = out / "shadow-corruption"
+    bad.mkdir()
+    original = (out / "generated-snapshots/widget/CheckpointCaptureWidget.v").read_text()
+    require(original.count("saved <= io_live;") == 1, "ambiguous snapshot corruption site")
+    (bad / "widget.v").write_text(original.replace("saved <= io_live;", "saved <= io_live ^ 639'h1;"))
+    run([toolchain.VCS, "-full64", "-sverilog", "-timescale=1ns/1ps", "-Mupdate",
+         "-debug_access+all", "-top", "checkpoint_capture_widget_tb",
+         f"-Mdir={bad / 'csrc'}", "-o", str(bad / "simv"), str(bad / "widget.v"),
+         *[str(out / "generated-snapshots" / n) for n in GENERATED[4:]], str(ROOT / EXIT)],
+        bad / "compile.log", bad)
+    text = run([str(bad / "simv"), "-no_save"], bad / "run.log", bad, expected=1)
+    require("WIDGET_DIVERGENCE cut=42 word=0 reason=read data" in text and
+            "CHECKPOINT_WIDGET_PASS" not in text, "wrong first shadow divergence")
+    results["shadow_corruption"] = dict(word=0, component_cut=42, returncode=1)
+    results["shadow_waves"] = {
+        "healthy": audit_shadow(out / "widget/checkpoint-widget.vcd"),
+        "corrupt": audit_shadow(bad / "checkpoint-widget.vcd", corrupt=True),
+    }
+    for bits, source in zip((639, 712), STANDALONE):
+        work = out / str(bits)
+        work.mkdir()
+        run([toolchain.VCS, "-full64", "-sverilog", "-timescale=1ns/1ps", "-Mupdate",
+             "-debug_access+all", f"+define+SHADOW_BITS={bits}", "-top", "live_widget_snapshot_tb",
+             f"-Mdir={work / 'csrc'}", "-o", str(work / "simv"),
+             str(out / "generated-snapshots" / source), str(ROOT / SOURCE[-1]), str(ROOT / EXIT)],
+            work / "compile.log", work)
+        text = run([str(work / "simv"), "-no_save"], work / "run.log", work)
+        match = re.search(rf"LIVE_WIDGET_SNAPSHOT_PASS bits={bits} captures=65 words=(\d+) checks=(\d+)", text)
+        require(match is not None and int(match[1]) == 128 * ((bits + 63) // 64),
+                "incomplete complete-width shadow protocol regression")
+        results[str(bits)] = dict(captures=65, words=int(match[1]), checks=int(match[2]))
     require(all(sha(ROOT / name) == digest for name, digest in hashes.items()), "source changed during execution")
     require(all(sha(generated / name) == digest for name, digest in generated_hashes.items()),
             "generated RTL changed during execution")
@@ -114,7 +163,7 @@ def main():
                    source_sha256=hashes, generated_sha256=generated_hashes,
                    artifacts={str(path.relative_to(out)): dict(path=str(path), sha256=sha(path), bytes=path.stat().st_size)
                               for path in out.rglob("*") if path.is_file() and
-                              (path.suffix in (".log", ".json", ".sv", ".v", ".scala", ".h", ".py", ".sbt"))})
+                              (path.suffix in (".log", ".json", ".sv", ".v", ".scala", ".h", ".py", ".sbt", ".vcd"))})
     (out / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     print(json.dumps(dict(summary=str(out / "summary.json"), results=results,
                           physical_fpga_validated=False, complete_state_ownership=False)))

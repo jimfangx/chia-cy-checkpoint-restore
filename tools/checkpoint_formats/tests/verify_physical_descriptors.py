@@ -26,6 +26,8 @@ RUNS = ROOT/'automations/checkpoint_loop/runs'
 SCALA = 'sims/firesim/sim/midas/src/main/scala/midas/'
 SOURCES = (
     SCALA+'widgets/CheckpointCaptureDescriptors.scala', SCALA+'widgets/CheckpointCaptureWidget.scala',
+    SCALA+'widgets/CheckpointLiveWidgetSnapshot.scala',
+    SCALA+'checkpoint/CheckpointTransportControlState.scala',
     SCALA+'checkpoint/PhysicalClockStateBank.scala',
     SCALA+'checkpoint/PhysicalClockCutPlan.scala', SCALA+'checkpoint/PhysicalClockCutDependencies.scala',
     SCALA+'checkpoint/GeneratedStateBankAccess.scala',

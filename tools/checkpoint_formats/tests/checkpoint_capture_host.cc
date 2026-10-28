@@ -46,12 +46,18 @@ public:
   bool wrong_hash = false, wrong_count = false, wrong_crc = false, bad_size = false;
   bool invalid = false, active = false, empty_transfer = true, pending = false;
   uint64_t produced = 0, drained = 0;
+  uint32_t shadow_bits = 639, shadow_index = 0;
+  unsigned shadow_captures = 0, shadow_releases = 0, shadow_discards = 0;
+  unsigned shadow_fault = 0;
+  bool shadow_valid = false;
+  std::vector<uint64_t> shadow_words;
   size_t cursor = 0;
   fake_io(checkpoint_capture_manifest_t m, std::vector<uint8_t> f, uint64_t c)
       : manifest(std::move(m)), frames(std::move(f)), cycle(c) {}
   uint32_t read_capture_mmio(uint32_t offset) override {
     switch (offset) {
     case 0x04:
+      if (shadow_fault == 9 && shadow_captures) return 1;
       if (pending) { pending = false; return 32; }
       return forced_status ? forced_status : active ? (cursor == frames.size() ? 14 : 6) : 1;
     case 0x08: return forced_error;
@@ -64,6 +70,17 @@ public:
     case 0x60: return invalid;
     case 0x68: return uint32_t(produced);
     case 0x6c: return uint32_t(produced >> 32);
+    case 0x7c: return shadow_index ^ (shadow_fault == 4);
+    case 0x80:
+      if (shadow_fault == 8 && shadow_index == 3)
+        throw std::runtime_error("partial shadow read failure");
+      return uint32_t(shadow_words.at(shadow_index));
+    case 0x84: return uint32_t(shadow_words.at(shadow_index) >> 32);
+    case 0x88: return shadow_fault == 7 && shadow_captures ? 0 : shadow_valid;
+    case 0x8c: return uint32_t(cycle + (shadow_fault == 3 ||
+        (shadow_fault == 10 && shadow_index + 1 == shadow_words.size())));
+    case 0x90: return uint32_t(cycle >> 32);
+    case 0x94: return (shadow_bits + 63) / 64 + (shadow_fault == 1);
     default:
       if (offset >= 0x40 && offset < 0x60)
         return le32(manifest.wire_hash.data() + offset - 0x40) ^ wrong_hash;
@@ -72,7 +89,30 @@ public:
   }
   void write_capture_mmio(uint32_t offset, uint32_t value) override {
     ++commands;
-    if (offset == 0x64 && value == 1) {
+    if (offset == 0x78) {
+      if (value == 1) {
+        check(active && cursor == frames.size() && !shadow_valid);
+        shadow_valid = true;
+        ++shadow_captures;
+        shadow_words.resize((shadow_bits + 63) / 64);
+        for (size_t i = 0; i < shadow_words.size(); ++i)
+          shadow_words[i] = 0x123456789abcdef0ULL ^ i;
+        if (shadow_bits % 64)
+          shadow_words.back() &= (uint64_t(1) << (shadow_bits % 64)) - 1;
+        if (shadow_fault == 5) shadow_words.back() |= uint64_t(1) << (shadow_bits % 64);
+        if (shadow_fault == 2) throw std::runtime_error("accepted shadow write transport failure");
+      } else if (value == 2) {
+        check(shadow_valid);
+        if (shadow_fault != 6) shadow_valid = false;
+        ++shadow_releases;
+      } else if (value == 4) {
+        shadow_valid = false;
+        ++shadow_discards;
+      } else throw std::runtime_error("invalid shadow command");
+    } else if (offset == 0x7c) {
+      check(shadow_valid && value < shadow_words.size());
+      shadow_index = value;
+    } else if (offset == 0x64 && value == 1) {
       check(!active && !pending && cursor == frames.size() && drained == produced); invalid = false; ++ack;
     } else if (offset == 0x70) {
       drained = (drained & 0xffffffff00000000ULL) | value;
@@ -135,6 +175,44 @@ int main(int argc, char **argv) {
     bad_manifest.wire_hash[0] ^= 1;
     rejects([&] { checkpoint_capture_session_t::validate_frames(frames, bad_manifest, cycle); });
     rejects([&] { checkpoint_capture_session_t::validate_frames(frames, manifest, cycle + 1); });
+    // Observation staging remains independent of the validated frame image.
+    for (uint32_t bits : {639U, 712U}) {
+      fake_io io(manifest, frames, cycle);
+      io.shadow_bits = bits;
+      checkpoint_capture_session_t session(io, manifest);
+      rejects([&] { session.capture_live_widget_shadow(bits); });
+      session.begin();
+      for (unsigned i = 0; !session.poll(); ++i) check(i < 100);
+      for (uint32_t bad : {0U, 640U, 709U, 66245U, 0xffffffffU})
+        rejects([&] { session.capture_live_widget_shadow(bad); });
+      check(session.phase() == checkpoint_capture_session_t::phase_t::validated);
+      for (unsigned capture = 0; capture < 2; ++capture) {
+        auto observed = session.capture_live_widget_shadow(bits);
+        check(observed.bits == bits && observed.cut_cycle == cycle &&
+              observed.words == io.shadow_words && !io.shadow_valid);
+        check(io.active && io.publications == 0 && session.validated_frames() == frames);
+      }
+      check(io.shadow_captures == 2 && io.shadow_releases == 2 && io.shadow_discards == 0);
+      session.release_after_publication();
+    }
+    for (unsigned fault = 0; fault < 11; ++fault) {
+      fake_io io(manifest, frames, cycle);
+      checkpoint_capture_session_t session(io, manifest);
+      session.begin();
+      for (unsigned i = 0; !session.poll(); ++i) check(i < 100);
+      if (fault == 0) io.shadow_valid = true; // retain an existing foreign epoch
+      else io.shadow_fault = fault;
+      rejects([&] { session.capture_live_widget_shadow(639); });
+      check(session.phase() == checkpoint_capture_session_t::phase_t::failed && io.active &&
+            io.publications == 0);
+      if (fault == 0) check(io.shadow_valid && io.shadow_captures == 0 && io.shadow_discards == 0);
+      io.shadow_fault = 0;
+      for (unsigned i = 0; !session.abort_and_drain(); ++i) check(i < 100);
+      if (fault > 1) check(!io.shadow_valid && io.shadow_discards == 1);
+      if (fault == 0) check(io.shadow_valid); // abort never discards foreign history
+      check(session.phase() == checkpoint_capture_session_t::phase_t::idle);
+    }
+    std::cout << "CHECKPOINT_WIDGET_SHADOW_HOST_PASS widths=2 captures=4 failures=11\n";
     for (unsigned capture = 0; capture < 2; ++capture) {
       fake_io io(manifest, frames, cycle);
       checkpoint_capture_session_t session(io, manifest);

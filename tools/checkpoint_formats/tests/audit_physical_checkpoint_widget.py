@@ -55,7 +55,7 @@ def audit(native, eda):
         documents.append(doc)
     n,e=documents
     require(n['inputs']==e['inputs'],'native/EDA input mismatch')
-    native_artifacts={'physical-widget.dcp','utilization.rpt','timing.rpt','synth.log','commands.json'}
+    native_artifacts={'physical-widget.dcp','utilization.rpt','timing.rpt','synth.log','commands.json','shadow-registers.tsv'}
     require(set(n['artifacts'])==native_artifacts,'missing native implementation evidence')
     with zipfile.ZipFile(native/'physical-widget.dcp') as z:
         require(z.testzip() is None,'bad native DCP')
@@ -65,6 +65,10 @@ def audit(native, eda):
     synth=(native/'synth.log').read_text()
     require('PHYSICAL_WIDGET_SYNTH_PASS external_network=1 falling_edge_masks=1 duplicate_gates=0' in synth and
             not re.search('ERROR:|CRITICAL WARNING:',synth),'native synthesis not established')
+    shadow = (native/'shadow-registers.tsv').read_text().splitlines()
+    require(len(shadow) >= 700 and len(shadow) == len(set(shadow)) and
+            f'LIVE_WIDGET_SNAPSHOT_SYNTH_PASS registers={len(shadow)} ungated=1' in synth,
+            'missing raw-clock live transport shadow storage audit')
     logs={'compile.log','healthy.log','missing.log','ce.log','cycle.log','corrupt.log','mutated-compile.log','mutated-widget.log'}
     waves={f'{name}/physical-widget.vcd' for name in ('healthy','missing','ce','cycle','corrupt','mutated-widget')}
     require(logs|waves|{'healthy/frames.hex'} <= set(e['artifacts']),'missing negative/debug/frame evidence')
@@ -74,6 +78,8 @@ def audit(native, eda):
         timestamps=re.findall(r'^#(\d+)$',(eda/name).read_text(),re.M)
         require(len(timestamps)>1 and int(timestamps[-1])>0,'unflushed debug waveform '+name)
     text=(eda/'healthy.log').read_text()
+    require('PHYSICAL_WIDGET_SHADOW_PASS captures=6 words=144' in text,
+            'missing complete physical transport/local shadow MMIO readback')
     match=re.search(r'PHYSICAL_WIDGET_PASS checks=(\d+) cuts=6 stalls=(\d+) recovered_cycles=96',text)
     require(match is not None and int(match[1])==e['checks'] and e['checks']>1000 and
             int(match[2])==e['dma_stalls'] and e['dma_stalls']>50 and e['cuts']==6 and e['recovered_cycles']==96,

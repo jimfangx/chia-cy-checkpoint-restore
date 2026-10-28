@@ -111,6 +111,9 @@ def audit(directory):
     registers += [(f'MANIFEST_{i}', 64+4*i) for i in range(8)]
     registers += [('STREAM_INVALID', 96), ('STREAM_DRAIN_ACK', 100), ('PRODUCED_FRAMES_LO', 104),
         ('PRODUCED_FRAMES_HI', 108), ('HOST_DRAINED_FRAMES_LO', 112), ('HOST_DRAINED_FRAMES_HI', 116)]
+    registers += [('SHADOW_COMMAND', 120), ('SHADOW_INDEX', 124), ('SHADOW_WORD_LO', 128),
+        ('SHADOW_WORD_HI', 132), ('SHADOW_STATUS', 136), ('SHADOW_CUT_LO', 140),
+        ('SHADOW_CUT_HI', 144), ('SHADOW_WORDS', 148)]
     replacement = '#error Incomplete_checkpoint_hardware_coverage\n'
     replacement += '// Global checkpoint transport; no complete CPU/host ownership claim.\n'
     def define(name, value):
@@ -132,6 +135,16 @@ def audit(directory):
         replacement += f'// {name} SHA256: {sha(directory/name)}\n'
     for name, value in [('FRAME_BYTES', 64), ('TRANSPORT_VERSION', 1), ('ABORT_REQUIRES_HOST_DRAIN', 1)]:
         replacement += define(name, f'{value}U')
+    control_bits = 481 + doc['gates']
+    for name, value in [('SHADOW_LAYOUT_VERSION', 1), ('SHADOW_CONTROL_BITS', control_bits),
+                        ('SHADOW_BITS', control_bits + 228), ('SHADOW_RESTORE_SUPPORTED', 0)]:
+        replacement += define(name, f'{value}U')
+    offset = control_bits
+    for name, width in [('invalid', 1), ('producedFrames', 64), ('producedSnapshot', 64),
+                        ('hostDrainedFrames', 64), ('counterOverflow', 1),
+                        ('localValid', 1), ('localData', 32), ('localError', 1)]:
+        replacement += f'// shadow local {name}: bit {offset}, width {width}\n'
+        offset += width
     for i, name in enumerate(doc['owners']):
         replacement += f'// owner[{i}]: {name}\n'
     manifest_bytes = ', '.join('0x'+doc['descriptor_manifest_sha256'][i:i+2] for i in range(62, -1, -2))
@@ -153,7 +166,8 @@ def corruptions(directory, out):
     rejected = []
     for name in ('image-admission', 'owner-admission', 'header-digest', 'host-selector',
                  'host-byte-order', 'host-stream', 'host-mmio', 'owner-guard',
-                 'transport-digest', 'emitted-digest', 'descriptor-source', 'foreign-annotation'):
+                 'transport-digest', 'emitted-digest', 'descriptor-source', 'foreign-annotation',
+                 'shadow-width', 'shadow-offset', 'shadow-restore', 'shadow-layout'):
         case = out / name
         shutil.copytree(directory, case)
         doc = load(case, 'identity.json')
@@ -199,6 +213,17 @@ def corruptions(directory, out):
             elif name == 'host-mmio':
                 text = text.replace('#define CHECKPOINT_CAPTURE_MANIFEST_0_ADDR 64ULL',
                                     '#define CHECKPOINT_CAPTURE_MANIFEST_0_ADDR 68ULL')
+            elif name == 'shadow-width':
+                text = re.sub(r'(?m)^(#define CHECKPOINT_CAPTURE_SHADOW_BITS )\d+U$', r'\g<1>640U', text)
+            elif name == 'shadow-offset':
+                text = text.replace('CHECKPOINT_CAPTURE_SHADOW_WORD_HI_OFFSET 132U',
+                                    'CHECKPOINT_CAPTURE_SHADOW_WORD_HI_OFFSET 128U')
+            elif name == 'shadow-restore':
+                text = text.replace('CHECKPOINT_CAPTURE_SHADOW_RESTORE_SUPPORTED 0U',
+                                    'CHECKPOINT_CAPTURE_SHADOW_RESTORE_SUPPORTED 1U')
+            elif name == 'shadow-layout':
+                text = text.replace('CHECKPOINT_CAPTURE_SHADOW_LAYOUT_VERSION 1U',
+                                    'CHECKPOINT_CAPTURE_SHADOW_LAYOUT_VERSION 2U')
             else:
                 text = text.replace('#error Incomplete_checkpoint_hardware_coverage', '#define INVENTED_ADMISSION 1')
             require(text != (case/'reserved.h').read_text(), 'missing actual header mutation '+name)
