@@ -35,7 +35,77 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 263,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 264,
+**in_progress; synthesized opt-in complete NASTI adapter restoration**.
+The adapter now holds both interfaces and atomically loads all 38 original
+registers, rejecting geometry padding before mutation. Production keeps the
+restore port absent and all image/ownership admission guards closed. See
+[f2-nasti-restore.md](f2-nasti-restore.md).
+
+Final-source verification passes **319 Scala tests / 49 suites plus twelve
+preparation checks, 336 Python / 45 manager tests, twenty-one native OOC and
+twenty-one native-bound fresh EDA SP2 component scopes**. ASan/UBSan host,
+FCFS/atomic-cut, all retained waveform and physical corruption audits pass.
+The new adapter matrix covers four geometries including exact Rocket 32/12,
+six protocol cuts each, independent complete original-register zero-edge
+readback and **72,000** cycle comparisons in separate donor/restored processes.
+Fresh continuations execute **3,580 backend reads / 2,956 writes / 6,536 responses /
+6,792 request stalls**, with matching donor counts and successful read/write
+coverage in every case. Sixteen negative processes reject malformed/semantic
+images and compiled loader defects; independent original-register waves find
+the first compiled defect at canonical responseData bit 426 before releasing
+either interface. All-slot padding, reset, no-hold and full-state payload sweeps
+pass. Full component debug waves and per-cut hashes/commands are retained.
+
+Exact-Rocket adapter OOC uses **289 LUTs / 258 registers**; all original storage
+stays on the raw positive clock. The physical-widget fixture retains **2,766
+LUTs / 1,978 registers / 1,040 raw shadow registers** and passes six component
+cuts / 240 complete word reads / 65,361 checks / 3,851 stalls. Source-policy
+OOC remains 5,872 LUTs / 3,114 registers / six BUFGCEs, with negative 140 MHz
+setup/hold estimates **−0.179/−0.074 ns** and unconstrained I/O. Full-image
+P&R/timing closure is unestablished. Java generation/emission finished before
+native synthesis; native concurrency never exceeded two.
+
+Fresh ordinary Rocket production still rejects the FASED physical CE/common-cut
+owner. The regional/local diagnostic retains **11,093 descriptors / 1,062
+uncovered entries and eight live-transport freeze conflicts**, emits no image
+and grants no adapter ownership exemption. Complete transport/stream/parent,
+upstream AXI/backend response, reset/host, functional DRAM and pre-FAME/common-cut
+ownership remain pending. Full local image P&R/AFI, checkpoint-enabled F2
+deployment, active all-hart hardware cuts, independent FPGA-origin Level-1/
+Level-2 migration, finite replay, sustained live CPU shadowing and rolling
+hardware recovery remain pending. Hardware migration columns remain pending.
+
+Recovery: `verification-commands.json`, `scala-selected.json`,
+`nasti-native-selected.json`, `nasti-eda-selected.json`, `native-selected.json`,
+`component-regressions/selected.json`, `retained-selected.json`,
+`physical-native-selected.json`, `physical-eda-selected.json`,
+`physical-audit-selected.json`, `rocket-region-probe-selected.json`,
+`nasti-owner-selected.json`, `source-policy-resources-selected.json`,
+`final-inventory-selected.json` and `final-audit-selected.json` under
+`runs/aws-f2/iteration264/`. The final independent current-source, native-input,
+receipt, protection and resource audit passes. Reuse iteration194's initialized
+localhost invocation; preserve every native output and historical failed attempt.
+
+A fresh-context managed review recovered the initial delegation startup failure
+and found a test-stimulus defect: low-bit LCG correlations made every randomized
+continuation request malformed. The central agent replaced it with xorshift32,
+explicit mixed legal/malformed traffic, master VALID/payload retention and
+assertions under backpressure, and mandatory successful transaction counters.
+Final receipts use the corrected source. Initial checks, the pre-initialization
+wave-auditor correction, removed extra idle edge and raw-SSH environment failure
+are preserved in `development-attempts.json`; none is relabeled final evidence.
+The sole read-only worker completed and is joined; all tool sessions are joined.
+
+Initialized AWS/manager/Vivado 2025.2/F2 HDK/Fabric localhost checks pass. Final
+scoped inventory has no active tagged F2 runtime, pending AFI or Java/Vivado job;
+none was requested. Existing controller commits were published FireSim first
+(`85c6a241`), then Chipyard (`b63b1bef`), and independent remote tips match. The
+read-only Chipyard tracking-ref warning is retained. Plans and initialized YAMLs
+retain entry hashes; no staging, local commits or conda edits.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 263,
+
 **in_progress; complete NASTI adapter shadow observation and runtime layout binding**.
 The actual widget now samples all 38 original adapter registers atomically with
 its transport controls/eight parent locals, while MMIO/DMA stay live. Layout 2

@@ -14,6 +14,23 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 264 adds opt-in held restoration of all 38 original NASTI adapter
+registers. Production keeps the port absent and retains all ownership guards.
+Final 319 Scala / 49 suites plus twelve preparation, 336 Python / 45 manager,
+twenty-one native OOC and twenty-one fresh native-bound EDA SP2 scopes pass.
+The adapter matrix independently reads back four geometries / 24 component cuts
+and compares 72,000 continuation cycles, with successful active read/write/
+response/backpressure coverage and sixteen negative processes. Exact-Rocket
+adapter OOC uses 289 LUTs / 258 raw positive-edge registers. Independent review
+found and corrected an all-malformed LCG stimulus; final artifacts use corrected
+traffic and explicit coverage/VALID-retention assertions. Physical-widget and
+all retained waveform/negative/ASan/UBSan/FCFS checks pass. Exact production
+still rejects CE/common-cut ownership and eight self-freezing locals, retaining
+1,062 uncovered entries. Complete image admission, physical capture and every
+physical migration column remain pending/in_progress. No FPGA checkpoint or
+CPU migration is established. Receipts and exact commands are under
+`runs/aws-f2/iteration264/`; see [f2-nasti-restore.md](f2-nasti-restore.md).
+
 Iteration 263 adds atomic observation of all 38 original NASTI adapter
 registers to the real layout-2 widget shadow, with runtime layout/version and
 exact-bit-count checks before capture. Independent exact Rocket mapping binds
