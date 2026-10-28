@@ -14,6 +14,27 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 267 adds exclusive host retry of an interrupted immutable MMIO shadow
+and completes iteration-266 staging-restore verification. Final 321 Scala / 50
+suites plus twelve preparation, 337 Python / 52 manager tests, 25 native OOCs
+and 25 fresh native-bound EDA SP2 component scopes pass. The ASan/UBSan host
+matrix executes 47,219 assertions, 739 safe retries, 81 unsafe rejections and
+26 invalid epochs including twelve changes at the final identity check.
+Fresh component processes independently read back all fifty endpoint/adapter/
+staging registers, compare 312 indexed continuation rows and reject four
+semantic/compiled negatives. Compiled saved-payload faults stop at bit 759
+before a normal edge or interface acknowledgement. These are fixture images.
+
+Current production still rejects CE/common-cut ownership and eight live-transport
+freeze conflicts. The explicit 1,062-entry deficit covers 12,644,329 bits / 186
+memories, beyond which complete functional DRAM, host and pre-FAME ownership
+remain pending. Full local image P&R/AFI, actual F2 cuts, paired hardware-origin
+migration, live CPU shadowing and rolling recovery remain pending/in_progress;
+no hardware migration column advances. See
+[f2-widget-shadow-recovery.md](f2-widget-shadow-recovery.md) and
+[f2-rocket-owner-deficits.md](f2-rocket-owner-deficits.md). Current raw commands
+and immutable receipts are under `runs/aws-f2/iteration267/`.
+
 Iteration 265 shares the actual widget endpoint equations with an opt-in
 common-epoch restore component: eight local plus 38 adapter registers, 758
 canonical bits. Production retains absent restore controls and all complete

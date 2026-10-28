@@ -35,7 +35,60 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 265,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 267,
+**in_progress; retained widget staging recovery and complete iteration-266 regression recovery**.
+The host session now explicitly retries interrupted reads of its own immutable
+MMIO staging epoch. It revalidates freeze, cut, stream count, layout, descriptor
+count and manifest before and after complete collection. Invalid observations
+and attempted release revoke retry; foreign history survives. Sessions cannot
+be copied/moved. See [f2-widget-shadow-recovery.md](f2-widget-shadow-recovery.md).
+
+Final source passes **321 Scala tests / 50 suites plus twelve preparation,
+337 Python / 52 manager tests, 25 native OOCs and 25 native-bound fresh EDA SP2
+component scopes**. ASan/UBSan host executes 47,219 assertions: 739 safe retries /
+81 unsafe rejections over every before/after MMIO interruption, one repeated
+interruption and 26 invalid epochs (14 early / 12 final identity checks).
+Actual three-gate Rocket source width 1242 is tested alongside 1169 and the
+six-gate fixture's 1245; that last shape is not the full Rocket transport.
+
+Iteration 266 stopped on a model-at-capacity error. Its unfinished opt-in
+staging restoration now passes native synthesis and independent complete
+fifty-register zero-edge readback in fresh EDA donor/restored processes. Both
+profiles pass indexed continuation (312 total trace rows) and four negative
+processes. Compiled saved-payload faults stop at canonical bit 759 while held,
+with zero normal edges and no interface acknowledgement. Retained endpoint
+24,000-cycle / adapter 72,000-cycle continuations, FCFS/atomic-cut, full debug
+waves and physical corruption audits pass. All images here remain fixtures.
+
+Fresh exact Rocket production still rejects physical CE/common-low-phase
+ownership. Its regional diagnostic retains 11,090 functional / three physical-CE
+readout descriptors, 1,062 uncovered entries and eight live-transport freeze
+conflicts. The missing inventory includes 12,644,329 stored bits / 186 memories;
+full functional DRAM and aggregate host/pre-FAME ownership are also incomplete.
+See [f2-rocket-owner-deficits.md](f2-rocket-owner-deficits.md). No image is emitted.
+Full localhost image P&R/timing/AFI, checkpoint-enabled F2 execution, active
+all-hart hardware cuts, paired FPGA-origin zero-edge/finite/live migration and
+rolling recovery remain pending. No hardware migration column advances.
+
+Recovery commands and immutable receipts are under `runs/aws-f2/iteration267/`:
+`verification-commands.json`, `*-selected.json`, `review-complete.json` and
+`development-attempts.json`. Reuse iteration194's initialized localhost invocation.
+Native generation/synthesis never overlap; native concurrency peaks at two.
+The source-policy OOC retains negative 140 MHz setup/hold estimates of
+-0.179/-0.074 ns with unconstrained I/O, not full-image timing closure.
+
+Full-history worker startup failed; fresh-context managed review and follow-up
+completed and are joined. The central agent integrated their complete/late
+metadata-fault recommendation. No delegated LLM work remains. Existing
+iteration-266 checkpoints were published FireSim first (`520a76c4`), then
+Chipyard (`73fb6aa1`); remote tips match. Plans, initialized YAMLs and conda
+inputs were not edited; no staging or local commits were made. The initial
+manager integrity wrapper raced its second preflight selection; that error is
+preserved and the sequenced recovery passes. The final independent integrity
+audit passes; scoped inventory has no active F2 runtime, pending AFI or local
+Java/Vivado job. The individual artifact catalog is under this iteration.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 265,
 **in_progress; synthesized common-epoch widget/adapter restore and immutable evidence**.
 The real widget now uses a shared endpoint builder preserving its eight original
 locals and adapter/snapshot hierarchy. Its opt-in interface loads all 46 original

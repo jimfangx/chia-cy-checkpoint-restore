@@ -87,12 +87,20 @@ def main():
     require(match is not None, "host capture session did not finish")
     require("CHECKPOINT_WIDGET_SHADOW_HOST_PASS widths=2 captures=4 failures=13" in result,
             "host shadow capture/failure/recovery cases did not finish")
+    retry = re.search(r"CHECKPOINT_WIDGET_SHADOW_RETRY_PASS widths=3 retried=(\d+) "
+                      r"rejected=(\d+) operations=(\d+) repeated=1 invalid=26", result)
+    require(retry is not None and int(retry[1]) > 600 and int(retry[2]) > 40 and
+            int(retry[1]) + int(retry[2]) == 2 * int(retry[3]),
+            "incomplete interrupted MMIO operation matrix or immutable-epoch recovery")
     receipt = dict(observed_utc=datetime.now(timezone.utc).isoformat(), host=socket.gethostname(),
                    source_root=str(ROOT), backend="eda", status="pass",
                    scope="ASan/UBSan host transport session and fresh VCS component frames; no hardware CPU acceptance",
                    checks=int(match[1]), target_cut=cycle, transport_summary=str(summaries[0]),
                    source_sha256=hashes, commands=commands,
                    frame_sha256=hashlib.sha256(frames).hexdigest(),
+                   shadow_retry=dict(widths=[1169, 1242, 1245], retried=int(retry[1]),
+                                     rejected=int(retry[2]), operations=int(retry[3]),
+                                     repeated_interruptions=1, invalid_epoch_rejections=26),
                    remaining="complete generated network, memory/host-owner capture, runtime registration, F2 image/deployment/capture/migration")
     (out / "summary.json").write_text(json.dumps(receipt, indent=2) + "\n")
     print(out / "summary.json")

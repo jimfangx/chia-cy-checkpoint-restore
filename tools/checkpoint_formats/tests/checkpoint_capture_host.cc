@@ -8,6 +8,7 @@
 #include <iterator>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 
 namespace {
 unsigned checks = 0;
@@ -44,6 +45,7 @@ public:
   unsigned commands = 0, publications = 0, polls = 0, ack = 0;
   uint32_t forced_status = 0, forced_error = 0;
   bool wrong_hash = false, wrong_count = false, wrong_crc = false, bad_size = false;
+  bool wrong_entry_count = false;
   bool invalid = false, active = false, empty_transfer = true, pending = false;
   uint64_t produced = 0, drained = 0;
   uint32_t shadow_bits = 1169, shadow_index = 0;
@@ -65,7 +67,7 @@ public:
     case 0x14: return uint32_t(cycle >> 32);
     case 0x18: return uint32_t(frames.size() / 64 - 2) + wrong_count;
     case 0x1c: return 0;
-    case 0x20: return manifest.entries.size();
+    case 0x20: return manifest.entries.size() + wrong_entry_count;
     case 0x24: return le32(frames.data() + frames.size() - 36) ^ wrong_crc;
     case 0x60: return invalid;
     case 0x68: return uint32_t(produced);
@@ -140,6 +142,68 @@ public:
   }
   void flush_capture_stream() override {}
 };
+
+// Interrupt every individual public MMIO operation on either side of its
+// possible acceptance. This models an ambiguous host transfer, not corruption
+// of the immutable staging payload or the hardware's cut/ownership contract.
+class interrupted_io : public fake_io {
+public:
+  using fake_io::fake_io;
+  unsigned operations = 0, fail_at = 0;
+  unsigned corrupt_at_end = 0;
+  bool saw_last_word = false;
+  bool after = false, release_attempted = false;
+  void corrupt(unsigned fault) {
+    switch (fault) {
+    case 1: wrong_hash = true; break;
+    case 2: forced_status = 1; break;
+    case 3: invalid = true; break;
+    case 4: ++cycle; break;
+    case 5: ++produced; break;
+    case 6: ++shadow_bits; break;
+    case 7: shadow_fault = 4; break;
+    case 8: shadow_words.back() |= uint64_t(1) << (shadow_bits % 64); break;
+    case 9: wrong_entry_count = true; break;
+    case 10: forced_error = 1; break;
+    case 11: shadow_fault = 11; break;
+    case 12: shadow_fault = 1; break;
+    case 13: shadow_valid = false; break;
+    case 14: shadow_fault = 3; break;
+    default: throw std::runtime_error("invalid metadata fault selector");
+    }
+  }
+  void interrupt(bool accepted) {
+    if (operations == fail_at && accepted == after) {
+      fail_at = 0;
+      throw std::runtime_error("injected interrupted MMIO operation");
+    }
+  }
+  uint32_t read_capture_mmio(uint32_t offset) override {
+    ++operations;
+    if (offset == 0x04 && saw_last_word && corrupt_at_end) {
+      const auto fault = corrupt_at_end;
+      corrupt_at_end = 0;
+      corrupt(fault);
+    }
+    interrupt(false);
+    const auto value = fake_io::read_capture_mmio(offset);
+    if (offset == 0x84 && shadow_index + 1 == shadow_words.size())
+      saw_last_word = true;
+    interrupt(true);
+    return value;
+  }
+  void write_capture_mmio(uint32_t offset, uint32_t value) override {
+    ++operations;
+    if (offset == 0x78 && value == 2) release_attempted = true;
+    interrupt(false);
+    fake_io::write_capture_mmio(offset, value);
+    interrupt(true);
+  }
+};
+
+static_assert(!std::is_copy_constructible<checkpoint_capture_session_t>::value &&
+              !std::is_move_constructible<checkpoint_capture_session_t>::value,
+              "a live session exclusively owns its staging epoch");
 } // namespace
 
 int main(int argc, char **argv) {
@@ -216,6 +280,105 @@ int main(int argc, char **argv) {
       check(session.phase() == checkpoint_capture_session_t::phase_t::idle);
     }
     std::cout << "CHECKPOINT_WIDGET_SHADOW_HOST_PASS widths=2 captures=4 failures=13\n";
+    unsigned retried = 0, rejected = 0, fault_operations = 0;
+    for (uint32_t bits : {1169U, 1242U, 1245U}) {
+      interrupted_io baseline(manifest, frames, cycle);
+      baseline.shadow_bits = bits;
+      checkpoint_capture_session_t reference(baseline, manifest);
+      reference.begin();
+      for (unsigned i = 0; !reference.poll(); ++i) check(i < 100);
+      baseline.operations = 0;
+      const auto expected = reference.capture_live_widget_shadow(bits);
+      const unsigned operations = baseline.operations;
+      check(operations > 100);
+      fault_operations += operations;
+      for (bool after : {false, true}) {
+        for (unsigned op = 1; op <= operations; ++op) {
+          interrupted_io io(manifest, frames, cycle);
+          io.shadow_bits = bits;
+          checkpoint_capture_session_t session(io, manifest);
+          session.begin();
+          for (unsigned i = 0; !session.poll(); ++i) check(i < 100);
+          io.operations = 0; io.fail_at = op; io.after = after;
+          rejects([&] { session.capture_live_widget_shadow(bits); });
+          check(session.phase() == checkpoint_capture_session_t::phase_t::failed &&
+                io.active && io.publications == 0 && io.shadow_discards == 0);
+          const auto saved = io.shadow_words;
+          const bool retryable = io.shadow_valid && io.shadow_captures == 1 && !io.release_attempted;
+          const unsigned before = io.operations;
+          rejects([&] { session.capture_live_widget_shadow(bits); });
+          rejects([&] { session.release_after_publication(); });
+          rejects([&] { session.retry_live_widget_shadow(bits + 1); });
+          checkpoint_capture_session_t foreign(io, manifest);
+          rejects([&] { foreign.retry_live_widget_shadow(bits); });
+          check(io.operations == before && io.shadow_words == saved);
+          if (retryable) {
+            const auto actual = session.retry_live_widget_shadow(bits);
+            check(actual.bits == expected.bits && actual.cut_cycle == expected.cut_cycle &&
+                  actual.words == expected.words && actual.words == saved);
+            check(!io.shadow_valid && io.shadow_captures == 1 && io.shadow_releases == 1 &&
+                  io.shadow_discards == 0 && io.active && io.publications == 0 &&
+                  session.phase() == checkpoint_capture_session_t::phase_t::validated &&
+                  session.validated_frames() == frames);
+            const unsigned completed = io.operations;
+            rejects([&] { session.retry_live_widget_shadow(bits); });
+            check(io.operations == completed);
+            session.release_after_publication();
+            ++retried;
+          } else {
+            rejects([&] { session.retry_live_widget_shadow(bits); });
+            check(io.shadow_words == saved && io.shadow_captures <= 1 && io.publications == 0);
+            for (unsigned i = 0; !session.abort_and_drain(); ++i) check(i < 100);
+            ++rejected;
+          }
+        }
+      }
+    }
+    // A second interruption must retain the same bank, while observed invalid
+    // metadata irrevocably revokes retry even if the input later looks healthy.
+    unsigned invalid_epochs = 0;
+    for (bool late : {false, true}) {
+      for (unsigned fault = 0; fault < 15; ++fault) {
+        // Selector/padding faults belong to word collection. Other metadata is
+        // also changed after the last payload read, at the final identity check.
+        if (late && (fault == 0 || fault == 7 || fault == 8)) continue;
+        interrupted_io io(manifest, frames, cycle);
+        checkpoint_capture_session_t session(io, manifest);
+        session.begin();
+        for (unsigned i = 0; !session.poll(); ++i) check(i < 100);
+        io.shadow_fault = 8;
+        rejects([&] { session.capture_live_widget_shadow(1169); });
+        io.shadow_fault = 0;
+        const auto saved = io.shadow_words;
+        if (fault == 0) {
+          io.fail_at = io.operations + 7;
+          rejects([&] { session.retry_live_widget_shadow(1169); });
+          check(io.shadow_valid && io.shadow_captures == 1 && io.shadow_words == saved);
+          const auto actual = session.retry_live_widget_shadow(1169);
+          check(actual.words == saved && io.shadow_captures == 1 && io.shadow_releases == 1);
+          session.release_after_publication();
+        } else {
+          if (late) io.corrupt_at_end = fault;
+          else io.corrupt(fault);
+          rejects([&] { session.retry_live_widget_shadow(1169); });
+          io.wrong_hash = false; io.forced_status = 0; io.invalid = false;
+          io.cycle = cycle; io.produced = frames.size() / 64;
+          io.shadow_bits = 1169; io.shadow_fault = 0; io.shadow_words = saved;
+          io.wrong_entry_count = false; io.forced_error = 0; io.shadow_valid = true;
+          const unsigned before = io.operations;
+          rejects([&] { session.retry_live_widget_shadow(1169); });
+          check(io.operations == before && io.shadow_valid && io.shadow_captures == 1 &&
+                io.shadow_releases == 0 && io.shadow_discards == 0 && io.publications == 0);
+          for (unsigned i = 0; !session.abort_and_drain(); ++i) check(i < 100);
+          ++invalid_epochs;
+        }
+      }
+    }
+    check(invalid_epochs == 26);
+    check(retried > 600 && rejected > 40 && retried + rejected == 2 * fault_operations);
+    std::cout << "CHECKPOINT_WIDGET_SHADOW_RETRY_PASS widths=3 retried=" << retried
+              << " rejected=" << rejected << " operations=" << fault_operations
+              << " repeated=1 invalid=" << invalid_epochs << "\n";
     for (unsigned capture = 0; capture < 2; ++capture) {
       fake_io io(manifest, frames, cycle);
       checkpoint_capture_session_t session(io, manifest);
