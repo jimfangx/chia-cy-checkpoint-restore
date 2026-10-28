@@ -30,6 +30,8 @@ TB = 'tools/checkpoint_formats/tests/physical_checkpoint_widget_tb.sv'
 HEADER = 'tools/checkpoint_formats/tests/physical_state_router_fixture.svh'
 EXIT = 'tools/checkpoint_formats/tests/checkpoint_widget_exit.cc'
 SOURCES = tuple(dict.fromkeys((WIDGET,
+    'sims/firesim/sim/midas/src/main/scala/midas/widgets/CheckpointNastiState.scala',
+    'sims/firesim/sim/midas/src/test/scala/midas/widgets/CheckpointCaptureNastiStateSpec.scala',
     'sims/firesim/sim/midas/src/main/scala/midas/widgets/CheckpointLiveWidgetSnapshot.scala',
     'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/CheckpointTransportControlState.scala',
     'tools/checkpoint_formats/tests/audit_widget_shadow.py',
@@ -171,7 +173,7 @@ def main():
         text=run([healthy/'simv','-no_save','+frames='+str(healthy/'frames.hex')],'healthy',healthy)
         match=re.search(r'PHYSICAL_WIDGET_PASS checks=(\d+) cuts=6 stalls=(\d+) recovered_cycles=96',text)
         require(match is not None,'incomplete physical Widget execution')
-        require('PHYSICAL_WIDGET_SHADOW_PASS captures=6 words=144' in text,
+        require('PHYSICAL_WIDGET_SHADOW_PASS captures=6 words=240' in text,
                 'missing complete physical transport/local shadow readback')
         summary['shadow_wave_audit'] = audit_shadow(healthy/'physical-widget.vcd', physical=True)
         summary.update(checks=int(match[1]),cuts=6,dma_stalls=int(match[2]),recovered_cycles=96)

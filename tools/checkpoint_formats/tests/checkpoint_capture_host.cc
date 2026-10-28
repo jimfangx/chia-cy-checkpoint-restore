@@ -46,7 +46,7 @@ public:
   bool wrong_hash = false, wrong_count = false, wrong_crc = false, bad_size = false;
   bool invalid = false, active = false, empty_transfer = true, pending = false;
   uint64_t produced = 0, drained = 0;
-  uint32_t shadow_bits = 639, shadow_index = 0;
+  uint32_t shadow_bits = 1169, shadow_index = 0;
   unsigned shadow_captures = 0, shadow_releases = 0, shadow_discards = 0;
   unsigned shadow_fault = 0;
   bool shadow_valid = false;
@@ -80,6 +80,8 @@ public:
     case 0x8c: return uint32_t(cycle + (shadow_fault == 3 ||
         (shadow_fault == 10 && shadow_index + 1 == shadow_words.size())));
     case 0x90: return uint32_t(cycle >> 32);
+    case 0x98: return shadow_fault == 11 ? 1 : 2;
+    case 0x9c: return shadow_bits + (shadow_fault == 12);
     case 0x94: return (shadow_bits + 63) / 64 + (shadow_fault == 1);
     default:
       if (offset >= 0x40 && offset < 0x60)
@@ -176,14 +178,14 @@ int main(int argc, char **argv) {
     rejects([&] { checkpoint_capture_session_t::validate_frames(frames, bad_manifest, cycle); });
     rejects([&] { checkpoint_capture_session_t::validate_frames(frames, manifest, cycle + 1); });
     // Observation staging remains independent of the validated frame image.
-    for (uint32_t bits : {639U, 712U}) {
+    for (uint32_t bits : {1169U, 1242U}) {
       fake_io io(manifest, frames, cycle);
       io.shadow_bits = bits;
       checkpoint_capture_session_t session(io, manifest);
       rejects([&] { session.capture_live_widget_shadow(bits); });
       session.begin();
       for (unsigned i = 0; !session.poll(); ++i) check(i < 100);
-      for (uint32_t bad : {0U, 640U, 709U, 66245U, 0xffffffffU})
+      for (uint32_t bad : {0U, 639U, 712U, 1170U, 1239U, 66775U, 0xffffffffU})
         rejects([&] { session.capture_live_widget_shadow(bad); });
       check(session.phase() == checkpoint_capture_session_t::phase_t::validated);
       for (unsigned capture = 0; capture < 2; ++capture) {
@@ -195,24 +197,25 @@ int main(int argc, char **argv) {
       check(io.shadow_captures == 2 && io.shadow_releases == 2 && io.shadow_discards == 0);
       session.release_after_publication();
     }
-    for (unsigned fault = 0; fault < 11; ++fault) {
+    for (unsigned fault = 0; fault < 13; ++fault) {
       fake_io io(manifest, frames, cycle);
       checkpoint_capture_session_t session(io, manifest);
       session.begin();
       for (unsigned i = 0; !session.poll(); ++i) check(i < 100);
       if (fault == 0) io.shadow_valid = true; // retain an existing foreign epoch
       else io.shadow_fault = fault;
-      rejects([&] { session.capture_live_widget_shadow(639); });
+      rejects([&] { session.capture_live_widget_shadow(1169); });
       check(session.phase() == checkpoint_capture_session_t::phase_t::failed && io.active &&
             io.publications == 0);
       if (fault == 0) check(io.shadow_valid && io.shadow_captures == 0 && io.shadow_discards == 0);
       io.shadow_fault = 0;
       for (unsigned i = 0; !session.abort_and_drain(); ++i) check(i < 100);
-      if (fault > 1) check(!io.shadow_valid && io.shadow_discards == 1);
+      if (fault > 1 && fault < 11) check(!io.shadow_valid && io.shadow_discards == 1);
+      if (fault >= 11) check(io.shadow_captures == 0 && io.shadow_discards == 0);
       if (fault == 0) check(io.shadow_valid); // abort never discards foreign history
       check(session.phase() == checkpoint_capture_session_t::phase_t::idle);
     }
-    std::cout << "CHECKPOINT_WIDGET_SHADOW_HOST_PASS widths=2 captures=4 failures=11\n";
+    std::cout << "CHECKPOINT_WIDGET_SHADOW_HOST_PASS widths=2 captures=4 failures=13\n";
     for (unsigned capture = 0; capture < 2; ++capture) {
       fake_io io(manifest, frames, cycle);
       checkpoint_capture_session_t session(io, manifest);

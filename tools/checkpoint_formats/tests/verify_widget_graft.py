@@ -50,6 +50,7 @@ def source_files():
     files.update([scala/'main/scala/midas/core/FPGATop.scala',
                   scala/'main/scala/midas/widgets/CheckpointCaptureWidget.scala',
                   scala/'main/scala/midas/widgets/CheckpointLiveWidgetSnapshot.scala',
+                  scala/'main/scala/midas/widgets/CheckpointNastiState.scala',
                   scala/'main/scala/midas/checkpoint/CheckpointTransportControlState.scala',
                   scala/'main/scala/midas/stage/GoldenGateCompilerPhase.scala'])
     return tuple(sorted(str(p.relative_to(ROOT)) for p in files))

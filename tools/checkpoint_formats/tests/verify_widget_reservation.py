@@ -26,6 +26,7 @@ SOURCES = [
     'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/NativeCheckpointWidgetReservation.scala',
     'sims/firesim/sim/midas/src/main/scala/midas/widgets/CheckpointCaptureWidget.scala',
     'sims/firesim/sim/midas/src/main/scala/midas/widgets/CheckpointLiveWidgetSnapshot.scala',
+    'sims/firesim/sim/midas/src/main/scala/midas/widgets/CheckpointNastiState.scala',
     'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/CheckpointTransportControlState.scala',
     'sims/firesim/sim/midas/src/main/scala/midas/stage/GoldenGateCompilerPhase.scala',
     'sims/firesim/sim/midas/src/test/scala/midas/core/NativeCheckpointWidgetReservationSpec.scala',

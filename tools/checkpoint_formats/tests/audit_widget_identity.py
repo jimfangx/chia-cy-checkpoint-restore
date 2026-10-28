@@ -113,7 +113,8 @@ def audit(directory):
         ('PRODUCED_FRAMES_HI', 108), ('HOST_DRAINED_FRAMES_LO', 112), ('HOST_DRAINED_FRAMES_HI', 116)]
     registers += [('SHADOW_COMMAND', 120), ('SHADOW_INDEX', 124), ('SHADOW_WORD_LO', 128),
         ('SHADOW_WORD_HI', 132), ('SHADOW_STATUS', 136), ('SHADOW_CUT_LO', 140),
-        ('SHADOW_CUT_HI', 144), ('SHADOW_WORDS', 148)]
+        ('SHADOW_CUT_HI', 144), ('SHADOW_WORDS', 148),
+        ('SHADOW_LAYOUT_VERSION', 152), ('SHADOW_BITS', 156)]
     replacement = '#error Incomplete_checkpoint_hardware_coverage\n'
     replacement += '// Global checkpoint transport; no complete CPU/host ownership claim.\n'
     def define(name, value):
@@ -136,14 +137,24 @@ def audit(directory):
     for name, value in [('FRAME_BYTES', 64), ('TRANSPORT_VERSION', 1), ('ABORT_REQUIRES_HOST_DRAIN', 1)]:
         replacement += define(name, f'{value}U')
     control_bits = 481 + doc['gates']
-    for name, value in [('SHADOW_LAYOUT_VERSION', 1), ('SHADOW_CONTROL_BITS', control_bits),
-                        ('SHADOW_BITS', control_bits + 228), ('SHADOW_RESTORE_SUPPORTED', 0)]:
+    for name, value in [('SHADOW_LAYOUT_VERSION', 2), ('SHADOW_CONTROL_BITS', control_bits),
+                        ('SHADOW_BITS', control_bits + 758), ('SHADOW_ADAPTER_BITS', 530), ('SHADOW_RESTORE_SUPPORTED', 0)]:
         replacement += define(name, f'{value}U')
     offset = control_bits
     for name, width in [('invalid', 1), ('producedFrames', 64), ('producedSnapshot', 64),
                         ('hostDrainedFrames', 64), ('counterOverflow', 1),
                         ('localValid', 1), ('localData', 32), ('localError', 1)]:
         replacement += f'// shadow local {name}: bit {offset}, width {width}\n'
+        offset += width
+    address = [('addr',64),('len',8),('size',3),('burst',2),('lock',1),('cache',4),
+               ('prot',3),('qos',4),('region',4),('id',64),('user',1)]
+    adapter = [(prefix+'_'+name,width) for prefix, fields in
+               [('aw',address),('wd',[('data',32),('last',1),('id',64),('strb',4),('user',1)]),
+                ('ar',address)] for name,width in fields]
+    adapter += [(name,1) for name in ('haveAW','haveW','haveAR','badW','busy','writing','responseValid','responseError')]
+    adapter += [('responseData',32),('responseId',64),('errorReadRemaining',8)]
+    for name,width in adapter:
+        replacement += f'// shadow adapter {name}: bit {offset}, width {width}\n'
         offset += width
     for i, name in enumerate(doc['owners']):
         replacement += f'// owner[{i}]: {name}\n'
@@ -222,8 +233,8 @@ def corruptions(directory, out):
                 text = text.replace('CHECKPOINT_CAPTURE_SHADOW_RESTORE_SUPPORTED 0U',
                                     'CHECKPOINT_CAPTURE_SHADOW_RESTORE_SUPPORTED 1U')
             elif name == 'shadow-layout':
-                text = text.replace('CHECKPOINT_CAPTURE_SHADOW_LAYOUT_VERSION 1U',
-                                    'CHECKPOINT_CAPTURE_SHADOW_LAYOUT_VERSION 2U')
+                text = text.replace('CHECKPOINT_CAPTURE_SHADOW_LAYOUT_VERSION 2U',
+                                    'CHECKPOINT_CAPTURE_SHADOW_LAYOUT_VERSION 1U')
             else:
                 text = text.replace('#error Incomplete_checkpoint_hardware_coverage', '#define INVENTED_ADMISSION 1')
             require(text != (case/'reserved.h').read_text(), 'missing actual header mutation '+name)

@@ -78,7 +78,7 @@ def audit(native, eda):
         timestamps=re.findall(r'^#(\d+)$',(eda/name).read_text(),re.M)
         require(len(timestamps)>1 and int(timestamps[-1])>0,'unflushed debug waveform '+name)
     text=(eda/'healthy.log').read_text()
-    require('PHYSICAL_WIDGET_SHADOW_PASS captures=6 words=144' in text,
+    require('PHYSICAL_WIDGET_SHADOW_PASS captures=6 words=240' in text,
             'missing complete physical transport/local shadow MMIO readback')
     match=re.search(r'PHYSICAL_WIDGET_PASS checks=(\d+) cuts=6 stalls=(\d+) recovered_cycles=96',text)
     require(match is not None and int(match[1])==e['checks'] and e['checks']>1000 and

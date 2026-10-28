@@ -28,6 +28,7 @@ SOURCES=tuple(sorted(set(NETWORK_SOURCES+(
     SCALA+'main/scala/midas/checkpoint/NativeCheckpointConstraints.scala',
     SCALA+'main/scala/midas/widgets/CheckpointCaptureWidget.scala',
     SCALA+'main/scala/midas/widgets/CheckpointLiveWidgetSnapshot.scala',
+    SCALA+'main/scala/midas/widgets/CheckpointNastiState.scala',
     SCALA+'main/scala/midas/checkpoint/CheckpointTransportControlState.scala',
     SCALA+'test/scala/midas/widgets/CheckpointNativeDescriptorsSpec.scala',
     BASE+'native_checkpoint_widget_fixture.sv',BASE+'native_checkpoint_widget_tb.sv',

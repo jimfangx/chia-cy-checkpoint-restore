@@ -53,14 +53,52 @@ module physical_checkpoint_widget_tb;
   reg [511:0] heldFrame;
   reg stalled=0, corrupt=0;
   string fault, frames_path;
-  reg [711:0] shadow_expected;
+  reg [1241:0] shadow_expected;
   integer shadow_captures=0,shadow_word_checks=0,sw;
   reg [63:0] shadow_word;
   always @(posedge clock) begin
     if(!reset && dut.adapter.io_request_valid && dut.adapter.io_request_ready &&
        dut.adapter.io_request_bits_write && dut.adapter.io_request_bits_address=='h78 &&
        dut.adapter.io_request_bits_data==1 && !dut.snapshot.io_error) begin
-      shadow_expected={dut.localError,
+      shadow_expected={dut.adapter.errorReadRemaining,
+        {60'b0,dut.adapter.responseId},
+        dut.adapter.responseData,
+        dut.adapter.responseError,
+        dut.adapter.responseValid,
+        dut.adapter.writing,
+        dut.adapter.busy,
+        dut.adapter.badW,
+        dut.adapter.haveAR,
+        dut.adapter.haveW,
+        dut.adapter.haveAW,
+        dut.adapter.ar_user,
+        {60'b0,dut.adapter.ar_id},
+        dut.adapter.ar_region,
+        dut.adapter.ar_qos,
+        dut.adapter.ar_prot,
+        dut.adapter.ar_cache,
+        dut.adapter.ar_lock,
+        dut.adapter.ar_burst,
+        dut.adapter.ar_size,
+        dut.adapter.ar_len,
+        {32'b0,dut.adapter.ar_addr},
+        dut.adapter.wd_user,
+        dut.adapter.wd_strb,
+        {60'b0,dut.adapter.wd_id},
+        dut.adapter.wd_last,
+        dut.adapter.wd_data,
+        dut.adapter.aw_user,
+        {60'b0,dut.adapter.aw_id},
+        dut.adapter.aw_region,
+        dut.adapter.aw_qos,
+        dut.adapter.aw_prot,
+        dut.adapter.aw_cache,
+        dut.adapter.aw_lock,
+        dut.adapter.aw_burst,
+        dut.adapter.aw_size,
+        dut.adapter.aw_len,
+        {32'b0,dut.adapter.aw_addr},
+        dut.localError,
         dut.localData,
         dut.localValid,
         dut.counterOverflow,
@@ -177,8 +215,8 @@ module physical_checkpoint_widget_tb;
   end endtask
   task readShadow; begin
     readReg('h88,1); readReg('h8c,saved_cycle[31:0]); readReg('h90,saved_cycle[63:32]);
-    readReg('h94,12);
-    for(sw=0;sw<12;sw++) begin
+    readReg('h98,2); readReg('h9c,1242); readReg('h94,20);
+    for(sw=0;sw<20;sw++) begin
       aw('h7c); w(sw,1); b(0); shadow_word=shadow_expected>>(sw*64);
       readReg('h80,shadow_word[31:0]); readReg('h84,shadow_word[63:32]); shadow_word_checks++;
     end
@@ -310,7 +348,7 @@ module physical_checkpoint_widget_tb;
     @(negedge clock); reset=0; frames=0; words=0;
     snapshot(17);
     while(target_cycle<96) tick();
-    check(shadow_captures==6 && shadow_word_checks==144,"complete physical shadow readback");
+    check(shadow_captures==6 && shadow_word_checks==240,"complete physical shadow readback");
     $display("PHYSICAL_WIDGET_SHADOW_PASS captures=%0d words=%0d",shadow_captures,shadow_word_checks);
     $display("PHYSICAL_WIDGET_PASS checks=%0d cuts=%0d stalls=%0d recovered_cycles=%0d",checks,cuts,stalls,target_cycle);
     if(fd) $fclose(fd);

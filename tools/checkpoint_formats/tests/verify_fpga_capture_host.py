@@ -85,7 +85,7 @@ def main():
                  "native-run.log")
     match = re.search(r"CHECKPOINT_CAPTURE_HOST_PASS checks=(\d+)", result)
     require(match is not None, "host capture session did not finish")
-    require("CHECKPOINT_WIDGET_SHADOW_HOST_PASS widths=2 captures=4 failures=11" in result,
+    require("CHECKPOINT_WIDGET_SHADOW_HOST_PASS widths=2 captures=4 failures=13" in result,
             "host shadow capture/failure/recovery cases did not finish")
     receipt = dict(observed_utc=datetime.now(timezone.utc).isoformat(), host=socket.gethostname(),
                    source_root=str(ROOT), backend="eda", status="pass",

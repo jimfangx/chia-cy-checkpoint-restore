@@ -38,6 +38,14 @@ def audit(path, *, physical=False, corrupt=False):
             target = dut + 'CheckpointCaptureTransport.' + name.removeprefix('transport.')
         original.append((target, row['width']))
     original += [(dut + name, width) for name, width in local]
+    address = [('addr',64),('len',8),('size',3),('burst',2),('lock',1),('cache',4),
+               ('prot',3),('qos',4),('region',4),('id',64),('user',1)]
+    adapter = [(prefix+'_'+name,width) for prefix, fields in
+               [('aw',address),('wd',[('data',32),('last',1),('id',64),('strb',4),('user',1)]),
+                ('ar',address)] for name,width in fields]
+    adapter += [(name,1) for name in ('haveAW','haveW','haveAR','badW','busy','writing','responseValid','responseError')]
+    adapter += [('responseData',32),('responseId',64),('errorReadRemaining',8)]
+    original += [(dut+'adapter.'+name,width) for name,width in adapter]
     for i, (name, _) in enumerate(original):
         roles['original' + str(i)] = name
     scopes, codes, values = [], {}, {}
@@ -123,7 +131,7 @@ def audit(path, *, physical=False, corrupt=False):
                 'shadow corruption did not stop on first word before its AXI acknowledgement')
     else:
         require(first is None and captures == (6 if physical else 1) and
-                words == (288 if physical else 60) and held_edges > 100,
+                words == (480 if physical else 114) and held_edges > 100,
                 'incomplete shadow epochs/words/immutability evidence')
     return dict(path=str(path), sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
                 captures=captures, word_halves=words, held_raw_edges=held_edges,

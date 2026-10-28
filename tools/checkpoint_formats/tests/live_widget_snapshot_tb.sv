@@ -54,6 +54,8 @@ module live_widget_snapshot_tb;
   initial begin
     $dumpfile("live-widget-snapshot.vcd");$dumpvars(0,live_widget_snapshot_tb);
     repeat(3) @(posedge clock);@(negedge clock);reset=0;
+    read('h98,2,0);read('h9c,BITS,0);
+    transaction(1,'h98,1,1);transaction(1,'h9c,BITS,1);
     transaction(1,'h78,1,1);read('h88,0,0);read('h80,0,1);
     transaction(1,'h78,2,1);transaction(1,'h78,3,1);transaction(1,'h88,1,1);
     for(epoch=0;epoch<64;epoch++) begin

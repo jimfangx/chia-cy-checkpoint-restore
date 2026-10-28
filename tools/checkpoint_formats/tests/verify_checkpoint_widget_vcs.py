@@ -26,7 +26,8 @@ GENERATED = (
     "widget/CheckpointCaptureWidget.v", "widget/CheckpointCaptureTransport.sv",
     "widget/CheckpointCaptureCut.sv", "widget/checkpoint_capture_widget_tb.sv",
 )
-STANDALONE = tuple(f"live-snapshot/{bits}/CheckpointLiveWidgetSnapshot.v" for bits in (639, 712))
+STANDALONE = tuple(f"live-snapshot/{bits}/CheckpointLiveWidgetSnapshot.v" for bits in (1169, 1242))
+ADAPTERS = tuple(f"adapter-state/{a}-{i}/CheckpointNastiAdapter.v" for a,i in ((8,1),(32,4),(64,64)))
 SOURCE = (
     "sims/firesim/sim/build.sbt",
     "sims/firesim/sim/midas/src/main/scala/midas/widgets/CheckpointCaptureWidget.scala",
@@ -44,6 +45,9 @@ SOURCE = (
     "sims/firesim/sim/midas/src/main/verilog/CheckpointPhysicalCaptureTransport.sv",
     "sims/firesim/sim/midas/src/main/verilog/CheckpointPhysicalClockCut.sv",
     "sims/firesim/sim/midas/src/test/scala/midas/widgets/CheckpointCaptureSnapshotSpec.scala",
+    "sims/firesim/sim/midas/src/main/scala/midas/widgets/CheckpointNastiState.scala",
+    'sims/firesim/sim/midas/src/test/scala/midas/widgets/CheckpointCaptureNastiStateSpec.scala',
+    "tools/checkpoint_formats/tests/checkpoint_nasti_state_tb.sv",
     "tools/checkpoint_formats/tests/live_widget_snapshot_tb.sv",
 )
 
@@ -62,7 +66,7 @@ def main():
     generated = args.generated.resolve()
     root = args.out.resolve()
     require(root.is_relative_to(ROOT / "automations/checkpoint_loop/runs"), "evidence must be beneath runs/")
-    for name in (*GENERATED, *STANDALONE):
+    for name in (*GENERATED, *STANDALONE, *ADAPTERS):
         require((generated / name).is_file() and (generated / name).stat().st_size > 0,
                 f"missing Scala-generated artifact: {name}")
     # Refuse stale resource/fixture copies rather than testing a different adapter.
@@ -76,8 +80,8 @@ def main():
     root.mkdir(parents=True, exist_ok=True)
     out = Path(tempfile.mkdtemp(prefix="widget-", dir=root))
     hashes = {name: sha(ROOT / name) for name in SOURCE}
-    generated_hashes = {name: sha(generated / name) for name in (*GENERATED, *STANDALONE)}
-    for group, base, names in (("source-snapshots", ROOT, SOURCE), ("generated-snapshots", generated, (*GENERATED, *STANDALONE))):
+    generated_hashes = {name: sha(generated / name) for name in (*GENERATED, *STANDALONE, *ADAPTERS)}
+    for group, base, names in (("source-snapshots", ROOT, SOURCE), ("generated-snapshots", generated, (*GENERATED, *STANDALONE, *ADAPTERS))):
         for name in names:
             dest = out / group / name
             dest.parent.mkdir(parents=True, exist_ok=True)
@@ -116,16 +120,44 @@ def main():
         require(int(counts[0]) > 0, f"no checks executed for {top}")
         if name == "widget":
             require(int(counts[1]) == 5, "widget did not transfer exactly header/3words/trailer")
-            require("CHECKPOINT_WIDGET_SHADOW_PASS captures=1 words=30" in text,
+            require("CHECKPOINT_WIDGET_SHADOW_PASS captures=1 words=57" in text,
                     "missing complete immutable transport/local readback")
         results[name] = dict(checks=int(counts[0]), marker=matches[0])
+    for (addr, ident), source in zip(((8,1),(32,4),(64,64)), ADAPTERS):
+        work = out / f"adapter-{addr}-{ident}"
+        work.mkdir()
+        run([toolchain.VCS, "-full64", "-sverilog", "-timescale=1ns/1ps", "-Mupdate",
+             "-debug_access+all", f"+define+NASTI_ADDR_BITS={addr}", f"+define+NASTI_ID_BITS={ident}",
+             "-top", "checkpoint_nasti_state_tb", f"-Mdir={work / 'csrc'}", "-o", str(work / "simv"),
+             str(out / "generated-snapshots" / source), str(ROOT / SOURCE[-2]), str(ROOT / EXIT)],
+             work / "compile.log", work)
+        text = run([str(work / "simv"), "-no_save"], work / "run.log", work)
+        match = re.search(rf"CHECKPOINT_NASTI_STATE_PASS addr={addr} id={ident} state_checks=(\d+) random_steps=3000",text)
+        require(match is not None and int(match[1]) > 3000, "incomplete canonical adapter state comparison")
+        results[f"adapter_{addr}_{ident}"] = dict(state_checks=int(match[1]), random_steps=3000)
+    # Corrupt the synthesized observation logic, independently of the source
+    # register oracle. The first initialized observation must reject it.
+    work = out / "adapter-corruption"
+    work.mkdir()
+    source = (out / "generated-snapshots" / ADAPTERS[-1]).read_text()
+    site = re.compile(r"(assign io_controlState = )([^;]+);",re.S)
+    require(len(site.findall(source)) == 1,"ambiguous adapter observation corruption site")
+    (work / "adapter.v").write_text(site.sub(lambda m:m[1]+"("+m[2]+") ^ 530'h8000000000000000;",source))
+    run([toolchain.VCS,"-full64","-sverilog","-timescale=1ns/1ps","-Mupdate","-debug_access+all",
+         "+define+NASTI_ADDR_BITS=64","+define+NASTI_ID_BITS=64","-top","checkpoint_nasti_state_tb",
+         f"-Mdir={work / 'csrc'}","-o",str(work / "simv"),str(work / "adapter.v"),
+         str(ROOT / SOURCE[-2]),str(ROOT / EXIT)],work / "compile.log",work)
+    text = run([str(work / "simv"),"-no_save"],work / "run.log",work,expected=1)
+    require("NASTI_STATE_DIVERGENCE complete canonical original register vector" in text and
+            "CHECKPOINT_NASTI_STATE_PASS" not in text,"compiled adapter corruption escaped original register oracle")
+    results["adapter_corruption"] = dict(returncode=1,corrupt_signal="aw_addr[63]")
     # Compile an actual bad staging bank. The independent MMIO oracle must
     # stop on the first differing word while the AXI read remains unacknowledged.
     bad = out / "shadow-corruption"
     bad.mkdir()
     original = (out / "generated-snapshots/widget/CheckpointCaptureWidget.v").read_text()
     require(original.count("saved <= io_live;") == 1, "ambiguous snapshot corruption site")
-    (bad / "widget.v").write_text(original.replace("saved <= io_live;", "saved <= io_live ^ 639'h1;"))
+    (bad / "widget.v").write_text(original.replace("saved <= io_live;", "saved <= io_live ^ 1169'h1;"))
     run([toolchain.VCS, "-full64", "-sverilog", "-timescale=1ns/1ps", "-Mupdate",
          "-debug_access+all", "-top", "checkpoint_capture_widget_tb",
          f"-Mdir={bad / 'csrc'}", "-o", str(bad / "simv"), str(bad / "widget.v"),
@@ -139,7 +171,7 @@ def main():
         "healthy": audit_shadow(out / "widget/checkpoint-widget.vcd"),
         "corrupt": audit_shadow(bad / "checkpoint-widget.vcd", corrupt=True),
     }
-    for bits, source in zip((639, 712), STANDALONE):
+    for bits, source in zip((1169, 1242), STANDALONE):
         work = out / str(bits)
         work.mkdir()
         run([toolchain.VCS, "-full64", "-sverilog", "-timescale=1ns/1ps", "-Mupdate",

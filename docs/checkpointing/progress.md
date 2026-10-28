@@ -35,7 +35,78 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 262,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 263,
+**in_progress; complete NASTI adapter shadow observation and runtime layout binding**.
+The actual widget now samples all 38 original adapter registers atomically with
+its transport controls/eight parent locals, while MMIO/DMA stay live. Layout 2
+adds 530 canonical adapter bits, with bounded zero-extended address/ID slots.
+Read-only layout/version and exact-bit-count MMIO reject stale driver layouts
+before staging mutation. This is an observation, not a restore owner or a
+complete hardware checkpoint. See [f2-nasti-shadow.md](f2-nasti-shadow.md).
+
+Final-source Scala passes **319 tests / 49 suites plus twelve preparation
+checks**, including complete low-FIRRTL adapter register enumeration at 8/1,
+32/4 and 64/64 widths. Final fresh EDA retained checks pass **336 Python tests**,
+all three adapter geometries (9,366 full-state comparisons / 9,000 random traffic
+steps), 130 standalone captures / 4,992 word reads, compiled adapter/staging
+corruptions and independent shadow waves. ASan/UBSan passes **1,890 host checks**,
+four captures and thirteen failure/recovery cases. FCFS and atomic-cut checks pass.
+Fresh exact Rocket diagnostics retain **11,093 descriptors / 1,062 uncovered
+entries and eight live-transport conflicts**. An independent audit maps all 38
+actual adapter StateIDs/native renames (258 original bits / 272 padding bits) and
+rejects seven corrupted ownership descriptions without granting restore ownership.
+
+Final verification also passes **seventeen native OOC and seventeen fresh
+native-bound EDA SP2 component scopes**, all six retained independent waveform
+audits, physical shadow-wave reconstruction and eight rehashed physical evidence
+corruptions. The physical fixture passes **six component cuts / 240 complete
+word reads / 65,361 checks / 3,851 stalls**, with reset recovery to cycle 96.
+Compiled adapter and first-word staging defects reject independently; fixture
+labels are not FPGA/CPU workload cuts. The physical widget uses **2,766 LUTs /
+1,978 registers**, including **1,040** audited raw positive-edge shadow registers.
+Source-policy OOC uses 5,872 LUTs / 3,114 registers / six BUFGCEs, with negative
+140 MHz setup/hold estimates **−0.179/−0.074 ns** and unconstrained I/O. No full
+image timing closure is established.
+
+Recovery: `verification-commands.json`, `scala-selected.json`,
+`native-selected.json`, `component-regressions/selected.json`,
+`retained-selected.json`, `physical-native-selected.json`,
+`physical-eda-selected.json`, `physical-audit-selected.json`,
+`rocket-region-probe-selected.json`, `rocket-composition-audit-selected.json`,
+`probe-audit-selected.json`, `nasti-owner-selected.json`,
+`ownership-gap-summary.json`, `source-policy-resources-selected.json`,
+`final-inventory-selected.json` and `final-audit-selected.json` under
+`runs/aws-f2/iteration263/`. Final independent source/receipt/protection/resource
+integrity audit passes. The fresh ordinary production check still rejects the
+FASED physical CE/common-cut owner; the regional/local check still rejects all
+eight self-freezing locals and emits no connected image.
+
+Preserved development attempts include the initial Scala import error, the
+explicitly terminated/joined pre-version full Scala run, pre-version EDA checks
+and a failed native sweep with three missing connected-XDC preparation failures.
+Recovery executes the actual native `WriteXDCFile` transform for all four
+connected constraint sets (`emit-connected-xdc.py`), then `recover-local.sh`
+validates and retains thirteen unchanged current-turn native receipts and reruns
+all three failed scopes. Original failures are unchanged. Do not use the initial
+`verify-local.sh` as a complete recipe: follow `verification-commands.json` and
+`recover-local.sh`. Java generation/emission and synthesis never overlap; native concurrency
+never exceeds two. Keep this order on subsequent iterations.
+
+Initialized AWS/manager/Vivado 2025.2/F2 HDK/Fabric localhost checks and all 45
+manager tests pass. Final scoped inventory records no active tagged F2 runtime,
+pending AFI or native Java/Vivado process; none was requested. Existing controller
+commits were published FireSim first (`1cdecc7b`), then Chipyard (`74c55cee`), with
+independent remote tips matching. The Chipyard read-only tracking-ref warning is
+retained. Plans and initialized YAMLs retain their entry hashes; no staging,
+local commits or conda edits. Managed delegation failed before startup; the
+managed tree contains only the central agent, and every tool session is joined.
+
+Complete transport/stream/staging/reset/host restore ownership, functional DRAM,
+pre-FAME/common-cut mapping, full local P&R/AFI, actual all-hart FPGA cuts,
+zero-edge/finite/live paired CPU migration and rolling FPGA recovery remain
+pending. Do not mark hardware acceptance from component results.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 262,
 **in_progress; synthesized live-widget shadow MMIO and host observation/recovery**.
 The actual CheckpointCaptureWidget now atomically copies its versioned source
 control vector and eight original local registers into an immutable raw-clock

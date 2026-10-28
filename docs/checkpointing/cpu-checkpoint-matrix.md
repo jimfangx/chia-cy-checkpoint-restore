@@ -14,6 +14,26 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 263 adds atomic observation of all 38 original NASTI adapter
+registers to the real layout-2 widget shadow, with runtime layout/version and
+exact-bit-count checks before capture. Independent exact Rocket mapping binds
+258 original adapter bits / 272 padding bits to StateIDs/native renames and
+rejects seven corrupted descriptions, retaining their unsupported restore status.
+Final 319 Scala / 49 suites plus twelve preparation, 336 Python / 45 manager,
+seventeen native OOC and seventeen native-bound EDA SP2 scopes pass. All waveform
+and physical evidence corruption audits pass; ASan/UBSan host executes 1,890 checks.
+The physical fixture completes six component cuts / 240 full word reads / 65,361
+checks / 3,851 stalled cycles, with compiled first-divergence cases. Native widget
+resources are 2,766 LUTs / 1,978 registers, including 1,040 audited raw positive-edge
+shadow registers. OOC source-policy timing remains negative; full-image closure is
+unestablished. The three missing-XDC preparation failures were preserved and
+recovered through the actual native constraint emitter without reducing scope.
+Exact production still rejects physical CE/common-cut ownership, and regional
+connection still rejects eight self-freezing locals with 1,062 uncovered entries.
+No complete image, AFI, FPGA checkpoint or CPU migration is established. Every
+physical migration column remains pending. Receipts and exact commands are under
+`runs/aws-f2/iteration263/`; see [f2-nasti-shadow.md](f2-nasti-shadow.md).
+
 Iteration 262 connects an immutable live-widget MMIO shadow and host-session
 observation/recovery API. Final 317 Scala / 48 suites plus twelve preparation,
 336 Python / 45 manager, seventeen native OOC and seventeen source-matched EDA
