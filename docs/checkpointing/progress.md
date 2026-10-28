@@ -35,7 +35,58 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 259,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 260,
+**in_progress; enclosing-module banked readout and annotation ownership fix**.
+`NativeCheckpointShellStateAccess` banks local storage without replacing or
+freezing original children. Separate exact-Rocket invocations reconstruct
+**181 FPGATop + two F1Shim = 183 original owners**. These selectors are not yet
+composed with the registered regional widget; the production manifest still
+retains **1,241 uncovered functional entries and one unsupported transport
+owner**. No complete image or FPGA capture is claimed. See
+[f2-shell-state-access.md](f2-shell-state-access.md).
+
+Independent review found and fixed nonlocal annotation broadening on unchanged
+shared children. Source annotations now retain their exact vector/order/targets
+except invalidated CombinationalPath caches. Validation uses distinct temporary
+per-execution identities without applying translated copies. Nine focused tests
+pass, including independent left/right initialization files, true overlap
+rejection, caller-rehashed changes, child-clock rejection and all four original
+Rocket hart register-file model annotations. Full final-source Scala passes
+**311 tests / 46 suites plus twelve preparation tests**. Independent exact-source
+and nine rehashed metadata audits pass. All **336 Python / 45 manager tests,
+fifteen native synthesis scopes and fifteen fresh source-pinned EDA SP2 scopes**
+pass, retaining ASan/UBSan host, FCFS and atomic-cut checks. All five independent
+waveform audits pass. The new shell fixture uses **122 LUTs / 163 registers**
+and rejects eight rehashed corruptions. Its native-bound VCS run passes
+**4,280 checks / 69 reads / 347 stalls / four component cases**. Independent
+waves retain 649 healthy samples, including 488 frozen samples; the compiled
+payload defect stops at the first word with local cycle 7, freeze held and no
+response acknowledgment. Case label 11 is a fixture identifier, not a CPU cut.
+Retained source-policy OOC timing remains −0.031/−0.074 ns at 140 MHz with
+unconstrained I/O; no full-image timing closure is claimed.
+
+Fresh AWS/manager/Vivado 2025.2/F2 HDK/localhost SSH preflight passes. Existing
+controller checkpoints were published FireSim first (`c5afd207`), then Chipyard
+(`b319db32`); independent remote tips match. The read-only Chipyard tracking-ref
+warning is retained. Plans and initialized YAMLs remain protected; no local
+staging/commits. All three managed workers completed. Native synthesis followed
+Java generation and peaked at two jobs. Final scoped inventory records no active
+tagged F2 runtime, Java/Vivado job or new/pending AFI. Final independent source,
+receipt, debug-wave, resource and protected-input integrity audit passes.
+
+Recovery: `verification-commands.json`, `scala-selected.json`,
+`native-selected.json`, `component-regressions/selected.json`,
+`rocket-shell-audit-selected.json`, `shell-wave-selected.json`,
+`final-audit-selected.json`, `final-inventory-selected.json`,
+`development-attempts.json` and `delegation.json` under
+`runs/aws-f2/iteration260/`. Original source-annotation decoding, stale-negative,
+EDA import-path and VCS monitor/debug failures and their repairs are preserved. Complete MMIO/DMA-safe common-cut,
+raw subtree/shared-definition, memory/host/pre-FAME and added bank/router/control
+ownership, full localhost image/P&R/AFI, active all-hart physical cuts and paired
+zero-edge/finite/live/rolling migration remain required. Reuse iteration194's
+initialized ExternallyProvisioned localhost invocation.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 259,
 **in_progress; exact Rocket regional compiler/widget/host identity hookup runs**.
 The opt-in compiler probe now reconstructs and connects the actual Rocket DUT
 and FASED regions through the registered widget. Its generated transport digest

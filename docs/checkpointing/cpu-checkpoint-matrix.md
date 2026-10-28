@@ -14,6 +14,23 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 260 adds enclosing-module local-state banks, separately reconstructing
+181 FPGATop and two F1Shim original owners while retaining original children and
+annotation paths/order. The local selectors are not yet composed with the
+regional transport; its 1,241 uncovered functional entries and one unsupported
+transport owner remain explicit. Nine focused checks pass, including differing
+nonlocal shared-memory initialization owners and preservation of all four hart
+register-file model targets. Full 311 Scala / 46 suites plus twelve preparation
+checks, 336 Python / 45 manager tests, fifteen native and fifteen fresh EDA SP2
+scopes pass, with ASan/UBSan host, FCFS, atomic-cut and five independent waveform
+audits retained. The shell fixture uses 122 LUTs / 163 registers and passes
+4,280 checks / 69 reads / 347 stalls / four component cases; eight rehashed
+corruptions reject and the compiled first-word defect stops before acknowledgment.
+Complete source/receipt/resource integrity passes. Every physical migration
+column remains pending. Receipts and exact commands are under
+`runs/aws-f2/iteration260/`. See
+[f2-shell-state-access.md](f2-shell-state-access.md).
+
 Iteration 259 runs the real registered-widget regional compiler hookup for the
 exact Rocket recipe, binding 10,910 descriptors / three CE slots to MMIO 0x200,
 CPU stream 4 and the generated host constructor. Its final status is
