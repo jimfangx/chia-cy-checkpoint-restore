@@ -1,5 +1,10 @@
 # Concrete shared queue readout
 
+Iteration 269 implements the synchronous native-port adapter described below;
+see [f2-synchronous-queue-memory.md](f2-synchronous-queue-memory.md) for its
+contract and current validation. The iteration-268 BLOCK-policy failure retained
+here is historical evidence and is not rewritten as a successful synthesis.
+
 Iteration 268 adds instance-specific local banks for repeated module definitions.
 The exact Rocket diagnostic selects the four existing TRACERV `Queue_56`
 executions beneath `CPUManagedStreamEngine_0`, leaving the live checkpoint

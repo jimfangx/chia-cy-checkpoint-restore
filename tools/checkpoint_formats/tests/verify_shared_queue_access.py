@@ -18,7 +18,7 @@ import tempfile
 from tools.checkpoint_formats import toolchain
 from tools.checkpoint_formats.codec import FormatError, canonical, require
 from tools.checkpoint_formats.tests.audit_checkpoint_regions import inventory_from_firrtl
-from tools.checkpoint_formats.tests.audit_physical_clock_plan import parse_modules
+from tools.checkpoint_formats.tests.audit_physical_clock_plan import arguments, parse_modules
 
 ROOT = Path(__file__).resolve().parents[3]
 RUNS = ROOT / "automations/checkpoint_loop/runs"
@@ -48,9 +48,134 @@ def digest(doc):
     return hashlib.sha256(canonical(doc)).hexdigest()
 
 
+def canonical_json(path):
+    data = Path(path).read_bytes()
+    doc = json.loads(data)
+    require(data == canonical(doc), "noncanonical queue metadata " + Path(path).name)
+    return doc
+
+
+def memory_shape(body):
+    memories = {}
+    for mem in re.finditer(r"^  mem (\w+) :\n((?:    [^\n]*\n?)*)", body, re.M):
+        attrs = re.findall(r"^    ([\w-]+) => (.*)$", mem[2], re.M)
+        require(len(attrs) == len(set(k for k, _ in attrs)), "duplicate native memory attribute")
+        memories[mem[1]] = dict(attrs)
+    return memories
+
+
+def bank_audit(directory, q, shell, mapping):
+    bank = canonical_json(directory / f"shell-{q}-banks-binding.json")
+    reference = directory / f"shell-{q}-reference.fir"
+    instrumented = directory / f"shell-{q}-banked.fir"
+    require(shell["banks_binding_sha256"] == digest(bank), "unbound underlying queue bank policy")
+    require(shell["reference_sha256"] == bank["reference_sha256"] == sha(reference)
+            and bank["instrumented_sha256"] == sha(instrumented), "changed underlying bank circuit hash")
+    local_manifest = canonical_json(directory / f"shell-{q}-manifest.json")
+    require(bank["manifest_sha256"] == digest(local_manifest), "unbound local queue bank manifest")
+    expected_policy = dict(adapter_version=2, original_ram_ports_retained=True,
+        access_clock_contract="same_running_original_raw_clock", response_latency_edges=3,
+        original_reader_reprimed_before_response=True, cancel_reprime_before_ready=True,
+        public_reader_shadowed=True, memories=["ram"], native_read_under_write="old",
+        original_read_under_write="new", write_first_forwarding="registered_hit_and_data_at_original_ram_edge",
+        derived_readout_state_complete_capture_owner=False)
+    require(bank.get("synchronous_memory_readout") == expected_policy,
+            "changed synchronous queue policy/latency/port contract")
+    require(bank["access_clock"] == "ckpt_clock" and bank["functional_clock_domains"] ==
+            [dict(clock_hierarchy="SharedQueue.clock", root_clock="clock")],
+            "changed native queue access or functional clock contract")
+    require(bank["freeze_contract"] == "externally_held_all_functional_owners_before_access_until_drain",
+            "changed native queue hold contract")
+    modules = parse_modules(instrumented.read_text());refs = parse_modules(reference.read_text())
+    require(set(modules) == set(refs) == {"SharedQueue"}, "changed local queue bank topology")
+    module = modules["SharedQueue"]
+    shape = memory_shape(module["body"])
+    require(shape == {"ram": {"data-type": "UInt<130>", "depth": "6", "read-latency": "1",
+        "write-latency": "1", "reader": "r", "writer": "w", "read-under-write": "old"}},
+        "changed actual native queue memory shape or ports")
+    reference_shape = memory_shape(refs["SharedQueue"]["body"])
+    require(reference_shape == {"ram": dict(shape["ram"], **{"read-under-write": "new"})},
+            "native Old RAM must retain the exact original New reference shape")
+    final = parse_modules((directory / "generated.fir").read_text())
+    selected = final[f"checkpoint_shell_region{q}_selected_SharedQueue"]
+    require(shape == memory_shape(selected["body"]), "installed queue RAM differs from exported native bank")
+    endpoint = {"ckpt_native_phase", "ckpt_native_bank", "ckpt_native_slot", "ckpt_native_address",
+                "ckpt_native_active", "ckpt_native_request"}
+    consumers = {name: clock for name, kind, clock in module["consumers"] if kind == "register"}
+    require(endpoint <= consumers.keys() and all(consumers[n] == "ckpt_clock" for n in endpoint),
+            "changed actual native queue endpoint clocks")
+    require(consumers.get("CheckpointNativeHold_ram") == "clock" and
+            consumers.get("CheckpointNativeBorrowed") == "clock", "changed native RAM shadow clock")
+    forwarding = {"CheckpointNativeForwardHit_ram": "UInt<1>", "CheckpointNativeForwardData_ram": "UInt<130>"}
+    for name, width in forwarding.items():
+        require(consumers.get(name) == "clock" and re.search(
+            r"^  reg " + re.escape(name) + r" : " + re.escape(width) + r", clock(?: with :)?$",
+            module["body"], re.M) is not None, "changed native registered write-first forwarding state")
+    def unalias(value, seen=frozenset()):
+        require(value not in seen, "native queue enable alias cycle")
+        if value in module["aliases"]:
+            return unalias(module["drivers"][value], seen | {value})
+        if value.startswith("mux("):
+            args = arguments(value[4:-1])
+            if args[1:] == ['UInt<1>("h1")', 'UInt<1>("h0")']:
+                return unalias(args[0], seen | {value})
+        return value
+    def root_clock(value, enable, seen=frozenset()):
+        require(value not in seen, "native queue memory clock alias cycle")
+        if value == "clock": return value
+        if value in module["aliases"]:
+            return root_clock(module["drivers"][value], enable, seen | {value})
+        if value.startswith("validif("):
+            args = arguments(value[8:-1])
+            require(len(args) == 2 and unalias(args[0]) == unalias(enable), "native RAM clock guard mismatch")
+            return root_clock(args[1], enable, seen | {value})
+        require(False, "changed actual native queue memory clock")
+    writer_enable = module["drivers"]["ram.w.en"]
+    require(writer_enable.startswith("and("), "native writer lacks hold gating")
+    writer_args = arguments(writer_enable[4:-1])
+    require(len(writer_args) == 2 and writer_args[1] == "not(ckpt_freeze)"
+            and writer_args[0] == refs["SharedQueue"]["drivers"]["ram.w.en"],
+            "changed exact native queue writer freeze gating")
+    require(selected["drivers"]["ram.w.en"] == writer_enable.replace(
+        "ckpt_freeze", f"checkpoint_shell_region{q}_ckpt_freeze"), "changed installed writer freeze gating")
+    require(module["drivers"]["ram.r.en"] == 'UInt<1>("h1")', "native reader must remain always enabled")
+    for port, enable in (("r", module["drivers"]["ram.r.en"]), ("w", writer_args[0])):
+        # The writer's exact extra hold gate was checked above. Its original
+        # validif guard belongs to its original enable, before that hold gate.
+        require(root_clock(module["drivers"][f"ram.{port}.clk"], enable) == "clock",
+                "changed native RAM original clock")
+    drivers = module["drivers"]
+    hit = f"and(and({drivers['ram.w.en']}, {drivers['ram.w.mask']}), eq({drivers['ram.r.addr']}, {drivers['ram.w.addr']}))"
+    functional = "mux(CheckpointNativeForwardHit_ram, CheckpointNativeForwardData_ram, ram.r.data)"
+    public = f"mux(CheckpointNativeBorrowed, CheckpointNativeHold_ram, {functional})"
+    require(drivers["CheckpointNativeForwardHit_ram"] == hit and
+            drivers["CheckpointNativeForwardData_ram"] == drivers["ram.w.data"],
+            "changed registered same-edge write-first hit or full-width data")
+    require(drivers["deq_bits"] == public and drivers["CheckpointNativeHold_ram"] == public,
+            "public/held native RAM output omits registered write-first forwarding")
+    bank_data = [value for name, value in drivers.items() if name.startswith("ckpt_") and value is not None]
+    require(any("ram.r.data" in value for value in bank_data)
+            and all("CheckpointNativeForward" not in value for value in bank_data),
+            "checkpoint RAM payload must use raw native read data")
+    for name in ("CheckpointNativeForwardHit_ram", "CheckpointNativeForwardData_ram", "CheckpointNativeHold_ram", "deq_bits"):
+        installed = re.sub(r"\bckpt_\w+", lambda m: f"checkpoint_shell_region{q}_" + m[0], drivers[name])
+        require(selected["drivers"].get(name) == installed,
+                "installed queue differs from registered write-first bank equations")
+    local_rows = {r["state_id"]: r for r in bank["state"]}
+    require(len(local_rows) == len(mapping["state"]) == 5, "changed underlying bank local owners")
+    for row in mapping["state"]:
+        local = local_rows.get(row["local_state_id"])
+        require(local is not None and all(local[k] == row[k] for k in ("bank", "slot", "width", "depth"))
+                and local["storage_hierarchy"] == "SharedQueue." + row["storage_hierarchy"].rsplit(".", 1)[1]
+                and local.get("transfer_width", local["width"]) == row["transfer_width"]
+                and local.get("transfer_depth", local["depth"]) == row["transfer_depth"],
+                "changed underlying bank local state mapping")
+    return bank
+
+
 def audit(directory):
     directory = Path(directory)
-    read = lambda name: json.loads((directory / name).read_text())
+    read = lambda name: canonical_json(directory / name)
     source = (directory / "source.fir").read_text()
     before = parse_modules(source)
     after = parse_modules((directory / "generated.fir").read_text())
@@ -98,6 +223,7 @@ def audit(directory):
     for q in range(2):
         mapping = read(f"shell-{q}-mapping.json")
         shell = read(f"shell-{q}-binding.json")
+        bank_audit(directory, q, shell, mapping)
         require(mapping["selected_execution"] == f"SharedQueueHost.q{q}" and len(mapping["state"]) == 5,
                 "wrong shell execution")
         require(shell["mapping_sha256"] == digest(mapping) and shell["host_sha256"] == sha(directory / "source.fir"),
@@ -143,7 +269,10 @@ def audit(directory):
 
 
 def selectors(directory):
-    lines = ["task allwords;", "begin"]
+    mapping = json.loads((Path(directory) / "shell-0-mapping.json").read_text())
+    memory = next(row for row in mapping["state"] if row["hierarchy"].endswith(".ram"))
+    lines = [f"localparam integer QUEUE0_RAM_BANK={memory['bank']};",
+             f"localparam integer QUEUE0_RAM_SLOT={memory['slot']};", "task allwords;", "begin"]
     for q in range(2):
         mapping = json.loads((Path(directory) / f"shell-{q}-mapping.json").read_text())
         for row in mapping["state"]:
@@ -187,7 +316,8 @@ def synthesis_wrapper(generated):
 
 def negative_audits(generated, out):
     results = []
-    for case in ("omitted", "duplicate", "shape", "pipeline", "selector", "duplicate_mapping", "sibling", "false_admission"):
+    for case in ("omitted", "duplicate", "shape", "pipeline", "selector", "duplicate_mapping", "sibling", "false_admission",
+                 "bank_policy", "bank_hash", "bank_latency", "bank_port", "noncanonical"):
         directory = out / case
         shutil.copytree(generated, directory)
         manifest = json.loads((directory / "descriptors.json").read_text())
@@ -218,12 +348,38 @@ def negative_audits(generated, out):
             require(body.count(needle) == 1, "ambiguous original sibling enqueue")
             text = text[:start] + body.replace(needle, 'node enq = UInt<1>("h0")') + text[end:]
             p.write_text(text);binding["instrumented_sha256"] = sha(p)
-        else: manifest["complete_fpga_capture"] = True
+        elif case == "false_admission": manifest["complete_fpga_capture"] = True
+        elif case.startswith("bank_"):
+            bp = directory / "shell-0-banks-binding.json"
+            bank = json.loads(bp.read_text())
+            if case == "bank_policy": bank["synchronous_memory_readout"]["access_clock_contract"] = "foreign_clock"
+            elif case == "bank_hash": bank["instrumented_sha256"] = "0" * 64
+            elif case == "bank_latency": bank["synchronous_memory_readout"]["response_latency_edges"] = 1
+            else:
+                fir = directory / "shell-0-banked.fir"
+                text = fir.read_text()
+                require(text.count("reader => r") == 1, "ambiguous native reader port negative")
+                text = text.replace("reader => r", "reader => r\n      reader => extra")
+                text += '    ram.extra.clk <= clock\n    ram.extra.en <= UInt<1>("h1")\n    ram.extra.addr <= UInt<3>("h0")\n'
+                fir.write_text(text);bank["instrumented_sha256"] = sha(fir)
+            bp.write_bytes(canonical(bank))
+        # Rebind every enclosing metadata envelope, so policy/hash/port and
+        # original semantic negatives cannot pass by tripping a stale checksum.
+        for q in range(2):
+            sp = directory / f"shell-{q}-binding.json"
+            shell = json.loads(sp.read_text())
+            shell["banks_binding_sha256"] = sha(directory / f"shell-{q}-banks-binding.json")
+            sp.write_bytes(canonical(shell))
+            identities["regions"][q]["binding"]["shell_binding_sha256"] = digest(shell)
+            identities["regions"][q]["binding_sha256"] = digest(identities["regions"][q]["binding"])
         (directory / "descriptors.json").write_bytes(canonical(manifest))
         identities["manifest_sha256"] = digest(manifest)
         (directory / "descriptor-binding.json").write_bytes(canonical(identities))
         binding["descriptor_manifest_sha256"] = digest(manifest);binding["descriptor_binding_sha256"] = digest(identities)
         (directory / "binding.json").write_bytes(canonical(binding))
+        if case == "noncanonical":
+            p = directory / "shell-0-banks-binding.json"
+            p.write_text(json.dumps(json.loads(p.read_text()), indent=2) + "\n")
         try: audit(directory)
         except FormatError as error: results.append(dict(case=case, rejected=True, reason=str(error)))
         else: raise FormatError("coherently rehashed queue metadata corruption accepted: " + case)
@@ -280,6 +436,12 @@ foreach path {host/q0 host/q1 host/q2} {
   if {[llength [get_cells $path]] != 1} {error "original queue execution disappeared"}
 }
 set all_block [get_cells -hier -filter {REF_NAME =~ RAMB*}]
+set all_other_ram [get_cells -hier -filter {REF_NAME =~ RAM* && REF_NAME !~ RAMB*}]
+foreach cell $all_other_ram {
+  if {[regexp {^host/q[012]/} [get_property NAME $cell]]} {
+    error "original BLOCK memory policy fell back to distributed RAM at $cell"
+  }
+}
 set counts {}
 foreach path {host/q0 host/q1 host/q2} {
   set count 0
@@ -297,7 +459,7 @@ puts "SHARED_QUEUE_SYNTH_PASS selected=2 untouched=1"
 ''')
         doc["inputs"] = {str(p.relative_to(out)): sha(p) for p in out.rglob("*") if p.is_file() and p.name != "summary.json"}
         text = run(["vivado", "-mode", "batch", "-source", "synth.tcl"], "synth")
-        require("SHARED_QUEUE_SYNTH_PASS selected=2 untouched=1" in text and not re.search(r"ERROR:|CRITICAL WARNING:", text), "native shared queue synthesis failure")
+        require("SHARED_QUEUE_SYNTH_PASS selected=2 untouched=1" in text and not re.search(r"ERROR:|CRITICAL WARNING:|Infeasible attribute ram_style", text), "native shared queue synthesis failure")
         resources = re.search(r"SHARED_QUEUE_MEMORY_PRIMITIVES selected0=(\d+) selected1=(\d+) sibling=(\d+)", text)
         require(resources is not None and min(map(int, resources.groups())) > 0, "missing physical BLOCK memory policy audit")
         doc["block_memory_primitives"] = dict(zip(("selected0", "selected1", "sibling"), map(int, resources.groups())))
@@ -331,10 +493,14 @@ puts "SHARED_QUEUE_SYNTH_PASS selected=2 untouched=1"
             wave = out / "shared-queue-access.vcd";require(wave.is_file() and wave.stat().st_size > 0, "missing queue debug waveform")
             shutil.move(wave, folder / wave.name)
             if mode == "healthy":
-                match = re.search(r"SHARED_QUEUE_PASS checks=(\d+) reads=361 stalls=(\d+) edges=(\d+) cuts=4 sibling_pushes=(\d+)", text)
+                match = re.search(r"SHARED_QUEUE_PASS checks=(\d+) reads=364 stalls=(\d+) edges=(\d+) cuts=4 sibling_pushes=(\d+)", text)
                 require(match and int(match[1]) > 1000 and int(match[4]) > 100, "incomplete active queue coverage")
                 doc["checks"], doc["stalls"], doc["edges"], doc["sibling_pushes"] = map(int, match.groups())
-                doc["reads"] = 361;doc["cuts"] = 4
+                doc["reads"] = 364;doc["retained_original_reads"] = 361;doc["cuts"] = 4
+                latency = re.search(r"delayed_reads=(\d+) wait_cycles=(\d+) cancellations=(\d+) held_releases=(\d+) premature_releases=(\d+) running_reset_pulses=(\d+)", text)
+                require(latency is not None and int(latency[1]) >= 288 and int(latency[2]) >= int(latency[1])
+                        and int(latency[3]) == 3 and int(latency[4]) == 1 and int(latency[5]) == 2 and int(latency[6]) == 1, "missing synchronous latency and reset cancellation coverage")
+                doc["delayed_reads"], doc["response_wait_cycles"], doc["cancellations"], doc["held_response_releases"], doc["premature_releases"], doc["running_reset_pulses"] = map(int, latency.groups())
             else:
                 require("SHARED_QUEUE_DIVERGENCE signal=complete selected word cuts=0" in text
                         and "frozen=11 response_ack=00 reads=0" in text and "SHARED_QUEUE_PASS" not in text,

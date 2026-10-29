@@ -35,7 +35,64 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 268,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 269,
+**in_progress; synchronous native queue RAM inference and retained execution verified**.
+See [f2-synchronous-queue-memory.md](f2-synchronous-queue-memory.md). Version 2
+uses a physical Old/data-registered reader plus registered full-width collision
+hit/data to preserve original New/write-first behavior. The hit includes actual
+freeze-gated write enable, mask and current read/write address equality. Original
+RAM ports and address StateIDs remain; derived readout/forwarding state still
+lacks complete production capture/restore ownership.
+
+Actual localhost Vivado passes strict BLOCK mapping: two RAMB primitives in each
+of two selected reduced queues and their untouched sibling. The exact original
+Rocket Queue_56 6144-by-512 ULTRA RAM passes with **16 URAM / zero LUTRAM / zero
+BRAM**, 878 LUTs and 1,192 registers. Reduced fixture totals are 2,017 LUTs /
+803 registers / six BRAM tiles. These are OOC component results, not complete
+image P&R, timing closure, AFI construction or physical FPGA capture.
+
+Final current-source checks pass **327 Scala tests / 51 suites plus twelve
+preparation checks, 337 Python / 52 manager tests, 47,219 ASan/UBSan host
+assertions, 27 native OOCs and 26 native-bound fresh EDA SP2 scopes**. Full
+fixture exports are byte-identical to the independently source-bound targeted
+six-test regeneration. Queue RTL passes 364 reads / four cuts, latched selectors,
+backpressure, three reset-cancel phases, two premature releases, held release,
+directed write-first collisions and running reset. A compiled first-word fault
+stops frozen before acknowledgement; full debug waves and all thirteen metadata
+negatives are retained. All legacy zero-edge/readback, continuation, waveform,
+semantic/compiled corruption, FCFS and atomic-cut scopes remain covered.
+
+Fresh exact-Rocket production retains 11,110 functional / three CE descriptors,
+1,042 absent entries and eight live MMIO/DMA self-freeze conflicts. Whole-root
+compilation still rejects the FASED BUFGCE latch/common-low-phase owner. Original
+logical readout availability is not complete physical/host/semantic ownership.
+All four active-hart hardware cuts, full localhost image P&R/AFI and execution,
+paired FPGA-origin zero-edge/finite/live migration and rolling recovery remain
+pending. No hardware acceptance column advances. Next bind complete physical
+CE/common-cut, transport/reset/external-writer, remaining memory, host and
+pre-FAME owners before image admission and deployment.
+
+Commands and immutable receipts belong under `runs/aws-f2/iteration269/`:
+`verification-commands.json`, current `*-selected.json`, `queue-resources.json`
+and the final audit/catalog selections. Current full compiler output is
+`scala-attempt-_nxougg7`; fresh production is `rocket-region-production-vj0cl9jq`.
+V1's actual BLOCK/ULTRA inference failures are preserved as failures under
+`shared-queue-native-h2aeyfc5` and `rocket-queue-ultra-native-25_5wrsy`, pinned by
+`v1-superseded-attempts.json`. Keep the superseded compiler/source results separate.
+
+Preserved development failures include ArraySeq/List annotation representation
+roundtrip (exact public constructors recover all original bytes), original
+FIRRTL source-location parser handling, and two aggregate-auditor schema fixes
+for hash-pinned empty fixtures and native-referenced EDA inputs. Final independent
+source/receipt/physical/protection/component audit passes; no acceptance check
+was relaxed. Native concurrency stayed at most two and never overlapped Java.
+All managed workers completed and joined. Final resource inventory has no active
+tagged runtime, pending AFI or local Java/Vivado job; no instance/AFI was launched.
+Existing iteration-268 checkpoints were published FireSim first (d3199ac8), then
+Chipyard (20e9713f), and remote tips match. Plans and initialized YAMLs retain
+entry hashes; no staging, commits, conda/PDF/archive edits or ASIC work occurred.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 268,
 **in_progress; concrete shared trace-queue readout and independently rejected native RAM policy**.
 The fresh exact-Rocket regional trial adds all twenty original Queue_56 owners:
 11,110 functional plus three CE descriptors, 1,042 absent entries / 61,257 bits /

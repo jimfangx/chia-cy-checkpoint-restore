@@ -14,6 +14,23 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 269 implements v2 synchronous native queue access. Actual localhost
+Vivado passes BLOCK mapping with two RAMB primitives in each of two selected
+queues and their untouched sibling, and exact Rocket Queue_56 ULTRA mapping
+with 16 URAM / zero distributed-RAM or BRAM fallback. Registered full-width
+write-first forwarding preserves original New semantics while the physical
+reader uses an Old/data-register template. Original address StateIDs remain.
+Targeted six Scala tests, thirteen metadata negatives and EDA VCS 364-read /
+four-cut functional, cancellation, release and first-word corruption checks pass.
+Final current-source checks pass 327 Scala / 51 suites plus twelve preparation,
+337 Python / 52 manager / 47,219 sanitizer assertions, 27 native OOCs and
+26 native-bound fresh EDA SP2 scopes. These remain component feasibility/readout
+results. Fresh production still rejects physical CE/common-cut ownership and
+eight live transport freeze conflicts, with 1,042 original entries uncovered. V1 address-register BLOCK/ULTRA
+failures remain retained as failures. See
+[f2-synchronous-queue-memory.md](f2-synchronous-queue-memory.md). No complete
+image/AFI or FPGA-origin checkpoint/migration/live/rolling column advances.
+
 Iteration 268 adds concrete shared trace-queue banks while retaining original
 StateIDs and concrete storage annotation ownership. The fresh exact-Rocket probe
 now has 11,113 descriptors (twenty new original queue owners), 1,042 absent
