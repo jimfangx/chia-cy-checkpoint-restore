@@ -35,7 +35,60 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 274,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 275,
+**in_progress; native-vector MMIO/DMA component verified**. See
+[f2-native-capture-transport.md](f2-native-capture-transport.md).
+The synthesized adapter streams the entire atomic native snapshot with explicit
+full-word/tail descriptors, rejects reserved-bank aliases, drains responses on
+abort and prevents new starts from overtaking physical release. Original native
+write guards use a separate sequencer hold so their last edge matches the
+physical root. The transport request remains the additional-owner freeze request.
+Production Rocket ownership/admission and composite restore remain unsupported.
+
+Final-source localhost Vivado 2025.2 F2-part synthesis maps all 1,666 register bits
+to separate outputs, uses 2,597 LUTs, retains four SYNC gates / one falling-edge
+mask and has zero combinational/latch loops. OOC setup/hold at the unchanged
+140 MHz recipe frequency is −0.859/+0.073 ns. Setup and full-image timing closure
+remain pending. Fresh EDA SP2 passes seven geometries through 6,656 bits, thirteen
+bit-identity planes per healthy process, 112 complete frame captures, 42 fault
+processes, 21 abort/recovery processes and four compiled mutations before the
+relevant acknowledgement. All 74 debug waves remain present; independent manager
+auditing reconstructs all 33 underlying register vectors in each ordinary wave
+and checks every native word, descriptor, target label, frame CRC and source pin.
+
+All 329 Scala / 51 suites plus twelve preparation tests, 52 manager tests,
+337 checkpoint Python tests, 47,219 ASan/UBSan host assertions, FCFS/cut/queue/
+NASTI/endpoint/physical/widget scopes and all sixteen fresh bank/region scopes
+with six independent waveform audits pass. Nine affected native builds were
+refreshed, nine exact unchanged receipts retained with original provenance;
+peak concurrency was two, after large Java generation exited. Fresh exact-Rocket
+compilation still explicitly rejects the FASED physical BUFGCE CE latch lacking
+its production owner/common-low-phase binding. No hardware matrix column advances.
+
+The read-only managed reviewer completed and was joined. Its masked restart-guard
+and modulo-seven bit-alias findings are fixed with consumed-response checks,
+thirteen identity planes and compiled missing-guard/permutation negatives.
+Central review also fixed the one-edge-early native hold. Initial zero-manifest,
+permission-loop, import/path-map and stale native-source refusals remain in their
+original logs. The new verifier legitimately changes seven broad native source
+sets; every affected scope was rebuilt without weakening the consumer. See
+`diagnostic-notes.json`, `managed-review.json` and immutable selected receipts.
+
+Both plans and initialized manager YAMLs retain entry hashes. No staging/local
+commits, conda/PDF/archive edits or ASIC work occurred. Existing controller
+checkpoints were published FireSim first (`63c777bf`), then Chipyard (`27037c99`);
+remote tips match. Final AWS/native inventories contain no active tagged runtime,
+pending AFI or owned Java/Vivado job; no instance or AFI was requested. Reuse
+iteration194's localhost invocation and [github-publication.md](github-publication.md).
+Complete production physical/common-cut/all-four-queue/transport/restore and
+memory/timing/bridge/host/pre-FAME ownership, full localhost image/P&R/AFI,
+physical all-hart cuts/reference, paired zero-edge/finite/live CPU migration beyond
+trace and rolling hardware recovery remain pending. Commands, provenance,
+per-cut frames, debug waves, final audit and artifact catalog belong under
+`runs/aws-f2/iteration275/`. All delegated LLM requests finished before this
+central response; only the central agent returns the required JSON report.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 274,
 **in_progress; coordinated physical/native capture and reader drain verified in
 components**. See [f2-native-state-capture.md](f2-native-state-capture.md).
 The synthesized sequencer waits for the physical common-low-phase cut, all

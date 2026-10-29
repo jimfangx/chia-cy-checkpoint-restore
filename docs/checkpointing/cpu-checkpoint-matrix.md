@@ -14,6 +14,25 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 275 connects the coordinated native snapshot to component MMIO/DMA.
+Final-source localhost F2-part synthesis maps all 1,666 register bits, uses 2,597
+LUTs and retains four SYNC gates / one falling-edge mask with no combinational
+or latch loops. OOC setup at 140 MHz is −0.859 ns; full-image closure is pending.
+Fresh EDA SP2 passes seven vector geometries, thirteen identity planes per healthy
+process, 112 independently audited frame captures, 42 fault cases, 21 abort/
+recovery processes and four compiled mutations before the relevant acknowledgement.
+All 74 debug waves are retained. The separate original-native functional hold
+matches the physical root's last edge. All affected native builds, full Scala/manager/Python/sanitizer/FCFS/fixture
+checks, sixteen fresh bank/region scopes and six independent waveform audits
+pass; nine immutable native receipts retain their original provenance. Final
+source/receipt/resource auditing passes. See the iteration-275 receipts.
+
+These are component results. Whole-Rocket production ownership still rejects
+capture-image generation; full localhost P&R/AFI, physical all-hart cuts, paired
+zero-edge/finite/live CPU migration and rolling hardware recovery remain pending.
+No hardware acceptance column advances. See
+[f2-native-capture-transport.md](f2-native-capture-transport.md).
+
 Iteration 274 verifies the common physical/native cut, complete staging and
 backpressured reader-drain/release sequencer. Native F2-part OOC synthesis retains
 1,189 register bits / 575 LUTs, default SYNC gates and no combinational/latch loops;
