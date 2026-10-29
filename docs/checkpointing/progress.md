@@ -35,7 +35,59 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 271,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 272,
+**in_progress; atomic native queue-state staging verified in components**.
+See [f2-native-state-snapshot.md](f2-native-state-snapshot.md).
+`CheckpointNativeStateSnapshot.sv` samples the complete derived live vector and
+cut label on one common raw edge before borrowing RAM readers. Indexed reads
+retain that immutable payload; owner, freeze, busy-reader, cycle and overlapping
+control faults revoke read/borrow permission before acknowledgement. All new
+staging/control storage is exposed separately. Production clock, transport and
+restore ownership remain incomplete; no FPGA capture image is admitted.
+
+Final current-source checks pass 329 Scala / 51 suites plus twelve preparation,
+337 Python / 52 manager tests, 47,219 ASan/UBSan host assertions, all sixteen
+fresh EDA bank/region scopes and six independent waveform audits, and retained
+queue/NASTI/widget/endpoint/physical/FCFS scope. New native OOC synthesis retains
+1,107 staging/control bits and two RAMB primitives per selected queue and its
+untouched sibling. Fresh source-bound SP2 VCS passes five vector geometries /
+60 negative processes, four cuts of 28 actual emitted fields / 1,036 bits,
+364 complete underlying queue reads and 360 additional gated-wrapper reads.
+Each queue process verifies every one of seventeen staged words at each cut:
+2,708 serial samples / 8,124 checks remain immutable through 2,707 live-vector
+changes. A compiled semantic fault stops at the first snapshot before word ack;
+all 68 new debug waveforms are retained. These are component results.
+
+Seven global Python-source native scopes were re-synthesized; nine unchanged
+receipts retain exact original provenance. At most two Vivado jobs ran, after
+Java exited. Fresh native WriteXDCFile output supplies all regional fixtures,
+including identity/unbound. Initial oracle-bound, receipt-schema, missing-XDC,
+identity file-set and early artifact-fetch failures remain in original logs;
+no test, sanitizer, source/ownership or constraint guard was relaxed.
+
+Fresh exact-Rocket compilation still rejects the FASED physical BUFGCE CE latch
+without a synthesized capture owner/common-low-phase cut. Retained regional
+deficits, all-four-queue production staging/restore/transport ownership, full
+localhost image/P&R/AFI, physical all-hart early/warm/outstanding/late captures,
+paired hardware-origin zero-edge/finite/live CPU migration and rolling recovery
+remain pending. No hardware acceptance column advances. AWS/native/HDK/localhost
+checks pass; final inventory has no active tagged runtime, pending AFI or local
+Java/Vivado job. No instance or AFI was requested. Both plans and all four
+initialized manager YAMLs retain entry hashes. No staging/local commits,
+conda/PDF/archive edits or ASIC work. Existing controller checkpoints were pushed
+FireSim first (`f5bf5b62`), then Chipyard (`bf686818`); remote tips match, and the
+read-only tracking-ref cache warning remains recorded. Managed worker startup
+failed before execution; only the central agent ran and no worker remains.
+
+Current commands and immutable selections are under `runs/aws-f2/iteration272/`:
+`verification-commands.json`, `*-selected.json`, final audit, artifact catalog,
+`diagnostic-notes.json` and `remaining-blockers.json`. Compiler output is
+`scala-attempt-o79f5gwb`; final native join is `native-recovery-wxsj94q5` and the
+complete fresh bank run is `component-regressions/attempt-z5fq_gcn`. Follow
+[github-publication.md](github-publication.md) for the next controller checkpoint.
+Only the central agent returns the JSON report.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 271,
 **in_progress; synthesized derived queue-state taps and complete emitted-register observation verified**.
 See [f2-synchronous-state-observation.md](f2-synchronous-state-observation.md).
 Every added native synchronous reader/forwarding/shadow/endpoint register and the

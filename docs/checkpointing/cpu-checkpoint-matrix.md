@@ -14,6 +14,28 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 272 verifies atomic staging of the native queue observation vector
+before borrowing RAM readers. The reduced component samples 28 fields / 1,036
+bits and exposes its separate staging/control owner. Native OOC retains all
+1,107 new register bits and two RAMB primitives per selected queue and untouched
+sibling. Fresh source-bound EDA SP2 passes five vector geometries / 60 negative
+processes, all seventeen words at each of four cuts, 2,708 serial samples while
+the live vector changes 2,707 times, 364 underlying queue reads and 360 gated
+wrapper reads. Compiled semantic corruption stops before first acknowledgement;
+68 new debug waves are retained. Complete compiler 329 Scala / 51 suites plus
+twelve preparation, Python 337 / manager 52 / sanitizer host 47,219 assertions,
+all sixteen fresh bank/region scopes, six independent waveform audits and all
+retained component/FCFS scopes pass. Seven stale native scopes were re-synthesized
+with complete native XDC; nine exact matching native receipts retain original
+provenance. No source, owner, constraint or sanitizer guard was relaxed.
+
+This is component staging, with all-four-queue production clock/transport/restore
+ownership still pending. Root compilation still rejects physical CE/common-cut
+ownership. Full image/AFI and every actual FPGA capture, paired CPU restore,
+finite/live migration and rolling recovery requirement remain pending/in_progress.
+No hardware column advances. See
+[f2-native-state-snapshot.md](f2-native-state-snapshot.md) and iteration-272 runs.
+
 Iteration 271 synthesizes complete derived synchronous queue-state observation:
 fourteen fields / 518 bits per reduced selected queue and fourteen / 1,664 bits
 per actual Rocket Queue_56. Independent compiler auditing verifies all four real
