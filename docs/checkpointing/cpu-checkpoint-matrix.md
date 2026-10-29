@@ -14,6 +14,26 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 274 verifies the common physical/native cut, complete staging and
+backpressured reader-drain/release sequencer. Native F2-part OOC synthesis retains
+1,189 register bits / 575 LUTs, default SYNC gates and no combinational/latch loops;
+the queue wrapper preserves native RAMB inference. Fresh source-bound EDA SP2
+passes seven geometries, 105 negative processes, seven damaged/incompatible
+receipt rejections, 113 independent register-wave audits and 114 debug waves.
+Four emitted-queue component cuts (75/129/190/258) pass 180 bank reads, 1,324
+serial words and stalled-reader release. Compiled corruption stops before the
+first read acknowledgement. All Scala/manager/Python/sanitizer/FCFS/component,
+sixteen bank/region and retained snapshot/restore scopes pass. Initial unknown
+selector snapshots remain verbatim; no canonical hardware image is published.
+See [f2-native-state-capture.md](f2-native-state-capture.md) and iteration-274
+commands/receipts under `runs/aws-f2/iteration274/`.
+
+These are component results. The whole-Rocket compiler still rejects physical
+CE/common-cut production ownership. Composite restore, all-four-queue/host/
+pre-FAME integration, full image/AFI, every physical CPU cut, paired zero-edge/
+finite/live migration and rolling hardware recovery remain pending/in_progress.
+No hardware acceptance column advances.
+
 Iteration 273 adds opt-in complete snapshot staging/control restore. Native
 localhost F2-part synthesis retains 1,107 owner bits; the enabled standalone
 owner uses 978 LUTs. Fresh EDA SP2 passes six geometries, 30 directed fresh

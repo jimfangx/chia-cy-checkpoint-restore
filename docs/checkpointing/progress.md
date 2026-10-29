@@ -35,7 +35,69 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 273,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 274,
+**in_progress; coordinated physical/native capture and reader drain verified in
+components**. See [f2-native-state-capture.md](f2-native-state-capture.md).
+The synthesized sequencer waits for the physical common-low-phase cut, all
+additional freeze acknowledgements and idle native readers before atomically
+staging the whole native vector. It grants bank access only after staging,
+revokes new access before release, drains a real backpressured native response,
+and releases the snapshot before the physical mask/local hold. Missing owners,
+CE/cycle drift, unsafe sampling and command/borrow faults fail closed. Rejected
+sampling commands preserve the previous payload/label. Readiness is independent
+of attempted commands; every new register reaches the composite live readout.
+Composite restore and production Rocket admission remain unsupported.
+
+Final source-bound localhost Vivado 2025.2 synthesis for the F2 part passes:
+1,189 owner bits / 575 LUTs, four default SYNC gates, one falling-edge mask and
+zero combinational/latch loops. Representative owner parameters are 1036 bits /
+3 gates / 2 owners; the emitted-queue integration is 1036 / 1 / 2 and retains two
+RAMB primitives per queue and untouched sibling. These are OOC results, not a
+routed full-image Fmax. Fresh SP2 VCS passes seven vector geometries (including
+6656), 105 negative processes, seven pre-VCS receipt rejections and 113 independent
+original-register waveform audits. All 114 new debug waves are retained. Four
+actual emitted-queue cuts at component target labels 75/129/190/258 pass 180 bank
+reads and 1,324 serial staging words while the raw vector changes 1,320 times.
+A compiled readout fault stops at the first complete snapshot before any bank or
+word acknowledgement. This is component evidence, not CPU acceptance.
+
+All 329 Scala / 51 suites plus twelve preparation, 337 Python / 52 manager,
+47,219 ASan/UBSan host assertions, sixteen fresh bank/region scopes, six independent
+bank/shell waveform audits and retained queue/NASTI/widget/endpoint/physical/FCFS/
+cut scopes pass. Full retained staging and complete staging/control restore
+matrices pass, including their 68 / 147 debug waves. Seven stale native source
+sets were rebuilt, nine immutable matching receipts retained; the sweep used at
+most two native jobs after large Java generation exited. Current Rocket
+compilation still explicitly rejects the FASED physical BUFGCE CE latch without
+its production owner/common-low-phase binding. No full image, AFI, physical
+checkpoint or paired CPU migration is claimed.
+
+The managed review worker completed and was joined. Its rejected-SAMPLE retention
+and coherently rehashed wrapper/model provenance findings are fixed and covered
+by negatives. Native/VCS declaration/topology and vendor global-startup fixture
+failures remain in original iteration-274 logs. Reset now spans unmodified vendor
+startup and real gated reset edges, with complete original reset-state readback
+before functional checking. Initially unknown queue selector bits remain verbatim
+in the first diagnostic snapshot; no bits were masked or initialized through
+backdoors. See `diagnostic-notes.json` and `managed-review.json` under this run.
+
+Full production CE/common-cut and all-four-queue transport/restore, complete
+simulator/memory/timing/host/pre-FAME ownership, localhost full image/P&R/AFI,
+physical all-hart early/warm/outstanding/late cuts and reference, paired fresh
+zero-edge/finite/live CPU migration beyond trace, and rolling hardware recovery
+remain pending. No hardware matrix column advances. Reuse iteration194's existing
+localhost invocation and initialized manager YAMLs. Plans/YAMLs retain entry
+hashes; no staging/local commits, conda/PDF/archive edits or ASIC work. Existing
+controller checkpoints were published FireSim first (`05014b60`), then Chipyard
+(`82ebd43c`); remote tips match, with the read-only local tracking-ref warning
+retained. Follow [github-publication.md](github-publication.md) for the next
+controller-created checkpoint. Commands, immutable selections, final audit,
+resource inventory and individual artifact catalog belong under
+`runs/aws-f2/iteration274/`. The final aggregate audit passes, and independently
+observed host/AWS inventories contain no active tagged runtime, pending AFI or
+owned Java/Vivado job. No instance or AFI was requested this iteration. Only the central agent returns the JSON report.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 273,
 **in_progress; complete native staging/control restore verified in components**.
 See [f2-native-snapshot-restore.md](f2-native-snapshot-restore.md).
 The opt-in raw-clock load restores every existing snapshot-owner bit: retained
