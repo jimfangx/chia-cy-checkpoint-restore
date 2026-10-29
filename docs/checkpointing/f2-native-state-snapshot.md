@@ -17,14 +17,16 @@ permission before its edge and requires the original reader to be idle.
 Missing owners, missing/lost freeze, a busy reader at capture/release, borrowing
 before capture, cycle-label drift and overlapping control operations revoke read
 and borrow permission combinationally. Errors latch on the raw clock and require
-explicit reset. Failed attempts retain the previous payload and cannot publish
+explicit reset in the default capture-only mode. Failed attempts retain the previous payload and cannot publish
 it as a valid new capture. Reset also removes permission before its edge.
 
 The new storage is an independent owner: payload, occupied flag, 64-bit cut label
 and six error bits. `control_state` exposes all of it, with payload at offset
-zero, then occupied, cut label and errors. This interface does not restore those
-registers, provide MMIO/DMA framing, or admit an FPGA checkpoint. Its reset must
-eventually participate in the complete production ownership protocol.
+zero, then occupied, cut label and errors. The original capture-only interface
+does not restore those registers. An opt-in complete staging/control load is
+described in [f2-native-snapshot-restore.md](f2-native-snapshot-restore.md).
+Neither interface provides MMIO/DMA framing or admits an FPGA checkpoint.
+Reset and restore must participate in the complete production ownership protocol.
 
 The verifier consumes the exact immutable, current-source queue synthesis
 receipt. It reconstructs each native observation layout from generated FIRRTL

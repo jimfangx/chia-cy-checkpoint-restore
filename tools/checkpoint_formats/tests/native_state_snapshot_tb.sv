@@ -7,6 +7,10 @@ module native_state_snapshot_tb;
   localparam integer BITS=`SNAPSHOT_BITS, WORDS=(BITS+63)/64;
   reg clock=0; always #5 clock=~clock;
   reg reset=1,request=0,release_snapshot=0;
+  // This retained capture-only suite intentionally leaves destination loading
+  // disabled. A separate fresh-process suite verifies the opt-in restore ABI.
+  wire restore_hold=1'b0,restore_load=1'b0,restore_ready;
+  wire [BITS+70:0] restore_state=0;
   reg owners_present=1,functional_frozen=1,reader_idle=1,borrow_attempt=0;
   reg [63:0] target_cycle=37;
   reg [BITS-1:0] live_state=0;

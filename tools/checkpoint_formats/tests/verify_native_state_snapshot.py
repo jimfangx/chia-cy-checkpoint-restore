@@ -98,6 +98,9 @@ def integrated_bench(generated):
   reg [1035:0] expected_snapshot;
   reg [1087:0] expected_padded;
   integer snapshot_checks=0,snapshot_cuts=0,snapshot_words=0,live_changes=0,snapshot_cuts_verified=0;
+  integer exported_cuts=0,exported_words=0;
+  reg [1035:0] export_expected;
+  reg [1087:0] export_padded;
   reg [16:0] snapshot_seen=0;
   CheckpointNativeStateSnapshot #(.BITS(1036)) snapshot(
     .clock(clock),.reset(snapshot_reset),.request(snapshot_request),.release_snapshot(snapshot_release),
@@ -120,6 +123,7 @@ def integrated_bench(generated):
     end
   end
   task begin_native_snapshot;
+    integer capture_file;
     snapshot_reset=0;snapshot_request=1;
     #1;check(snapshot_ready && !snapshot_borrow,"reader not borrowed on capture edge");
     @(posedge clock);
@@ -132,15 +136,50 @@ def integrated_bench(generated):
     declarations += """
     #2;snapshot_request=0;
     #1;check(snapshot_valid && snapshot_payload===expected_snapshot && snapshot_cut==snapshot_cycle,"all 28 emitted owners at one preedge cut");
+    capture_file=$fopen($sformatf("native-queue-initial-cut%0d.hex",snapshot_cuts),"w");
+    check(capture_file!=0,"native queue staging donor file");
+    $fdisplay(capture_file,"%h",snapshot_control);$fclose(capture_file);
     expected_padded=0;expected_padded[1035:0]=expected_snapshot;
     snapshot_seen=0;snapshot_active=1;snapshot_cuts++;
   endtask
   task end_native_snapshot;
+    integer capture_file;
     @(negedge clock);#2;snapshot_active=0;snapshot_release=1;
     check(&snapshot_seen,"every staged word read at this cut");snapshot_cuts_verified++;
     #1;check(!snapshot_borrow && !snapshot_valid,"revoke borrowing before release edge");
     @(posedge clock);#2;snapshot_release=0;
     #1;check(!snapshot_failed && !snapshot_valid,"healthy atomic snapshot release");
+    // Initially untouched native selectors are genuinely unknown in VCS. Keep
+    // that first donor verbatim above. After legal bank transactions finish,
+    // atomically restage the now-defined original vector at the SAME frozen
+    // target label. Never mask unknown state or initialize it hierarchically.
+    @(negedge clock);#2;snapshot_request=1;
+    #1;check(snapshot_ready && !snapshot_borrow,"post-read export capture qualified");
+    @(posedge clock);
+"""
+    for q in range(2):
+        bank = queue.canonical_json(generated / f"shell-{q}-banks-binding.json")
+        for row in queue.emitted_observation(generated, q, bank)["state"]:
+            declarations += (f"    export_expected[{q*518+row['offset']} +: {row['width']}] = "
+                             f"dut.host.q{q}.{row['emitted_register']};\n")
+    declarations += """
+    #2;snapshot_request=0;
+    #1;check(snapshot_valid && snapshot_payload===export_expected && snapshot_cut==snapshot_cycle &&
+             (^snapshot_control)!==1'bx,"complete binary post-read staging donor");
+    capture_file=$fopen($sformatf("native-queue-cut%0d.hex",exported_cuts),"w");
+    check(capture_file!=0,"post-read donor file");
+    $fdisplay(capture_file,"%h",snapshot_control);$fclose(capture_file);
+    export_padded=0;export_padded[1035:0]=export_expected;
+    for(integer w=0;w<17;w++)begin
+      @(negedge clock);#2;snapshot_address=w;
+      #1;check(!snapshot_word_error && snapshot_word===export_padded[w*64+:64],"every binary post-read donor word");
+      @(posedge clock);#2;exported_words++;
+    end
+    exported_cuts++;
+    @(negedge clock);#2;snapshot_release=1;
+    #1;check(!snapshot_borrow && !snapshot_valid,"post-read export release before ack");
+    @(posedge clock);#2;snapshot_release=0;
+    #1;check(!snapshot_failed && !snapshot_valid,"post-read export healthy release");
   endtask
 """
     needle = "  wire [517:0] native_state[0:1];"
@@ -160,6 +199,8 @@ def integrated_bench(generated):
     needle = '    $display("NATIVE_OBSERVATION_PASS'
     require(text.count(needle) == 1, "missing retained observation summary")
     text = text.replace(needle, '''    check(snapshot_cuts==4 && snapshot_cuts_verified==4 && snapshot_checks==snapshot_words*3 && live_changes>100,"active borrowed native pipeline snapshot coverage");
+    check(exported_cuts==4 && exported_words==68,"complete binary post-read export scope");
+    $display("NATIVE_SNAPSHOT_EXPORT_PASS cuts=4 bits=1036 serial_words=68");
     $display("NATIVE_SNAPSHOT_QUEUE_PASS cuts=%0d fields=28 bits=1036 checks=%0d serial_words=%0d live_changes=%0d",snapshot_cuts,snapshot_checks,snapshot_words,live_changes);
 ''' + needle)
     return text
@@ -190,6 +231,8 @@ def gated_bench(generated):
     require(text.count(needle) == 1, "ambiguous gated-only scope boundary")
     text = text.replace(needle, """    check(snapshot_cuts==4 && snapshot_cuts_verified==4 && snapshot_checks==snapshot_words*3 && live_changes>100,"gated snapshot workload coverage");
     $display("NATIVE_SNAPSHOT_GATED_PASS cuts=4 fields=28 bits=1036 reads=%0d serial_words=%0d live_changes=%0d",reads,snapshot_words,live_changes);
+    check(exported_cuts==4 && exported_words==68,"complete gated binary post-read export scope");
+    $display("NATIVE_SNAPSHOT_EXPORT_PASS cuts=4 bits=1036 serial_words=68");
     $finish;
     // Explicitly reject requests outside hold"""
     )
@@ -327,6 +370,14 @@ puts "NATIVE_SNAPSHOT_SYNTH_PASS queues=2 sibling=1 RAMB_per_queue=2"
                 str(out / "BUFGCE.v"), str(out / "glbl.v")], "queue-" + mode + "-compile")
             log = run([folder / "simv", "-no_save"], "queue-" + mode + "-run", 1 if mode == "corrupt" else 0)
             shutil.move(out / "shared-queue-access.vcd", folder / "debug.vcd")
+            if mode != "corrupt":
+                for cut in range(4):
+                    for prefix in ("native-queue-cut", "native-queue-initial-cut"):
+                        image = out / f"{prefix}{cut}.hex"
+                        require(image.is_file(), "missing native queue staging donor")
+                        shutil.move(image, folder / image.name)
+                require("NATIVE_SNAPSHOT_EXPORT_PASS cuts=4 bits=1036 serial_words=68" in log,
+                        "missing complete post-read staging exports")
             if mode == "healthy":
                 match = re.search(r"NATIVE_SNAPSHOT_QUEUE_PASS cuts=4 fields=28 bits=1036 checks=(\d+) serial_words=(\d+) live_changes=(\d+)", log)
                 require(match is not None and "SHARED_QUEUE_PASS" in log and "reads=364" in log,
@@ -344,7 +395,7 @@ puts "NATIVE_SNAPSHOT_SYNTH_PASS queues=2 sibling=1 RAMB_per_queue=2"
         doc["native_receipt"] = dict(path=str(receipt), sha256=sha(receipt))
     require(sources == {n: sha(ROOT / n) for n in SOURCES}, "sources changed during verification")
     doc.update(status="pass", commands=commands, artifacts={str(p.relative_to(out)): sha(p) for p in out.rglob("*")
-        if p.is_file() and p.suffix in {".log", ".rpt", ".dcp", ".vcd"}})
+        if p.is_file() and p.suffix in {".log", ".rpt", ".dcp", ".vcd", ".hex"}})
     save();print(out / "summary.json", flush=True)
 
 

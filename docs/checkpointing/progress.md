@@ -35,7 +35,65 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 272,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 273,
+**in_progress; complete native staging/control restore verified in components**.
+See [f2-native-snapshot-restore.md](f2-native-snapshot-restore.md).
+The opt-in raw-clock load restores every existing snapshot-owner bit: retained
+payload, occupied, cut label and sticky errors. Hold and unsafe controls revoke
+reads/borrowing before acknowledgement; invalid loads retain payload/label.
+Qualified whole-owner restore preserves donor diagnostics and supports later
+component execution. Default capture-only behavior and production admission
+remain unchanged; this is not a complete queue or CPU restore owner.
+
+Final current-source checks pass 329 Scala / 51 suites plus twelve preparation,
+337 Python / 52 manager tests, 47,219 ASan/UBSan host assertions, all sixteen fresh
+EDA bank/region scopes and six independent bank/shell waveform audits, plus all
+retained queue/NASTI/widget/endpoint/physical/FCFS/cut scopes. Native F2-part OOC
+synthesis retains all 1,107 bits in both capture-only and restore-enabled owners;
+the standalone enabled owner uses 978 LUTs. Fresh SP2 VCS passes six geometries,
+30 directed fresh restores and eight emitted/gated queue staging restores,
+6,772 per-bit loads, 72 negative processes and 117 independent original-register
+waveform audits. All 147 new restore debug waves and 68 retained staging waves
+are present. Compiled restore-bit corruption stops at first full-state readback
+before word acknowledgement. These are component results, not CPU acceptance.
+
+Initial fixture selectors contain 112 unknown bits before any bank request.
+Their original snapshots remain verbatim. Binary exports instead come from a
+second atomic snapshot after legal reads finish, at the same frozen target cut;
+every exported word is checked. No bits were masked or initialized through
+backdoors. Seven stale native scopes were re-synthesized and nine exact matching
+receipts retain their original provenance. At most two native jobs ran after
+Java exited. The refresh classifier's original stale-source failure is retained;
+all admitted receipts still pass the unchanged strict current-source consumer.
+
+Fresh exact-Rocket compilation still refuses the FASED physical BUFGCE CE latch
+without a synthesized capture owner/common-low-phase cut. All-four-queue
+production snapshot/restore/transport, complete simulator/memory/timing/host and
+pre-FAME ownership, full localhost image/P&R/AFI, physical all-hart early/warm/
+outstanding/late captures, paired hardware-origin zero-edge/finite/live CPU
+migration and rolling recovery remain pending. No hardware column advances.
+Next: production common raw-clock/physical-cut and complete owner integration.
+
+AWS/native/HDK/localhost preflight passes. Final AWS/AFI and independent localhost
+host-/proc inventory show no active tagged runtime, pending AFI or owned Java/
+Vivado job. No instance or AFI was requested. Host-view guards also retain actual
+owned PID/cwd/argv observations. Direct OpenSSH inspection failed; the existing
+FireSim Fabric setup works unchanged. Both plans and all four initialized YAMLs
+retain entry hashes. No staging/local commits, conda/PDF/archive edits or ASIC
+work. Existing controller checkpoints were pushed FireSim first (`c2632e80`),
+then Chipyard (`acf29cfe`); remote tips match. The read-only tracking-ref warning
+is retained. Managed spawn failed before execution; only the central agent ran
+and no worker remains. Follow [github-publication.md](github-publication.md)
+for publication of the controller's next local checkpoint.
+
+Commands and immutable selections are under `runs/aws-f2/iteration273/`:
+`verification-commands.json`, `*-selected.json`, final audit, artifact catalog,
+`diagnostic-notes.json` and `remaining-blockers.json`. Complete Scala output is
+`scala-attempt-gnoy_1qu`; native join is `native-refresh-_dhuicnf`; complete bank
+run is `component-regressions/attempt-0blrtnc7`. Only the central agent returns
+the JSON report.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 272,
 **in_progress; atomic native queue-state staging verified in components**.
 See [f2-native-state-snapshot.md](f2-native-state-snapshot.md).
 `CheckpointNativeStateSnapshot.sv` samples the complete derived live vector and

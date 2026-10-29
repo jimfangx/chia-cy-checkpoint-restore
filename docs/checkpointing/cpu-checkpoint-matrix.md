@@ -14,6 +14,27 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 273 adds opt-in complete snapshot staging/control restore. Native
+localhost F2-part synthesis retains 1,107 owner bits; the enabled standalone
+owner uses 978 LUTs. Fresh EDA SP2 passes six geometries, 30 directed fresh
+restores plus eight emitted/gated queue staging restores, 6,772 per-bit loads,
+72 negative processes and 117 independent original-register waveform audits.
+Compiled restore corruption stops at the first complete readback before word
+acknowledgement; all 147 new debug waveforms are retained. Binary queue donors
+are separately restaged after completed legal reads at the same frozen target
+label, retaining original initially unknown selector snapshots verbatim.
+All 329 Scala / 51 suites plus twelve preparation, Python 337 / manager 52 /
+sanitizer host 47,219 checks, sixteen fresh bank/region scopes, six independent
+bank/shell waveform audits and retained component/FCFS scope pass. Seven stale
+native scopes were rebuilt, nine immutable matching receipts retained, and the
+strict source consumer remains unchanged. These are staging-owner component
+results. Full Rocket compilation still rejects physical CE/common-cut ownership.
+Production all-four-queue/common-clock/transport ownership, complete image/AFI,
+physical captures and paired zero-edge/finite/live CPU migration/rolling recovery
+remain pending/in_progress. No hardware column advances. See
+[f2-native-snapshot-restore.md](f2-native-snapshot-restore.md) and iteration-273
+commands and receipts under `runs/aws-f2/iteration273/`.
+
 Iteration 272 verifies atomic staging of the native queue observation vector
 before borrowing RAM readers. The reduced component samples 28 fields / 1,036
 bits and exposes its separate staging/control owner. Native OOC retains all
