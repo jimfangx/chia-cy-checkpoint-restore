@@ -30,6 +30,10 @@ SSH_OPTIONS = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=15"]
 SOURCE_EXCLUDES = (
     ".aws/", ".codex/", ".agents/", ".ssh/", ".conda-env/", ".conda-lock-env/",
     ".bloop/", ".sbt/", ".ivy2/", "__pycache__/", "target/", ".Xil/",
+    # Git's transient locks (including nested submodule gitdirs) can disappear
+    # between rsync's file listing and transfer. Copy actual metadata, never a
+    # live lock into the independent EDA checkout. Other *.lock inputs remain.
+    "/.git/*.lock", "/.git/**/*.lock", "**/.git/*.lock", "**/.git/**/*.lock",
     "/env.sh", "/sims/firesim/env.sh",
     "/sims/firesim/deploy/results-build/", "/sims/firesim/deploy/results-workload/",
     "/sims/firesim/deploy/logs/", "/sims/firesim/deploy/built-hwdb-entries/",

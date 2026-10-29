@@ -35,7 +35,59 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 269,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 270,
+**in_progress; source-bound synchronous bank validation verified in components**.
+See [f2-synchronous-bank-provenance.md](f2-synchronous-bank-provenance.md).
+Each adapted bank now retains original New RAM/ordinary-bank provenance. The
+factory reconstructs the ordinary bank; standalone validation reconstructs the
+complete native reader, registered write-first forwarding, borrowed-read/shadow,
+reset/reprime/control equations, selectors and canonical binding. Recomputed
+hashes cannot admit changed equations or lost provenance. Generated RTL and the
+version-2 binding remain unchanged; this adds no physical capture ownership.
+
+Current-source checks pass 328 Scala tests / 51 suites plus twelve preparation
+checks, targeted 24 Scala checks, 337 Python / 52 manager tests, 47,219 ASan/UBSan
+host assertions, all retained native OOC scopes and fresh EDA SP2 scopes. The new
+fault test rejects ten coherent equation corruptions and four provenance/selector/
+policy negatives. Native BLOCK mapping retains two RAMB primitives in each of
+two selected queues and their untouched sibling; exact Rocket ULTRA retains
+16 URAM / zero LUTRAM. EDA queue execution passes 364 reads / four cuts and
+compiled first-word rejection before acknowledgement; NASTI passes 72,000
+compared cycles / sixteen negative processes. All bank/region, endpoint/staging,
+physical, waveform, host, FCFS and atomic-cut scopes remain covered.
+
+The fresh exact-Rocket root compiler still rejects the FASED physical CE latch/
+common-low-phase owner. The actual regional diagnostic retains 11,110 functional
+and three CE descriptors, 1,042 uncovered original entries and eight live MMIO/DMA
+self-freeze conflicts. Input generated Rocket IR is explicitly reused by its
+retained hash pin, rather than relabeled as regenerated. Derived queue pipeline,
+complete clock/transport/reset/memory/host/pre-FAME owners, full localhost image
+P&R/AFI, active four-hart FPGA cuts, paired zero-edge/finite/live migration and
+rolling hardware recovery remain pending. No hardware acceptance column advances.
+
+EDA source synchronization now excludes transient Git locks only inside root/
+nested `.git` directories while retaining real metadata and other lock inputs.
+Real rsync round trips pass. Initial source-state object equality, two actual
+vanishing-index-lock transfers, the first glob's root-lock miss and the edited
+waiting-shell launch failure remain in their original diagnostic logs; corrected
+complete checks pass. No test, sanitizer or owner guard was relaxed.
+
+Current receipts/commands belong under `runs/aws-f2/iteration270/`:
+`verification-commands.json`, current `*-selected.json` and the final audit/catalog.
+Full compiler output is `scala-attempt-cgskpv01`; actual regional output is
+`rocket-region-production-_0jtb6p8`. Final scoped inventory has no active tagged
+runtime, pending AFI or local Java/Vivado job. No instance or AFI was requested.
+Both plans and all initialized manager YAMLs retain entry hashes. No staging,
+local commits, conda/PDF/archive edits or ASIC work occurred. Existing controller
+checkpoints were pushed FireSim first (`d3168060`), then Chipyard (`889b0ea6`),
+and remote tips were independently checked; the latter push's local tracking-ref
+cache update hit a read-only filesystem after remote success. Follow
+[github-publication.md](github-publication.md) for the controller's next commit.
+Managed worker startup failed before execution; only the central agent ran and
+no delegated LLM request remains. Final physical/aggregate audits and the
+nonempty local artifact catalog pass; use the hash-bound current selections.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 269,
 **in_progress; synchronous native queue RAM inference and retained execution verified**.
 See [f2-synchronous-queue-memory.md](f2-synchronous-queue-memory.md). Version 2
 uses a physical Old/data-registered reader plus registered full-width collision

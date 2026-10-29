@@ -14,6 +14,21 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 270 binds each synchronous native queue bank to immutable original
+source and ordinary-bank provenance, then independently reconstructs the complete
+adapter during standalone validation. Targeted 24 Scala checks pass, including
+ten coherently rehashed equation faults and four provenance/selector/policy
+negatives. Full current-source checks pass 328 Scala tests / 51 suites plus twelve
+preparation, 337 Python / 52 manager tests, 47,219 sanitizer assertions, all
+retained native and fresh EDA SP2 component scopes. Native BLOCK/ULTRA inference
+is retained, with 16 URAM / zero LUTRAM for exact Rocket ULTRA. EDA queue reads
+364 words at four cuts and rejects its compiled first-word fault before ack;
+NASTI compares 72,000 cycles and sixteen negative processes. Fresh root/regional
+compilers still refuse CE/common-cut and eight live transport conflicts, with
+1,042 original entries uncovered. This changes no hardware acceptance column: complete image/AFI, physical capture, paired zero-edge/finite/
+live migration and rolling FPGA recovery remain pending. See
+[f2-synchronous-bank-provenance.md](f2-synchronous-bank-provenance.md).
+
 Iteration 269 implements v2 synchronous native queue access. Actual localhost
 Vivado passes BLOCK mapping with two RAMB primitives in each of two selected
 queues and their untouched sibling, and exact Rocket Queue_56 ULTRA mapping
