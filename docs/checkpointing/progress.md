@@ -35,7 +35,67 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 267,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 268,
+**in_progress; concrete shared trace-queue readout and independently rejected native RAM policy**.
+The fresh exact-Rocket regional trial adds all twenty original Queue_56 owners:
+11,110 functional plus three CE descriptors, 1,042 absent entries / 61,257 bits /
+182 memories and eight mandatory live-transport freeze conflicts. Original
+StateIDs, unselected siblings and concrete initialization/preservation/memory-model
+owners are retained. See [f2-shared-queue-readout.md](f2-shared-queue-readout.md).
+Descriptor availability does not establish native capture ownership.
+
+Actual localhost Vivado 2025.2 rejects the new reduced queues' BLOCK policy:
+instrumented q0/q1 fall back to LUTRAM, while untouched q2 uses two RAMB36E2s.
+The strict primitive audit stops at host/q0 and publishes a failure receipt;
+native_synthesis_passed/native_policy_accepted stay false. Rocket's original
+ULTRA implementation and the twenty owners' 12,583,072 bits / four memories
+remain physically unvalidated. Next implementation priority: synchronous native
+memory-port access with retained responses and original pipeline preservation,
+then complete production CE/common-cut/transport/memory/host/pre-FAME binding.
+
+The complete Scala sweep passes 325 tests / 51 suites plus twelve preparation
+checks. A separately source-bound four-test queue fixture regeneration avoids
+public-port/flattened-child name collisions; only fixture boundary/resource and
+bench bindings changed. Original full-sweep output remains untouched. Its
+355 Scala source hashes match the fixture's 356 inputs minus that resource.
+The narrow memory-clock fix proves validif guards against that same memory
+port's enable; genuine gate/mux/cast/secondary clocks still reject.
+
+Final retained Python (337), manager (52), ASan/UBSan host (47,219 assertions),
+generated banks/widget, FCFS/atomic-cut and twenty-five positive native OOCs /
+twenty-five fresh native-bound EDA SP2 scopes pass. Full legacy waveform,
+zero-edge/readback, continuation and corruption checks retain their scope.
+The separate EDA functional diagnostic of native-rejected queue RTL passes all
+361 reads / four cuts / eight coherently rehashed metadata negatives and stops
+a compiled first-word defect while frozen, before acknowledgement. Full debug
+waves include original RAM-word aliases. This cannot grant native acceptance.
+
+Receipts/raw backend commands are under runs/aws-f2/iteration268/; use
+verification-commands.json and the *-selected.json pins. Current production is
+rocket-region-production-wgm5t9bs/result.json. Reuse the initialized iteration194
+localhost invocation; native concurrency remains at most two jobs and never
+overlaps Java generation. Source-policy OOC retains negative 140 MHz setup/hold
+estimates (-0.179/-0.074 ns), unconstrained I/O and no full-image timing closure.
+
+Preserved failures: source-clock validif rejection and scoped interruption of
+its now-stale first full sweep; initial HDK wrong-cwd setup; early aggregate
+missing its full-Scala dependency; and emitted fixture port redeclarations/X
+outputs. Fresh scoped recovery and complete affected checks pass. Failed native
+memory-policy results remain failures and are independently audited explicitly.
+All managed workers completed and joined; no delegated LLM work remains.
+
+Full-image P&R/AFI, checkpoint-enabled F2 execution, all four active-hart cuts,
+paired FPGA-origin zero-edge/finite/live migration and rolling hardware recovery
+remain pending. Required hardware cuts are individually listed in the matrix;
+no hardware column advances. No instance or AFI was launched. Existing controller
+checkpoints were published FireSim first (5c796e00), then Chipyard (ab59c0eb);
+both remote tips match. Plans and initialized YAMLs retain initial hashes;
+no staging, local commits, conda/PDF/archive edits or ASIC work occurred.
+Final independent source/receipt/protection/component audit passes; the local
+artifact catalog contains individual nonempty files. Final scoped inventory has
+no active tagged runtime, pending AFI or local Java/Vivado job.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 267,
 **in_progress; retained widget staging recovery and complete iteration-266 regression recovery**.
 The host session now explicitly retries interrupted reads of its own immutable
 MMIO staging epoch. It revalidates freeze, cut, stream count, layout, descriptor

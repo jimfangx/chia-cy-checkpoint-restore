@@ -14,6 +14,33 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 268 adds concrete shared trace-queue banks while retaining original
+StateIDs and concrete storage annotation ownership. The fresh exact-Rocket probe
+now has 11,113 descriptors (twenty new original queue owners), 1,042 absent
+entries and eight mandatory live-transport freeze conflicts. The reduced native
+queue test **fails** the original BLOCK RAM policy: instrumented queues fall
+back to LUTRAM and the primitive audit rejects them. Actual ULTRA implementation
+remains unvalidated. The twenty new descriptors are addressability evidence,
+not physical capture coverage. The full compiler sweep (325 tests / 51 suites plus twelve preparation), four
+separate fixture regeneration checks, Python 337 / manager 52 / sanitizer host
+47,219 assertions and all twenty-five positive native / fresh EDA component
+scopes pass. Separate diagnostic RTL passes 361 reads / four cuts and stops a
+compiled first-word fault before acknowledgement, with full waves and eight
+rehashed metadata rejections. Native RAM acceptance remains false.
+See [f2-shared-queue-readout.md](f2-shared-queue-readout.md). Full image/AFI,
+checkpoint-enabled F2 execution and every FPGA-origin migration/live/rolling
+column remain pending/in_progress. No hardware column advances. Commands and
+immutable current/failure receipts are under `runs/aws-f2/iteration268/`.
+
+The required Rocket hardware cuts remain individually pending:
+
+| Hardware cut, all four active harts | FPGA capture/reference | FPGA Level-1 / Level-2 zero-edge and finite restore | Sustained live RTL / recovery |
+| --- | --- | --- | --- |
+| Early active workload | pending: no checkpoint-enabled image | pending | pending |
+| Warmed caches | pending: no checkpoint-enabled image | pending | pending |
+| Outstanding memory traffic | pending: no checkpoint-enabled image | pending | pending |
+| Late active workload | pending: no checkpoint-enabled image | pending | pending |
+
 Iteration 267 adds exclusive host retry of an interrupted immutable MMIO shadow
 and completes iteration-266 staging-restore verification. Final 321 Scala / 50
 suites plus twelve preparation, 337 Python / 52 manager tests, 25 native OOCs
