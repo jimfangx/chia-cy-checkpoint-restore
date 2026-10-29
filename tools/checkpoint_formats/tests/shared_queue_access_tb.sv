@@ -13,6 +13,7 @@ module shared_queue_access_tb;
   reg [7:0] bank[0:1]; reg [15:0] slot[0:1]; reg [31:0] word_address[0:1];
   wire [1:0] request_ready,response_valid,response_error;
   wire [63:0] response_data[0:1];
+  wire [517:0] native_state[0:1];
   SharedQueueSynthesisTop dut(.clock(clock),.reset(reset),
     .lane0_enq_valid(enq_valid[0]),
     .lane0_enq_bits(enq_bits[0]),
@@ -56,7 +57,9 @@ module shared_queue_access_tb;
     .checkpoint_shell_region1_ckpt_resp_valid(response_valid[1]),
     .checkpoint_shell_region1_ckpt_resp_ready(response_ready[1]),
     .checkpoint_shell_region1_ckpt_resp_data(response_data[1]),
-    .checkpoint_shell_region1_ckpt_resp_error(response_error[1]));
+    .checkpoint_shell_region1_ckpt_resp_error(response_error[1]),
+    .checkpoint_shell_region0_ckpt_native_state(native_state[0]),
+    .checkpoint_shell_region1_ckpt_native_state(native_state[1]));
   wire [129:0] debug_q0_ram0=dut.host.q0.ram[0];
   wire [129:0] debug_q0_ram1=dut.host.q0.ram[1];
   wire [129:0] debug_q0_ram2=dut.host.q0.ram[2];
@@ -80,6 +83,7 @@ module shared_queue_access_tb;
   bit full[0:2];
   bit initialized=0, armed=0;
   integer checks=0,reads=0,stalls=0,cuts=0,edges=0,selected_edges=0;
+  integer native_observation_checks=0;
   integer pushes[0:2],pops[0:2],wraps[0:2],same_address_writes[0:2];
   integer collision_before=0;
   integer response_wait_cycles=0,delayed_reads=0,cancellations=0,held_response_releases=0,premature_releases=0,running_reset_pulses=0;
@@ -117,6 +121,7 @@ module shared_queue_access_tb;
       occupancy[q]=wp[q]==rp[q] ? (full[q]?6:0) : (wp[q]>rp[q]?wp[q]-rp[q]:6+wp[q]-rp[q]);
     end
     #1;
+    check_native_observation();
     if(armed) for(integer q=0;q<3;q++) begin
       check(count[q]===3'(occupancy[q]),"public occupancy");
       check(enq_ready[q]===!(occupancy[q]==6),"public full backpressure");
@@ -124,6 +129,10 @@ module shared_queue_access_tb;
       if(initialized)check(deq_bits[q]===memory[q][ra[q]],"public write-first synchronous memory");
     end
   end
+  // Both clock phases are observed through the synthesized public port. The
+  // independent oracle reads every actual emitted register, including the RAM
+  // data pipeline, during reset, borrowing, reprime, response stalls and release.
+  always @(negedge clock) begin #1;check_native_observation();end
   // Unselected execution keeps doing accepted RAM traffic during every capture.
   always @(negedge clock) if(initialized) begin
     #1; enq_valid[2]=1;deq_ready[2]=1;
@@ -311,6 +320,7 @@ module shared_queue_access_tb;
     check(delayed_reads>=288 && response_wait_cycles>=delayed_reads && cancellations==3 && held_response_releases==1 && premature_releases==2,"synchronous RAM latency and all three reset cancellation phases");
     for(integer q=0;q<3;q++)check(pushes[q]>50 && pops[q]>50 && wraps[q]>8,"live enqueue/dequeue/pointer wrapping coverage");
     $display("SHARED_QUEUE_PASS checks=%0d reads=%0d stalls=%0d edges=%0d cuts=%0d sibling_pushes=%0d delayed_reads=%0d wait_cycles=%0d cancellations=%0d held_releases=%0d premature_releases=%0d running_reset_pulses=%0d",checks,reads,stalls,edges,cuts,pushes[2],delayed_reads,response_wait_cycles,cancellations,held_response_releases,premature_releases,running_reset_pulses);
+    $display("NATIVE_OBSERVATION_PASS fields_per_queue=14 bits_per_queue=518 comparisons=%0d",native_observation_checks);
     $finish;
   end
   initial begin #2000000;check(0,"watchdog");end

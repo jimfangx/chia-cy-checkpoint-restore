@@ -35,7 +35,62 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 270,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 271,
+**in_progress; synthesized derived queue-state taps and complete emitted-register observation verified**.
+See [f2-synchronous-state-observation.md](f2-synchronous-state-observation.md).
+Every added native synchronous reader/forwarding/shadow/endpoint register and the
+implicit Old RAM data pipeline now reach a synthesized observation port. The
+reduced queues expose fourteen fields / 518 bits each. Independent actual-Rocket
+compiler auditing verifies all four queues: 56 fields / 6,656 bits and every
+ancestor connection. Original StateIDs/selectors remain separate. The live vector
+still has no complete atomic snapshot/restore owner or host transport binding.
+
+Final current-source checks pass **329 Scala / 51 suites plus twelve preparation,
+25 targeted Scala, 337 Python / 52 manager, 47,219 ASan/UBSan host assertions,
+27 selected native OOC scopes and 26 EDA SP2 component scopes**. Native BLOCK
+retains two RAMB primitives per selected queue and untouched sibling. Exact
+Rocket ULTRA retains 16 URAM / zero LUTRAM. Fresh EDA queue execution passes
+364 reads / four cuts and **185,836** added-state comparisons on both clock
+phases, with full debug waves and two compiled faults stopped before ack.
+All 24 coherent metadata/emitted-storage negatives reject. NASTI passes 72,000
+compared cycles / sixteen negative processes. All retained bank/region, endpoint,
+physical, waveform, host, FCFS and atomic-cut scopes remain covered.
+
+Actual emission lowers the implicit data owner to `ram_r_data_pipe_0`; the
+similarly named `ram_r_data` is a combinational wire. Native/EDA receipts now
+bind every field to actual declared registers, account for the complete added
+register set, and validate implicit-pipeline width, positive clock and sampling
+equation. Source guards required seven native scopes to be re-synthesized after
+verifier repairs; nine unchanged receipts retain exact current-source hashes.
+No scope, sanitizer or owner guard was relaxed. All original parser/classifier,
+wrong-oracle, nonunique fault-site and source-staleness failures remain in their
+original logs/receipts. Small launch/count-check failures are also retained.
+
+Fresh root generation still rejects the FASED physical CE/common-low-phase
+owner. Regional generation retains 1,042 uncovered original entries and eight
+live MMIO/DMA self-freeze conflicts. Generated target input IR is explicitly
+reused by its immutable pin. Full localhost image P&R/AFI, active four-hart FPGA
+cuts, paired hardware-origin zero-edge/finite/live migration and rolling hardware
+recovery remain pending. No hardware acceptance column advances. Next: snapshot
+these complete live vectors coherently before borrowing RAM readers, bind their
+staging/transport/restore owners, and finish the remaining global clock/memory/
+host/pre-FAME ownership; observing live words serially is not an atomic cut.
+
+Current receipts/commands belong under `runs/aws-f2/iteration271/`:
+`summary.json`, `verification-commands.json`, current `*-selected.json`, final
+audit and artifact catalog. Full compiler output is `scala-attempt-3jhy2tyc`;
+actual regional output is `rocket-region-production-wemukgis`. AWS/native/HDK/
+localhost checks pass. Scoped inventory has no active tagged runtime, pending
+AFI or local Java/Vivado job. No instance or AFI was requested. Both plans and
+all initialized manager inputs retain entry hashes; no staging/local commits,
+conda/PDF/archive edits or ASIC work. Existing controller checkpoints were pushed
+FireSim first (`be2ca617`), then Chipyard (`8f693f91`); remote tips match. The
+Chipyard local tracking-ref cache update failed read-only after remote success.
+Follow [github-publication.md](github-publication.md) for the next checkpoint.
+Managed worker startup failed before execution; only the central agent ran and
+no delegated LLM request remains. Only the central agent returns the JSON report.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 270,
 **in_progress; source-bound synchronous bank validation verified in components**.
 See [f2-synchronous-bank-provenance.md](f2-synchronous-bank-provenance.md).
 Each adapted bank now retains original New RAM/ordinary-bank provenance. The

@@ -56,12 +56,102 @@ def canonical_json(path):
 
 
 def memory_shape(body):
+    # Real Rocket declarations retain FIRRTL source locations. They do not
+    # change storage shape; the independent inventory applies the same rule.
+    body = re.sub(r" @\[.*$", "", body, flags=re.M)
     memories = {}
     for mem in re.finditer(r"^  mem (\w+) :\n((?:    [^\n]*\n?)*)", body, re.M):
         attrs = re.findall(r"^    ([\w-]+) => (.*)$", mem[2], re.M)
         require(len(attrs) == len(set(k for k, _ in attrs)), "duplicate native memory attribute")
         memories[mem[1]] = dict(attrs)
     return memories
+
+
+def observation_audit(instrumented, bank):
+    """Reconstruct all added state from FIRRTL, including implicit RAM data.
+
+    Use the independent emitter inventory, never an enumerated subset supplied
+    by the generator. The packed output itself must read those exact owners.
+    """
+    text = Path(instrumented).read_text()
+    modules = parse_modules(text)
+    require(len(modules) == 1, "native observation requires one local module")
+    root, module = next(iter(modules.items()))
+    original = {r["storage_hierarchy"] for r in bank["state"]}
+    inventory = inventory_from_firrtl(text, root)
+    require(original <= {r["hierarchy"] for r in inventory}, "original banked state disappeared")
+    derived = sorted((r for r in inventory if r["hierarchy"] not in original), key=lambda r: r["hierarchy"])
+    memories = memory_shape(module["body"])
+    implicit = {f"{name}_{shape['reader']}_data": f"{name}.{shape['reader']}.data"
+                for name, shape in memories.items()}
+    fields, offset = [], 0
+    for row in derived:
+        name = row["hierarchy"].removeprefix(root + ".")
+        require(row["kind"] == "register" and row["depth"] == 1, "unknown derived state shape")
+        if row["adapter"] == "firrtl-emitter-memory-pipeline-v1":
+            require(name in implicit, "unknown implicit data pipeline")
+            expression = implicit[name]
+        else:
+            require(name.startswith(("ckpt_", "CheckpointNative")), "unknown derived register")
+            expression = name
+        fields.append(dict(instrumented_state_id=row["state_id"], hierarchy=row["hierarchy"],
+            expression=expression, width=row["width"], offset=offset, signed=row["signed"],
+            clock_expression=row["clock_expression"], adapter=row["adapter"]))
+        offset += row["width"]
+    expected = dict(observation_version=1, scope="derived_native_state_live_vector_only", port="ckpt_native_state",
+        bits=offset, words=(offset + 63) // 64, bit_order="lsb0", state=fields, original_banked_entries=len(original),
+        includes_implicit_ram_data_pipeline=True,
+        sampling_contract="sample_entire_live_vector_at_one_common_raw_clock_cut",
+        stable_while_functional_freeze=False, atomic_snapshot_supported=False,
+        complete_capture_owner=False, metasim_restore_supported=False)
+    require(bank.get("native_state_observation") == expected, "changed complete native observation layout/owner contract")
+    expressions = [f"asUInt({r['expression']})" if r["signed"] else r["expression"] for r in reversed(fields)]
+    expression = expressions[0]
+    for value in expressions[1:]:
+        expression = f"cat({expression}, {value})"
+    require(module["drivers"].get("ckpt_native_state") == expression,
+            "changed native observation equation or bit order")
+    require(re.search(r"^  output ckpt_native_state : UInt<" + str(offset) + r">$", module["body"], re.M),
+            "changed native observation output width/direction")
+    return expected
+
+
+def emitted_observation(directory, q, bank):
+    """Bind the logical FIRRTL owners to this exact emitted storage layout.
+
+    SemanticCleanEmitter runs memory-delay lowering. Its Old read is an
+    explicit data_pipe_0 register; the similarly named data net is asynchronous.
+    Require the actual declaration, sole sampling equation and clock. Never use
+    the data wire or guess a path from a logical inventory entry alone.
+    """
+    layout = observation_audit(Path(directory) / f"shell-{q}-banked.fir", bank)
+    text = (Path(directory) / "generated.sv").read_text()
+    name = f"checkpoint_shell_region{q}_selected_SharedQueue"
+    match = re.search(r"(?m)^module " + name + r"\([\s\S]*?^endmodule\b", text)
+    require(match is not None, "missing actual emitted queue definition")
+    body = match[0]
+    declarations = re.findall(r"\breg\s+(?:\[(\d+):0\]\s+)?(\w+)\s*;", body)
+    registers = {n: int(w) + 1 if w else 1 for w, n in declarations if not n.startswith("_RAND_")}
+    require(len(registers) == sum(not n.startswith("_RAND_") for _, n in declarations),
+            "duplicate emitted observation register")
+    fields = []
+    for row in layout["state"]:
+        logical = row["hierarchy"].rsplit(".", 1)[1]
+        actual = f"checkpoint_shell_region{q}_" + logical if logical.startswith("ckpt_") else logical
+        if row["adapter"] == "firrtl-emitter-memory-pipeline-v1":
+            actual = logical + "_pipe_0"
+            equations = list(re.finditer(r"(?m)^\s+" + re.escape(actual) + r" <= ([^;]+);$", body))
+            require(len(equations) == 1 and equations[0][1] == logical,
+                    "changed emitted Old data pipeline sampling equation")
+            clocks = list(re.finditer(r"always @\(([^)]+)\) begin", body[:equations[0].start()]))
+            require(clocks and clocks[-1][1] == "posedge clock", "changed emitted Old data pipeline clock")
+        require(registers.get(actual) == row["width"], "missing or reshaped actual emitted observation register")
+        fields.append(dict(row, emitted_register=actual))
+    original = {r["storage_hierarchy"].rsplit(".", 1)[1] for r in bank["state"] if r["depth"] == 1}
+    require(registers.keys() == original | {r["emitted_register"] for r in fields},
+            "unowned additional emitted queue register")
+    return dict(emission_policy="verilog_memory_delay_lowered_old_data_one_stage",
+        module=name, generated_sv_sha256=sha(Path(directory) / "generated.sv"), state=fields)
 
 
 def bank_audit(directory, q, shell, mapping):
@@ -89,6 +179,10 @@ def bank_audit(directory, q, shell, mapping):
     modules = parse_modules(instrumented.read_text());refs = parse_modules(reference.read_text())
     require(set(modules) == set(refs) == {"SharedQueue"}, "changed local queue bank topology")
     module = modules["SharedQueue"]
+    observation = observation_audit(instrumented, bank)
+    emitted_observation(directory, q, bank)
+    require(len(observation["state"]) == 14 and observation["bits"] == 518,
+            "incomplete derived native queue observation")
     shape = memory_shape(module["body"])
     require(shape == {"ram": {"data-type": "UInt<130>", "depth": "6", "read-latency": "1",
         "write-latency": "1", "reader": "r", "writer": "w", "read-under-write": "old"}},
@@ -153,7 +247,10 @@ def bank_audit(directory, q, shell, mapping):
             "changed registered same-edge write-first hit or full-width data")
     require(drivers["deq_bits"] == public and drivers["CheckpointNativeHold_ram"] == public,
             "public/held native RAM output omits registered write-first forwarding")
-    bank_data = [value for name, value in drivers.items() if name.startswith("ckpt_") and value is not None]
+    # The separately reconstructed observation port deliberately contains the
+    # forwarding state. Original checkpoint RAM payloads still use raw data.
+    bank_data = [value for name, value in drivers.items()
+                 if name.startswith("ckpt_") and name != observation["port"] and value is not None]
     require(any("ram.r.data" in value for value in bank_data)
             and all("CheckpointNativeForward" not in value for value in bank_data),
             "checkpoint RAM payload must use raw native read data")
@@ -284,6 +381,17 @@ def selectors(directory):
                 values = [f"64'({key}[{q}])"]
             require(len(values) == row["transfer_depth"], "incomplete independent queue oracle")
             lines.extend(f"readword({q},{row['bank']},{row['slot']},{a},{value},0);" for a, value in enumerate(values))
+    lines.extend(["end", "endtask", "task check_native_observation;", "begin"])
+    for q in range(2):
+        bank = canonical_json(Path(directory) / f"shell-{q}-banks-binding.json")
+        layout = emitted_observation(directory, q, bank)
+        for row in layout["state"]:
+            # The emitted physical data register name differs from its FIRRTL
+            # memory port expression. All other names retain their declarations.
+            name = row["emitted_register"]
+            lines.append(f'check(native_state[{q}][{row["offset"]} +: {row["width"]}] === '
+                         f'dut.host.q{q}.{name}, "native observation q{q} {name}");')
+        lines.append("native_observation_checks += 14;")
     return "\n".join(lines + ["end", "endtask", ""])
 
 
@@ -309,7 +417,7 @@ def synthesis_wrapper(generated):
         else:
             pins.append(f"  {pin[1]} wire {pin[2] or ''} {name}")
             connections.append(f".{name}({name})")
-    require(len(connections) == 51 and len(pins) == 45, "changed queue endpoint boundary")
+    require(len(connections) == 53 and len(pins) == 47, "changed queue endpoint boundary")
     return "module SharedQueueSynthesisTop(\n" + ",\n".join(pins) + ");\n" + \
         "  SharedQueueHost host(\n    " + ",\n    ".join(connections) + ");\nendmodule\n"
 
@@ -317,7 +425,10 @@ def synthesis_wrapper(generated):
 def negative_audits(generated, out):
     results = []
     for case in ("omitted", "duplicate", "shape", "pipeline", "selector", "duplicate_mapping", "sibling", "false_admission",
-                 "bank_policy", "bank_hash", "bank_latency", "bank_port", "noncanonical"):
+                 "bank_policy", "bank_hash", "bank_latency", "bank_port", "noncanonical",
+                 "observation_omitted", "observation_pipeline", "observation_offset", "observation_width",
+                 "observation_clock", "observation_capture", "observation_restore", "observation_equation",
+                 "observation_emitted_register", "observation_emitted_equation", "observation_emitted_clock"):
         directory = out / case
         shutil.copytree(generated, directory)
         manifest = json.loads((directory / "descriptors.json").read_text())
@@ -361,6 +472,37 @@ def negative_audits(generated, out):
                 require(text.count("reader => r") == 1, "ambiguous native reader port negative")
                 text = text.replace("reader => r", "reader => r\n      reader => extra")
                 text += '    ram.extra.clk <= clock\n    ram.extra.en <= UInt<1>("h1")\n    ram.extra.addr <= UInt<3>("h0")\n'
+                fir.write_text(text);bank["instrumented_sha256"] = sha(fir)
+            bp.write_bytes(canonical(bank))
+        elif case.startswith("observation_emitted_"):
+            sv = directory / "generated.sv"
+            text = sv.read_text()
+            module = re.search(r"(?m)^module checkpoint_shell_region0_selected_SharedQueue\([\s\S]*?^endmodule\b", text)
+            require(module is not None, "missing emitted mutation owner")
+            needle, replacement = {
+                "observation_emitted_register": ("reg [129:0] ram_r_data_pipe_0;", "wire [129:0] ram_r_data_pipe_0;"),
+                "observation_emitted_equation": ("ram_r_data_pipe_0 <= ram_r_data;", "ram_r_data_pipe_0 <= 130'h0;"),
+                "observation_emitted_clock": ("always @(posedge clock) begin", "always @(negedge clock) begin"),
+            }[case]
+            require(module[0].count(needle) == 1, "ambiguous emitted mutation site")
+            sv.write_text(text[:module.start()] + module[0].replace(needle, replacement) + text[module.end():])
+        elif case.startswith("observation_"):
+            bp = directory / "shell-0-banks-binding.json"
+            bank = json.loads(bp.read_text())
+            observation = bank["native_state_observation"]
+            if case == "observation_omitted": observation["state"].pop()
+            elif case == "observation_pipeline":
+                next(r for r in observation["state"] if r["expression"] == "ram.r.data")["expression"] = "ram.w.data"
+            elif case == "observation_offset": observation["state"][-1]["offset"] = 0
+            elif case == "observation_width": observation["state"][-1]["width"] = 1
+            elif case == "observation_clock": observation["state"][0]["clock_expression"] = "foreign_clock"
+            elif case == "observation_capture": observation["complete_capture_owner"] = True
+            elif case == "observation_restore": observation["metasim_restore_supported"] = True
+            else:
+                fir = directory / "shell-0-banked.fir"
+                text = fir.read_text()
+                text, count = re.subn(r"^    ckpt_native_state <= .*$", '    ckpt_native_state <= UInt<518>("h0")', text, flags=re.M)
+                require(count == 1, "ambiguous native observation equation corruption")
                 fir.write_text(text);bank["instrumented_sha256"] = sha(fir)
             bp.write_bytes(canonical(bank))
         # Rebind every enclosing metadata envelope, so policy/hash/port and
@@ -476,13 +618,20 @@ puts "SHARED_QUEUE_SYNTH_PASS selected=2 untouched=1"
         doc["inputs"] = native["inputs"];audit(out / "generated")
         require((out / "synthesis-wrapper.sv").read_text() == synthesis_wrapper(out / "generated"), "changed production-shaped endpoint wrapper")
         require((out / "shared-queue-selectors.svh").read_text() == selectors(out / "generated"), "changed queue oracle selectors")
-        for mode in ("healthy", "corrupt"):
+        for mode in ("healthy", "corrupt", "corrupt-observation"):
             folder = out / mode;folder.mkdir()
             text = (out / "generated/generated.sv").read_text()
             if mode == "corrupt":
                 needle = "assign checkpoint_shell_region0_ckpt_resp_data = checkpoint_shell_region0_ckpt_saved_data;"
                 require(text.count(needle) == 1, "ambiguous first response corruption site")
                 text = text.replace(needle, needle[:-1] + " ^ 64'h1;")
+            elif mode == "corrupt-observation":
+                leaf = re.search(r"(?m)^module checkpoint_shell_region0_selected_SharedQueue\([\s\S]*?^endmodule\b", text)
+                require(leaf is not None, "missing native observation corruption owner")
+                changed, count = re.subn(r"(assign checkpoint_shell_region0_ckpt_native_state = )([^;]+);",
+                    r"\1(\2) ^ 518'h1;", leaf[0])
+                require(count == 1, "ambiguous native observation corruption site")
+                text = text[:leaf.start()] + changed + text[leaf.end():]
             (folder / "compiled.sv").write_text(text)
             run([toolchain.VCS, "-full64", "-sverilog", "-timescale=1ns/1ps", "-Mupdate", "-debug_access+all",
                  "+incdir+" + str(out), "-top", "shared_queue_access_tb", "-top", "glbl", "-Mdir=" + str(folder / "csrc"),
@@ -497,16 +646,30 @@ puts "SHARED_QUEUE_SYNTH_PASS selected=2 untouched=1"
                 require(match and int(match[1]) > 1000 and int(match[4]) > 100, "incomplete active queue coverage")
                 doc["checks"], doc["stalls"], doc["edges"], doc["sibling_pushes"] = map(int, match.groups())
                 doc["reads"] = 364;doc["retained_original_reads"] = 361;doc["cuts"] = 4
+                observation = re.search(r"NATIVE_OBSERVATION_PASS fields_per_queue=14 bits_per_queue=518 comparisons=(\d+)", text)
+                require(observation is not None and int(observation[1]) > 10000,
+                        "missing complete live native state observation coverage")
+                doc["native_observation_comparisons"] = int(observation[1])
                 latency = re.search(r"delayed_reads=(\d+) wait_cycles=(\d+) cancellations=(\d+) held_releases=(\d+) premature_releases=(\d+) running_reset_pulses=(\d+)", text)
                 require(latency is not None and int(latency[1]) >= 288 and int(latency[2]) >= int(latency[1])
                         and int(latency[3]) == 3 and int(latency[4]) == 1 and int(latency[5]) == 2 and int(latency[6]) == 1, "missing synchronous latency and reset cancellation coverage")
                 doc["delayed_reads"], doc["response_wait_cycles"], doc["cancellations"], doc["held_response_releases"], doc["premature_releases"], doc["running_reset_pulses"] = map(int, latency.groups())
-            else:
+            elif mode == "corrupt":
                 require("SHARED_QUEUE_DIVERGENCE signal=complete selected word cuts=0" in text
                         and "frozen=11 response_ack=00 reads=0" in text and "SHARED_QUEUE_PASS" not in text,
                         "corruption acknowledged an edge/word or failed to stop on first read")
                 doc["compiled_first_word_corruption_rejected_before_ack"] = True
+            else:
+                require("SHARED_QUEUE_DIVERGENCE signal=native observation q0 CheckpointNativeBorrowed" in text
+                        and "response_ack=00 reads=0" in text and "SHARED_QUEUE_PASS" not in text,
+                        "native observation corruption escaped its first divergent sample")
+                doc["compiled_native_observation_corruption_rejected_before_ack"] = True
         doc["native_receipt"] = dict(path=str(args.native / "summary.json"), sha256=sha(args.native / "summary.json"))
+    emitted = [emitted_observation(out / "generated", q,
+        canonical_json(out / "generated" / f"shell-{q}-banks-binding.json")) for q in range(2)]
+    if args.mode == "vcs":
+        require(emitted == native["emitted_observation"], "changed native-bound emitted observation storage")
+    doc["emitted_observation"] = emitted
     require(sources == {n: sha(ROOT / n) for n in SOURCES}, "queue sources changed during verification")
     doc.update(status="pass", commands=commands, artifacts={str(p.relative_to(out)): sha(p) for p in out.rglob("*")
                if p.is_file() and (p.suffix in {".log", ".rpt", ".dcp", ".vcd"} or p.name in {"commands.json", "compiled.sv", "simv"})})

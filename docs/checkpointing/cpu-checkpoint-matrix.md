@@ -14,6 +14,31 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 271 synthesizes complete derived synchronous queue-state observation:
+fourteen fields / 518 bits per reduced selected queue and fourteen / 1,664 bits
+per actual Rocket Queue_56. Independent compiler auditing verifies all four real
+queues, 56 fields / 6,656 bits, and ancestor connectivity. Original StateIDs and
+selectors remain separate. Native/EDA mapping accounts for every actual added
+register, including `ram_r_data_pipe_0`, with exact clock/sampling equations.
+
+Final checks pass 329 Scala / 51 suites plus twelve preparation, 25 targeted
+Scala, 337 Python / 52 manager, 47,219 sanitizer host assertions, 27 selected
+native OOC and 26 EDA SP2 scopes. BLOCK retains two RAMB primitives per selected
+queue/sibling; exact ULTRA retains 16 URAM / zero LUTRAM. EDA passes 364 reads /
+four cuts / 185,836 observation comparisons, 24 metadata/emission negatives and
+two compiled faults before acknowledgement, with full waves. All retained
+readback, continuation, corruption, waveform, FCFS and host scopes remain covered.
+Source guards required seven native re-syntheses; nine exact source-matching
+receipts remain valid. Original failures and repairs are retained in the logs.
+
+The root still refuses CE/common-cut ownership, and the regional diagnostic
+retains 1,042 uncovered original entries and eight live transport conflicts.
+Derived observation has no atomic snapshot/restore/complete capture owner.
+Full image/AFI, physical cuts, paired zero-edge/finite/live CPU migration and
+rolling hardware recovery remain pending/in_progress; no hardware column
+advances. See [f2-synchronous-state-observation.md](f2-synchronous-state-observation.md)
+and current receipts/commands under `runs/aws-f2/iteration271/`.
+
 Iteration 270 binds each synchronous native queue bank to immutable original
 source and ordinary-bank provenance, then independently reconstructs the complete
 adapter during standalone validation. Targeted 24 Scala checks pass, including
