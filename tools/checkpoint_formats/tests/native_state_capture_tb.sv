@@ -78,6 +78,21 @@ module native_state_capture_tb;
       checkpoint_widget_failed();$finish;
     end
   endtask
+  // Retain the original hierarchical policy as an independent differential
+  // oracle while exercising every phase and directed command/owner fault.
+  // Check both half cycles: a newly arriving fault must revoke before an edge,
+  // without adding permission registers or changing the checkpoint state ABI.
+  always @(posedge clock or negedge clock) begin
+    #1;
+    if(oracle_armed)begin
+      check(failed === (|dut.error || |dut.faults || phase==6),
+            "factored failure matches complete hierarchical fault policy");
+      check(valid === (dut.read_safe && !dut.faults[3]),
+            "factored validity matches complete hierarchical fault policy");
+      check(borrow === (valid && dut.snapshot_borrow),
+            "factored borrow matches original snapshot permission");
+    end
+  end
   task tick;
     @(posedge clock);#2;
   endtask

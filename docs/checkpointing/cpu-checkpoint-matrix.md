@@ -14,6 +14,22 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 276 factors native READ qualification without adding state or fault
+latency and explicitly preserves raw phase encoding. Native F2-part OOC
+placement/routing preserves all 1,666 original register identities and meets
+140 MHz with +0.540 ns setup / +0.047 ns hold, 2,507 LUTs and zero routing errors.
+This is the 1,036-bit component; shell/I/O budgets, clock insertion reference and
+full-image closure remain pending. Fresh EDA SP2 passes 131,072 policy combinations /
+393,216 comparisons, the missing-error mutation, all seven native geometries /
+105 faults / 116 debug waves and the full MMIO/DMA 112-capture / 42-fault /
+21-recovery / 74-wave scope. All Scala/manager/Python/sanitizer/FCFS/fixture,
+complete snapshot/restore and sixteen bank/region scopes with six independent
+wave audits pass after the full seven-source-set native refresh. Receipts and
+commands are under `runs/aws-f2/iteration276/`. Exact Rocket still rejects
+production physical CE/common-cut ownership. Complete image/AFI, physical cuts,
+paired zero-edge/finite/live CPU migration and rolling hardware recovery remain
+pending/in_progress; no hardware acceptance column advances.
+
 Iteration 275 connects the coordinated native snapshot to component MMIO/DMA.
 Final-source localhost F2-part synthesis maps all 1,666 register bits, uses 2,597
 LUTs and retains four SYNC gates / one falling-edge mask with no combinational

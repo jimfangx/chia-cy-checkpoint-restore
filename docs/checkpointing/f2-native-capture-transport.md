@@ -77,3 +77,35 @@ captures, 42 fault cases, 21 abort/recovery cases and all four compiled mutation
 The independent manager audit verifies every frame/native bit, all 33 underlying
 register vectors in each of 70 ordinary process waves, and all 74 debug waves.
 Exact source, native/EDA receipts and per-cut commands remain under this run.
+
+
+Iteration 276 factors the timing-critical `CheckpointNativeStateCapture` READ
+policy. In READ the snapshot request/release are inactive and its restore is
+tied off; the existing occupied, sticky-error and cut-label fields therefore
+allow direct fault qualification. The complete original hierarchical fault
+network remains responsible for recording errors. No permission register or
+checkpoint state is added. The phase output explicitly retains its three-bit
+source encoding; otherwise Vivado can infer an FSM decoder instead of direct
+register readout after this logic change.
+
+`verify_native_capture_implementation.py` consumes an exact source-bound native
+synthesis receipt and implements its DCP on localhost with native Vivado. It
+requires every implemented control-state pin to retain its original register
+identity, default SYNC gates, one falling-edge mask, complete routing and
+nonnegative internal setup/hold at 140 MHz. The iteration-276 component uses
+2,507 implemented LUTs / 1,666 registers, with +0.540/+0.047 ns setup/hold.
+The implementation uses BITS=1036, GATES=3 and OWNERS=2; the 6,656-bit
+geometry has VCS coverage, not a production four-queue timing result.
+The corresponding synthesized estimate is −0.529/+0.073 ns. These are OOC
+results without a shell, I/O budgets or HD.CLK_SRC insertion reference; the
+clock-reference and unloaded-net warnings remain verbatim. Full-image timing
+and physical hardware acceptance remain pending.
+
+The new EDA component policy test deliberately injects arbitrary raw control
+states and compares failed/valid/borrow outputs with the unchanged full fault
+network for all 131,072 binary combinations. A compiled missing-sticky-error
+mutation must fail in READ. Ordinary native and MMIO/DMA benches compare the
+same policy on both half cycles while retaining independent functional, frame,
+bit-identity and original-register waveform checks. Raw-state injection is an
+exclusively diagnostic test, never a checkpoint donor or hardware capture path.
+Consult iteration276's final receipts for completed test results.

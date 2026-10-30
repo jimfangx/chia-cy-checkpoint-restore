@@ -92,6 +92,17 @@ module native_capture_transport_tb;
         end
     endtask
     task tick;@(posedge clock);#2;endtask
+    always @(posedge clock or negedge clock)begin
+        #1;
+        if(armed)begin
+            check(native_failed === (|dut.native_capture.error || |dut.native_capture.faults || dut.native_capture.phase==6),
+                  "factored native failure matches complete hierarchical fault policy");
+            check(native_valid === (dut.native_capture.read_safe && !dut.native_capture.faults[3]),
+                  "factored native validity matches complete hierarchical fault policy");
+            check(dut.native_borrow === (native_valid && dut.native_capture.snapshot_borrow),
+                  "factored native borrow matches original snapshot permission");
+        end
+    end
     task command(input [31:0] value);
         @(negedge clock);#1;mmio_valid=1;mmio_write=1;mmio_address=0;mmio_wdata=value;
         do begin @(posedge clock);end while(!mmio_ready);

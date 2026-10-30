@@ -28,8 +28,9 @@ RUNS = ROOT / "automations/checkpoint_loop/runs"
 VERILOG = "sims/firesim/sim/midas/src/main/verilog/"
 RTL = VERILOG + "CheckpointNativeStateCapture.sv"
 TB = "tools/checkpoint_formats/tests/native_state_capture_tb.sv"
+POLICY_TB = "tools/checkpoint_formats/tests/native_read_policy_tb.sv"
 EXIT = "tools/checkpoint_formats/tests/checkpoint_widget_exit.cc"
-SOURCES = tuple(sorted(set(queue.SOURCES) | {RTL, TB, EXIT,
+SOURCES = tuple(sorted(set(queue.SOURCES) | {RTL, TB, POLICY_TB, EXIT,
     VERILOG + "CheckpointNativeStateSnapshot.sv", VERILOG + "CheckpointPhysicalClockCut.sv",
     "tools/checkpoint_formats/tests/verify_native_state_capture.py",
     "tools/checkpoint_formats/tests/native_capture_queue.py",
@@ -93,7 +94,7 @@ def validate_native(receipt, sources):
             require(sha(receipt.parent / name) == digest, "changed native capture " + name)
     for name in SOURCES:
         require(sha(receipt.parent / "sources" / name) == sources[name], "changed source snapshot " + name)
-        if name.startswith(VERILOG) or name in (TB, EXIT):
+        if name.startswith(VERILOG) or name in (TB, POLICY_TB, EXIT):
             require(sha(receipt.parent / Path(name).name) == sources[name],
                     "synthesis/execution copy differs from original source " + name)
     original_path = local(ROOT, doc["queue_receipt"]["path"])
@@ -237,7 +238,7 @@ def main():
         for n in SOURCES:
             dest = out / "sources" / n; dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(ROOT / n, dest)
-            if n.startswith(VERILOG) or n in (TB, EXIT):
+            if n.startswith(VERILOG) or n in (TB, POLICY_TB, EXIT):
                 shutil.copyfile(ROOT / n, out / Path(n).name)
         (out / "native-capture-queue.sv").write_text(native_capture_queue.wrapper((out / "synthesis-wrapper.sv").read_text()))
         (out / "native-capture-queue-tb.sv").write_text(native_capture_queue.bench(out / "generated"))
@@ -269,6 +270,36 @@ def main():
         rtl = [out / Path(n).name for n in SOURCES if n.startswith(VERILOG)]
         other = [out / "BUFGCE.v", out / "glbl.v", out / Path(EXIT).name]
         doc["wave_audits"] = []
+        # Arbitrary raw-state injection is exclusively a component-policy test.
+        # Compare the optimized outputs against the unchanged full hierarchical
+        # fault network for all binary control combinations, including illegal
+        # phases. It must also detect a compiled missing-sticky-error fault.
+        policy_common = [toolchain.VCS, "-full64", "-sverilog", "-timescale=1ns/1ps", "-Mupdate",
+                         "-debug_access+all", "-top", "native_read_policy_tb", "-top", "glbl"]
+        doc["policy_equivalence"] = []
+        for mutation in (False, True):
+            folder = out / ("policy-missing-error" if mutation else "policy-equivalence"); folder.mkdir()
+            policy_rtl = rtl
+            if mutation:
+                original = (out / Path(RTL).name).read_text()
+                needle = "wire read_integrity_fault = |error || |snapshot_sticky_error ||"
+                require(original.count(needle) == 1, "ambiguous policy sticky-error mutation")
+                broken = folder / "capture.sv"
+                broken.write_text(original.replace(needle, "wire read_integrity_fault = |error || 1'b0 ||"))
+                policy_rtl = [p for p in rtl if p.name != Path(RTL).name] + [broken]
+            label = "policy-missing-error" if mutation else "policy-equivalence"
+            run(policy_common + ["-Mdir=" + str(folder / "csrc"), "-o", folder / "simv",
+                *policy_rtl, *other, out / Path(POLICY_TB).name], label + "-compile")
+            text = run([folder / "simv", "-no_save"], label + "-run", cwd=folder, expected=int(mutation))
+            if mutation:
+                require("NATIVE_READ_POLICY_DIVERGENCE phase=3" in text and "signal=failed" in text,
+                        "missing snapshot sticky-error policy was not rejected in READ")
+            else:
+                require("NATIVE_READ_POLICY_PASS combinations=131072 comparisons=393216" in text,
+                        "incomplete exhaustive native policy equivalence")
+            wave = folder / "native-read-policy.vcd"
+            require(wave.is_file() and wave.stat().st_size > 0, "missing policy debug waveform")
+            doc["policy_equivalence"].append(dict(mutation=mutation, path=str(wave), sha256=sha(wave)))
         for bits in GEOMETRIES:
             folder = out / f"unit-{bits}"; folder.mkdir()
             run(common + [f"+define+CAPTURE_BITS={bits}", "-Mdir=" + str(folder / "csrc"), "-o", folder / "simv",

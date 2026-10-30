@@ -35,7 +35,64 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 275,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 276,
+**in_progress; native READ policy and F2-part component implementation verified**.
+See [f2-native-capture-transport.md](f2-native-capture-transport.md).
+The timing-critical READ predicate now uses the existing registered snapshot
+occupied/error/cut-label fields directly. The original complete fault network
+still records errors; no storage or fault latency is added. Explicit three-bit
+phase encoding preserves direct register readout after synthesis. Production
+Rocket ownership/admission and composite restore remain unsupported.
+
+Final-source localhost Vivado 2025.2 F2-part synthesis retains all 1,666 bits and
+improves the OOC estimate from historical −0.859 ns to −0.529 ns at 140 MHz.
+Component placement/routing preserves every original register output identity:
+**+0.540 ns setup / +0.047 ns hold**, 2,507 LUTs, four default SYNC gates, one
+falling-edge mask and zero routing errors. This implements the 1,036-bit native
+vector component. Shell integration, I/O budgets, the HD.CLK_SRC insertion
+reference and full-image closure remain pending. Original unloaded-net and
+clock-reference warnings remain in their reports; this is no FPGA workload run.
+
+Fresh EDA SP2 passes all 131,072 binary phase/control combinations / 393,216
+output comparisons against the original hierarchical fault policy, including a
+compiled missing-sticky-error mutation rejected in READ. Seven geometries pass
+105 native fault processes, emitted-queue capture/drain, original-register audits
+and 116 debug waves. MMIO/DMA passes 112 complete frame captures, 42 fault cases,
+21 abort/recovery cases, thirteen bit-identity planes and four compiled mutations;
+all 74 waves and independent full frame/register audits pass.
+
+All 329 Scala / 51 suites plus twelve preparation, 52 manager, 337 checkpoint
+Python, 47,219 ASan/UBSan host assertions, FCFS/cut/queue/NASTI/endpoint/physical/
+widget, complete snapshot/restore matrices and sixteen fresh bank/region scopes
+with six independent waveform audits pass. Seven broad native source sets and
+two snapshot owners were refreshed, with nine unchanged native receipts retained
+under their original provenance. Peak native concurrency was two after Java
+exited. The initial broad stale-source rejection remains in its original log.
+
+Fresh exact-Rocket compilation still explicitly rejects FASED physical CE/
+common-cut ownership. Full localhost image/P&R/AFI, complete simulator/memory/
+timing/bridge/host/pre-FAME ownership, physical all-hart early/warm/outstanding/
+late cuts and FPGA reference, paired complete zero-edge/finite/live CPU migration
+beyond the trace and rolling hardware recovery remain pending. No hardware
+matrix column advances. Reuse iteration194's localhost invocation and initialized
+manager inputs; next work is production common-cut and all-four-queue ownership.
+
+Managed worker startup failed before execution; only the central agent ran.
+Initial FSM readout, runner import, Scala pointer and stale-source diagnostics
+are preserved under `runs/aws-f2/iteration276/diagnostic-notes.json`. The initial
+exploratory native/Java overlap is recorded there; later launch guards enforce
+separation. Plans and initialized manager YAMLs retain entry hashes; no staging,
+local commits, conda/PDF/archive edits or ASIC work occurred. Existing controller
+checkpoints were published FireSim first (`a4874f20`), then Chipyard (`da224858`);
+remote tips match. No new AFI or runtime was requested. See
+[GitHub publication](github-publication.md). Current commands, source/receipt
+bindings, per-cut frames, debug waves, resource/aggregate audit and individual
+artifact catalog belong under `runs/aws-f2/iteration276/`. Final resource inventory
+has no active tagged runtime, pending AFI or owned Java/Vivado job. The aggregate
+source/receipt/register/routing/protected-input audit passes; the catalog binds
+individual nonempty files. No delegated LLM work remains.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 275,
 **in_progress; native-vector MMIO/DMA component verified**. See
 [f2-native-capture-transport.md](f2-native-capture-transport.md).
 The synthesized adapter streams the entire atomic native snapshot with explicit
