@@ -35,7 +35,37 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 281,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 282,
+**in_progress; opt-in common staging for the shell-only shared queue graft**.
+The adapter now samples the complete 6,656-bit native vector before any bank
+request and gates both outer and internal request/response acknowledgements.
+Missing owners, lost freeze, drift, premature traffic and busy release/capture
+revoke permission. Its complete 6,727-bit payload/control output has explicit
+capture-only ownership; mixed physical regions and ordinary widget integration
+still reject.
+
+Native Vivado 2025.2 synthesis passes all 64 original URAMs and an independent
+per-bit D/Q/control/clock/enable audit: 6,624 dynamic payload bits, exactly 32
+zero local-bank bits, and 71 control bits. OOC resources are 6,021 LUTs / 11,483
+registers, with +4.481/+0.082 ns setup/hold estimates at unchanged 140 MHz.
+Full-shell/I/O timing is pending. Fresh EDA SP2 staged execution passes four
+cuts, 416 staged words, 196,624 original words, 589,872 stalls and dequeue
+continuation. Eleven permission faults and three compiled semantic/handshake
+mutations reject before a word acknowledgement. Full debug archives are retained.
+
+Iteration-282 verification is still running in the active central turn: full
+Scala source-bound sweep, complete native/EDA regressions and independent staged
+waveform auditing. Do not interpret these pending sweeps as passes. Existing
+52 manager tests and AWS/HDK/Vivado/Fabric preflight pass. Launch-path errors,
+interrupted raw Scala setup and the initial overly strict register-count check
+remain in original logs. Current native receipt:
+`runs/aws-f2/iteration282/staging-native/vivado-9tv70ilp/summary.json`.
+Use this iteration's scripts/selections for recovery; reuse iteration194's
+ExternallyProvisioned localhost invocation and initialized manager inputs.
+No new image, AFI, runtime, physical checkpoint or CPU migration is claimed.
+Managed worker startup failed before execution; only the central agent runs.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 281,
 **in_progress; native synchronous queue state through the shared region graft**.
 The shared graft now retains each synchronous shell's live native observation
 vector and exports it in immutable shell/field order. Shell-only readout uses

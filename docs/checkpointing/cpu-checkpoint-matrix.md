@@ -14,6 +14,21 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 282 adds optional shell-only shared-graft native staging: 6,656
+payload bits and a complete 6,727-bit payload/control output. Native per-bit
+connectivity auditing verifies 6,624 dynamic payload bits, the exact 32 grounded
+local-bank bits, all 71 control bits and a common clock/enable. Synthesis retains
+64 URAMs, 6,021 LUTs and 11,483 registers. Unchanged 140 MHz OOC setup/hold
+estimates are +4.481/+0.082 ns, without shell or I/O budgets. Fresh staged SP2
+execution passes four cuts / 416 staged words / 196,624 original words, stalled
+responses and dequeue continuation; eleven permission faults and three compiled
+mutations reject before any word acknowledgement. Complete regression and
+independent waveform sweeps are still running in this central turn. Evidence
+belongs under `runs/aws-f2/iteration282/`. Production widget/common-cut/reset,
+complete memory/host/pre-FAME ownership, full image/AFI, actual FPGA cuts and
+paired CPU zero-edge/finite/live/rolling migration remain pending. No hardware
+acceptance column advances. See [f2-native-region-graft.md](f2-native-region-graft.md).
+
 Iteration 281 adds shared-graft readout for synchronous native queue banks,
 including a source-bound 6,656-bit live vector for four exact Queue_56 geometries.
 Shell-only grafts omit physical CE ports; the physical widget rejects connection

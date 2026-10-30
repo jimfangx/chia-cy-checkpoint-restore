@@ -55,3 +55,29 @@ final receipts and the current progress entry for completed checks. Actual
 checkpoint-enabled localhost image/P&R/AFI, all four active Rocket harts, hardware
 cuts, independent complete zero-edge CPU restore, finite replay, sustained live
 RTL beyond the trace and rolling hardware recovery remain pending.
+
+## Optional common native-vector staging
+
+`NativeCheckpointRegionGraft.generate(source, stageNativeState = true)` now
+installs `CheckpointNativeStateSnapshot` on the shared raw clock. This mode
+requires shell-only endpoints with an actual native observation vector; mixed
+physical-clock regions still reject. The default live-readout interface and
+original descriptor identities are unchanged.
+
+One edge stages the entire vector and its target-cut label before any bank
+request. Idle requires the router to be ready, every endpoint to be ready, and
+no endpoint response. Both request and response handshakes, including their
+internal endpoint acknowledgements, require the staging owner's borrow permission.
+Premature requests, owner/freeze loss, cycle drift and busy release/capture revoke
+permission before acknowledgement and latch failure. Failed pending transactions
+require the common reset; release cannot fabricate completion. The saved vector
+has indexed 64-bit readback and an explicit complete payload/occupied/cut/error
+control vector. This is capture-only ownership, without a restore interface.
+
+The binding records the snapshot geometry, layout, raw-edge sampling and idle
+contract, source/resource hashes and remaining unsupported owners. This opt-in
+adapter does not bind the production widget, global reset/cut, functional DRAM,
+FASED, host transport or pre-FAME semantic state. The ordinary widget's existing
+rejection stays enabled. It does not admit a full FPGA image or a CPU checkpoint.
+New diagnostic and verification evidence belongs under
+`automations/checkpoint_loop/runs/aws-f2/iteration282/`.
