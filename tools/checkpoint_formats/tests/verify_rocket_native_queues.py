@@ -16,7 +16,7 @@ import tempfile
 
 from tools.checkpoint_formats import toolchain
 from tools.checkpoint_formats.codec import canonical, require
-from tools.checkpoint_formats.tests.verify_shared_queue_access import observation_audit
+from tools.checkpoint_formats.tests.verify_shared_queue_access import observation_audit, registered_readout_audit
 from tools.checkpoint_formats.tests.audit_checkpoint_regions import inventory_from_firrtl
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -55,6 +55,7 @@ def audit_generated(g):
     observations = []
     for q in range(4):
         bank = json.loads((g/f'shell-{q}-banks-binding.json').read_text())
+        registered_readout_audit(g/f'shell-{q}-banked.fir', bank)
         layout = observation_audit(g/f'shell-{q}-banked.fir', bank)
         require(layout['bits'] == 1664 and len(layout['state']) == 14, 'incomplete native queue vector')
         module = f'checkpoint_shell_region{q}_selected_Queue_56'
@@ -86,8 +87,11 @@ def audit_generated(g):
 
 
 def capture_manifest(g, rows, observations):
-    return dict(version=1, scope='isolated_exact_Rocket_Queue_56_geometry', complete_fpga_capture=False,
+    return dict(version=2, scope='isolated_exact_Rocket_Queue_56_geometry', complete_fpga_capture=False,
         production_source_sha256=(g/'production-source-sha256.txt').read_text().strip(),
+        generated_sv_sha256=sha(g/'generated.sv'),
+        queue_bank_bindings_sha256=[sha(g/f'shell-{q}-banks-binding.json') for q in range(4)],
+        transport_rtl_sha256={n:sha(ROOT/n) for n in RTL},
         original_descriptor_manifest_sha256=sha(g/'descriptors.json'), queue_observations=observations,
         state=rows, native_descriptor=dict(bank=252, slot=0, width=64, depth=104),
         native_bit_order='q0_lsb_then_q1_q2_q3', native_bits=6656,
@@ -165,7 +169,9 @@ def wrapper(g, rows, digest):
 
 
 def oracle(g, rows, observations):
-    lines = ['task sample_original_native;', 'begin']
+    digest=hashlib.sha256(canonical(capture_manifest(g,rows,observations))).hexdigest()
+    lines = [f"localparam [255:0] EXPECTED_CAPTURE_MANIFEST = 256'h{digest};",
+        'task sample_original_native;', 'begin']
     for q, obs in enumerate(observations):
         for f in obs['state']:
             lines.append(f"expected_native[{q*1664+f['offset']} +: {f['width']}] = dut.host.q{q}.{f['emitted_register']};")

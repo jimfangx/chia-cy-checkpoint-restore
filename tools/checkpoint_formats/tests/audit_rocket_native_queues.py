@@ -168,6 +168,15 @@ def main():
     for n,h in doc['sources'].items():require(sha(ROOT/n)==h,'stale EDA sources '+n)
     for n,h in doc['artifacts'].items():require(sha(eda/n)==h,'changed EDA artifact '+n)
     rows,obs=audit_generated(eda/'generated')
+    manifest=json.loads((eda/'capture-manifest.json').read_text())
+    require(manifest.get('version')==2 and
+        manifest.get('generated_sv_sha256')==sha(eda/'generated/generated.sv') and
+        manifest.get('queue_bank_bindings_sha256')==[
+            sha(eda/f'generated/shell-{q}-banks-binding.json') for q in range(4)],
+        'queue stream identity omits emitted RTL or registered-reader binding')
+    from tools.checkpoint_formats.tests.verify_rocket_native_queues import RTL
+    require(manifest.get('transport_rtl_sha256')=={n:sha(ROOT/n) for n in RTL},
+        'queue stream identity omits actual transport RTL')
     wave=eda/'rocket-native-queues-healthy.vcd.gz'
     wave_binding=next(x for x in doc['waveforms'] if Path(x['compressed_path']).name==wave.name)
     captures,samples,diagnostics=wave_history(wave,obs,wave_binding['original_sha256'])

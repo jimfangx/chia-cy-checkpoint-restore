@@ -87,3 +87,44 @@ audit passes. Its selected catalog binds all four 196,728-word cuts and complete
 lossless waves. Original EDA paths remain in receipts. All non-LLM build/EDA jobs
 and the failed managed delegation are finished; no worker remains. No canonical
 CPU checkpoint, checkpoint-enabled AFI or physical migration is claimed.
+
+Iteration 279 registers request admission before selecting the native RAM
+address. Adapter policy version 3 specifies four edges including acceptance:
+phase 0 accepts/stores selectors, phase 3 borrows from those registers, phase 1
+samples the returned raw data and re-primes the original reader, and phase 2
+publishes the response. It reuses the existing two-bit phase register and all
+fourteen original observation fields. The acceptance permission path no longer
+selects the RAM address on the accepting edge. Reset still cancels/re-primes;
+lost functional hold invalidates preparation even if hold returns before data
+sampling. Reader drain and immediate transport fault revocation remain required.
+
+The independent FIRRTL audit requires the actual borrow, phase and hold-loss
+equations. Fresh EDA checks cover all four reset phases, every unfinished release
+phase, transient preparation hold loss, exact latency and the actual borrow net
+before each acceptance. Compiled admission and hold-loss mutations join retained
+payload and observation corruption checks. These checks pass in fresh source-bound EDA SP2 processes;
+consult current selected receipts under `runs/aws-f2/iteration279/`.
+
+The old/new readout initially shared a state-shape-only stream identity. Capture
+manifest version 2 now hashes the emitted queue RTL, all four complete bank
+bindings and every transport RTL source. Shape-preserving protocol, emitted RTL
+and transport changes must change the DMA header digest. The VCS oracle checks
+that digest before acknowledging the header; incompatible-manifest mutation is
+separate from payload/selector corruption. This remains a component protocol,
+not canonical CPU images or production restore admission. Full-image ownership,
+physical capture and paired CPU migration remain pending.
+
+The iteration-279 F2-part synthesis retains 64 URAMs, 11,876 flip-flops and
+7,869 logic LUTs, with zero LUT RAM. At unchanged 140 MHz its OOC setup/hold
+estimates are -0.832/+0.073 ns, versus the preceding -1.704/+0.073 ns. The
+remaining worst path is freeze_low -> physical/snapshot/transport permission
+-> accepted-request native_active/D (17 levels, 4.185 ns data delay). The
+permission chain no longer reaches the URAM address on its accepting edge.
+Full-image timing closure and production physical/common-cut ownership remain
+pending. Fresh SP2 queue execution passes all four component cuts with
+78,343,201 checks / 983,220 stalls; the full-wave audit passes all 56 original native vectors, three router vectors /
+28,146,316 samples and complete four-cut RAM/payload/CRC reconstruction. All
+six compiled mutations and eight corrupt/rechecksummed stream negatives reject.
+The complete retained EDA scope and six further waveform audits pass. Current
+selected receipts retain exact provenance; final source/artifact/protected-input
+and resource audits pass. The native and EDA pipelines have completed and joined.

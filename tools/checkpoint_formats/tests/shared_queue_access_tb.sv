@@ -87,6 +87,7 @@ module shared_queue_access_tb;
   integer pushes[0:2],pops[0:2],wraps[0:2],same_address_writes[0:2];
   integer collision_before=0;
   integer response_wait_cycles=0,delayed_reads=0,cancellations=0,held_response_releases=0,premature_releases=0,running_reset_pulses=0;
+  integer transient_releases=0,registered_accepts=0;
   reg [63:0] expected_word=0;
   integer expected_queue=0;
   task check(input bit ok,input string why);
@@ -99,6 +100,16 @@ module shared_queue_access_tb;
   always @(posedge clock) begin : model
     bit take_in,take_out; integer next_read;
     edges++;
+    // Request admission must only load selectors; its permission path must
+    // never select the RAM address on that same edge. Check the actual net.
+    if(request_valid[0] && request_ready[0]) begin
+      check(dut.host.q0.checkpoint_shell_region0_ckpt_native_borrow===1'b0,"registered request before native borrow q0");
+      registered_accepts++;
+    end
+    if(request_valid[1] && request_ready[1]) begin
+      check(dut.host.q1.checkpoint_shell_region1_ckpt_native_borrow===1'b0,"registered request before native borrow q1");
+      registered_accepts++;
+    end
     for(integer q=0;q<3;q++) begin
       if(q==2 || !freeze[q]) begin
         if(q<2) selected_edges++;
@@ -156,6 +167,7 @@ module shared_queue_access_tb;
       end
       if(latency>0)delayed_reads++;
       check(response_valid[q],"bounded synchronous response latency");
+      check(latency==3,"four-edge registered native response latency including acceptance");
     end
     check(response_valid[q] && response_error[q]===err,"response valid/error");
     check(response_data[q]===expected,"complete selected word");
@@ -215,18 +227,19 @@ module shared_queue_access_tb;
     repeat(4)capture();
     // Explicitly reject requests outside hold, and cancel a pending word on control reset.
     readword(0,0,0,0,0,1);
-    // Cancel at borrowing, payload capture/re-prime, and completed response
+    // Cancel at registered preparation, borrowing, payload capture/re-prime,
+    // and completed response
     // phases. All paths must restore the original native reader
     // pipeline before release and must never resurrect the canceled response.
-    for(integer phase=0;phase<3;phase++)begin
+    for(integer phase=0;phase<4;phase++)begin
       @(negedge clock);#2;freeze=3;
       bank[0]=QUEUE0_RAM_BANK;slot[0]=QUEUE0_RAM_SLOT;word_address[0]=7;
       request_valid[0]=1;response_ready[0]=0;
       #1;check(request_ready[0],"cancel request ready");
       @(posedge clock);#2;request_valid[0]=0;
       bank[0]=254;slot[0]=65535;word_address[0]=32'hffffffff;
-      if(phase<2)begin
-        if(phase==1)begin @(posedge clock);#2;end
+      if(phase<3)begin
+        repeat(phase)begin @(posedge clock);#2;end
         check(!response_valid[0],"reset phase precedes memory response validity");
       end else begin : cancel_pending_wait
         integer latency;
@@ -243,16 +256,16 @@ module shared_queue_access_tb;
       @(negedge clock);#2;freeze=0;cancellations++;
       active(9,103+phase);
     end
-    // Release at both unfinished RAM phases. A response from a cut that was
+    // Release at every unfinished RAM phase. A response from a cut that was
     // broken before re-prime must be a retained zero/error, never stale data.
-    for(integer phase=0;phase<2;phase++)begin
+    for(integer phase=0;phase<3;phase++)begin
       @(negedge clock);#2;freeze=3;
       bank[0]=QUEUE0_RAM_BANK;slot[0]=QUEUE0_RAM_SLOT;word_address[0]=7;
       request_valid[0]=1;response_ready[0]=0;
       #1;check(request_ready[0],"premature release request ready");
       @(posedge clock);#2;request_valid[0]=0;
       bank[0]=254;slot[0]=65535;word_address[0]=32'hffffffff;
-      if(phase==1)begin @(posedge clock);#2;end
+      repeat(phase)begin @(posedge clock);#2;end
       check(!response_valid[0],"premature release precedes valid response");
       @(negedge clock);#2;freeze=0;
       begin : premature_release_wait
@@ -270,6 +283,31 @@ module shared_queue_access_tb;
       check(!response_valid[0],"premature release error acknowledged once");
       active(7,117+phase);
     end
+    // Losing hold during preparation must remain an error even when hold
+    // returns before payload sampling. Preserve the old public reader too.
+    @(negedge clock);#2;freeze=3;
+    bank[0]=QUEUE0_RAM_BANK;slot[0]=QUEUE0_RAM_SLOT;word_address[0]=7;
+    request_valid[0]=1;response_ready[0]=0;
+    #1;check(request_ready[0],"transient release request ready");
+    @(posedge clock);#2;request_valid[0]=0;
+    bank[0]=254;slot[0]=65535;word_address[0]=32'hffffffff;
+    @(negedge clock);#2;freeze=0;
+    @(posedge clock);#2;
+    @(negedge clock);#2;freeze=3;
+    begin : transient_release_wait
+      integer latency;
+      latency=0;
+      while(!response_valid[0] && latency<12)begin @(posedge clock);#2;latency++;end
+      check(response_valid[0] && response_error[0] && response_data[0]===64'b0,"preparation hold loss cannot be repaired by reassertion");
+    end
+    repeat(3)begin
+      @(posedge clock);#2;
+      check(response_valid[0] && !request_ready[0] && response_error[0] && response_data[0]===64'b0,"transient hold loss retains zero/error under backpressure");
+    end
+    @(negedge clock);#2;response_ready[0]=1;
+    @(posedge clock);#2;response_ready[0]=0;reads++;transient_releases++;
+    @(negedge clock);#2;freeze=0;
+    active(13,131);
     // Releasing functional execution while a response is held must preserve
     // the accepted payload and restore the original synchronous reader on the
     // very first resumed edge, including same-address RAM writes/reads.
@@ -316,11 +354,12 @@ module shared_queue_access_tb;
     @(negedge clock);#2;endpoint_reset=0;running_reset_pulses++;
     active(17,167);
     check(running_reset_pulses==1,"running endpoint reset pulse coverage");
-    check(cuts==4 && reads==364,"original 361 reads plus held and premature release transfers");
-    check(delayed_reads>=288 && response_wait_cycles>=delayed_reads && cancellations==3 && held_response_releases==1 && premature_releases==2,"synchronous RAM latency and all three reset cancellation phases");
+    check(cuts==4 && reads==366,"original 361 reads plus held, premature and transient release transfers");
+    check(delayed_reads>=288 && response_wait_cycles==3*delayed_reads && cancellations==4 && held_response_releases==1 && premature_releases==3 && transient_releases==1,"synchronous RAM latency and all four reset cancellation phases");
     for(integer q=0;q<3;q++)check(pushes[q]>50 && pops[q]>50 && wraps[q]>8,"live enqueue/dequeue/pointer wrapping coverage");
     $display("SHARED_QUEUE_PASS checks=%0d reads=%0d stalls=%0d edges=%0d cuts=%0d sibling_pushes=%0d delayed_reads=%0d wait_cycles=%0d cancellations=%0d held_releases=%0d premature_releases=%0d running_reset_pulses=%0d",checks,reads,stalls,edges,cuts,pushes[2],delayed_reads,response_wait_cycles,cancellations,held_response_releases,premature_releases,running_reset_pulses);
     $display("NATIVE_OBSERVATION_PASS fields_per_queue=14 bits_per_queue=518 comparisons=%0d",native_observation_checks);
+    $display("REGISTERED_NATIVE_REQUEST_PASS accepts=%0d transient_releases=%0d",registered_accepts,transient_releases);
     $finish;
   end
   initial begin #2000000;check(0,"watchdog");end

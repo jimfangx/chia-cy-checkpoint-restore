@@ -134,6 +134,8 @@ module rocket_native_queues_tb;
     end
     always @(negedge clock)begin
         #2;
+        if((collect || priming) && dma_valid && dma_data[95:80]==1)
+            check(dma_data[511:256]===EXPECTED_CAPTURE_MANIFEST,"preedge exact readout build manifest");
         if((collect || priming) && dma_valid && dma_data[95:80]==2)begin
             reg [63:0] expected;
             integer ordinal,address;

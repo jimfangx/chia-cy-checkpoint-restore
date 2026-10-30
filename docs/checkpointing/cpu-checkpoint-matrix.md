@@ -14,6 +14,23 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 279 registers native request admission before RAM address borrowing,
+using the existing phase owner and a version-3/four-edge policy. Independent
+FIRRTL and EDA checks cover acceptance, all reset/release phases and transient
+preparation hold loss. Version-2 component stream manifests bind emitted RTL,
+complete bank bindings and transport RTL, so the changed readout protocol has a
+distinct DMA identity. Eleven focused identity/stream tests, all 330 Scala tests / 52 suites plus
+twelve preparation tests and 52 manager tests pass. Exploratory fresh EDA
+queue semantics pass. All affected native builds pass; the 64-URAM component
+improves 140 MHz OOC setup/hold estimates to -0.832/+0.073 ns. Full EDA transfer
+passes four component cuts with 78,343,201 checks; waveform readback and all eight corrupted/rechecksummed negatives pass. All six
+compiled mutations, 348 Python / 47,219 ASan/UBSan host assertions, sixteen fresh
+bank/region scopes and complete retained bridge/capture/snapshot/restore/widget
+plus six additional waveform audits pass. Final source/artifact/protected-input/resource audits pass; exact commands and
+receipts are under `runs/aws-f2/iteration279/`. Hardware CPU ownership, full image,
+physical cuts and paired zero-edge/finite/live/rolling migration remain pending;
+no hardware column advances.
+
 Iteration 278 strengthens the exact-queue component's complete ordered owner
 coverage. The auditor and pre-acceptance VCS monitor reject skipped/duplicated
 addresses or owners even when the payload agrees with the reported selector

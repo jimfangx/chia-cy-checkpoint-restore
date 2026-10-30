@@ -154,17 +154,43 @@ def emitted_observation(directory, q, bank):
         module=name, generated_sv_sha256=sha(Path(directory) / "generated.sv"), state=fields)
 
 
+def registered_readout_audit(instrumented, bank):
+    """Check the real admission/borrow boundary independently of its policy."""
+    modules = parse_modules(Path(instrumented).read_text())
+    require(len(modules) == 1, "registered reader requires one concrete module")
+    drivers = next(iter(modules.values()))["drivers"]
+    policy = bank.get("synchronous_memory_readout", {})
+    require(policy.get("adapter_version") == 3 and policy.get("response_latency_edges") == 4
+            and policy.get("registered_request_before_borrow") is True,
+            "missing registered native request policy")
+    require(drivers.get("ckpt_native_borrow") ==
+            'and(and(ckpt_freeze, not(ckpt_reset)), eq(ckpt_native_phase, UInt<2>("h3")))',
+            "native RAM borrow depends on accepting request instead of registered phase")
+    require(drivers.get("ckpt_native_phase") ==
+            'mux(ckpt_reset, UInt<2>("h2"), mux(ckpt_accept, UInt<2>("h3"), '
+            'mux(eq(ckpt_native_phase, UInt<2>("h3")), UInt<2>("h1"), '
+            'mux(eq(ckpt_native_phase, UInt<2>("h1")), UInt<2>("h2"), UInt<2>("h0")))))',
+            "changed registered borrow/capture/reprime/publication sequence")
+    require(drivers.get("ckpt_native_active") ==
+            'mux(ckpt_reset, UInt<1>("h0"), mux(ckpt_accept, and(ckpt_freeze, ckpt_match), '
+            'mux(or(eq(ckpt_native_phase, UInt<2>("h2")), not(ckpt_freeze)), '
+            'UInt<1>("h0"), ckpt_native_active)))',
+            "native preparation hold loss can recover an invalidated request")
+
+
 def bank_audit(directory, q, shell, mapping):
     bank = canonical_json(directory / f"shell-{q}-banks-binding.json")
     reference = directory / f"shell-{q}-reference.fir"
     instrumented = directory / f"shell-{q}-banked.fir"
+    registered_readout_audit(instrumented, bank)
     require(shell["banks_binding_sha256"] == digest(bank), "unbound underlying queue bank policy")
     require(shell["reference_sha256"] == bank["reference_sha256"] == sha(reference)
             and bank["instrumented_sha256"] == sha(instrumented), "changed underlying bank circuit hash")
     local_manifest = canonical_json(directory / f"shell-{q}-manifest.json")
     require(bank["manifest_sha256"] == digest(local_manifest), "unbound local queue bank manifest")
-    expected_policy = dict(adapter_version=2, original_ram_ports_retained=True,
-        access_clock_contract="same_running_original_raw_clock", response_latency_edges=3,
+    expected_policy = dict(adapter_version=3, original_ram_ports_retained=True,
+        access_clock_contract="same_running_original_raw_clock", response_latency_edges=4,
+        registered_request_before_borrow=True,
         original_reader_reprimed_before_response=True, cancel_reprime_before_ready=True,
         public_reader_shadowed=True, memories=["ram"], native_read_under_write="old",
         original_read_under_write="new", write_first_forwarding="registered_hit_and_data_at_original_ram_edge",
@@ -425,7 +451,8 @@ def synthesis_wrapper(generated):
 def negative_audits(generated, out):
     results = []
     for case in ("omitted", "duplicate", "shape", "pipeline", "selector", "duplicate_mapping", "sibling", "false_admission",
-                 "bank_policy", "bank_hash", "bank_latency", "bank_port", "noncanonical",
+                 "bank_policy", "bank_hash", "bank_latency", "bank_port", "bank_registered",
+                 "bank_borrow", "bank_hold_loss", "noncanonical",
                  "observation_omitted", "observation_pipeline", "observation_offset", "observation_width",
                  "observation_clock", "observation_capture", "observation_restore", "observation_equation",
                  "observation_emitted_register", "observation_emitted_equation", "observation_emitted_clock"):
@@ -466,6 +493,14 @@ def negative_audits(generated, out):
             if case == "bank_policy": bank["synchronous_memory_readout"]["access_clock_contract"] = "foreign_clock"
             elif case == "bank_hash": bank["instrumented_sha256"] = "0" * 64
             elif case == "bank_latency": bank["synchronous_memory_readout"]["response_latency_edges"] = 1
+            elif case == "bank_registered": bank["synchronous_memory_readout"]["registered_request_before_borrow"] = False
+            elif case in ("bank_borrow", "bank_hold_loss"):
+                fir = directory / "shell-0-banked.fir"
+                name = "node ckpt_native_borrow" if case == "bank_borrow" else "ckpt_native_active"
+                replacement = 'node ckpt_native_borrow = ckpt_accept' if case == "bank_borrow" else 'ckpt_native_active <= ckpt_native_active'
+                text, count = re.subn(r"^    " + name + r" (?:=|<=) .*$", "    " + replacement, fir.read_text(), flags=re.M)
+                require(count == 1, "ambiguous registered reader equation negative")
+                fir.write_text(text);bank["instrumented_sha256"] = sha(fir)
             else:
                 fir = directory / "shell-0-banked.fir"
                 text = fir.read_text()
@@ -618,7 +653,7 @@ puts "SHARED_QUEUE_SYNTH_PASS selected=2 untouched=1"
         doc["inputs"] = native["inputs"];audit(out / "generated")
         require((out / "synthesis-wrapper.sv").read_text() == synthesis_wrapper(out / "generated"), "changed production-shaped endpoint wrapper")
         require((out / "shared-queue-selectors.svh").read_text() == selectors(out / "generated"), "changed queue oracle selectors")
-        for mode in ("healthy", "corrupt", "corrupt-observation"):
+        for mode in ("healthy", "corrupt", "corrupt-observation", "corrupt-admission", "corrupt-hold-loss"):
             folder = out / mode;folder.mkdir()
             text = (out / "generated/generated.sv").read_text()
             if mode == "corrupt":
@@ -632,6 +667,15 @@ puts "SHARED_QUEUE_SYNTH_PASS selected=2 untouched=1"
                     r"\1(\2) ^ 518'h1;", leaf[0])
                 require(count == 1, "ambiguous native observation corruption site")
                 text = text[:leaf.start()] + changed + text[leaf.end():]
+            elif mode == "corrupt-admission":
+                text, count = re.subn(
+                    r"(wire\s+checkpoint_shell_region0_ckpt_native_borrow = )([^;]+);",
+                    r"\1(\2) | checkpoint_shell_region0_ckpt_accept;", text)
+                require(count == 1, "ambiguous native admission corruption site")
+            elif mode == "corrupt-hold-loss":
+                needle = "checkpoint_shell_region0_ckpt_native_phase == 2'h2 | ~checkpoint_shell_region0_ckpt_freeze"
+                require(text.count(needle) == 1, "ambiguous native hold-loss corruption site")
+                text = text.replace(needle, "checkpoint_shell_region0_ckpt_native_phase == 2'h2")
             (folder / "compiled.sv").write_text(text)
             run([toolchain.VCS, "-full64", "-sverilog", "-timescale=1ns/1ps", "-Mupdate", "-debug_access+all",
                  "+incdir+" + str(out), "-top", "shared_queue_access_tb", "-top", "glbl", "-Mdir=" + str(folder / "csrc"),
@@ -642,28 +686,39 @@ puts "SHARED_QUEUE_SYNTH_PASS selected=2 untouched=1"
             wave = out / "shared-queue-access.vcd";require(wave.is_file() and wave.stat().st_size > 0, "missing queue debug waveform")
             shutil.move(wave, folder / wave.name)
             if mode == "healthy":
-                match = re.search(r"SHARED_QUEUE_PASS checks=(\d+) reads=364 stalls=(\d+) edges=(\d+) cuts=4 sibling_pushes=(\d+)", text)
+                match = re.search(r"SHARED_QUEUE_PASS checks=(\d+) reads=366 stalls=(\d+) edges=(\d+) cuts=4 sibling_pushes=(\d+)", text)
                 require(match and int(match[1]) > 1000 and int(match[4]) > 100, "incomplete active queue coverage")
                 doc["checks"], doc["stalls"], doc["edges"], doc["sibling_pushes"] = map(int, match.groups())
-                doc["reads"] = 364;doc["retained_original_reads"] = 361;doc["cuts"] = 4
+                doc["reads"] = 366;doc["retained_original_reads"] = 361;doc["cuts"] = 4
                 observation = re.search(r"NATIVE_OBSERVATION_PASS fields_per_queue=14 bits_per_queue=518 comparisons=(\d+)", text)
                 require(observation is not None and int(observation[1]) > 10000,
                         "missing complete live native state observation coverage")
                 doc["native_observation_comparisons"] = int(observation[1])
                 latency = re.search(r"delayed_reads=(\d+) wait_cycles=(\d+) cancellations=(\d+) held_releases=(\d+) premature_releases=(\d+) running_reset_pulses=(\d+)", text)
-                require(latency is not None and int(latency[1]) >= 288 and int(latency[2]) >= int(latency[1])
-                        and int(latency[3]) == 3 and int(latency[4]) == 1 and int(latency[5]) == 2 and int(latency[6]) == 1, "missing synchronous latency and reset cancellation coverage")
+                require(latency is not None and int(latency[1]) >= 288 and int(latency[2]) == 3*int(latency[1])
+                        and int(latency[3]) == 4 and int(latency[4]) == 1 and int(latency[5]) == 3 and int(latency[6]) == 1, "missing synchronous latency and reset cancellation coverage")
                 doc["delayed_reads"], doc["response_wait_cycles"], doc["cancellations"], doc["held_response_releases"], doc["premature_releases"], doc["running_reset_pulses"] = map(int, latency.groups())
+                registered = re.search(r"REGISTERED_NATIVE_REQUEST_PASS accepts=(\d+) transient_releases=(\d+)", text)
+                require(registered is not None and int(registered[1]) == 370 and int(registered[2]) == 1,
+                        "missing registered admission or transient hold-loss coverage")
+                doc["registered_accepts"], doc["transient_releases"] = map(int, registered.groups())
             elif mode == "corrupt":
                 require("SHARED_QUEUE_DIVERGENCE signal=complete selected word cuts=0" in text
                         and "frozen=11 response_ack=00 reads=0" in text and "SHARED_QUEUE_PASS" not in text,
                         "corruption acknowledged an edge/word or failed to stop on first read")
                 doc["compiled_first_word_corruption_rejected_before_ack"] = True
-            else:
+            elif mode == "corrupt-observation":
                 require("SHARED_QUEUE_DIVERGENCE signal=native observation q0 CheckpointNativeBorrowed" in text
                         and "response_ack=00 reads=0" in text and "SHARED_QUEUE_PASS" not in text,
                         "native observation corruption escaped its first divergent sample")
                 doc["compiled_native_observation_corruption_rejected_before_ack"] = True
+            else:
+                signal = ("registered request before native borrow q0" if mode == "corrupt-admission" else
+                          "preparation hold loss cannot be repaired by reassertion")
+                require("SHARED_QUEUE_DIVERGENCE signal=" + signal in text
+                        and "response_ack=00" in text and "SHARED_QUEUE_PASS" not in text,
+                        "registered native request corruption escaped before acknowledgement")
+                doc[mode.replace("-", "_") + "_rejected_before_ack"] = True
         doc["native_receipt"] = dict(path=str(args.native / "summary.json"), sha256=sha(args.native / "summary.json"))
     emitted = [emitted_observation(out / "generated", q,
         canonical_json(out / "generated" / f"shell-{q}-banks-binding.json")) for q in range(2)]

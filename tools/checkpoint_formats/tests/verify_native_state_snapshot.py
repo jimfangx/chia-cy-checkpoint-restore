@@ -380,7 +380,8 @@ puts "NATIVE_SNAPSHOT_SYNTH_PASS queues=2 sibling=1 RAMB_per_queue=2"
                         "missing complete post-read staging exports")
             if mode == "healthy":
                 match = re.search(r"NATIVE_SNAPSHOT_QUEUE_PASS cuts=4 fields=28 bits=1036 checks=(\d+) serial_words=(\d+) live_changes=(\d+)", log)
-                require(match is not None and "SHARED_QUEUE_PASS" in log and "reads=364" in log,
+                require(match is not None and "SHARED_QUEUE_PASS" in log and "reads=366" in log
+                        and "REGISTERED_NATIVE_REQUEST_PASS accepts=370 transient_releases=1" in log,
                         "missing complete queue/snapshot continuation scope")
                 doc["queue_snapshot_checks"], doc["queue_serial_words"], doc["live_vector_changes"] = map(int, match.groups())
             elif mode == "corrupt":
