@@ -35,7 +35,59 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 282,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 283,
+**in_progress; compiled staging-fault provenance and interrupted sweep recovered**.
+All three compiled semantic/handshake fault sources now join the immutable
+staging artifact manifest. The independent auditor reconstructs each exact edit
+from the original adapter; missing, changed, swapped, extra-edited or coherently
+rehashed sources reject. The original iteration-282 receipt rejects at its
+unbound premature-request source without changing historical bytes.
+
+Complete checks pass 331 Scala tests / 52 suites plus twelve preparation tests,
+354 Python tests, 52 manager tests and 47,219 ASan/UBSan host assertions. The full
+localhost native sweep passes with peak concurrency two and no large JVM
+synthesis overlap. Ten bank/region native source sets were refreshed; six
+matching receipts retain their original provenance. All sixteen fresh SP2 EDA
+scopes, complete retained regressions and six additional waveform audits pass.
+Four-cut queue execution passes 78,343,201 checks / 983,220 stalls; complete
+wave/input-history/word/CRC auditing passes all four cuts, eight corrupt or
+rechecksummed streams and six compiled mutations. Staged shared-graft execution
+passes four cuts / 416 staged words / 196,624 original words; independent debug
+readback checks 5,913,197 native-vector samples and all three exact compiled
+faults at component cut 9001 before any word acknowledgement. These remain
+component results, with no physical CPU capture acceptance.
+
+Every generated raw VCD remains a regular file at its original retained EDA
+path. A streamed XFS audit verifies every byte before and after sharing
+74,546,233,344 identical bytes across two waveform pairs, including four full
+expected digests and a differing-range self-test. The first cache-thrashing
+storage audit was deliberately stopped (helper exit 143); its runner/log and
+restart diagnostic remain intact. The initial final-audit wrapper assumed a
+queue VCS `inputs` field; version 2 checks every native-bound input plus all EDA
+artifacts and source/receipt bindings. Its failed runner/log and schema diagnosis
+are preserved. Corrected final aggregate receipt audit passes; all original diagnostics remain bound.
+All regression jobs and transfers have completed and joined. Final AWS/native
+inventory is clean: no active loop runtime, pending AFI or owned Java/Vivado job.
+
+Production common-cut/reset, three physical CE owners, live MMIO/DMA self-state,
+complete functional memory/FASED/host/pre-FAME ownership, full image/P&R/AFI,
+active all-hart FPGA cuts and paired CPU zero-edge/finite/live/rolling migration
+remain pending. The fresh exact-Rocket compile still rejects the FASED BUFGCE
+CE latch without its synthesized owner/common-low-phase cut. Next implementation
+must bind the staged readout to the production widget and complete those owners;
+keep admission guards enabled. Reuse iteration194's localhost invocation and
+initialized manager inputs. Both plans and all four manager YAMLs retain their
+entry hashes. No agent staging/local commits, new runtime or AFI was requested.
+Existing controller checkpoints were published FireSim first, then Chipyard;
+direct remote tips match despite a local tracking-ref filesystem warning.
+Managed worker creation failed before startup; only the central agent ran and
+no delegated LLM remains. Commands, individual immutable receipts and explicit
+per-cut gaps are under `runs/aws-f2/iteration283/`: `verification-commands.json`,
+`remaining-blockers.json`, `complete-eda-recovery-selected.json` and the final
+selected audit. See [GitHub checkpoint publication](github-publication.md) for
+the controller's next checkpoint.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 282,
 **in_progress; opt-in common staging for the shell-only shared queue graft**.
 The adapter now samples the complete 6,656-bit native vector before any bank
 request and gates both outer and internal request/response acknowledgements.
@@ -53,9 +105,9 @@ cuts, 416 staged words, 196,624 original words, 589,872 stalls and dequeue
 continuation. Eleven permission faults and three compiled semantic/handshake
 mutations reject before a word acknowledgement. Full debug archives are retained.
 
-Iteration-282 verification is still running in the active central turn: full
-Scala source-bound sweep, complete native/EDA regressions and independent staged
-waveform auditing. Do not interpret these pending sweeps as passes. Existing
+Iteration-282 ended before its full Scala source-bound sweep, complete
+native/EDA regressions and independent staged waveform auditing completed.
+Do not interpret these interrupted sweeps as passes. Existing
 52 manager tests and AWS/HDK/Vivado/Fabric preflight pass. Launch-path errors,
 interrupted raw Scala setup and the initial overly strict register-count check
 remain in original logs. Current native receipt:
@@ -63,7 +115,7 @@ remain in original logs. Current native receipt:
 Use this iteration's scripts/selections for recovery; reuse iteration194's
 ExternallyProvisioned localhost invocation and initialized manager inputs.
 No new image, AFI, runtime, physical checkpoint or CPU migration is claimed.
-Managed worker startup failed before execution; only the central agent runs.
+Managed worker startup failed before execution; only the central agent ran.
 
 Historical milestone: `F2-rocket-checkpoint-migration`, iteration 281,
 **in_progress; native synchronous queue state through the shared region graft**.

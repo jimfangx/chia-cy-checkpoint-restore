@@ -14,6 +14,23 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 283 binds all three compiled staging faults in immutable receipts
+and independently reconstructs their exact edits before waveform audit. Full
+331-test / 52-suite Scala scope plus twelve preparation tests, 354 Python /
+52 manager tests, 47,219 ASan/UBSan host assertions, complete localhost native
+sweep and all sixteen fresh SP2 bank/region scopes pass. Four-cut queue transfer,
+complete original-memory/native-vector waveform audit, eight corrupted streams
+and six compiled mutations pass. Independent staged-graft audit checks
+5,913,197 native-vector samples, four complete staged readbacks and all three
+source-bound compiled faults at cut 9001 with zero acknowledged words. Raw VCDs
+are retained byte-for-byte using kernel-verified identical-extent sharing.
+The corrected final aggregate receipt audit passes. Original interruption
+and wrapper-schema diagnostics remain under `runs/aws-f2/iteration283/`.
+Production ownership, full image/AFI, actual FPGA capture and paired CPU
+zero-edge/finite/live/rolling acceptance remain pending; no hardware column
+advances. The interrupted iteration-282 full sweep is recovered by these fresh
+runs without rewriting its original receipts.
+
 Iteration 282 adds optional shell-only shared-graft native staging: 6,656
 payload bits and a complete 6,727-bit payload/control output. Native per-bit
 connectivity auditing verifies 6,624 dynamic payload bits, the exact 32 grounded
@@ -22,8 +39,8 @@ local-bank bits, all 71 control bits and a common clock/enable. Synthesis retain
 estimates are +4.481/+0.082 ns, without shell or I/O budgets. Fresh staged SP2
 execution passes four cuts / 416 staged words / 196,624 original words, stalled
 responses and dequeue continuation; eleven permission faults and three compiled
-mutations reject before any word acknowledgement. Complete regression and
-independent waveform sweeps are still running in this central turn. Evidence
+mutations reject before any word acknowledgement. Its complete regression and
+independent waveform sweeps were interrupted. Evidence
 belongs under `runs/aws-f2/iteration282/`. Production widget/common-cut/reset,
 complete memory/host/pre-FAME ownership, full image/AFI, actual FPGA cuts and
 paired CPU zero-edge/finite/live/rolling migration remain pending. No hardware

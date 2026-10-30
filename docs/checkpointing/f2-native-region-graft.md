@@ -81,3 +81,14 @@ FASED, host transport or pre-FAME semantic state. The ordinary widget's existing
 rejection stays enabled. It does not admit a full FPGA image or a CPU checkpoint.
 New diagnostic and verification evidence belongs under
 `automations/checkpoint_loop/runs/aws-f2/iteration282/`.
+
+Iteration 283 closes a compiled-fault evidence gap: the staging receipt now
+binds the source snapshots for the native-vector rotation, premature request
+and busy-release response mutations. Before reading waveforms, the independent
+auditor reconstructs each exact mutation from the original generated adapter.
+Unbound, missing, changed, swapped, multiply edited or coherently rehashed fault
+sources reject. Old receipts are retained with their original coverage and are
+not amended to acquire these bindings. Fresh verification belongs under
+`automations/checkpoint_loop/runs/aws-f2/iteration283/`. This evidence change
+does not install staging in the production widget or provide complete capture
+and restore ownership.

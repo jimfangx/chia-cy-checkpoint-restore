@@ -379,7 +379,8 @@ puts "NATIVE_QUEUE_STAGING_SYNTH_PASS"
     require(sources=={n:sha(ROOT/n) for n in SOURCES},'sources changed during execution')
     require(all(sha(out/n)==h for n,h in doc['inputs'].items()),'execution inputs changed')
     doc['artifacts']={str(f.relative_to(out)):sha(f) for f in out.rglob('*') if f.is_file() and
-        (f.suffix in ('.log','.rpt','.dcp','.gz','.vcd') or f.name in ('compiled-staging-swap.sv','payload-map.txt'))}
+        (f.suffix in ('.log','.rpt','.dcp','.gz','.vcd') or
+         (f.name.startswith('compiled-') and f.suffix == '.sv') or f.name == 'payload-map.txt')}
     doc['status']='pass';save();print(out/'summary.json',flush=True)
 
 if __name__=='__main__':main()

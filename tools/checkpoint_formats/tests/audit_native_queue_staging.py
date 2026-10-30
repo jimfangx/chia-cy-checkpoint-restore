@@ -11,6 +11,34 @@ from tools.checkpoint_formats.regression_runner import local
 from tools.checkpoint_formats.tests.verify_native_queue_staging import ROOT, RUNS, audit, sha
 
 
+def compiled_mutations(directory, receipt):
+    """Reconstruct each compiled fault independently of the mutation launcher.
+
+    A waveform divergence alone cannot identify the RTL fault that was tested.
+    Require immutable, receipt-bound source bytes for all three compiled cases.
+    """
+    original = (directory/'generated/Staged-generated.native-region-graft.sv').read_text()
+    cases = {
+        'compiled-staging-swap.sv': (
+            '.live_state(capture_native_state),',
+            '.live_state({capture_native_state[1663:0],capture_native_state[6655:1664]}),'),
+        'compiled-premature.sv': (
+            'capture_request_valid && staged_permission', 'capture_request_valid'),
+        'compiled-busy-release.sv': (
+            'capture_response_ready && staged_permission', 'capture_response_ready'),
+    }
+    result = {}
+    for name, (before, after) in cases.items():
+        path = directory/name
+        require(original.count(before) == 1, 'ambiguous original compiled mutation '+name)
+        require(path.is_file() and name in receipt['artifacts'], 'unbound compiled mutation '+name)
+        digest = sha(path)
+        require(receipt['artifacts'][name] == digest, 'changed compiled mutation '+name)
+        require(path.read_text() == original.replace(before, after), 'wrong compiled mutation '+name)
+        result[name] = digest
+    return result
+
+
 def wave(path, observations, expected_sha=None, *, broken=None):
     top='native_queue_graft_tb.'
     adapter=top+'dut.checkpoint_region_readout_adapter.'
@@ -131,12 +159,12 @@ def main():
     require(all(sha(ROOT/n)==h for n,h in d['sources'].items()),'stale staging verification sources')
     for group in ('inputs','artifacts'):
         for n,h in d[group].items():require(sha(a.eda/n)==h,'changed staging evidence '+n)
+    extra=compiled_mutations(a.eda,d)
     _,obs=audit(a.eda/'generated')
     results={}
     results['healthy']=wave(a.eda/'native-queue-staging.vcd.gz',obs,d['waveform']['original_sha256'])
     for name,kind in (('mutation','semantic'),('mutation-premature','request'),('mutation-busy-release','response')):
         results[name]=wave(a.eda/(name+'.vcd'),obs,broken=kind)
-    extra={n:sha(a.eda/n) for n in ('compiled-staging-swap.sv','compiled-premature.sv','compiled-busy-release.sv')}
     doc=dict(status='pass',backend='eda',scope='independent complete original-field/staging/control/permission debug audit; no physical FPGA capture',
         physical_fpga_capture=False,results=results,eda_receipt=dict(path=str(receipt),sha256=sha(receipt)),
         compiled_mutation_sources=extra,sources={str(Path(__file__).relative_to(ROOT)):sha(__file__)})
