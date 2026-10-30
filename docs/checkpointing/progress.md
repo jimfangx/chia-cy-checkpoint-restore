@@ -35,7 +35,63 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 280,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 281,
+**in_progress; native synchronous queue state through the shared region graft**.
+The shared graft now retains each synchronous shell's live native observation
+vector and exports it in immutable shell/field order. Shell-only readout uses
+no physical CE ports or invented CE owner. Exact four-queue geometry produces
+6,656 native bits alongside the twenty original bank descriptors; no original
+queue execution is duplicated. The ordinary physical widget explicitly rejects
+connection until an atomic native staging owner exists. The new output remains
+live during borrowing and is not a snapshot or a restore interface.
+
+Current checks pass 330 Scala tests / 52 suites plus twelve preparation tests,
+348 Python tests, 52 manager tests and 47,219 ASan/UBSan host assertions. Fresh
+FCFS passes 46 continuations / 138 pre-edge owner comparisons. The complete
+native sweep passes with peak concurrency two and no large Java overlap. Six
+affected bank/region source sets were rebuilt; ten receipts with matching source
+hashes retain their original provenance, including five completed same-iteration
+children recovered without changing their receipts.
+
+The shared graft retains 64 URAMs, 3,671 LUTs and 4,760 registers, no LUT RAM.
+At unchanged 140 MHz, OOC setup/hold estimates are +4.685/+0.084 ns; full-shell,
+I/O budgets and image implementation remain pending. Six coherently rehashed
+structural negatives reject. The final fresh EDA SP2 graft passes 196,624 original
+words, 3,539,494 native-vector comparisons, 589,872 stalls and dequeue continuation.
+A separately compiled lane substitution stops before any bank acknowledgement.
+Full debug waves return as lossless archives. Its authenticated receipt is
+`queue-graft-eda/vcs-vsdg4t1p/summary.json` under this iteration.
+
+The original four-cut EDA queue scope passes cuts 6486/6622/6855/7185 with
+78,343,201 checks / 983,220 stalls. Independent full-wave/input-history auditing
+passes all 56 original native vectors, three router vectors / 28,146,316 samples
+and all 786,912 words. Eight corrupt/rechecksummed streams and six compiled
+mutations reject. All sixteen fresh EDA bank/region scopes, complete retained
+capture/transport/snapshot/restore/widget scope and six additional waveform
+audits pass. Both branches exited zero; all three helper stages returned their
+artifacts and were joined. All VCS execution used EDA SP2.
+
+Initial verifier metadata/timescale errors, source-pinning rejection and launcher
+transfer/path-alias diagnostics remain immutable under `runs/aws-f2/iteration281/`.
+The path alias invalidated the first graft receipt; a complete fresh rerun
+produced the final receipt above. It was not reconstructed or rehashed to pass.
+No core source changed during the final sweep. Final source/provenance/artifact/protected-input auditing passes; consult
+`final-audit-selected.json` and its pinned `final-audit-rv20eox1/summary.json`. No tagged runtime,
+pending AFI or owned Java/Vivado job remains. No instance or AFI was requested.
+Plans and initialized manager YAMLs retain their entry hashes; existing controller
+checkpoints were pushed FireSim first, then Chipyard. The agent made no staging
+or local commit. Managed-worker startup failed before execution; no delegated
+LLM work exists.
+
+Reuse iteration194's ExternallyProvisioned localhost invocation. Complete
+production common-cut/reset/memory/host/pre-FAME ownership, image/P&R/AFI,
+actual active all-hart FPGA cuts, complete paired zero-edge/finite/live CPU
+migration and rolling hardware recovery remain pending. No hardware column
+advances. Plans and initialized manager YAMLs are read-only. Existing controller
+checkpoints were published FireSim first, then Chipyard. Managed subagent startup
+failed before execution; only the central agent runs and no delegated LLM exists.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 280,
 **in_progress; complete native-cut fault qualification and component implementation**.
 The native owner expands the complete snapshot failure policy at its boundary,
 removing the remaining non-READ snapshot-failed/request-ready permission detour.

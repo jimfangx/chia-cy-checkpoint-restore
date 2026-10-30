@@ -14,6 +14,28 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 281 adds shared-graft readout for synchronous native queue banks,
+including a source-bound 6,656-bit live vector for four exact Queue_56 geometries.
+Shell-only grafts omit physical CE ports; the physical widget rejects connection
+until an atomic staging owner exists. Native synthesis retains 64 URAMs / 3,671
+LUTs / 4,760 registers, no LUT RAM. Unchanged 140 MHz OOC setup/hold estimates are
++4.685/+0.084 ns, without shell/I/O budgets or full-image implementation. Six
+rehashed structural negatives reject. Final fresh SP2 graft execution passes
+196,624 original words / 3,539,494 native comparisons / 589,872 stalls, then
+resumes dequeue traffic; compiled lane corruption stops before acknowledgement.
+330 Scala tests / 52 suites plus twelve preparation, 348 Python / 52 manager /
+47,219 ASan/UBSan assertions, all sixteen fresh bank/region VCS scopes, full
+retained scope and six other waveform audits pass. The original four-cut queue
+scope passes 78,343,201 checks, complete 56-native/three-router-vector waveform
+and input-history reconstruction, all 786,912 words, eight corrupt/rechecksummed
+streams and six compiled mutations. All EDA artifacts returned and jobs joined.
+The initial graft receipt was invalidated by a launcher path alias; a fresh
+complete rerun produced `queue-graft-eda/vcs-vsdg4t1p/summary.json`. Diagnostics
+and exact immutable receipts remain under `runs/aws-f2/iteration281/`.
+Complete production ownership, image/AFI, physical all-hart cuts and paired
+zero-edge/finite/live/rolling migration remain pending; no hardware column
+advances. See [f2-rocket-native-queues.md](f2-rocket-native-queues.md).
+
 Iteration 280 expands complete native-cut failure qualification using the
 existing snapshot state, eliminating the non-READ snapshot-ready detour without
 adding state or edges. All 330 Scala tests / 52 suites plus twelve preparation,

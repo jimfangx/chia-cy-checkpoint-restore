@@ -169,3 +169,65 @@ mask, complete routing and nonnegative timing without changing clock frequency
 or adding timing exceptions. Original OOC clock-reference, unloaded-net and
 unbudgeted-port warnings remain in the reports. Full-shell timing, image builds
 and physical CPU capture remain pending.
+
+Iteration 281 extends `NativeCheckpointRegionGraft` to synchronous local-shell
+banks. The original queue instances and functional connections remain in place.
+The shared adapter routes original bank requests/responses and additionally
+exports `capture_native_state`: the concatenation of each source-bound native
+observation vector, in shell order with the first shell at the least significant
+bits. Its optional binding records every execution, region, offset, width,
+original bank-binding hash and complete field layout. Four exact Queue_56
+geometries produce 6,656 bits. Shell-only grafts omit both physical CE ports;
+they do not create a zero-width signal or a substitute physical owner.
+
+This output is live. The synchronous reader can change RAM pipeline and reader
+control state while functional execution is held. A downstream owner must stage
+the entire vector atomically before any borrow/request, then retain that staging
+state through transfer. The current physical widget has no such input/owner and
+explicitly rejects these shells before connection. Original descriptors remain
+independent of derived reader state. No snapshot, composite restore, complete
+production cut or deployment admission is implied by the new port.
+
+`verify_native_queue_graft.py` independently reconstructs the field layout,
+checks every original queue definition and concrete execution, and audits the
+aggregate wires and emitted assignments. Six coherently rehashed negatives
+cover crossed lanes, aliased offsets, an omitted lane, false atomic admission,
+a bypassed aggregate output and an unsupported binding version. The directed EDA test fills all four original
+RAMs through enqueue traffic, checks all 196,624 original bank words before
+response acknowledgement under stalls, compares all 56 underlying native
+register vectors while borrowing, and resumes real dequeue traffic. A separate
+compiled lane substitution must stop before any bank acknowledgement. Full debug
+waveforms and native F2-part URAM/timing reports belong under
+`runs/aws-f2/iteration281/`; consult selected receipts for actual verification
+status. Original four-cut transport/wave/mutation and retained regressions remain
+required. Complete physical ownership, localhost image/P&R/AFI, active all-hart
+F2 captures, independent paired CPU restoration/live execution and rolling
+hardware recovery remain pending.
+
+The final iteration-281 matching-source localhost synthesis retains all 64 URAMs,
+3,671 LUTs and 4,760 registers, no LUT RAM, with unchanged 140 MHz OOC setup/hold
+estimates +4.685/+0.084 ns. These are internal estimates without shell/I/O budgets
+or full-image P&R. Final fresh SP2 execution reads all 196,624 original words,
+performs 3,539,494 live native-vector comparisons and 589,872 stalled response
+cycles, then resumes dequeue traffic. Compiled lane corruption stops before its
+first bank acknowledgement. Six coherently rehashed structural negatives reject.
+Full healthy and negative debug waves survive in their original remote locations
+and returned lossless archives. The original four-cut queue execution, independent
+full-wave/input-history/CRC audit, eight stream negatives and six compiled
+mutations also pass, alongside all retained regressions and sixteen fresh VCS
+bank/region scopes. Source hashes and original native-receipt provenance remain
+explicit; six source sets were rebuilt and ten matching-source native receipts
+were retained without redating.
+
+The source/launcher diagnostics are retained, including an initial overwritten
+EDA receipt. That selection was invalidated; the complete fresh graft rerun at
+`runs/aws-f2/iteration281/queue-graft-eda/vcs-vsdg4t1p/summary.json` supplies current
+evidence. `graft-receipt-recovery-selected.json` identifies that actual rerun.
+Use this iteration's raw `eda-graft.sh`, `eda-queue-simulation.sh` and
+`eda-concurrent.sh` on the EDA backend, with `vcs-env.sh` sourced last. The
+concurrent script authenticates the graft receipt before both complete branches.
+`manager-final.sh` and `refresh-graft-native.sh` use native localhost Vivado and
+existing manager setup on the F2 backend. All commands, native/EDA inputs, complete
+logs, per-cut stream manifests and wave receipts stay beneath this iteration's
+`runs/` directory. No FPGA image/capture, canonical CPU checkpoint or CPU
+restoration/live/rolling acceptance follows from these component results.
