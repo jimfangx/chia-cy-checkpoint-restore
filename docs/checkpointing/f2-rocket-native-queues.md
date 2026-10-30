@@ -48,3 +48,42 @@ transport self-state/composite restore, all simulator/memory/timing/bridge/host
 and pre-FAME owners, full-image timing/P&R/AFI, physical all-hart captures,
 FPGA-reference comparison, paired zero-edge/finite/live CPU migration and rolling
 hardware recovery remain required. No hardware acceptance column advances.
+
+Iteration 278 strengthens complete stream ownership: the independent decoder
+requires each original/native selector exactly once in immutable descriptor
+order, and checks the header's zero sequence. A self-consistent duplicated
+address with a repaired CRC cannot substitute for an omitted word. The VCS
+oracle separately derives selectors from the generated manifest and checks
+each offered data frame before DMA acknowledgement. Seven focused cases cover
+healthy zero-valued state, duplicate RAM/native words, duplicate lane owners,
+reordering, truncation and noncanonical header sequences. Additional actual
+component-stream mutations retain genuine copied payloads and repaired CRCs.
+Current native, EDA, independent-wave and compiled mutation evidence belongs
+under `runs/aws-f2/iteration278/`; no CPU or hardware acceptance follows.
+
+The final iteration-278 localhost F2-part synthesis retains all 64 URAMs,
+11,876 flip-flops and 7,874 logic LUTs, with no LUT memory. Its unchanged 140 MHz
+OOC setup/hold estimates are -1.704/+0.073 ns; timing closure and full-image
+implementation remain pending. All seven affected broad source sets now have
+strict current-source native receipts (three completed attempts recovered
+without relabeling, four rebuilt), alongside the two refreshed snapshot owners.
+Nine unrelated native receipts retain their exact original provenance. Peak
+native concurrency is two. Fresh EDA four-cut transfer and its independent full-wave audit now pass;
+all sixteen bank/region scopes and the complete retained regressions / six
+additional waveform audits now have passing fresh EDA receipts.
+
+The current critical setup path is concrete, not a URAM-capacity issue:
+`physical/freeze_low_reg` (falling raw edge) -> physical readiness -> snapshot
+failed/request-ready -> native failed -> transport cut/read-enable -> routed
+borrow -> q0 URAM cascade address. It has 18 logic levels and a 3.572 ns
+half-cycle requirement (4.558 ns estimated data delay). Next timing work should
+shorten this permission/address path while preserving immediate owner/fault
+revocation, accepted-reader drain and original queue state; do not mask the
+path with a frequency change or an unsupported timing exception. The complete
+production CE/common-cut binding remains a separate prerequisite for an image.
+
+The final iteration-278 source/receipt/protected-input/resource/individual-artifact
+audit passes. Its selected catalog binds all four 196,728-word cuts and complete
+lossless waves. Original EDA paths remain in receipts. All non-LLM build/EDA jobs
+and the failed managed delegation are finished; no worker remains. No canonical
+CPU checkpoint, checkpoint-enabled AFI or physical migration is claimed.

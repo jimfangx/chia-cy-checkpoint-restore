@@ -35,7 +35,55 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 277,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 278,
+**in_progress; exact ordered queue-stream coverage**. The independent auditor
+now requires every original/native descriptor address exactly once in manifest
+order, including the zero header sequence. Duplicate RAM words, complete owners
+or native words with correct payloads and repaired CRCs can no longer hide an
+omitted owner. The VCS monitor also validates the selector before its accepting
+DMA edge. Seven focused cases, all 344 checkpoint Python tests, 52 manager tests,
+47,219 ASan/UBSan host assertions and retained FCFS/bank/cut scope pass. Five
+fresh EDA compiled mutations reject, including the selector before acceptance.
+All seven affected native source sets plus two snapshot owners pass; nine
+unchanged native receipts retain their original provenance. The final four-queue
+localhost synthesis retains 64 URAMs, with -1.704/+0.073 ns OOC setup/hold at
+140 MHz. Fresh SP2 VCS passes component cuts 6486/6622/6855/7185 with
+61,925,913 checks and 491,720 stalls. Its 130-GiB full VCD is retained losslessly
+in a 19-GiB returned artifact, with bounded hashing/readback and zero observed
+swap. Missing-owner/fault/abort recovery passes. Independent full-wave auditing
+passes all 56 original native vectors, three router vectors / 22,051,251 samples,
+input-history memory reconstruction, all 786,912 data words and eight corrupt/
+rechecksummed negatives. The unpublished unresolved-selector diagnostic is
+retained and never acknowledges its staged-native words. The full retained
+SP2 scope now passes: all sixteen fresh bank/region scopes, FCFS/host/cut/shared
+queue/NASTI/endpoint/physical/coordinated-capture/transport, complete snapshot/
+restore/widget scope and six additional independent waveform audits. All EDA
+artifacts have returned locally. The final strict source/protected-input/resource
+and artifact-hash audit passes; its catalog binds every per-cut capture and all
+four complete debug waves. Final AWS/native inventory has no active tagged F2
+runtime, pending AFI or owned Java/Vivado job. No instance or AFI was requested.
+Commands and receipts belong under
+`runs/aws-f2/iteration278/`; consult `final-audit-selected.json` for that result.
+The completed queue attempt is `queue-current-eda/vcs-p2_l5nc9`, with independent
+receipt `queue-wave-audit/audit-46ubzpqq/summary.json`. The EDA pipeline
+`await-native-eda.py`/`eda-complete.sh` exited zero and has been joined.
+This is component validation: no checkpoint-enabled full image or FPGA-produced
+CPU state exists.
+Production common-cut/complete owners, localhost full-image P&R/AFI, active
+all-hart physical cuts, paired complete zero-edge/finite/live migration beyond
+trace and rolling FPGA recovery remain pending. No hardware column advances.
+
+Native managed-worker startup again failed before execution; only the central
+agent runs and no delegated LLM remains. Initial two native jobs rejected a
+source change made during verification; their diagnostics remain preserved.
+Recovery selected only fully validated current-source receipts. Use at most two local
+Vivado jobs and do not overlap Java generation. Plans/initialized configs stay
+read-only; the controller owns staging/local commits. Existing checkpoints were
+pushed FireSim first, then Chipyard; the Chipyard remote accepted its update but
+local remote-tracking-ref update encountered a read-only `.git` filesystem.
+Read-only remote-tip receipts retain the actual published IDs.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 277,
 **in_progress; four exact-geometry native queue transport integration**.
 See [f2-rocket-native-queues.md](f2-rocket-native-queues.md). The new synthesized
 router joins all four native queue endpoints to one atomic staging/MMIO/DMA

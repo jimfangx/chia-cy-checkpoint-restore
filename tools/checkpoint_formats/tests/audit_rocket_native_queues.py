@@ -109,20 +109,43 @@ def wave_history(path, observations, expected_sha):
     return captures,samples,diagnostics
 
 
+def ordered_selectors(rows, native_words=104):
+    """Manifest order is coverage, not merely a hint attached to each word.
+
+    Never let a stream choose the expected address used by the payload oracle:
+    a duplicate with a repaired CRC would then conceal a missing original word.
+    """
+    for ordinal, row in enumerate(rows):
+        for address in range(row['depth']):
+            yield ordinal, address, row['width'], row['bank'], row['slot']
+    for address in range(native_words):
+        yield len(rows), address, 64, 252, 0
+
+
+def check_selector(frame, expected, sequence):
+    actual = tuple(field(frame, offset, width) for offset, width in
+                   ((224,32),(256,32),(288,16),(304,8),(312,16)))
+    require(actual == expected,
+            f'missing/duplicate/out-of-order owner word at sequence={sequence}: expected={expected} actual={actual}')
+
+
 def frames(path,rows,capture,digest):
-    raw=path.read_bytes();require(len(raw)==196730*64,'truncated four-queue stream')
+    words=sum(r['depth'] for r in rows)+104
+    raw=path.read_bytes();require(len(raw)==(words+2)*64,'truncated four-queue stream')
     crc=crc32c(raw[:-64])^0xffffffff
-    for i in range(196730):
+    selectors=iter(ordered_selectors(rows))
+    for i in range(words+2):
         f=int.from_bytes(raw[i*64:(i+1)*64],'little')
         require(field(f,0,64)==0x3154504b434d5346 and field(f,64,16)==1 and
             field(f,96,64)==capture['target_cycle'],'frame identity/target label changed')
         if i==0:
-            require(field(f,80,16)==1 and field(f,224,32)==21 and field(f,256,256)==int(digest,16),'manifest header mismatch')
-        elif i==196729:
-            require(field(f,80,16)==3 and field(f,160,64)==196728 and field(f,224,32)==crc and f>>256==0,'CRC/trailer mismatch')
+            require(field(f,80,16)==1 and field(f,160,64)==0 and field(f,224,32)==len(rows)+1 and field(f,256,256)==int(digest,16),'manifest header mismatch')
+        elif i==words+1:
+            require(field(f,80,16)==3 and field(f,160,64)==words and field(f,224,32)==crc and f>>256==0,'CRC/trailer mismatch')
         else:
             ordinal=field(f,224,32);address=field(f,256,32)
             require(field(f,80,16)==2 and field(f,160,64)==i-1 and f>>400==0 and field(f,328,8)==0,'noncanonical frame order/bits')
+            check_selector(f,next(selectors),i-1)
             if ordinal==20:
                 require(field(f,304,8)==252 and field(f,312,16)==0 and field(f,288,16)==64 and address<104,'native descriptor mismatch')
                 expected=(capture['native']>>(address*64))&((1<<64)-1)
@@ -133,7 +156,8 @@ def frames(path,rows,capture,digest):
                 if name=='ram':expected=(capture['memory'][q][address//8]>>(64*(address%8)))&((1<<64)-1)
                 else:expected=capture[{'enq_ptr_value':'wp','deq_ptr_value':'rp','maybe_full':'fullflag','ram_io_deq_bits_MPORT_addr':'ra'}[name]][q]
             require(field(f,336,64)==expected,f'original input-history word mismatch frame={i} ordinal={ordinal} address={address}')
-    return dict(path=str(path),sha256=sha(path),target_cycle=capture['target_cycle'],words=196728)
+    require(next(selectors,None) is None,'incomplete original owner coverage')
+    return dict(path=str(path),sha256=sha(path),target_cycle=capture['target_cycle'],words=words)
 
 
 def main():
@@ -151,12 +175,25 @@ def main():
     audited=[frames(eda/f'queue-cut-{i}.bin',rows,c,digest) for i,c in enumerate(captures)]
     negatives=[]
     first=(eda/'queue-cut-0.bin').read_bytes()
-    for case in ['truncated','crc','semantic-rehashed','manifest-rehashed']:
+    for case in ['truncated','crc','semantic-rehashed','manifest-rehashed',
+                 'duplicate-address-rehashed','duplicate-owner-rehashed',
+                 'duplicate-native-address-rehashed','header-sequence-rehashed']:
         raw=bytearray(first)
         if case=='truncated':raw.pop()
         elif case=='crc':raw[-36]^=1
         elif case=='semantic-rehashed':raw[64+42]^=1
-        else:raw[32]^=1
+        elif case=='manifest-rehashed':raw[32]^=1
+        elif case=='header-sequence-rehashed':raw[20]^=1
+        else:
+            # Copy a genuine word and its selector, preserving the destination
+            # sequence number and recomputing the complete stream CRC. Both
+            # payloads match their reported selectors: only complete ordered
+            # ownership detects the missing original word.
+            native_start=1+sum(r['depth'] for r in rows)
+            source,destination={'duplicate-address-rehashed':(1,2),
+                'duplicate-owner-rehashed':(1,1+sum(r['depth'] for r in rows if r['region']==0)),
+                'duplicate-native-address-rehashed':(native_start,native_start+1)}[case]
+            raw[destination*64+28:(destination+1)*64]=raw[source*64+28:(source+1)*64]
         if case.endswith('-rehashed'):
             raw[-36:-32]=(crc32c(raw[:-64])^0xffffffff).to_bytes(4,'little')
         bad=out/(case+'.bin');bad.write_bytes(raw)

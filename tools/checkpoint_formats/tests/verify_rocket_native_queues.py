@@ -179,7 +179,16 @@ def oracle(g, rows, observations):
         elif suffix == 'ram_io_deq_bits_MPORT_addr': value = f'ra[{q}]'
         else: raise ValueError('unknown original queue state '+suffix)
         lines.append(f'{i}:value={value};')
-    return '\n'.join(lines+['default:check(0,"unexpected functional ordinal");','endcase','end','endtask'])+'\n'
+    lines += ['default:check(0,"unexpected functional ordinal");','endcase','end','endtask',
+        'function automatic [103:0] expected_selector(input integer sequence_number);',
+        'begin', "case (1'b1)"]
+    offset=0
+    for i,r in enumerate(rows):
+        lines.append(f"(sequence_number < {offset+r['depth']}):expected_selector={{32'd{i},32'(sequence_number-{offset}),16'd{r['width']},8'd{r['bank']},16'd{r['slot']}}};")
+        offset+=r['depth']
+    lines += [f"(sequence_number < {offset+104}):expected_selector={{32'd20,32'(sequence_number-{offset}),16'd64,8'd252,16'd0}};",
+        "default:expected_selector='1;",'endcase','end','endfunction']
+    return '\n'.join(lines)+'\n'
 
 
 def main():

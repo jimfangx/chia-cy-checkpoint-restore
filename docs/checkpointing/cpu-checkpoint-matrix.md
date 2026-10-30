@@ -14,6 +14,22 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 278 strengthens the exact-queue component's complete ordered owner
+coverage. The auditor and pre-acceptance VCS monitor reject skipped/duplicated
+addresses or owners even when the payload agrees with the reported selector
+and the CRC is repaired. Seven focused tests, localhost 64-URAM synthesis,
+fresh EDA transfer at component cuts 6486/6622/6855/7185 and all five compiled
+mutations pass. Independent
+full-wave readback checks 56 original native vectors, three router vectors /
+22,051,251 samples and all four complete 196,728-word streams; eight corrupted/
+rechecksummed negatives reject. All sixteen fresh bank/region scopes, complete
+retained host/FCFS/queue/bridge/capture/transport/snapshot/restore/widget scope
+and six additional waveform audits also pass. Commands and receipts are under
+`runs/aws-f2/iteration278/`. Final source/receipt/artifact/protected-input and
+AWS/native resource audits pass; no tagged runtime, pending AFI or build remains.
+This closes a component evidence hole, without
+advancing any FPGA CPU capture, restore, live comparison or rolling column.
+
 Iteration 277 adds an isolated four-queue native capture/router using the exact
 Rocket Queue_56 512-by-6,144 ULTRA shape. Its twenty original descriptors and
 6,656-bit native vector remain component evidence. The complete Scala run passes

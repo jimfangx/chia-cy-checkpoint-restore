@@ -117,6 +117,7 @@ module rocket_native_queues_tb;
                         integer ordinal,address;
                         ordinal=dma_data[255:224];address=dma_data[287:256];
                         check(dma_data[95:80]==2 && dma_data[223:160]==words,"complete ordered data frame");
+                        check({dma_data[255:224],dma_data[287:256],dma_data[303:288],dma_data[311:304],dma_data[327:312]}===expected_selector(words),"every original owner selector in manifest order before DMA acknowledgement");
                         if(ordinal<20)expected_original_word(ordinal,address,expected);
                         else begin
                             check(ordinal==20 && address<104,"native descriptor ordinal and address");
@@ -137,6 +138,7 @@ module rocket_native_queues_tb;
             reg [63:0] expected;
             integer ordinal,address;
             ordinal=dma_data[255:224];address=dma_data[287:256];
+            check({dma_data[255:224],dma_data[287:256],dma_data[303:288],dma_data[311:304],dma_data[327:312]}===expected_selector(words),"preedge complete original owner selector order");
             if(ordinal<20)expected_original_word(ordinal,address,expected);
             else begin
                 check(ordinal==20 && address<104,"preedge native descriptor");
