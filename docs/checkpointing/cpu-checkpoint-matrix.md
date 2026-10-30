@@ -14,6 +14,26 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 280 expands complete native-cut failure qualification using the
+existing snapshot state, eliminating the non-READ snapshot-ready detour without
+adding state or edges. All 330 Scala tests / 52 suites plus twelve preparation,
+348 Python tests, 52 manager tests and 47,219 ASan/UBSan host assertions pass.
+The complete local native sweep passes; internal exact-queue placement/routing
+passes +0.153/+0.019 ns at 140 MHz with 7,771 logic LUTs, 11,876 registers and
+64 URAMs, preserving all 11,943 original primitive identities/types. The
+implementation protects original state cells with DONT_TOUCH; earlier rejected
+attempts retain the nineteen merged synthesized forwarding-hit copies and
+corresponding diagnostics. Generic 1,666-bit transport P&R passes
++0.661/+0.054 ns. These OOC results lack full-shell/I/O budgets.
+Fresh SP2 queue execution passes cuts 6486/6622/6855/7185 with 78,343,201 checks;
+independent full-wave/input-history auditing passes all 56 native vectors,
+three router vectors / 28,146,316 samples and all 786,912 captured words. All
+eight corrupt/rechecksummed stream negatives reject. All sixteen fresh bank/region
+scopes, complete retained SP2 scope and six additional waveform audits pass.
+All EDA artifacts have returned and the pipeline exited zero and was joined.
+Consult `runs/aws-f2/iteration280/` for immutable current-source receipts. Production ownership, full image/AFI, actual physical cuts
+and paired CPU/rolling migration remain pending. No hardware column advances.
+
 Iteration 279 registers native request admission before RAM address borrowing,
 using the existing phase owner and a version-3/four-edge policy. Independent
 FIRRTL and EDA checks cover acceptance, all reset/release phases and transient

@@ -128,3 +128,44 @@ six compiled mutations and eight corrupt/rechecksummed stream negatives reject.
 The complete retained EDA scope and six further waveform audits pass. Current
 selected receipts retain exact provenance; final source/artifact/protected-input
 and resource audits pass. The native and EDA pipelines have completed and joined.
+
+Iteration 280 removes the remaining non-READ permission detour. Even when a
+transaction is in READ, static timing must account for the sequencer's other
+failure branch through snapshot `failed` and `request_ready`. The native owner
+now expands the complete snapshot policy using its existing occupied, cycle
+and sticky-error fields. It combines physical/freeze and owner prerequisites
+directly with command, staging-structure and borrow faults. Original hierarchical
+faults still update the same diagnostic registers; no permission register,
+pipeline edge, state bit, clock constraint or capture latency is changed.
+
+The independent policy probe compares all eight phase encodings and 16,384
+control combinations per encoding against the original hierarchical equations.
+Separate compiled mutations remove READ sticky-error revocation, whole-policy
+sticky-error revocation, physical readiness and capture reader-idle checking.
+These distinguish correct factorization from accidentally granting an unsafe
+read or sample. Current commands and receipts belong under
+`runs/aws-f2/iteration280/`; consult `progress.md` for completed checks.
+This change remains component work. Production ownership, full-image timing,
+actual F2 capture and paired CPU migration remain incomplete.
+
+The iteration-280 source-bound queue synthesis retains 64 URAMs, 11,876
+registers and no LUT RAM, using 7,886 logic LUTs. At unchanged 140 MHz its
+OOC setup/hold estimates are -0.192/+0.073 ns, versus -0.832/+0.073 ns before
+this change. The permission path still ends at accepted-request `native_active/D`,
+but has fourteen levels and 3.545 ns data delay, down from seventeen levels and
+4.185 ns. Implemented component timing, full-image closure and physical capture
+must be assessed separately; consult the current selected receipts.
+
+The source-bound native implementation now passes internal setup/hold at
++0.153/+0.019 ns at 140 MHz, using 7,771 logic LUTs, 11,876 registers and 64
+URAMs, with no LUT RAM. It protects each original FD, URAM and BUFGCE with
+DONT_TOUCH before placement and requires all 11,943 original primitive names
+and types to survive unchanged after routing. Default placement first merged
+nineteen synthesized forwarding-hit register copies through equivalent-driver
+rewiring; both rejected attempts retain their logs, and the second preserves
+before/after inventories and its routed diagnostic DCP. The passing protected
+attempt retains exact state identities, default SYNC gates, one falling-edge
+mask, complete routing and nonnegative timing without changing clock frequency
+or adding timing exceptions. Original OOC clock-reference, unloaded-net and
+unbudgeted-port warnings remain in the reports. Full-shell timing, image builds
+and physical CPU capture remain pending.

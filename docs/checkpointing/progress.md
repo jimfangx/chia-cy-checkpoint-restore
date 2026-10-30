@@ -35,7 +35,56 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 279,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 280,
+**in_progress; complete native-cut fault qualification and component implementation**.
+The native owner expands the complete snapshot failure policy at its boundary,
+removing the remaining non-READ snapshot-failed/request-ready permission detour.
+State/register layout, capture edges, latency and original diagnostic updates
+stay unchanged. Fresh EDA SP2 passes all 131,072 binary phase/control combinations /
+393,216 output comparisons and four additional compiled prerequisite-removal
+mutations, alongside all seven capture geometries and 113 independent wave audits.
+
+All 330 Scala tests / 52 suites plus twelve preparation tests, 348 Python tests,
+52 manager tests and 47,219 ASan/UBSan host assertions pass. Fresh FCFS passes
+46 continuations / 138 pre-edge owner comparisons. Seven affected broad native
+source sets were rebuilt; nine unchanged receipts retain original provenance.
+Native concurrency never exceeds two, without Java overlap.
+
+The 64-URAM component retains 11,876 registers and no LUT RAM. Its unchanged
+140 MHz OOC setup/hold estimate improves to -0.192/+0.073 ns from -0.832/+0.073 ns
+(14 versus 17 logic levels). Native placement/routing passes +0.153/+0.019 ns,
+7,771 logic LUTs, preserving all 11,943 original FD/URAM/BUFGCE identities/types
+with DONT_TOUCH on those cells. Two rejected default-placement attempts preserve
+Vivado's merger of nineteen synthesized forwarding-hit register copies and
+before/after inventories; no guard was relaxed. The 1,666-bit transport separately
+implements at +0.661/+0.054 ns. These are internal OOC results; full-shell/I/O
+budgets and full-image timing remain pending.
+
+Fresh EDA queue execution passes cuts 6486/6622/6855/7185 with 78,343,201 checks /
+983,220 stalls. Full-wave/input-history auditing passes 56 original native vectors,
+three router vectors / 28,146,316 samples and all 786,912 words. All six compiled
+queue mutations and eight corrupt/rechecksummed stream cases reject. The complete
+retained SP2 scope, all sixteen fresh bank/region scopes and six additional wave
+audits pass. All EDA artifacts returned and the complete pipeline exited zero
+and was joined. Full-visibility original wave bytes remain on EDA and return in
+lossless archives. Commands and immutable receipts belong under
+`runs/aws-f2/iteration280/`; the final source/artifact/protected-input/provenance
+and resource audit passes. Consult `final-audit-selected.json` and its pinned
+`final-audit-h44y7l18/summary.json`.
+
+No active tagged runtime, pending AFI or owned Java/Vivado job remains. No new
+instance or AFI was requested. Existing controller checkpoints were published
+FireSim first, then Chipyard; the agent made no staging/local commit. Plans and
+initialized manager YAMLs retain entry hashes. Managed-worker startup failed
+before execution; only the central agent ran and no delegated LLM remains.
+
+Reuse iteration194's localhost invocation. Production common-cut/complete owners
+still reject the exact Rocket build at the FASED BUFGCE latch. Full image/P&R/AFI,
+actual all-hart FPGA cuts/reference, paired complete zero-edge/finite/live CPU
+migration beyond trace and rolling hardware recovery remain pending. No hardware
+acceptance column advances.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 279,
 **in_progress; registered native queue admission and exact readout build identity**.
 The synchronous adapter reuses its existing phase register to borrow RAM only
 on the edge after accepting/storing selectors. Version-3 policy records four-edge

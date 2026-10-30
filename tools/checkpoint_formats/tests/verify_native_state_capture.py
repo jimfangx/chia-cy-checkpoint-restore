@@ -273,27 +273,42 @@ def main():
         # Arbitrary raw-state injection is exclusively a component-policy test.
         # Compare the optimized outputs against the unchanged full hierarchical
         # fault network for all binary control combinations, including illegal
-        # phases. It must also detect a compiled missing-sticky-error fault.
+        # phases. Independently remove each newly factored prerequisite in a
+        # separate executable; no bad-state permission may reach an edge.
         policy_common = [toolchain.VCS, "-full64", "-sverilog", "-timescale=1ns/1ps", "-Mupdate",
                          "-debug_access+all", "-top", "native_read_policy_tb", "-top", "glbl"]
         doc["policy_equivalence"] = []
-        for mutation in (False, True):
-            folder = out / ("policy-missing-error" if mutation else "policy-equivalence"); folder.mkdir()
+        policy_mutations = {
+            "missing-read-error": (
+                "wire read_integrity_fault = |error || |snapshot_sticky_error ||",
+                "wire read_integrity_fault = |error || 1'b0 ||", 3, "valid"),
+            "missing-staging-error": (
+                "assign failed = |error || |snapshot_sticky_error || phase == FAULT ||",
+                "assign failed = |error || 1'b0 || phase == FAULT ||", 0, "failed"),
+            "missing-physical-ready": (
+                "((cut_required || staging_active) && (!physical_ready || !frozen)) ||",
+                "((cut_required || staging_active) && !frozen) ||", 0, "failed"),
+            "missing-reader-idle": (
+                "(staging_request && !snapshot_occupied && (!reader_idle || borrow_attempt));",
+                "(staging_request && !snapshot_occupied && borrow_attempt);", 2, "failed"),
+        }
+        for mutation in (None, *policy_mutations):
+            label = "policy-" + (mutation or "equivalence")
+            folder = out / label; folder.mkdir()
             policy_rtl = rtl
             if mutation:
                 original = (out / Path(RTL).name).read_text()
-                needle = "wire read_integrity_fault = |error || |snapshot_sticky_error ||"
-                require(original.count(needle) == 1, "ambiguous policy sticky-error mutation")
+                needle, replacement, phase, signal = policy_mutations[mutation]
+                require(original.count(needle) == 1, "ambiguous policy mutation " + mutation)
                 broken = folder / "capture.sv"
-                broken.write_text(original.replace(needle, "wire read_integrity_fault = |error || 1'b0 ||"))
+                broken.write_text(original.replace(needle, replacement))
                 policy_rtl = [p for p in rtl if p.name != Path(RTL).name] + [broken]
-            label = "policy-missing-error" if mutation else "policy-equivalence"
             run(policy_common + ["-Mdir=" + str(folder / "csrc"), "-o", folder / "simv",
                 *policy_rtl, *other, out / Path(POLICY_TB).name], label + "-compile")
-            text = run([folder / "simv", "-no_save"], label + "-run", cwd=folder, expected=int(mutation))
+            text = run([folder / "simv", "-no_save"], label + "-run", cwd=folder, expected=int(bool(mutation)))
             if mutation:
-                require("NATIVE_READ_POLICY_DIVERGENCE phase=3" in text and "signal=failed" in text,
-                        "missing snapshot sticky-error policy was not rejected in READ")
+                require(f"NATIVE_READ_POLICY_DIVERGENCE phase={phase}" in text and f"signal={signal}" in text,
+                        "missing prerequisite was not rejected: " + mutation)
             else:
                 require("NATIVE_READ_POLICY_PASS combinations=131072 comparisons=393216" in text,
                         "incomplete exhaustive native policy equivalence")
