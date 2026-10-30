@@ -14,6 +14,16 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 277 adds an isolated four-queue native capture/router using the exact
+Rocket Queue_56 512-by-6,144 ULTRA shape. Its twenty original descriptors and
+6,656-bit native vector remain component evidence. The complete Scala run passes
+330 tests / 52 suites plus twelve preparation tests. Native exact-geometry
+synthesis maps 64 URAMs without distributed-RAM fallback; full-image timing and
+production common-cut/owner integration remain pending. Final source-bound native,
+four-cut EDA and independent full-wave/frame checks are ongoing under
+`runs/aws-f2/iteration277/`. See [f2-rocket-native-queues.md](f2-rocket-native-queues.md).
+No FPGA image/capture, paired CPU restore/live or rolling acceptance advances.
+
 Iteration 276 factors native READ qualification without adding state or fault
 latency and explicitly preserves raw phase encoding. Native F2-part OOC
 placement/routing preserves all 1,666 original register identities and meets

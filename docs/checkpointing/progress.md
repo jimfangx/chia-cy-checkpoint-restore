@@ -35,7 +35,46 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 276,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 277,
+**in_progress; four exact-geometry native queue transport integration**.
+See [f2-rocket-native-queues.md](f2-rocket-native-queues.md). The new synthesized
+router joins all four native queue endpoints to one atomic staging/MMIO/DMA
+controller, retains the response owner through drain and exposes its three
+register vectors. It rejects overlapping and reserved-bank allocations. The
+isolated fixture extracts the retained production Queue_56 definition and keeps
+its 512-by-6,144 ULTRA geometry: twenty original descriptors and 6,656 native bits.
+The original unused physical gate, transport self-state/composite restore and
+complete production ownership remain explicitly unsupported. No hardware column
+advances and no canonical CPU checkpoint is claimed.
+
+Current checks: the complete Scala run passes **330 tests / 52 suites**, plus
+all twelve preparation tests. The targeted generator passes; its first native
+F2-part build maps sixteen URAMs per original queue, 64 total, without LUTRAM
+fallback. That exploratory build estimates −1.704 ns setup at 140 MHz, so timing
+closure remains pending. The final source-bound native rebuild, full four-cut
+EDA transfer, independent waveform/input-history/CRC audit, compiled mutations
+and retained regressions are still running; consult the iteration's selections
+before claiming them. Original owner/fault/abort-recovery EDA probes pass.
+
+The fresh exact-Rocket compiler still rejects production FASED physical CE/
+common-cut ownership. Full localhost image/P&R/AFI, all simulator/FAME/memory/
+timing/bridge/host/pre-FAME owners, actual four-hart captures/reference and paired
+zero-edge/finite/live CPU migration beyond trace plus rolling hardware recovery
+remain pending. Reuse iteration194's localhost invocation and initialized manager
+inputs. AWS/native/HDK/Fabric preflight passes. No new runtime or AFI is requested.
+Existing controller checkpoints were published FireSim first, then Chipyard;
+the agent creates no local commit. Plans and manager YAMLs retain entry hashes.
+
+Managed worker startup failed before execution; the central agent performs all
+work and no delegated LLM remains. Initial fixture/elaboration, stale-source,
+retained maybe_full, trailer-handshake and FIFO-VCD diagnostics are preserved in
+`runs/aws-f2/iteration277/diagnostic-notes.json`. VCS needs a seekable dump file;
+the final path preserves regular full-visibility VCD bytes on EDA and returns
+lossless completed compression. Continue waiting for/joining active native/EDA
+jobs before the final report. All current commands and evidence belong under
+`runs/aws-f2/iteration277/`; final aggregate audit is not complete yet.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 276,
 **in_progress; native READ policy and F2-part component implementation verified**.
 See [f2-native-capture-transport.md](f2-native-capture-transport.md).
 The timing-critical READ predicate now uses the existing registered snapshot
