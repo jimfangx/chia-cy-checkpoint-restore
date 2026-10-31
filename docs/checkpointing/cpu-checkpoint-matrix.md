@@ -14,6 +14,28 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 294 moves the F2 cut adapter inside a compiler-emitted sibling.
+The collector uses the raw source clock, mask/held-reset wires have single
+internal drivers, and an additional owner checks the raw root reset against
+the shell writer expression. The explicit cycle-output selection establishes
+connectivity only; complete FAME target-time authority and production shell /
+ungated transport / collector ownership remain unbound. Native exact-DCP
+component P&R closes unchanged 140 MHz at +1.720/+0.035 ns, preserving 168
+sequential identities and routing 218 nets without errors or reported DRC
+violations. Full-shell timing remains unmodeled. Fresh EDA SP2 passes 4,547
+checks, four component cuts, 320 cycles, 64 stalls, ten cancellations and
+first-divergence reset-route corruption at cycle 17 without another edge
+acknowledgement. Independent auditing verifies twelve complete debug waves,
+all 81 original collector bits and rejection of all 81 packed-state mutations.
+All 360 Scala / 58 suites plus sixteen preparation checks, 409 Python / 61
+manager tests, sanitizers, host, generated-bank, FCFS and cut checks pass. The
+ordinary Rocket compiler still refuses the unowned FASED physical CE latch.
+Evidence/commands: `runs/aws-f2/iteration294/`; see
+[f2-compiler-connected-cut.md](f2-compiler-connected-cut.md). This does not emit a
+checkpoint-enabled image or establish any physical CPU cut, FPGA-origin paired
+restore/finite/live execution, hardware-image negative or rolling recovery.
+No hardware acceptance column advances.
+
 Iteration 293 connects the F2 source-cancellation guard/reset-owned cut to
 compiler-emitted clock/reset RTL through `CheckpointF2ClockResetCut`. The adapter
 adds no gates and leaves shell writers and original AXI/clock-wizard reset paths

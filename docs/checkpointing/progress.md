@@ -35,7 +35,58 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 293,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 294,
+**in_progress; compiler-connected F2 cut controller; production installation pending**.
+
+`F2ClockResetCutWiring` now installs the adapter inside a separately emitted
+clock/reset hierarchy. Its collector clock is the original raw source; mask
+and held reset have single internal drivers. Six explicit external owner/control
+interfaces have no default acknowledgements. A separate internal owner rejects
+a raw-root reset inconsistent with the shell writer expression. The selected
+64-bit cycle output proves connectivity only; actual FAME target-time authority
+remains unbound. See [f2-compiler-connected-cut.md](f2-compiler-connected-cut.md).
+
+The current Rocket root still needs a real consumed-token/common-boundary cycle
+observation. `ClockBridgeModule.tCycleFastest` counts outgoing clock tokens and
+can run ahead; it cannot alone establish the semantic cut. Production shell
+installation, selective hold and independently owned ungated collection, atomic
+collector/native transport/stream self-state, functional memory/FASED, complete
+host owners and pre-FAME mapping remain incomplete. Complete localhost image /
+AFI, all four physical active-workload cuts, FPGA-origin paired zero-edge,
+finite/live CPU migration, hardware-image negatives and rolling recovery remain
+pending. Reuse iteration 194's retained localhost build invocation.
+
+Native Vivado 2025.2 exact-DCP component P&R closes unchanged requested 140 MHz
+at +1.720/+0.035 ns, preserving 168 sequential identities and routing all 218
+routable nets without routing errors or reported DRC violations. Component
+resources are 69 LUTs / 165 registers / three SYNC BUFGCEs. Full-shell/source and
+asynchronous timing remain unmodeled. Fresh EDA SP2 passes 4,547 checks, component
+cuts 0/17/128/256, 320 active cycles, 64 collection stalls, ten cancellations
+(including every external owner bit and raw-root reset mismatch), and semantic
+reset-route corruption at `left.reset`, cycle 17, without another acknowledged
+edge. Independent auditing verifies all twelve raw full-visibility waves and
+reconstructs all 81 visible control bits from eleven original register vectors;
+all 81 deliberate packed-state bit corruptions reject. All 360 Scala tests /
+58 suites plus sixteen preparation checks, 409 Python / 61 manager tests,
+ASan/UBSan, host capture, generated-bank, FCFS and cut checks pass fresh. The
+ordinary exact-Rocket compiler still rejects the unowned FASED physical CE latch
+before image emission. No hardware acceptance column advances.
+
+Source-pinned receipts and actual commands are under `runs/aws-f2/iteration294/`;
+final closure is `final-audit-1hf2qtaa/summary.json`. Preserve the initial
+WDefInstance diagnostic, deliberately superseded Scala run and exploratory VCS
+missing-writer-source diagnostic alongside successful fresh attempts. The
+exploratory and final hierarchies are byte-identical; only the final native-bound
+EDA run supplies the current component execution receipt. Separate XOR fault
+injection keeps the actual shell reset wire unchanged. Fresh final AWS/native
+HDK/localhost checks pass; inventory has no active loop F2 instance, pending AFI
+or native Java/Vivado job. Managed worker startup failed before execution;
+all implementation is central and no worker remains active. The plans and
+initialized manager YAMLs retain their entry hashes. Existing controller commits
+were published FireSim then Chipyard; the original local tracking-ref warning
+remains in its push log. No staging or local commits occurred.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 293,
 **in_progress; F2 shell adapter connected to generated clock/reset RTL; production installation pending**.
 
 `CheckpointF2ClockResetCut` composes source cancellation and the reset-owned
