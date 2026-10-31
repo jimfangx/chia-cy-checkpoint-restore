@@ -14,6 +14,28 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 292 verifies a synthesizable monitor for the literal four F2 shell
+reset/DDR writer bits. It preserves the original synchronizers and three AXI
+reset paths, snapshots the writers at the common cut and cancels on writer
+drift or asynchronous raw reset/DDR loss. Source-return pulses and release
+races cannot repair the failed session. The source-bound verification sibling
+does not install production wiring or provide shell/collector restore ownership.
+
+Native exact-DCP component P&R closes unchanged requested 140 MHz at
++1.627/+0.044 ns, preserving 250 sequential identities and routing 461 nets
+with no routing errors or reported DRC violations. Shell, parent-clock and
+asynchronous source timing remain unmodeled. Fresh EDA SP2 passes 2,107 checks,
+four component cuts, 320 active cycles, 64 collection stalls and six negatives.
+All seven raw full-visibility waves pass independent original-state/control
+auditing. All 409 Python / 61 manager tests, sanitizers, host, generated-bank,
+FCFS and cut regressions pass fresh. The exact-Rocket ordinary bank compiler
+still refuses the unowned FASED physical CE latch; no image/AFI is emitted.
+Details: [f2-shell-reset-guard.md](f2-shell-reset-guard.md). Evidence/commands:
+`runs/aws-f2/iteration292/`. Complete production ownership, full localhost image,
+physical all-hart cuts, FPGA-origin paired CPU restore/finite/live execution,
+hardware-image negatives and rolling recovery remain pending. No hardware
+acceptance column advances.
+
 Iteration 291 verifies complete generated root-reset fanout/routing in a separate
 clock-cut sibling, with production writer/transport ownership still unbound.
 Fresh exact-Rocket compilation emits all three replaced root references and
