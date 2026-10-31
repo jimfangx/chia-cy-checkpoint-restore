@@ -35,7 +35,69 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 286,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 287,
+**in_progress; typed native descriptor binding, component timing and full verification pass**.
+
+`CheckpointNativeCaptureDescriptors` now binds independently validated original
+ROM descriptors, the native transport's appended control/payload entries and
+host metadata to one canonical identity. Its component wrapper wires the
+original ROM internally; the original/full counts cannot be interchanged by
+external descriptor inputs. Reserved banks, original physical CE identities,
+resource hashes, named owners, little-endian driver digest and shadow layout
+are explicit. The complete 341-test / 54-suite Scala scope and all twelve
+preparation tests pass with 368 unchanged source pins. Seventeen independent
+Python metadata/type/frozen-input/raw-wave tamper cases pass. Complete native/EDA
+component verification passes.
+See [f2-native-descriptor-binding.md](f2-native-descriptor-binding.md).
+
+The unchanged-140-MHz exploratory native endpoint closes its internal OOC
+setup/hold estimates at +0.660/+0.073 ns after direct snapshot mutation decoding,
+an accepting-response-equivalent native saved-data mux and normal rebuilt
+hierarchy optimization. Earlier unsuccessful timing experiments remain intact.
+No owner/acknowledgement predicate or target edge was delayed. The freshly
+generated bound wrapper now passes native OOC synthesis at +0.711/+0.073 ns,
+with 2,859 LUTs / 2,513 registers and all 67 distinct bank drivers. Exact-DCP
+component place/route passes +0.194/+0.048 ns estimates with every original
+sequential identity and bank driver preserved; parent clock-source/skew and
+shell/I/O timing remain unmodeled. Fresh EDA SP2 and independent original-wave
+audits pass all four component cuts (35/68/112/167), 827 layout planes, all 25
+shadow words, original-owner/frame/CRC readback, original-ROM append bounds,
+owner-loss/abort/reset recovery and both exact compiled faults before control/
+shadow acknowledgement. The complete current-source EDA sweep now passes: all sixteen matrix scopes,
+all affected additional executions, three full queue/staging/graft waveform
+audits, eight corrupted streams, six compiled queue faults, two compiled bank
+faults, base endpoint and standalone widget/restore audits. The independent
+30-scope aggregate passes: every source, input and original waveform was
+reauthenticated, including fresh full hashes of all large raw waves. Four exact
+checked-in C++ source aliases are authenticated against their literal targets;
+artifact and raw-wave symlink rejection remains strict. Final observations show
+no loop F2 instances, pending AFIs or owned Java/Vivado/VCS/compiler processes.
+
+Manager/AWS/localhost/Vivado/HDK preflight and all 61 manager tests pass.
+The entry plans and initialized YAMLs are unchanged; existing controller commits
+were published FireSim then Chipyard with independently observed matching tips.
+The fresh 394-test Python/ASan+UBSan/generated-bank/FCFS/cut prefix passes.
+All thirty native scopes are current (21 syntheses this iteration, nine original-
+date receipts), plus the new bound endpoint and its routed characterization.
+The final native/EDA sweep refreshes every affected scope and retains unchanged
+receipts at their original dates without removing any regression scope.
+EDA storage recovery keeps all original regular files, paths and complete hashes.
+Diagnostics and exact commands belong under `runs/aws-f2/iteration287/`.
+
+Production widget selection/reservation/graft guards remain in place. Complete
+common-cut/reset/CE, transport/stream/host, memory/FASED/FAME and pre-FAME
+ownership, full image/P&R/AFI, actual four-hart active FPGA captures, independent
+zero-edge CPU restores, finite/live migration and rolling hardware recovery
+remain pending. Component cuts and internal OOC estimates do not advance any
+hardware acceptance column. All managed workers and their classical jobs have
+completed and been joined. Final central F2/EDA/F2 evidence checks pass; the
+aggregate is `runs/aws-f2/iteration287/current-final-audit-efap1iur/summary.json`.
+The EDA audit checks mirrored plans and digest-bound manager YAML snapshots;
+the manager independently rechecks the live originals. Its initial absolute-
+path failure is preserved. Raw backend argv are in this iteration's
+`verification-commands.json`.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 286,
 **in_progress; native endpoint and complete retained component verification pass**.
 
 The exact native Chisel interface now connects the existing SV transport to the

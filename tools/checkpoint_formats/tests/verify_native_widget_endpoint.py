@@ -55,7 +55,7 @@ def tcl():
     return """set_param general.maxThreads 4
 read_verilog generated/CheckpointNativeWidgetEndpoint.v
 read_verilog -sv """ + " ".join("generated/" + n for n in RESOURCES) + """
-synth_design -top CheckpointNativeWidgetEndpoint -part xcvu47p-fsvh2892-2-e -mode out_of_context -flatten_hierarchy none
+synth_design -top CheckpointNativeWidgetEndpoint -part xcvu47p-fsvh2892-2-e -mode out_of_context -flatten_hierarchy rebuilt
 create_clock -name raw_clock -period 7.142857 [get_ports clock]
 if {[llength [get_cells -hier -filter {REF_NAME =~ BUFG*}]] != 0} {error "external network mode instantiated duplicate gates"}
 set registers [get_cells -hier -filter {REF_NAME =~ FD*}]
@@ -78,7 +78,16 @@ for {set i 0} {$i < 67} {incr i} {
 }
 if {[llength [lsort -unique $bank_drivers]] != 67} {error "aliased separate native bank"}
 report_utilization -file utilization.rpt
-report_timing_summary -file timing.rpt
+report_timing_summary -report_unconstrained -file timing.rpt
+report_timing -delay_type max -max_paths 25 -file setup-paths.rpt
+report_timing -delay_type min -max_paths 25 -file hold-paths.rpt
+set setup [get_timing_paths -delay_type max -max_paths 1]
+set hold [get_timing_paths -delay_type min -max_paths 1]
+if {[llength $setup] != 1 || [llength $hold] != 1} {error "missing native endpoint timing paths"}
+set setup_slack [get_property SLACK $setup]
+set hold_slack [get_property SLACK $hold]
+puts "NATIVE_ENDPOINT_TIMING period_ns=7.142857 setup_ns=$setup_slack hold_ns=$hold_slack"
+if {$setup_slack < 0 || $hold_slack < 0} {error "native endpoint misses unchanged 140 MHz timing"}
 write_checkpoint -force native-endpoint.dcp
 puts "NATIVE_ENDPOINT_SYNTH_PASS view_bits=827 shadow_bits=1585 separate_bank_bits=67 registers=[llength $registers]"
 """
@@ -175,7 +184,7 @@ def validate_inputs(directory, inputs, sources, generated_origin=None):
     return validate_generated(directory/"generated", sources)
 
 
-def audit_frames(path):
+def audit_frames(path, manifest_hash=HASH):
     frames = [int(line,16) for line in path.read_text().splitlines()]
     require(len(frames) == 11, "incomplete endpoint native DMA frames")
     cut = field(frames[0],96,64)
@@ -187,7 +196,7 @@ def audit_frames(path):
         require(field(frame,80,16) == (1 if index == 0 else 3 if index == 10 else 2), "DMA frame order differs")
         require(field(frame,160,64) == (0 if index == 0 else 9 if index == 10 else index-1), "DMA sequence differs")
         if index == 0:
-            require(field(frame,224,32) == 4 and field(frame,256,256) == HASH, "DMA manifest/count differs")
+            require(field(frame,224,32) == 4 and field(frame,256,256) == manifest_hash, "DMA manifest/count differs")
         elif index != 10:
             require(tuple(field(frame,o,w) for o,w in ((224,32),(256,32),(288,16),(304,8),(312,16))) == selectors[index-1], "DMA selector differs")
             require(field(frame,328,8) == 0 and frame >> 400 == 0, "noncanonical DMA data padding")
@@ -205,7 +214,7 @@ def audit_frames(path):
     return dict(cut=cut,frames=11,words=9,owner_bits=283,sha256=sha(path))
 
 
-def audit_observation_wave(path):
+def audit_observation_wave(path, expected_captures=4, endpoint="dut"):
     """Independent bitwise layout and preedge shadow audit from original groups.
 
     The SV bench reconstructs each group directly from original register names;
@@ -216,11 +225,12 @@ def audit_observation_wave(path):
     names = ("clock", "reset", "original_view", "endpoint_view", "original_endpoint", "endpoint_state",
         "original_bank", "bank_state", "raw_state", "original_payload_response", "original_coordinator", "original_owner",
         "dut.snapshot.io_access", "dut.snapshot.io_write", "dut.snapshot.io_address", "dut.snapshot.io_data",
-        "dut.snapshot.io_error", "dut.snapshot.saved")
-    wanted = {prefix+n:n for n in names}
-    scopes=[];codes={};values={};previous={};samples=captures=0
+        "dut.snapshot.io_error", "dut.snapshot.saved", "dut.snapshot.label", "dut.snapshot.occupied",
+        "dut.snapshot.io_cutValid", "dut.snapshot.io_cycle")
+    wanted = {prefix+(endpoint+n[len("dut"):] if n.startswith("dut.") else n):n for n in names}
+    scopes=[];codes={};values={};previous={};samples=captures=rejections=0
     def sample():
-        nonlocal previous,samples,captures
+        nonlocal previous,samples,captures,rejections
         now={n:values.get(c,"x") for n,c in codes.items()}
         binary=lambda d,n:re.fullmatch("[01]+",d.get(n,"x")) is not None
         integer=lambda d,n:int(d[n],2)
@@ -234,11 +244,24 @@ def audit_observation_wave(path):
                 "wave endpoint/separate bank original state differs")
             samples+=1
         if now.get("clock") == "1" and previous.get("clock") == "0" and previous.get("reset") == "0":
-            take=all(previous.get(n)=="1" for n in ("dut.snapshot.io_access","dut.snapshot.io_write")) and previous.get("dut.snapshot.io_error")=="0"
-            if take and binary(previous,"dut.snapshot.io_address") and binary(previous,"dut.snapshot.io_data") and integer(previous,"dut.snapshot.io_address")==0x78 and integer(previous,"dut.snapshot.io_data")==1:
+            command=all(previous.get(n)=="1" for n in ("dut.snapshot.io_access","dut.snapshot.io_write")) and binary(previous,"dut.snapshot.io_address") and binary(previous,"dut.snapshot.io_data") and integer(previous,"dut.snapshot.io_address")==0x78 and integer(previous,"dut.snapshot.io_data")==1
+            # The acceptance oracle uses the original occupancy and live owner
+            # certificate, independently of the response-error implementation.
+            take=command and previous.get("dut.snapshot.occupied")=="0" and previous.get("dut.snapshot.io_cutValid")=="1"
+            if take:
+                require(previous.get("dut.snapshot.io_error")=="0", "legal first-edge shadow capture rejected")
                 require(integer(now,"dut.snapshot.saved") == integer(previous,"original_view") | integer(previous,"original_endpoint") << 827,
                     "shadow did not stage complete preedge original endpoint/native/separate67")
+                require(integer(now,"dut.snapshot.label")==integer(previous,"dut.snapshot.io_cycle") and now.get("dut.snapshot.occupied")=="1",
+                    "shadow label/occupancy missed first accepting edge")
                 captures+=1
+            else:
+                require(integer(now,"dut.snapshot.saved")==integer(previous,"dut.snapshot.saved") and
+                    integer(now,"dut.snapshot.label")==integer(previous,"dut.snapshot.label"),
+                    "shadow payload/label changed without an accepting capture")
+                if command:
+                    require(previous.get("dut.snapshot.io_error")=="1", "unauthorized shadow command acknowledged")
+                    rejections+=1
         previous=now
     with Path(path).open() as stream:
         for line in stream:
@@ -252,8 +275,8 @@ def audit_observation_wave(path):
             elif line.startswith("#"):sample()
             elif line[0] in "bB" and len(parts)==2:values[parts[1]]=parts[0][1:].lower()
             elif line[0] in "01xXzZ":values[line[1:].strip()]=line[0].lower()
-    sample();require(set(codes)==set(names) and samples>0 and captures==4,"incomplete native endpoint shadow waveform")
-    return dict(samples=samples,captures=captures,shadow_bits=1585,separate_bank_bits=67)
+    sample();require(set(codes)==set(names) and samples>0 and captures==expected_captures,"incomplete native endpoint shadow waveform")
+    return dict(samples=samples,captures=captures,rejections=rejections,shadow_bits=1585,separate_bank_bits=67)
 
 
 def coordinator_fault(text):
@@ -277,6 +300,13 @@ def coordinator_fault(text):
         sites.append(dict(name=match[2],line=text.count("\n",0,match.start())+1,
             before=match[0],after=match[0].replace(before,after)))
     return text.replace(before,after),dict(semantic_edit=dict(before=before,after=after),sites=sites)
+
+
+def native_data_fault(text):
+    before="control_selected ? native_control_bank_state[63:0] : bank_response_data"
+    after="control_selected ? (native_control_bank_state[63:0] ^ 64'h1) : bank_response_data"
+    require(text.count(before)==1,"ambiguous native saved-data mux fault site")
+    return text.replace(before,after),dict(before=before,after=after,line=text.count("\n",0,text.index(before))+1)
 
 
 def main():
@@ -327,6 +357,7 @@ def main():
             (out/"native.tcl").write_text(tcl())
             # Refuse missing/ambiguous fault sites before committing native time.
             coordinator_fault((out/"generated"/(TOP+".v")).read_text())
+            native_data_fault((out/"generated"/"CheckpointNativeCaptureTransport.sv").read_text())
             doc["generated_origin"]=str(args.generated.resolve())
             doc["elaboration"]=dict(path=str(args.elaboration.resolve()),sha256=sha(args.elaboration))
             doc["inputs"]={**{"sources/"+n:h for n,h in sources.items()},
@@ -336,6 +367,10 @@ def main():
             text=run(["vivado","-mode","batch","-source","native.tcl"],"native")
             match=re.search(r"NATIVE_ENDPOINT_SYNTH_PASS view_bits=827 shadow_bits=1585 separate_bank_bits=67 registers=(\d+)",text)
             require(match and not re.search(r"ERROR:|CRITICAL WARNING:",text),"native endpoint synthesis did not pass")
+            timing=re.search(r"NATIVE_ENDPOINT_TIMING period_ns=7.142857 setup_ns=([-+\d.]+) hold_ns=([-+\d.]+)",text)
+            require(timing and all(float(v)>=0 for v in timing.groups()),"native endpoint timing did not close at unchanged 140 MHz")
+            doc["timing"]=dict(frequency_mhz=140,period_ns=7.142857,setup_ns=float(timing[1]),hold_ns=float(timing[2]),
+                scope="out-of-context synthesis estimates; no shell I/O placement/routing or FPGA acceptance")
             doc["registers"]=int(match[1]);doc["tool_version"]=run(["vivado","-version"],"version")
             vendor=Path(shutil.which("vivado")).resolve().parents[1]/"data/verilog/src"
             for name,source in (("BUFGCE.v",vendor/"unisims/BUFGCE.v"),("glbl.v",vendor/"glbl.v")):
@@ -376,6 +411,7 @@ def main():
             doc["executions"]=[]
             for case,marker in (("healthy","NATIVE_ENDPOINT_PASS cuts=4 frames_per_cut=11 shadow_bits=1585 shadow_words=25 separate_bank_bits=67"),
                 ("lost-owner","NATIVE_ENDPOINT_OWNER_LOSS_PASS control_acks_before_reset=0 recovery_frames=11"),
+                ("shadow-owner-loss","NATIVE_ENDPOINT_SHADOW_FAULT_PASS accepted_captures=1 rejected_captures=1 preserved_bits=1585 recovery_frames=11"),
                 ("abort","NATIVE_ENDPOINT_ABORT_PASS published_frames=0 blocked_restart=1 recovery_frames=11")):
                 work=out/case;work.mkdir()
                 text=run([out/"simv","-no_save","+CASE="+case],"run",work)
@@ -392,7 +428,11 @@ def main():
                     for i in range(4):
                         lines=(work/f"cut{i}.shadow").read_text().splitlines()
                         require(len(lines)==25 and all(re.fullmatch(r"[0-9a-f]{8} [0-9a-f]{8}",n) for n in lines),"incomplete frontdoor shadow words")
-                else:row["recovery"]=audit_frames(work/"recovery.frames")
+                else:
+                    row["recovery"]=audit_frames(work/"recovery.frames")
+                    if case=="shadow-owner-loss":
+                        row["endpoint_wave"]=audit_observation_wave(work/"native-widget-endpoint.vcd",expected_captures=1)
+                        require(row["endpoint_wave"]["rejections"]==1,"missing first-edge owner-loss rejection")
                 doc["executions"].append(row)
             mutated,site=coordinator_fault((out/"generated"/(TOP+".v")).read_text())
             (out/"broken-coordinator.v").write_text(mutated)
@@ -406,6 +446,17 @@ def main():
                 ("frames","words","requests","control_acks","shadow_captures")),
                 "compiled coordinator fault advanced an output/request/shadow acknowledgement")
             doc["compiled_fault"]=dict(site=site,first_fault=lines[0],source_sha256=sha(out/"broken-coordinator.v"))
+            mutated,site=native_data_fault((out/"generated"/"CheckpointNativeCaptureTransport.sv").read_text())
+            (out/"broken-native-data.sv").write_text(mutated)
+            fault_files=[out/"broken-native-data.sv" if p.name=="CheckpointNativeCaptureTransport.sv" else p for p in files]
+            run([*common,"-Mdir=data-csrc","-o","data-simv",out/"generated"/(TOP+".v"),*fault_files],"data-compile")
+            work=out/"broken-native-data";work.mkdir()
+            text=run([out/"data-simv","-no_save"],"run",work,expected=1)
+            lines=[n for n in text.splitlines() if n.startswith("NATIVE_ENDPOINT_DIVERGENCE")]
+            require(len(lines)==1 and "signal=native_control_saved_data" in lines[0] and
+                all(re.search(r"\b"+name+r"=0\b",lines[0]) for name in ("control_acks","shadow_captures")),
+                "compiled saved-data fault escaped pre-ack original-register oracle")
+            doc["compiled_data_fault"]=dict(site=site,first_fault=lines[0],source_sha256=sha(out/"broken-native-data.sv"))
         require(sources=={n:sha(ROOT/n) for n in SOURCES},"sources changed during endpoint verification")
         validate_inputs(out,doc["inputs"],sources,doc["generated_origin"])
         doc["status"]="pass"
@@ -414,8 +465,8 @@ def main():
         raise
     finally:
         doc["artifacts"]={str(p.relative_to(out)):sha(p) for p in out.rglob("*") if p.is_file() and p.name!="summary.json"
-            and not any(part in ("csrc","broken-csrc",".Xil") or part.endswith(".daidir") for part in p.relative_to(out).parts)
-            and p.name not in ("simv","broken-simv")}
+            and not any(part in ("csrc","broken-csrc","data-csrc",".Xil") or part.endswith(".daidir") for part in p.relative_to(out).parts)
+            and p.name not in ("simv","broken-simv","data-simv")}
         with (out/"summary.json").open("x") as stream:json.dump(doc,stream,indent=2);stream.write("\n")
         print(out/"summary.json",flush=True)
 

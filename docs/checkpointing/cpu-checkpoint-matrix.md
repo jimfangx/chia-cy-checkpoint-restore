@@ -14,6 +14,22 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 287 implements a typed original-ROM/full-native-stream descriptor
+binding and internal-ROM component wrapper. Reserved selectors, original CE
+identity, named owners, source hashes, driver digest and shadow layout are
+bound together. All 341 Scala / 54 suites plus twelve preparation tests and
+seventeen provenance/tamper/raw-wave cases pass. All thirty retained component
+scopes pass with current source/input/original-wave integrity, including 394
+Python tests and the complete sanitizer/FCFS scope. The bound wrapper passes
+fresh EDA SP2 readback/recovery and both compiled corruption-stop audits.
+At unchanged requested 140 MHz, bound native OOC setup/hold estimates are
++0.711/+0.073 ns; exact-DCP component place/route reaches +0.194/+0.048 ns,
+preserving all 2,513 sequential identities and 67 bank drivers. Parent clock
+source/skew and shell/I/O budgets remain unmodeled; full-shell image timing/P&R
+remain pending. Production ownership/image guards remain unchanged. All hardware cuts
+and CPU finite/live/rolling acceptance remain pending. See
+[f2-native-descriptor-binding.md](f2-native-descriptor-binding.md).
+
 Iteration 286 connects the native RTL to the actual widget NASTI/shadow/DMA
 endpoint through an exact Chisel interface. All 827 observation bits (including
 67 separate bank bits), all 25 shadow words and complete native owner/frame/CRC

@@ -205,7 +205,11 @@ module native_widget_endpoint_tb;
         expected_shadow={original_endpoint,original_view};shadow_captures++;
         check(native_valid&&native_cut_cycle==target_cycle,"shadow_uses_actual_coordinator_cut");
       end
-      if(`NT.control_response_valid&&`NT.response_ready&&`NT.control_selected)control_acks++;
+      if(`NT.control_response_valid&&`NT.response_ready&&`NT.control_selected)begin
+        check(`NT.response_data===original_bank[63:0]&&`NT.response_data===`NT.control_response_data,
+          "native_control_saved_data");
+        control_acks++;
+      end
       if(stream_valid&&!stream_ready)stalls++;
       if(held_valid&&!stream_abort)check(stream_valid&&stream_data===held_frame,"DMA_backpressure_stability");
       held_valid=stream_valid&&!stream_ready;held_frame=stream_data;
@@ -233,6 +237,9 @@ module native_widget_endpoint_tb;
       if(native_valid)check(endpoint_view===original_view,"endpoint_coordinator_layout");
       check(bank_state===original_bank,"separate_67_original_bank_bits_preedge");
       check(endpoint_state===original_endpoint,"complete_original_endpoint_state_preedge");
+      if(`NT.control_response_valid&&`NT.response_ready&&`NT.control_selected)
+        check(`NT.response_data===original_bank[63:0]&&`NT.response_data===`NT.control_response_data,
+          "native_control_saved_data");
     end
     stream_ready=scenario!="abort"&&(raw_edges%5==0||raw_edges%5==3);
   end
@@ -276,6 +283,37 @@ module native_widget_endpoint_tb;
       write_mmio(0,1,1);$fclose(fd);fd=0;common_reset();scenario="recovery";
       begin_capture("recovery.frames");finish_capture();
       $display("NATIVE_ENDPOINT_ABORT_PASS published_frames=0 blocked_restart=1 recovery_frames=11");$finish;
+    end
+    if(scenario=="shadow-owner-loss")begin
+      begin_capture("shadow-owner-loss.frames");while(frames<TOTAL_FRAMES)tick();
+      write_mmio(8'h78,1);write_mmio(8'h78,2);
+      check(shadow_captures==1&&!dut.snapshot.occupied,"released_shadow_retains_prior_payload");
+      fork
+        write_mmio(8'h78,1,1);
+        begin
+          // Revoke the owner after the adapter presents the command and
+          // before its first accepting edge. No registered certificate may
+          // turn this stale request into a successful shadow capture.
+          wait(dut.snapshot.io_access&&dut.snapshot.io_write&&dut.snapshot.io_address==8'h78);
+          #1;expect_fault=1;owner_fault=1;#1;
+          // The trailer has already completed: WAIT_PUBLISH has no DMA
+          // beat to revoke. Cut/shadow permission disappears immediately;
+          // the coordinator publishes its abort on the next raw edge.
+          check(dut.snapshot.io_error&&!dut.snapshot.io_cutValid&&!native_valid&&!stream_valid&&
+            frames==TOTAL_FRAMES&&words==9&&requests==1&&control_acks==CONTROL_WORDS&&
+            shadow_captures==1&&!dut.snapshot.occupied&&dut.snapshot.saved===expected_shadow,
+            "shadow_owner_loss_revokes_preedge");
+          tick();
+          check(stream_abort&&native_failed&&!stream_valid&&frames==TOTAL_FRAMES&&words==9&&
+            requests==1&&control_acks==CONTROL_WORDS&&shadow_captures==1&&
+            !dut.snapshot.occupied&&dut.snapshot.saved===expected_shadow,
+            "shadow_owner_loss_registered_abort_preserves_prior_state");
+        end
+      join
+      check(shadow_captures==1&&!dut.snapshot.occupied&&dut.snapshot.saved===expected_shadow,
+        "rejected_shadow_preserves_all_prior_bits");
+      $fclose(fd);fd=0;common_reset();begin_capture("recovery.frames");finish_capture();
+      $display("NATIVE_ENDPOINT_SHADOW_FAULT_PASS accepted_captures=1 rejected_captures=1 preserved_bits=1585 recovery_frames=11");$finish;
     end
     for(integer cut=0;cut<4;cut++)begin
       repeat(19+cut*11)tick();path=$sformatf("cut%0d.frames",cut);begin_capture(path);
