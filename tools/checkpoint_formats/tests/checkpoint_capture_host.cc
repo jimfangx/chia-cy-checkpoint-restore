@@ -204,11 +204,73 @@ public:
 static_assert(!std::is_copy_constructible<checkpoint_capture_session_t>::value &&
               !std::is_move_constructible<checkpoint_capture_session_t>::value,
               "a live session exclusively owns its staging epoch");
+
+void native_bound_shadow_checks() {
+  unsigned captures = 0;
+  for (uint32_t bits : {1U, 64U, 130U, 70000U}) {
+    for (uint32_t control : {0U, 1U}) {
+      checkpoint_native_capture_binding_t binding{1, bits, 3, 2, control, 252, 251,
+                                                   2, bits + 3 + 1452};
+      checkpoint_capture_manifest_t m{};
+      m.wire_hash[0] = 0x2b; m.wire_hash[31] = 0x89;
+      m.entries.push_back({1, 0, 9, 2});
+      if (control) m.entries.push_back({251, 0, 64, (bits + 3 + 150 + 63) / 64});
+      if (bits / 64) m.entries.push_back({252, 0, 64, bits / 64});
+      if (bits % 64) m.entries.push_back({252, 1, uint16_t(bits % 64), 1});
+      size_t words = 0;
+      for (const auto &entry : m.entries) words += entry.depth;
+      std::vector<uint8_t> frames((words + 2) * 64);
+      const auto put = [&](size_t offset, uint64_t value, size_t bytes) {
+        for (size_t i = 0; i < bytes; ++i) frames.at(offset + i) = value >> (8 * i);
+      };
+      const uint64_t cycle = 0x1234567800000035ULL;
+      for (size_t i = 0; i < words + 2; ++i) {
+        std::memcpy(frames.data() + i * 64, "FSMCKPT1", 8);
+        put(i * 64 + 8, 1, 2); put(i * 64 + 12, cycle, 8);
+      }
+      put(10, 1, 2); put(28, m.entries.size(), 4);
+      std::copy(m.wire_hash.begin(), m.wire_hash.end(), frames.begin() + 32);
+      size_t ordinal = 0;
+      for (size_t index = 0; index < m.entries.size(); ++index) {
+        const auto &entry = m.entries[index];
+        for (uint32_t address = 0; address < entry.depth; ++address, ++ordinal) {
+          const size_t offset = (ordinal + 1) * 64;
+          put(offset + 10, 2, 2); put(offset + 20, ordinal, 8);
+          put(offset + 28, index, 4); put(offset + 32, address, 4);
+          put(offset + 36, entry.width, 2); put(offset + 38, entry.bank, 1);
+          put(offset + 39, entry.slot, 2); put(offset + 42, 1, 8);
+        }
+      }
+      put((words + 1) * 64 + 10, 3, 2);
+      put((words + 1) * 64 + 20, words, 8);
+      rewrite_crc(frames);
+      interrupted_io io(m, frames, cycle);
+      io.shadow_bits = binding.shadow_bits;
+      checkpoint_capture_session_t session(io, m, binding);
+      session.begin();
+      for (unsigned i = 0; !session.poll(); ++i) check(i < 2 * words + 8);
+      const auto before = io.operations;
+      rejects([&] { session.capture_live_widget_shadow(1242); });
+      rejects([&] { session.capture_live_widget_shadow(binding.shadow_bits + 1); });
+      check(io.operations == before && io.shadow_captures == 0 && io.active);
+      const auto result = session.capture_live_widget_shadow(binding.shadow_bits);
+      check(result.bits == binding.shadow_bits && result.cut_cycle == cycle &&
+            result.words.size() == (binding.shadow_bits + 63) / 64 && result.words == io.shadow_words);
+      check(io.shadow_captures == 1 && io.shadow_releases == 1 && io.publications == 0);
+      session.release_after_publication();
+      check(io.publications == 1 && !io.active);
+      ++captures;
+    }
+  }
+  std::cout << "CHECKPOINT_NATIVE_BOUND_SHADOW_HOST_PASS captures=" << captures
+            << " bound_width_rejections=16 max_bits=71455\n";
+}
 } // namespace
 
 int main(int argc, char **argv) {
   try {
     check(argc == 4);
+    native_bound_shadow_checks();
     std::ifstream image(argv[1], std::ios::binary);
     std::vector<uint8_t> frames((std::istreambuf_iterator<char>(image)), {});
     std::ifstream metadata(argv[2]);

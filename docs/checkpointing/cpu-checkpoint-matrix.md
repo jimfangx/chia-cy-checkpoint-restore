@@ -14,6 +14,28 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 289 installs bound native widget selection and a typed generated
+host driver, retaining incomplete-owner image guards and explicit native-vs-
+physical reservation/peer rejection. Review fixed F2 twelve-bit transaction IDs
+being truncated to four bits. All 350 Scala tests / 56 suites plus sixteen
+preparation tests, 404 Python tests, 61 manager tests and EDA SP2 sanitizer/
+FCFS/bank/cut checks pass. Fresh native widget VCS passes four component cuts,
+complete 1,585-bit shadow readback, high transaction IDs, original-ROM poisoning,
+owner-loss/abort recovery and both compiled pre-acknowledgement fault audits.
+The legacy physical widget independently passes five cuts / 170 words.
+
+Exact-DCP component P&R at unchanged requested 140 MHz reaches +0.370/+0.026 ns,
+preserving all 2,577 sequential identities and 67 bank drivers. Parent clock
+source/skew and shell/I/O timing are unmodeled. Original wrapper diagnostics are
+preserved separately from strict read-only closure. Final evidence is under
+`runs/aws-f2/iteration289/`; see
+[f2-native-widget-installation.md](f2-native-widget-installation.md).
+The stock recipe still lacks an actual production top binding and complete
+common-cut/reset/CE, transport/stream/response-bank, memory/FASED/host and
+independent pre-FAME ownership. Full localhost image/AFI, every physical active
+cut and paired CPU migration/finite/live/rolling acceptance remain pending.
+No hardware acceptance column advances.
+
 Iteration 288 closes a production image-admission gap for the native component
 transport. Stripped annotations/headers, valid bound descriptor hashes, renamed
 definitions and malformed flags/ABI no longer evade the missing atomic-owner

@@ -35,7 +35,64 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 288,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 289,
+**in_progress; bound native widget/driver integration and component closure pass**.
+
+The production widget API now selects the native transport from a validated
+complete-stream binding and retains the internal original descriptor ROM.
+Native live-state/reader-idle, CE, cycle and owner inputs require explicit
+connections. Typed generated constructors validate stream availability, native
+geometry, appended descriptors and exact shadow layout before device I/O.
+Independent review caught and fixed dropped NASTI parameters that truncated
+actual F2 twelve-bit IDs to four bits. Fresh execution exercises high twelve-bit
+transaction IDs. Physical deferred reservation/peer/graft paths explicitly
+reject native mode; all incomplete-owner image guards remain intact. See
+[f2-native-widget-installation.md](f2-native-widget-installation.md).
+
+Full Scala passes 350 tests / 56 suites plus sixteen preparation executions.
+Fresh EDA SP2 passes all 404 Python tests, ASan/UBSan, FCFS, generated-bank and
+cut checks; all 1,643 recorded source hashes match. Actual generated constructor
+installation passes 106 checks / 31 no-I/O negatives; the host session passes
+54,697 checks. The selected native widget passes four component cuts (35, 68,
+112, 167), complete original/shadow readback, poisoned compatibility descriptors,
+owner-loss/abort recovery, and both compiled first-divergence waveform audits.
+Neither fault acknowledges its divergent control word or advances a later raw
+edge. Fresh legacy physical synthesis/VCS/audit passes five cuts / 170 words.
+
+Local native synthesis closes its unchanged requested 140 MHz constraint at
++0.911/+0.073 ns. Exact-DCP component place/route reaches +0.370/+0.026 ns,
+preserving all 2,577 sequential identities and 67 bank drivers, routing 4,928
+nets with no routing errors or DRC violations. Parent clock source/skew and
+shell/I/O budgets remain unmodeled; this is not full-shell timing or an image.
+The original post-route wrapper rejected XDC differences caused by its own
+preservation directive and exported filename header. Its failed receipt is
+unchanged; a separate closure proves the exact two expected differences and
+unchanged timing commands. An initial launcher import failure, diagnostic Scala
+failures/interruptions and the tracked-platform-symlink audit correction also
+remain in original logs. Source symlinks bind both original committed link text
+and dereferenced bytes. No historical execution is relabeled as fresh.
+
+All 61 manager tests and fresh initial/final AWS/native Vivado/HDK/localhost
+checks pass. Existing controller checkpoints were published FireSim then
+Chipyard; both remote tips match, with the retained local tracking-ref warning.
+Final inventory has no active loop F2 runtime, pending AFI or local Java/Vivado
+job. All managed workers and classical jobs are joined.
+
+The final aggregate is `runs/aws-f2/iteration289/component-closure-_aaqirl6/summary.json`;
+raw replay commands are in `runs/aws-f2/iteration289/verification-commands.json`.
+The exact-Rocket owner-gap receipt identifies three physical CE paths, 207
+CE-cone state owners and the external reset writer, plus live transport
+self-freeze conflicts. Its historical compiler observations retain their dates.
+Next implement their real common-cut/reset/CE owner binding with selective
+functional hold and ungated collection, then native peer/reservation integration
+and explicit installation in the exact recipe before resuming its localhost
+image build. Complete memory/FASED/host and independent pre-FAME coverage,
+full image/P&R/AFI, actual all-hart FPGA cuts, paired CPU zero-edge/finite/live
+migration and rolling FPGA recovery remain pending. No hardware acceptance
+column advances; this component closure does not refresh all historical native
+matrix/wave executions or claim their generated-byte equivalence.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 288,
 **in_progress; native transport image guard and complete component verification pass**.
 
 The production compiler now rejects unowned native transport state even when
