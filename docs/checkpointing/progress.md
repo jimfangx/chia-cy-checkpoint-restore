@@ -35,7 +35,60 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 283,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 284,
+**in_progress; full-disk failure recovered and independent graft waveform audit verified**.
+
+The controller's previous rerun exhausted EDA storage while saving the graft
+mutation receipt, leaving it zero bytes. Its original files and diagnostics
+remain intact. The new explicit EDA waveform-storage helper shares only
+kernel-verified equal ranges, hashes every byte before and after, preserves
+original regular files/independent inodes, and checks free bytes and inodes.
+Four pairs shared 148,784,414,720 bytes; final EDA capacity is about 95 GiB.
+Actual XFS equal/different-range and COW isolation selftests pass.
+
+The independent plain-graft auditor reconstructs frontdoor input history,
+checks all native fields and every ordered bank word, backpressure and dequeue
+continuation. Fresh SP2 graft execution and audit pass 196,624 words /
+5,899,136 native-vector samples; the exact compiled lane fault diverges at raw
+VCD time 61,527,000 with zero requests/acknowledgements after a complete four-lane
+fill. This component has no CPU target-cycle authority. Re-audited controller-
+completed staging passes four cuts / 416 staged words / 5,913,197 native samples
+and all three exact compiled faults before word acknowledgement.
+
+All 331 Scala tests / 52 suites plus twelve preparation tests, 362 Python tests,
+61 manager tests, 47,219 ASan/UBSan host assertions, all sixteen fresh SP2 scopes,
+complete retained components and six additional waveform audits pass. The first
+sweep correctly refused a regional native manifest missing the two new Python
+files. Complete localhost synthesis refreshed ten source sets and retained six
+matching historical receipts, with peak concurrency two and no large Java
+synthesis overlap; the full EDA rerun then passed. Final aggregation verifies
+exact current source sets, native-input namespaces, structured artifact ledgers
+and compiled faults. Its original import/schema diagnostics are preserved.
+
+Fresh exact-Rocket compilation still rejects the FASED physical BUFGCE CE latch
+without a synthesized owner/common-low-phase cut. Production common-cut/reset,
+all three physical CE owners, live MMIO/DMA self-state, complete functional
+memory/FASED/host/pre-FAME ownership, full image/P&R/AFI, real all-hart FPGA cuts
+and paired CPU zero-edge/finite/live/rolling migration remain pending. Next work
+must bind the staged readout to the production widget and close those owners;
+keep admission guards enabled. No checkpoint-enabled image or actual hardware
+capture was produced. Reuse iteration194's localhost invocation and initialized
+manager inputs. Final AWS/native inventory has no active loop farm, pending AFI
+or owned Java/Vivado job; every test/transfer has completed and joined.
+
+Both plans and all four manager YAMLs retain their entry hashes. No staging,
+local commits or account bootstrap was performed. Existing controller commits
+were pushed FireSim first, then Chipyard; direct remote observations confirm
+them despite the preserved local tracking-ref filesystem warning. Publication
+observations refer to those commits, not a future controller checkpoint.
+Managed worker startup failed before execution; only the central agent ran and
+no delegated LLM remains. Commands, receipts and per-cut gaps are under
+`runs/aws-f2/iteration284/`: `verification-commands.json`,
+`final-evidence-selected.json`, `recovery-diagnostics.json` and
+`remaining-blockers.json`. See [GitHub checkpoint publication](github-publication.md)
+for publication of the controller's next checkpoint.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 283,
 **in_progress; compiled staging-fault provenance and interrupted sweep recovered**.
 All three compiled semantic/handshake fault sources now join the immutable
 staging artifact manifest. The independent auditor reconstructs each exact edit

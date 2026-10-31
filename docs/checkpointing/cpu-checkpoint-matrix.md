@@ -14,6 +14,28 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 284 recovers the controller's EDA full-disk failure without deleting
+or replacing raw debug files. Kernel-verified sharing audits all before/after
+bytes and preserves independent inodes; four pairs share 148,784,414,720 bytes
+and final EDA capacity is about 95 GiB. Fresh plain-graft execution and independent
+full-wave audit pass 196,624 words, 5,899,136 native-vector samples, complete
+frontdoor history/backpressure/dequeue continuation and exact compiled lane
+corruption before any acknowledgement. The auditor reports raw VCD time,
+because the component has no CPU target-cycle authority. Staging independently
+passes all four cuts/416 staged words and all three compiled faults.
+
+All 331 Scala / 52 suites plus twelve preparation, 362 Python / 61 manager /
+47,219 sanitizer assertions, complete native synthesis, sixteen fresh EDA scopes,
+retained components and six additional waveform audits pass. The initial stale
+regional manifest correctly rejected the two added Python files; ten native
+source sets were regenerated on localhost (peak two jobs), six matching receipts
+retained, then the complete EDA rerun and final source/receipt audit passed.
+Original failure/import/schema logs and exact commands remain under
+`runs/aws-f2/iteration284/`. Fresh exact-Rocket compilation still rejects its
+physical FASED CE owner. Production common-cut/reset/physical CE, live transport,
+complete memory/host/pre-FAME ownership, full image/AFI, real all-hart FPGA cuts
+and paired CPU migration remain pending. No hardware acceptance column advances.
+
 Iteration 283 binds all three compiled staging faults in immutable receipts
 and independently reconstructs their exact edits before waveform audit. Full
 331-test / 52-suite Scala scope plus twelve preparation tests, 354 Python /

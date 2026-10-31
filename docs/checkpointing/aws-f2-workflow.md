@@ -191,3 +191,22 @@ never terminate this localhost build server/manager or unrelated farms. Local
 `build-host/` and default local-build worktrees stay here and are excluded from
 EDA synchronization. Copy only required restore inputs and evidence outside
 those directories. Do not share images or delete unrelated AWS resources.
+
+## Retained EDA waveform capacity
+
+A full EDA disk can fail a verification receipt after simulation has succeeded.
+Preserve that attempt and its underlying compiler/runtime logs, then recover
+capacity before starting a fresh attempt. Do not delete raw debug waves, replace
+them with compressed files, rewrite historical receipts, or reduce visibility.
+
+`automations/checkpoint_loop/eda_waveform_storage.py` accepts an explicit JSON
+list of source/destination regular files and their independently recorded full
+SHA256 digests. Run it on EDA with `--plan` and `--out` paths under `runs/`.
+It hashes every byte before and after kernel-verified sharing of equal ranges;
+differing blocks, headers, tails, original paths and independent inodes remain
+intact. Each invocation records its own receipt and checks both free bytes and
+free inodes against explicit capacity requirements. It also exposes
+`require_capacity` for checks before large VCS runs. Storage recovery establishes
+no simulation or hardware acceptance. The iteration-284 bootstrap uses the same
+sharing routine over SSH stdin because an entirely full disk cannot first
+create a remote receipt; its full source and output are retained locally.
