@@ -14,6 +14,23 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 290 verifies a synchronous-reset-owned common-cut primitive, with
+explicit collector reset separation, held functional reset and fail-closed
+writer/reset/release-race handling. It passes 3,137 fresh EDA checks, four
+component cuts, independent complete functional/control waveform readback and
+six negative cases, including a complete first-divergence wave at cycle 17.
+All 404 Python / 61 manager tests and retained sanitizer/FCFS/bank/cut checks
+pass; original Scala/widget evidence retains its dates. Native exact-DCP
+component P&R reaches +1.979/+0.044 ns at unchanged requested 140 MHz, preserving
+242 sequential identities and routing 444 nets without routing or DRC errors.
+Shell timing and production ownership remain unmodeled/incomplete. This does
+not establish ownership of `F1Shim.reset`, install a Rocket capture binding or
+emit an image/AFI. Fresh exact-Rocket compilation still refuses the FASED CE
+latch. All hardware cuts, paired CPU restore/finite/live execution, hardware
+negative cases and rolling recovery remain pending. Evidence/commands are under
+`runs/aws-f2/iteration290/`; see [f2-reset-owned-cut.md](f2-reset-owned-cut.md).
+No hardware acceptance column advances.
+
 Iteration 289 installs bound native widget selection and a typed generated
 host driver, retaining incomplete-owner image guards and explicit native-vs-
 physical reservation/peer rejection. Review fixed F2 twelve-bit transaction IDs

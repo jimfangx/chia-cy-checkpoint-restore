@@ -35,7 +35,61 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 289,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 290,
+**in_progress; synthesized reset-owned common-cut primitive verified; production installation pending**.
+
+`CheckpointResetOwnedClockCut` separates collector initialization from synchronous
+functional reset. It samples reset at the common falling-edge cut, holds the
+functional value during collection and rejects reset/writer changes without
+reopening clocks, including a change after release validation. Both internal
+and external clock-network modes execute against an independent vendor-gate
+reference. This is a component primitive, not a binding for `F1Shim.reset` or
+the complete Rocket owner set. See [f2-reset-owned-cut.md](f2-reset-owned-cut.md).
+
+Fresh EDA SP2 passes 3,137 checks, four cuts (0/17/128/256), 320 functional cycles,
+64 collection stalls and six negative cases. The independent waveform audit
+compares all three original functional words, every control-vector field and
+the external-network peer. The semantic-readback mismatch ends at target cycle
+17 without another target edge. Packed debug views and the existing deferred
+failure-status helper preserve complete positive and negative waves; initial
+array-visibility, immediate-exit and audit-launch diagnostics remain unchanged
+under `runs/aws-f2/iteration290/`.
+
+Native Vivado 2025.2 synthesizes four default-SYNC BUFGCEs and three falling-edge
+registers. Exact-DCP component P&R closes unchanged requested 140 MHz at
++1.979/+0.044 ns, preserving all 242 sequential identities and routing all 444
+routable nets without routing errors or reported DRC violations. Actual hardware
+sources, fixture and synthesis Tcl are identical across the later testbench and
+exit-helper corrections; literal comparisons bind the unused verification-file
+changes. Original tool dates/DCP identities remain intact. Parent clock and
+shell/I/O budgets are unmodeled; this is not full-image timing.
+
+All 404 Python tests, ASan/UBSan, host, generated-bank, FCFS and cut checks pass
+fresh with all 1,646 source hashes current. All 61 manager tests pass. The prior
+350-test Scala / sixteen-preparation-test and native widget/driver closure is
+reauthenticated with its original dates. Eight coherently changed native-evidence
+cases reject. Fresh exact-Rocket compilation still refuses the unowned FASED
+physical CE latch; no checkpoint-enabled image or AFI is emitted. AWS/native
+HDK/localhost checks pass, with no active loop F2 instance, pending AFI or native
+Java/Vivado job. Existing controller checkpoints were published FireSim then
+Chipyard; remote tips match, with the original local tracking-ref warning retained.
+
+Next prove and install the real common-cut/reset/CE binding, including synchrony
+and every sink of `F1Shim.reset`, the 207 CE-cone state owners, selective hold
+and independently owned ungated collection. Native peer/reservation and atomic
+transport/stream self-state, memory/FASED/host and pre-FAME coverage remain
+incomplete. Full localhost image/AFI, all-hart physical cuts, FPGA-origin paired
+zero-edge/finite/live migration, hardware-image negatives and rolling recovery
+remain pending. Reuse iteration194's retained localhost build invocation.
+
+The final aggregate is `runs/aws-f2/iteration290/final-audit-k7v3j7zl/summary.json`;
+raw replay commands are in `runs/aws-f2/iteration290/verification-commands.json`.
+Plans and initialized manager YAMLs retain their entry hashes. No staging or
+local commits were performed. Managed worker startup failed before execution;
+the central agent performed and joined all work, with no delegated worker left.
+Follow [github-publication.md](github-publication.md) for the next controller checkpoint.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 289,
 **in_progress; bound native widget/driver integration and component closure pass**.
 
 The production widget API now selects the native transport from a validated
