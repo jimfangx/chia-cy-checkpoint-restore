@@ -35,7 +35,67 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 284,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 285,
+**in_progress; native-owner control bank implemented, full verification running**.
+
+`CheckpointNativeCaptureTransport` now has explicit `CAPTURE_NATIVE_CONTROL=1`
+readout for the complete staged native/physical-cut/sequencer owner, in addition
+to its existing payload entries. The reserved selector and descriptor order are
+explicit. The new response bank exposes all 67 added live bits separately;
+permission loss revokes acknowledgement before the edge and a pending failure
+requires common reset. This is a component capture path, not production widget
+installation or a restorable transport owner. See
+[f2-native-control-bank.md](f2-native-control-bank.md).
+
+The complete localhost native sweep passes with peak concurrency two and no
+large Java overlap: ten source sets were regenerated and six exact matching
+receipts retained. Current-source bank synthesis independently covers all 6,727
+inputs and 67 new live bits; the enabled BITS=1036 transport has 3,137 LUTs /
+1,733 registers. Its unchanged 140 MHz OOC setup/hold estimates are
+-0.619/+0.078 ns; implemented/full-shell timing remains pending. Native source
+and frozen-input audits pass. All 331 Scala tests / 52 suites plus twelve
+preparation tests and all 61 manager tests pass.
+
+All six exploratory EDA geometries pass four-cut transfer, every-bit identity
+planes, complete original-register/frame/CRC audits, reserved-selector refusal,
+safe abort drain and genuine owner-loss-before-ack/reset recovery. Review added
+strict frozen-source/current-hash/Tcl binding and zero trailer-reserved-bit
+checks; fifteen focused Python cases pass. The earlier 368-test/host-sanitizer/
+FCFS EDA prefix passed before those nine additional checks; its final 377-test
+rerun is queued. Original compile, import, abort-test-policy and test-class
+placement diagnostics remain intact. An accidentally reused wrapper-log name
+was recovered byte-for-byte from the earlier EDA sync under a unique preserved
+path; original native attempts/receipts were unchanged.
+
+EDA's required new raw healthy queue wave is about 152 GB, larger than initial
+free space. Explicit kernel-verified sharing of two retained wave pairs is in
+progress with full before/after hashes, independent inodes and all original
+regular files preserved. The first pair has shared 151,839,694,848 bytes with
+all four complete digests matching. The final native-bound EDA matrix,
+compiled faults and complete retained scope remain queued behind this storage
+recovery. Do not claim those queued checks passed.
+Hardware image/P&R/AFI, physical all-hart cuts, full production ownership and
+paired CPU zero-edge/finite/live/rolling migration remain pending. No hardware
+column advances. Reuse iteration194's initialized localhost invocation. Plans
+and all four manager YAMLs retain entry hashes. Existing controller commits were
+published FireSim first, then Chipyard; direct remote observations authenticate
+them despite the retained local tracking-ref filesystem warning. Inherited-context worker startup initially failed before execution. Two native
+fresh-context read-only review workers then completed under central coordination.
+Their input-binding/trailer findings are fixed; their production ABI/owner
+prerequisites are recorded in the native-control-bank document. No delegated LLM
+request remains.
+Current scripts and diagnostics are under `runs/aws-f2/iteration285/`.
+
+Handoff: local native jobs and both managed review workers are finished. The
+remote EDA storage audit is still running its second complete retained-wave
+pair, and the updated prefix is queued behind its lock. Full matching-source
+EDA and aggregate verification are explicitly pending, not passing. The raw
+controller commands in `verification-commands.json` finish every required
+component scope after capacity recovery; `pending-verification.json` records
+the exact active command/PID/receipt and completed-versus-pending checks.
+No checkpoint-enabled image, physical capture or CPU migration was produced.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 284,
 **in_progress; full-disk failure recovered and independent graft waveform audit verified**.
 
 The controller's previous rerun exhausted EDA storage while saving the graft

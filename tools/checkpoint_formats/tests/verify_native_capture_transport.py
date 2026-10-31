@@ -26,6 +26,7 @@ ROOT = Path(__file__).resolve().parents[3]
 RUNS = ROOT / "automations/checkpoint_loop/runs"
 VERILOG = "sims/firesim/sim/midas/src/main/verilog/"
 RTL = tuple(VERILOG + n + ".sv" for n in (
+    "CheckpointSnapshotStateBank",
     "CheckpointNativeCaptureTransport", "CheckpointNativeStateCapture", "CheckpointNativeStateSnapshot",
     "CheckpointPhysicalClockCut", "CheckpointCaptureCut", "CheckpointCaptureTransport"))
 TB = "tools/checkpoint_formats/tests/native_capture_transport_tb.sv"

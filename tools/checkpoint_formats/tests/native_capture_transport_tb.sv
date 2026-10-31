@@ -50,7 +50,7 @@ module native_capture_transport_tb;
     wire [511:0] dma_data;
     reg dma_ready=0,hold_dma=0;
     CheckpointNativeCaptureTransport #(.BITS(BITS),.GATES(3),.OWNERS(2),.ENTRIES(1),.MANIFEST_SHA256(HASH)) dut(
-        .target_cycle(target_cycle ^ cycle_fault),.*);
+        .native_control_bank_state(), .target_cycle(target_cycle ^ cycle_fault),.*);
     always @(posedge root_clock) begin
         if(reset)target_cycle<=0;
         else target_cycle<=target_cycle+1;

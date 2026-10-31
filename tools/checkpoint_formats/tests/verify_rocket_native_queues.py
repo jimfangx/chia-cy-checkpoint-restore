@@ -22,7 +22,7 @@ from tools.checkpoint_formats.tests.audit_checkpoint_regions import inventory_fr
 ROOT = Path(__file__).resolve().parents[3]
 RUNS = ROOT / 'automations/checkpoint_loop/runs'
 V = 'sims/firesim/sim/midas/src/main/verilog/'
-RTL = tuple(V + n for n in ('CheckpointNativeQueueCapture.sv', 'CheckpointNativeCaptureTransport.sv',
+RTL = tuple(V + n for n in ('CheckpointSnapshotStateBank.sv', 'CheckpointNativeQueueCapture.sv', 'CheckpointNativeCaptureTransport.sv',
     'CheckpointNativeStateCapture.sv', 'CheckpointNativeStateSnapshot.sv', 'CheckpointPhysicalCaptureTransport.sv',
     'CheckpointPhysicalClockCut.sv', 'CheckpointCaptureTransport.sv', 'CheckpointCaptureCut.sv'))
 SELF = 'tools/checkpoint_formats/tests/verify_rocket_native_queues.py'

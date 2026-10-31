@@ -14,6 +14,19 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 285 adds optional complete native-owner control readout to the actual
+capture transport. A reserved bank exports staged payload/control, physical-cut
+and sequencer state; all 67 new live bank bits remain a separate unsupported
+capture/restore owner. Current-source native synthesis accounts for 1,733 integrated
+register bits / 3,137 LUTs; unchanged 140 MHz OOC setup is -0.619 ns, so timing
+closure remains pending. Exploratory EDA SP2 checks and independent complete
+readback/frame/CRC audits pass four cuts in each of six geometries. The full
+matching-source EDA/retained sweep is pending behind byte-preserving storage
+recovery; do not treat it as passed.
+This does not install the production Rocket widget, build an image/AFI, capture
+hardware state or establish paired CPU migration. Every hardware cut and acceptance
+column remains pending/in_progress. See [f2-native-control-bank.md](f2-native-control-bank.md).
+
 Iteration 284 recovers the controller's EDA full-disk failure without deleting
 or replacing raw debug files. Kernel-verified sharing audits all before/after
 bytes and preserves independent inodes; four pairs share 148,784,414,720 bytes
