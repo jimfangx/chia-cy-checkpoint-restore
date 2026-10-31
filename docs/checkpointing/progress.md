@@ -35,7 +35,50 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 294,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 295,
+**in_progress; actual FAME clock-progress observations; production cut binding pending**.
+
+`--simulator-fame-clock-progress` now observes consumed clock tokens, the
+previously pending flags and the actual original gate CE at FAME construction.
+It preserves original functional rules, appends inventoried saturating 64-bit
+counters and sticky overflow, and does not assert global target-time authority.
+See [f2-fame-clock-progress.md](f2-fame-clock-progress.md). Production collector
+binding, all-owner atomicity, ungated native transport, memory/FASED/host and
+pre-FAME coverage, a full localhost image/AFI, physical active-workload cuts,
+paired FPGA-origin zero-edge/finite/live CPU migration and rolling recovery
+remain pending. Reuse iteration 194's retained localhost build invocation.
+
+All 363 Scala tests / 59 suites plus sixteen preparation checks pass fresh,
+with seven additional targeted generation checks. All 409 Python / 61 manager
+tests, ASan/UBSan, host capture, generated-bank, FCFS and cut regressions pass.
+The observer's exact-DCP native component closes unchanged 140 MHz at
++2.768/+0.051 ns, retaining all 344 sequential identities and routing all 407
+routable nets; resources are 137 LUTs / 342 registers / two original BUFGCEs.
+Full-shell, I/O and parent-clock timing remain unmodeled. Fresh EDA SP2 passes
+6,658 healthy checks over 512 host steps, 335 completed FAME steps, 177 stalls
+and 253/108 actual clock edges. Five independent overflow cases pass. Seven
+full-visibility waves are retained; independent raw auditing verifies all 321
+observer bits and rejects every single-bit mutation. Observation corruption
+stops at host step 17 with 16 comparisons acknowledged. This is not semantic
+CPU corruption acceptance. Collector regressions independently pass 4,547
+checks, four cuts, all ten cancellations, twelve complete wave audits and all
+81 control-bit mutations. Both native fixtures exactly match full-suite output.
+
+The exact Rocket compiler generates all 321 observation bits and still refuses
+the missing FASED physical CE owner before image emission. No checkpoint-enabled
+image / AFI, physical CPU cut, FPGA-origin paired restore/finite/live CPU run or
+rolling recovery is established. Preserve initial Scala clock-channel/type/nesting
+fixture diagnostics, the scoped superseded Scala run, VCS `model_` keyword diagnostic and
+failed ad-hoc SSH / successful initialized Fabric logs. Source-pinned receipts
+and actual commands are under `runs/aws-f2/iteration295/`; final closure is
+`final-audit-q36kwqjq/summary.json`. Fresh AWS/native HDK/localhost checks pass;
+there is no active loop F2 instance, pending AFI or native Java/Vivado job.
+No managed worker started. Existing controller checkpoints were published FireSim then Chipyard, with independently
+matching remote tips; the original local tracking-ref warning remains in its
+log. Both plans and initialized manager inputs retain their entry hashes.
+No staging or local commits occurred.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 294,
 **in_progress; compiler-connected F2 cut controller; production installation pending**.
 
 `F2ClockResetCutWiring` now installs the adapter inside a separately emitted

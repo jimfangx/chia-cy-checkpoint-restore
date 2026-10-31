@@ -10,9 +10,37 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 
 | Family | F2 workload / custom capture image | FPGA Level-1 to EDA metasim | FPGA Level-2 finite RTL replay | Live RTL / rolling hardware recovery |
 | --- | --- | --- | --- | --- |
-| Rocket (all four harts) | baseline verified: real F2 slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress: bank/MMIO/DMA fixtures synthesize locally, ordinary whole-root bank trial enforces 2,120 typed dedup groups and passes exact native BUFGCE XDC pin contracts and retires only NoDedup definitions removed by actual native inlining; exact native RAM-style memory hints now translate and the final consumer emits late public host-widget XDC; native SimulationMapping now links and renames the exact TargetBox boundary and all local/nonlocal targets together; the ordinary whole-root trial rejects the FASED physical BUFGCE CE latch lacking a synthesized capture owner/common-low-phase cut; the regional/local probe also rejects eight inlined widget-local MMIO/DMA owners before connection; post-mapping InlineInstances runs before inventory/banking with complete concrete register/RAM rename provenance; exact stage emitter policy and retired abstract clock-gate source have immutable final-emission/history provenance; passive generated headers/defines retain exact-byte emission provenance; stage input retains immutable circuit/module history; consumed bridge extraction retains immutable circuit/connectivity history; consumed pre-link requests retain immutable circuit/mapping history; deduplication-history and target-box instance paths, global memory policies, consumed-input/channel-frequency context, XDC and memory-model labels translate with provenance; all seven FPGA plusarg instances have source-checked constant semantics; three physical BUFGCE owners, complete common-cut/memory/host binding and image P&R/AFI remain pending | pending | pending | pending |
+| Rocket (all four harts) | baseline verified: real F2 slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress: actual FAME consumed/pending/applied clock observations add 321 inventoried bits without asserting global target-time authority; bank/MMIO/DMA fixtures synthesize locally, ordinary whole-root bank trial enforces 2,120 typed dedup groups and passes exact native BUFGCE XDC pin contracts and retires only NoDedup definitions removed by actual native inlining; exact native RAM-style memory hints now translate and the final consumer emits late public host-widget XDC; native SimulationMapping now links and renames the exact TargetBox boundary and all local/nonlocal targets together; the ordinary whole-root trial rejects the FASED physical BUFGCE CE latch lacking a synthesized capture owner/common-low-phase cut; the regional/local probe also rejects eight inlined widget-local MMIO/DMA owners before connection; post-mapping InlineInstances runs before inventory/banking with complete concrete register/RAM rename provenance; exact stage emitter policy and retired abstract clock-gate source have immutable final-emission/history provenance; passive generated headers/defines retain exact-byte emission provenance; stage input retains immutable circuit/module history; consumed bridge extraction retains immutable circuit/connectivity history; consumed pre-link requests retain immutable circuit/mapping history; deduplication-history and target-box instance paths, global memory policies, consumed-input/channel-frequency context, XDC and memory-model labels translate with provenance; all seven FPGA plusarg instances have source-checked constant semantics; three physical BUFGCE owners, complete common-cut/memory/host binding and image P&R/AFI remain pending | pending | pending | pending |
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
+
+Iteration 295 observes clock progress at the actual FAME construction rules,
+separating incoming-token consumption from the previous token's native gate CE.
+The two-clock hub has five saturating 64-bit counters and sticky overflow;
+pending flags remain the original registers. This does not bind a global cut.
+Native exact-DCP component P&R closes unchanged 140 MHz at +2.768/+0.051 ns,
+preserving 344 sequential identities and routing all 407 routable nets without
+routing errors or reported DRC violations. Resources are 137 LUTs, 342 registers
+and the original two BUFGCEs. Shell and parent-clock timing remain unmodeled.
+Fresh EDA SP2 passes 6,658 healthy observer checks over 512 active host steps,
+335 completed FAME steps, 177 stalls and 253/108 actual target-clock edges.
+Five independent counter-overflow cases pass. A separate raw-wave audit verifies
+all 321 register bits and rejects every single-bit mutation; observation
+corruption stops at host step 17 with only 16 comparisons acknowledged. Seven
+full debug waves are retained. Fresh collector regressions also pass 4,547
+checks, all four component cuts and twelve complete wave audits. These are
+component observations, not physical CPU or semantic-corruption acceptance.
+The exact Rocket compiler generates all 321 observation bits and still rejects
+the unowned FASED physical CE latch before image emission. All 363 Scala / 59 suites plus sixteen preparation checks, 409 Python / 61
+manager tests, sanitizers, host, generated-bank, FCFS and cut checks pass fresh.
+Final AWS/native/localhost/source/resource audit passes, with no active loop
+F2 instance, pending AFI or native Java/Vivado job. Closure is
+`runs/aws-f2/iteration295/final-audit-q36kwqjq/summary.json`. No hardware acceptance
+column advances.
+See [f2-fame-clock-progress.md](f2-fame-clock-progress.md) and current evidence
+under `runs/aws-f2/iteration295/`. Production ownership, full image/AFI, active
+physical cuts, hardware-origin paired zero-edge/finite/live CPU continuation
+and rolling recovery remain pending.
 
 Iteration 294 moves the F2 cut adapter inside a compiler-emitted sibling.
 The collector uses the raw source clock, mask/held-reset wires have single
