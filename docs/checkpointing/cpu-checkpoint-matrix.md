@@ -14,6 +14,29 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 286 connects the native RTL to the actual widget NASTI/shadow/DMA
+endpoint through an exact Chisel interface. All 827 observation bits (including
+67 separate bank bits), all 25 shadow words and complete native owner/frame/CRC
+readback pass four progressing component cuts in fresh EDA SP2. Owner-loss and
+abort/reset recovery pass; compiled coordinator corruption stops at cut 35 with
+zero acknowledgements and no later raw clock edge. Native synthesis passes 3,567
+LUTs / 2,666 registers; unchanged 140 MHz OOC setup is -1.190 ns, so timing closure
+remains pending. All 335 Scala tests / 53 suites plus twelve preparation tests,
+377 Python tests, 61 manager tests and the retained sanitizer/FCFS prefix pass.
+The complete native refresh, sixteen-scope fresh EDA matrix, six-geometry bank
+matrix and two compiled bank faults pass. Four-cut queue execution checks
+78,343,201 conditions; its full independent waveform audit, eight corrupt streams
+and six compiled faults pass. Fresh staging/graft runs and the remaining retained
+components and full waveform audits pass. The final current-source aggregate is
+`runs/aws-f2/iteration286/final-current-evidence-oodwzs0_/summary.json`.
+
+This API does not select the production Rocket widget, supply complete owner or
+restore bindings, build an image/AFI or capture FPGA state. All four required
+hardware cuts, paired CPU migration and live/rolling acceptance remain pending.
+Original byte-preserving storage recovery and a separate 455.5 GB full-hash audit
+pass without changing historical evidence. New commands/receipts are under
+`runs/aws-f2/iteration286/`; see [f2-native-widget-endpoint.md](f2-native-widget-endpoint.md).
+
 Iteration 285 adds optional complete native-owner control readout to the actual
 capture transport. A reserved bank exports staged payload/control, physical-cut
 and sequencer state; all 67 new live bank bits remain a separate unsupported

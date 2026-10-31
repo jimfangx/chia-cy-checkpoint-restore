@@ -35,7 +35,72 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 285,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 286,
+**in_progress; native endpoint and complete retained component verification pass**.
+
+The exact native Chisel interface now connects the existing SV transport to the
+actual widget NASTI, accounting and shadow equations. Its reversible coordinator-
+first view includes every raw bit and the separate 67-bit bank owner, without
+atomic self-capture/restore admission. Production widget selection, descriptor/
+header admission and graft guards remain unchanged. See
+[f2-native-widget-endpoint.md](f2-native-widget-endpoint.md).
+
+Native Vivado 2025.2 passes 3,567 LUTs / 2,666 registers and all 67 independent
+bank drivers. At unchanged 140 MHz, OOC setup/hold estimates are -1.190/+0.073 ns;
+the falling-mask-to-shadow-enable half-cycle path still needs timing closure.
+Fresh EDA SP2 passes four component cuts (35/68/112/167), all 25 shadow words,
+827 layout planes, complete original-owner/frame/CRC audits, owner-loss and
+abort/reset recovery. The exact compiled coordinator fault stops at cut 35
+before every acknowledgement; independent VCD auditing confirms the low clock
+and no later timestamp. These are component cuts, not active Rocket/F2 cuts.
+
+The complete 335-test / 53-suite Scala run and twelve preparation tests pass,
+and its regenerated endpoint bytes match the actual synthesized inputs. The
+fresh 377-test/ASan+UBSan/FCFS/bank/cut prefix, six-geometry bank matrix and two
+compiled bank faults pass. Fresh staging and plain-graft execution plus their
+independent full-wave audits pass. The full localhost native refresh, four-cut
+queue execution, sixteen-scope retained EDA matrix and final aggregation pass.
+The queue checks 78,343,201 conditions with 983,220 stalls; its independent
+complete waveform audit, eight corrupt streams and six exact compiled mutations
+pass. All 61 manager tests and six additional retained waveform audits pass.
+Matching unchanged queue/staging/graft native receipts retain their original dates and
+exact identities; current source namespaces and every original artifact are
+re-authenticated, and fresh EDA binds those same receipts. No test scope is removed.
+
+The previous controller failure raced an inherited storage helper. Its original
+job finished with complete before/after digests and 303,679,389,696 bytes shared.
+An independent new audit rehashed all 455,519,100,426 bytes of the three retained
+waves and preserved every path/inode/metadata. No original evidence was deleted
+or rewritten. Manager/AWS/localhost/Vivado/HDK preflight passes, protected inputs
+match, and the existing controller commits were published FireSim then Chipyard.
+All three managed workers have returned; no delegated LLM request remains.
+
+New commands and diagnostics are under `runs/aws-f2/iteration286/`. The initial
+full Scala run was deliberately stopped before known API fixes; the focused run
+caught and fixed an optimizer-specific assertion. Its replacement independently
+evaluates every emitted mapping plane. The first native preflight caught wrapped/
+duplicated compiler expressions in the fault injector; all three exact consumed
+copies now mutate together. The queue preflight import-path failure was repaired
+without changing or omitting its scope. The compiled queue-fault harness now
+selects named resources after the bank addition instead of positional indices,
+and its six source mutations are independently reconstructed and authenticated.
+The final auditor's child Python import path was repaired after all simulations
+had passed. Every original failed/interrupted attempt remains intact.
+
+No checkpoint-enabled image, actual hardware checkpoint or paired CPU migration
+has been produced. Complete ownership, image/P&R/AFI, physical all-hart cuts,
+FPGA-produced Level-1/Level-2/trace pairs, sustained live RTL and rolling hardware
+recovery remain pending. All hardware acceptance columns stay pending/in_progress.
+All delegated and classical jobs have completed and been joined. Final source,
+receipt, protected-input and resource-inventory audits pass. The final aggregate
+is `runs/aws-f2/iteration286/final-current-evidence-oodwzs0_/summary.json`; replay
+commands are in that iteration's `verification-commands.json`. Original raw waves
+remain on EDA at their recorded paths; additional compressed copies do not
+replace them. No loop-owned F2 instance, pending AFI or local Java/Vivado job
+remains. Next implement the production owner/common-cut bindings and close the
+reported timing path before full image/P&R/AFI and actual hardware acceptance.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 285,
 **in_progress; native-owner control bank implemented, full verification running**.
 
 `CheckpointNativeCaptureTransport` now has explicit `CAPTURE_NATIVE_CONTROL=1`
