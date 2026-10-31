@@ -21,7 +21,12 @@ ROOT = Path(__file__).resolve().parents[3]
 RUNS = ROOT / 'automations/checkpoint_loop/runs'
 SOURCES = [
     'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/FAMEClockProgress.scala',
+    'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/FAMEClockProgressBindings.scala',
+    'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/PhysicalClockCutPlan.scala',
+    'sims/firesim/sim/midas/src/main/scala/midas/checkpoint/PhysicalClockGateContract.scala',
+    'sims/firesim/sim/midas/src/main/scala/midas/stage/GoldenGateCompilerPhase.scala',
     'sims/firesim/sim/midas/src/main/scala/midas/passes/fame/FAMETransform.scala',
+    'sims/firesim/sim/midas/src/main/scala/midas/passes/xilinx/ClockGateRetirement.scala',
     'sims/firesim/sim/midas/src/main/scala/midas/stage/GoldenGateCli.scala',
     'sims/firesim/sim/midas/src/test/scala/midas/checkpoint/FAMEClockProgressSpec.scala',
     'tools/checkpoint_formats/tests/fame_clock_progress_tb.sv',
@@ -29,7 +34,60 @@ SOURCES = [
     'tools/checkpoint_formats/tests/verify_fame_clock_progress.py',
     'tools/checkpoint_formats/tests/audit_fame_clock_progress.py',
 ]
-GENERATED = ('observed.fir', 'observed.sv', 'probed.sv', 'reference.fir', 'reference.sv', 'state.json')
+GENERATED = ('observed.fir', 'observed.sv', 'probed.sv', 'reference.fir', 'reference.sv', 'state.json',
+             'progress-binding.json', 'progress-annotations.json', 'emission-reference.fir')
+
+
+def audit_binding(generated, binding=None):
+    """Independent fixture oracle: bind compiler roles to the raw-wave names.
+
+    These fixed names describe this two-clock test, never production discovery.
+    The Scala tests separately exercise native inlining and emitter renaming.
+    """
+    binding = json.loads((generated / 'progress-binding.json').read_text()) if binding is None else binding
+    require(binding['binding_version'] == 1 and binding['scope'] == 'fame-clock-progress-role-map-only'
+            and binding['global_target_cut_proven'] is False and binding['capture_supported'] is False,
+            'invalid role binding scope')
+    for key, name in [('emitted_verilog_sha256', 'observed.sv'),
+                      ('emission_reference_sha256', 'emission-reference.fir'),
+                      ('generated_manifest_sha256', 'state.json')]:
+        require(binding[key] == file_sha(generated / name), 'role binding input hash differs: ' + name)
+    annotations = json.loads((generated / 'progress-annotations.json').read_text())
+    models = [a for a in annotations if a['class'].endswith('.FAMEClockProgressModelAnnotation')]
+    require(len(models) == 1 and models[0]['model'] == '~Top|Model' and models[0]['domains'] == ['clockA', 'clockB'],
+            'construction-site identity differs')
+    signals = [a for a in annotations if a['class'].endswith('.FAMEClockProgressSignalAnnotation')]
+    expected = {('', role): ('hostClock' if role == 'host_clock' else 'hostReset' if role == 'host_reset'
+                            else 'targetCycleFinishing' if role == 'finishing' else 'checkpoint_fame_' + role)
+                for role in ('host_clock', 'host_reset', 'finishing', 'completed_steps', 'overflow')}
+    for clock in ('clockA', 'clockB'):
+        expected.update({(clock, role): 'checkpoint_fame_' + clock + '_' + role
+                         for role in ('consume', 'launch', 'pending', 'consumed', 'applied')})
+        expected.update({(clock, 'pending_flag'): clock + '_enabled',
+                         (clock, 'gate_ce'): clock + '_buffer.CE', (clock, 'gate_output'): clock + '_buffer.O'})
+    rows = binding['signals']
+    require(len(rows) == len(signals) == len(expected) == 21, 'incomplete or duplicated roles')
+    by_key = {(r['domain_identity'], r['role']): r for r in rows}
+    require(set(by_key) == set(expected), 'unknown or missing role')
+    storage = {e['hierarchy']: e for e in json.loads((generated / 'state.json').read_text())['state']}
+    stored_bits = 0
+    for key, ref in expected.items():
+        row = by_key[key]
+        require(row['model_identity'] == '~Top|Model' and row['rtl_path'] == 'Top.model_.' + ref,
+                'role path differs from independently observed waveform location')
+        matches = [a for a in signals if (a['domain'], a['role']) == key]
+        require(len(matches) == 1 and matches[0]['model'] == row['model_identity']
+                and matches[0]['target'] == row['target'], 'role target differs from native rename result')
+        stored = key[1] in ('completed_steps', 'overflow', 'consumed', 'applied', 'pending_flag')
+        require(row['storage'] is stored, 'role storage kind differs')
+        if stored:
+            entry = storage[row['rtl_path']]
+            require(row['generated_state_id'] == entry['state_id'] and entry['kind'] == 'register'
+                    and entry['depth'] == 1 and entry['width'] == (64 if key[1] in ('completed_steps', 'consumed', 'applied') else 1),
+                    'role not bound to complete inventoried storage')
+            stored_bits += entry['width']
+    require(stored_bits == 323, 'observer and original pending flags incomplete')
+    return dict(roles=len(rows), observer_bits=321, original_pending_bits=2, global_target_cut_proven=False)
 TCL = '''set_param general.maxThreads 4
 read_verilog -sv probed.sv
 synth_design -top Top -part xcvu47p-fsvh2892-2-e -mode out_of_context -flatten_hierarchy none
@@ -90,6 +148,22 @@ def main():
         return log.read_text()
 
     try:
+        doc['role_binding'] = audit_binding(generated)
+        # Every role must fail if coherently retargeted to another waveform
+        # location, even when the native execution files remain unchanged.
+        import copy
+        binding = json.loads((generated / 'progress-binding.json').read_text())
+        rejected = 0
+        for index in range(len(binding['signals'])):
+            bad = copy.deepcopy(binding)
+            bad['signals'][index]['rtl_path'] = binding['signals'][(index + 1) % len(binding['signals'])]['rtl_path']
+            try:
+                audit_binding(generated, bad)
+            except ValueError:
+                rejected += 1
+            else:
+                raise ValueError('retargeted compiler role accepted')
+        doc['rejected_role_path_mutations'] = rejected
         for n in GENERATED:
             shutil.copyfile(generated / n, out / n)
         for n in SOURCES:

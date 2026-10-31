@@ -35,7 +35,61 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 295,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 296,
+**in_progress; typed FAME progress bindings verified; production hardware capture pending**.
+
+Construction-site model/domain identities and 21 typed roles now follow concrete
+native gate replacement, inlining and actual emitter renames. The checker audits
+clock/reset/gate/pending associations, complete roles and unique execution, and
+binds generated StateIDs plus RTL/IR/inventory hashes. The production emitter
+publishes `.fame-clock-progress.json` and rejects a host pass deleting its role
+metadata. Exact Rocket read-only emission passes with 11,465 storage entries,
+321 observer bits and two original pending bits. SimulationMapping's valid
+inner-root references require one reachable execution, rather than the literal
+outer root. See [f2-fame-progress-bindings.md](f2-fame-progress-bindings.md).
+
+All **369 Scala tests / 59 suites plus sixteen preparation checks**, sixteen
+focused FAME/native-gate checks, 409 Python / 61 manager tests and retained EDA
+ASan/UBSan/host/bank/FCFS/cut scope pass. The complete Scala run took 35m34s.
+Exact-DCP component P&R retains unchanged 140 MHz: observer +2.768/+0.051 ns
+(344 sequential identities), collector +1.720/+0.035 ns (168 identities).
+Shell/I/O/parent timing remains unmodeled. Fresh SP2 observer VCS passes 6,658
+checks, five overflow cases, all 321 raw-readback bit mutations and all 21 role
+path mutations. Observation corruption stops at host step 17 / ack 16, not a
+CPU semantic-corruption acceptance. Collector VCS passes 4,547 checks, four
+cuts, ten cancellations, twelve raw-wave audits and all 81 control-bit mutations.
+Both native fixtures match the full-suite outputs. All raw debug waves remain.
+
+Static coverage independently recomputes all 11,465 StateIDs: 10,723 register
+entries, 742 memories, 21,000,989 generated bits and four static tile scopes.
+Three BUFGCE O adapters remain metasim-only; they do not own physical CE latches.
+Observed banking explicitly rejects both new annotation classes pending their
+specialization contract. A separate ordinary exact-Rocket trial retains the
+missing-FASED-physical-owner refusal. Neither emits a checkpoint image.
+
+Commands, source-bound receipts and diagnostics are in `runs/aws-f2/iteration296/`;
+closure is `final-audit-d53wmq0n/summary.json`. Preserve both source-superseded
+full Scala attempts and exact-process stop logs, the initial connector/reset/
+inline-pin/fixture diagnostics, the actual linked-inner-root failure and fix,
+and the initial observed-bank expectation failure. A scoped JVM sample confirms
+active FIRRTL MultiInfo serialization during the long retained graft check;
+keep the full scope intact. Preserve the initial audit/preflight-selection race
+and successful sequenced closure. No worker started: managed startup failed
+before execution, all implementation is central and no delegated work remains.
+
+Production bank/collector/selective-freeze binding, ungated native transport,
+physical CE ownership, functional memory/FASED/host and pre-FAME completeness,
+a full checkpoint-enabled localhost image/AFI, actual active-workload F2 cuts,
+FPGA-origin paired zero-edge/finite/live CPU migration and rolling recovery
+remain pending. The map grants no global target-time or capture authority.
+Reuse iteration 194's retained localhost invocation. Final AWS/native HDK/
+localhost/source/resource audit passes: no active loop F2 instance, pending AFI
+or Java/Vivado job. Plans and initialized manager YAMLs retain entry hashes.
+Existing controller checkpoints were published FireSim then Chipyard with
+matching remote tips; retain the local tracking-ref warning. No staging or
+local commits occurred.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 295,
 **in_progress; actual FAME clock-progress observations; production cut binding pending**.
 
 `--simulator-fame-clock-progress` now observes consumed clock tokens, the
