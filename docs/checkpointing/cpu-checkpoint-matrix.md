@@ -14,6 +14,24 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 293 connects the F2 source-cancellation guard/reset-owned cut to
+compiler-emitted clock/reset RTL through `CheckpointF2ClockResetCut`. The adapter
+adds no gates and leaves shell writers and original AXI/clock-wizard reset paths
+unchanged. Component exact-DCP P&R at unchanged 140 MHz closes +1.262/+0.037 ns,
+preserving 168 sequential identities and routing 216 nets without routing errors
+or reported DRC violations. Full-shell timing and production ownership remain
+pending. Fresh EDA SP2 passes 4,547 checks, four component cuts, 320 cycles,
+64 collection stalls, six cancellations and first-divergence reset-route
+corruption at `left.reset`, cycle 17, with no later acknowledged edge. All eight
+raw full-visibility waves pass independent state/control/routing auditing. All
+409 Python / 61 manager tests, sanitizers, host, generated-bank, FCFS and cut
+regressions pass. The exact-Rocket ordinary bank compiler continues to reject
+the missing FASED physical CE owner. This component is not installed in the
+production shell and emits no image/AFI. All physical cuts, FPGA-origin paired
+CPU restore/replay/live execution, hardware-image negatives and rolling recovery
+remain pending. Details: [f2-generated-reset-integration.md](f2-generated-reset-integration.md).
+Evidence/commands: `runs/aws-f2/iteration293/`. No hardware acceptance column advances.
+
 Iteration 292 verifies a synthesizable monitor for the literal four F2 shell
 reset/DDR writer bits. It preserves the original synchronizers and three AXI
 reset paths, snapshots the writers at the common cut and cancels on writer

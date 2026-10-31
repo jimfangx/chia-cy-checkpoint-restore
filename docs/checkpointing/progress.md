@@ -35,7 +35,47 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 292,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 293,
+**in_progress; F2 shell adapter connected to generated clock/reset RTL; production installation pending**.
+
+`CheckpointF2ClockResetCut` composes source cancellation and the reset-owned
+cut in external-clock-network mode. It connects original shell writer bits to
+the generated held-reset, mask and logical-CE ports without adding clock gates.
+The actual synchronizers and AXI/clock-wizard reset paths remain unchanged.
+See [f2-generated-reset-integration.md](f2-generated-reset-integration.md).
+
+Native Vivado 2025.2 exact-DCP component P&R closes unchanged requested 140 MHz
+at +1.262/+0.037 ns, preserving 168 sequential identities and routing all 216
+routable nets without routing errors or reported DRC violations. Native checks
+require three generated SYNC BUFGCEs, four original FDCE writers and one FDPE
+cancellation flop. Parent-clock, shell I/O and asynchronous timing remain
+unmodeled. Fresh EDA SP2 passes 4,547 checks, cuts 0/17/128/256, 320 active cycles,
+64 collection stalls, six cancellation cases and first-divergence reset-route
+corruption at `left.reset`, cycle 17, without acknowledging another edge.
+Independent auditing passes all eight raw full-visibility waves, including all
+80 functional, four shell-writer and 81 visible control bits plus generated
+clock/reset routing. All 409 Python / 61 manager tests, ASan/UBSan, host capture,
+generated-bank, FCFS and cut regressions pass fresh. No Scala source changed.
+The generated verification hierarchy retains iteration 291 input provenance; it is not new
+Rocket RTL or FPGA-origin state.
+
+Fresh ordinary exact-Rocket compilation still refuses the missing FASED
+physical CE owner before emitting an image. Complete production CE/reset
+ownership, selective hold, independently owned ungated collection, atomic
+collector/native transport/stream self-state, functional memory/FASED, host
+and pre-FAME coverage remain incomplete. Full localhost image/AFI, all four
+physical active-workload cuts, paired FPGA-origin zero-edge/finite/live CPU
+migration, hardware-image negatives and rolling recovery remain pending.
+Reuse iteration 194's retained localhost build invocation. Evidence and raw
+commands are under `runs/aws-f2/iteration293/`; final closure is
+`final-audit-u25iyb2y/summary.json` within that directory. Fresh AWS/native HDK/localhost
+checks pass; final inventory has no active loop F2 instance, pending AFI or
+native Java/Vivado job. Existing controller checkpoints were pushed FireSim
+then Chipyard, with independently matching remote tips; the original local
+tracking-ref warning remains in its publication log. Plans and initialized
+manager YAMLs retain their entry hashes. No staging or local commits occurred.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 292,
 **in_progress; native shell reset-source guard verified; production installation pending**.
 
 `CheckpointF2ResetGuard` snapshots the actual four shell reset/DDR writer bits
