@@ -35,7 +35,54 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 287,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 288,
+**in_progress; native transport image guard and complete component verification pass**.
+
+The production compiler now rejects unowned native transport state even when
+all annotations/headers are removed and the manifest is genuinely bound.
+Definition identity, native state ports and an independent parameter/transport
+signature retain rejection after renaming or malformed ABI/parameter changes.
+The existing physical reservation checks remain intact. The new five-test
+`NativeCheckpointImageGuardSpec` elaborates both actual native endpoint wrappers
+and checks thirteen negative cases at both the direct and ordinary compiler
+boundary (26 rejections). All 346 Scala tests / 55 suites plus twelve preparation
+tests pass, including the new suite. See
+[f2-native-image-admission.md](f2-native-image-admission.md).
+
+Fresh manager/AWS/native Vivado/HDK/localhost checks and all 61 manager tests
+pass. Existing controller checkpoints were published FireSim then Chipyard;
+both remote tips match. The successful Chipyard push retained a warning that
+its local tracking-ref update encountered read-only `.git` storage. Plans and
+initialized YAMLs are unchanged. Fresh EDA 394-test Python/sanitizer/bank/FCFS/cut
+prefix passes. Complete retained native/EDA auditing passes all thirty original
+scopes, the bound-native/routed component and independent base/bound waveform
+fault checks. All 658 original raw waveforms (217.523 GiB) were freshly hashed
+this turn, with identity/ctime checked again at closure. Eleven source namespaces
+match exactly; nineteen permit only the literal read-only validator insertion,
+with every other generator byte unchanged. Original execution dates remain
+intact. Full-suite Chisel naming differences are recorded without claiming
+generated-byte equivalence. One initial Scala test-compile failure (`StringParam`
+requires `StringLit`) and corrected audit-schema/source-pin diagnostics remain
+under `runs/aws-f2/iteration288/`. No native RTL/timing setting changed.
+
+The local final aggregate is
+`runs/aws-f2/iteration288/guard-and-pending-tc4kml37/summary.json`; complete EDA
+closure is `regressions/retained-complete-audit-hx4v043i/summary.json` beneath that
+iteration. Replay commands are in
+`runs/aws-f2/iteration288/verification-commands.json`. All managed
+workers and their classical jobs finished before the final report.
+
+Production native widget selection/reservation/peer/header integration and all
+complete common-cut/reset/physical CE, transport/stream, memory/FASED/host and
+independent pre-FAME owners remain incomplete. Full localhost image/P&R/AFI,
+actual four-hart early/warm/outstanding/late hardware cuts, fresh paired CPU
+zero-edge readback/finite/live comparison and rolling FPGA recovery remain
+pending. No hardware acceptance column advances.
+Next connect the native production widget, reservation/peer ABI and driver
+identity together, preserving the new admission guard and separate atomic-owner
+requirements; descriptor/readout observation alone cannot close those owners.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 287,
 **in_progress; typed native descriptor binding, component timing and full verification pass**.
 
 `CheckpointNativeCaptureDescriptors` now binds independently validated original

@@ -14,6 +14,22 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 288 closes a production image-admission gap for the native component
+transport. Stripped annotations/headers, valid bound descriptor hashes, renamed
+definitions and malformed flags/ABI no longer evade the missing atomic-owner
+guard. Both actual native wrappers are exercised at the ordinary compiler
+boundary; direct component elaboration remains available. Full verification is
+complete: 346 Scala / 55 suites plus twelve preparation tests, 394 Python tests,
+61 manager tests, sanitizer/FCFS/bank/cut checks and all thirty retained component
+scopes pass. All 658 original raw waves (217.523 GiB) were freshly hashed this
+turn. Original component dates remain intact under the explicit read-only
+validator source exception; generated naming differences are not byte-equivalence
+evidence. Diagnostics belong under `runs/aws-f2/iteration288/`. No native RTL or
+recipe/timing setting changed. Complete production ownership and native
+widget/reservation/peer/header installation remain pending, together with full
+localhost image/P&R/AFI, physical all-hart cuts and paired CPU migration/live/
+rolling acceptance. See [f2-native-image-admission.md](f2-native-image-admission.md).
+
 Iteration 287 implements a typed original-ROM/full-native-stream descriptor
 binding and internal-ROM component wrapper. Reserved selectors, original CE
 identity, named owners, source hashes, driver digest and shadow layout are
