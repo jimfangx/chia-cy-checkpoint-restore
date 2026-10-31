@@ -35,7 +35,56 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 296,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 297,
+**in_progress; FAME role specialization into native functional banks; production FPGA capture pending**.
+
+The bank translator now validates complete FAME progress metadata and preserves
+immutable model/domain identities plus each exact native-gate execution through
+specialization. Annotation/descriptor hashes bind both metadata classes.
+Separate bank-aware validation checks the exact freeze/hold wrapper and original
+reset owner for every observer and pending register; ordinary production checks
+retain their original semantics. See [f2-fame-progress-banks.md](f2-fame-progress-banks.md).
+
+Nineteen focused Scala checks pass, including metadata loss/retarget negatives
+and changed freeze condition/hold/reset ownership. Native Vivado 2025.2 synthesis
+retains all 321 observer bits and two BUFGCEs in the new bank companion. Fresh
+EDA SP2 VCS passes 7,499 checks, 60 reads over all thirteen fixture registers at
+component host steps 17/128/256/512, and 240 response-stall cycles. Its full raw
+debug wave passes independent observer auditing and all 321 bit-mutation negatives. Retained native
+observer and collector routes preserve 140 MHz at +2.768/+0.051 and
++1.720/+0.035 ns; shell/I/O/parent timing remains unmodeled. All 372 Scala
+tests / 59 suites plus sixteen preparation checks, nineteen focused FAME/native
+checks and four focused collector checks pass. The full Scala suite took
+35m22s. All 409 Python / 61 manager tests and retained EDA ASan/UBSan, host,
+bank, FCFS, observer and collector regressions pass. Full-suite bank and native
+fixtures match the synthesized/simulated bytes. Exact read-only Rocket emission
+and static coverage pass; observed and ordinary bank trials independently reach
+the real missing-FASED-physical-owner refusal. Complete static accounting remains
+11,465 entries, 21,000,989 generated bits and four static tile scopes.
+
+All commands, immutable attempts and actual compiler/runtime diagnostics are
+under `runs/aws-f2/iteration297/`. Preserve the initial LowForm, banked-reset,
+inactive-reset-mux and reserved-name assertion diagnostics. The previous missing
+report paths are not recreated or relabeled: final artifact reporting uses
+independently checked local files after EDA retrieval, retaining remote paths
+inside original receipts. Closure is
+`runs/aws-f2/iteration297/final-audit-p9b2p864/summary.json`; all report paths are
+nonempty regular local files. Preserve both scoped JVM samples showing progress
+from clock-provenance traversal into FIRRTL MultiInfo serialization. Managed
+worker startup failed before execution; all work is central and no delegated
+request remains.
+
+Production selective freeze/collector and ungated MMIO/DMA binding, physical
+CE ownership, functional memory/FASED/host/pre-FAME completeness, a full localhost
+image/AFI, actual active-workload F2 cuts, FPGA-origin paired zero-edge/finite/live
+CPU migration and rolling recovery remain pending. Reuse iteration 194's
+retained localhost build invocation. Final AWS/native HDK/localhost checks pass,
+with no active loop F2 instance, pending AFI or Java/Vivado build job. Both plans
+and initialized manager inputs retain their entry hashes; no staging or local
+commits were performed. Existing controller checkpoints were published FireSim then Chipyard with matching remote tips;
+preserve the local tracking-ref warning in the publication log.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 296,
 **in_progress; typed FAME progress bindings verified; production hardware capture pending**.
 
 Construction-site model/domain identities and 21 typed roles now follow concrete
