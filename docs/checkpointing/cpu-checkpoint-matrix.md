@@ -14,6 +14,28 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 291 verifies complete generated root-reset fanout/routing in a separate
+clock-cut sibling, with production writer/transport ownership still unbound.
+Fresh exact-Rocket compilation emits all three replaced root references and
+969 register-next / two native-CE / 224 print / 228 verification-enable uses.
+The actual F2 shell reset and DDR-ready synchronizers assert asynchronously;
+consumer synchrony cannot establish their source/collector ownership. The
+ordinary bank compiler still refuses the unowned FASED CE latch.
+
+All 356 Scala tests / 57 suites plus sixteen preparations, 404 Python tests,
+61 manager tests and fresh sanitizer/host/bank/FCFS/cut checks pass. Fresh EDA
+passes 1,865 generated-wiring checks, four component cuts, 320 cycles, 32 stalls
+and four negatives. Independent original/reset/clock waveform auditing verifies
+all five cases and the first reset-route mismatch at cycle 17 without another
+edge acknowledgement. Exact-DCP component P&R closes unchanged requested
+140 MHz at +1.854/+0.049 ns, preserving 158 sequential identities and routing
+all 190 routable nets without routing errors or reported DRC violations. Shell
+and parent-clock timing remain unmodeled. Raw attempts and commands are under
+`runs/aws-f2/iteration291/`; see [f2-reset-cut-wiring.md](f2-reset-cut-wiring.md).
+The full localhost image/AFI, four physical active-workload cuts, complete
+FPGA-origin paired restore/finite/live comparison, hardware-image negatives
+and rolling recovery remain pending. No hardware acceptance column advances.
+
 Iteration 290 verifies a synchronous-reset-owned common-cut primitive, with
 explicit collector reset separation, held functional reset and fail-closed
 writer/reset/release-race handling. It passes 3,137 fresh EDA checks, four

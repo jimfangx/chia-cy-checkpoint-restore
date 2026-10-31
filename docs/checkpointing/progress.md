@@ -35,7 +35,63 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 290,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 291,
+**in_progress; complete generated root-reset fanout/routing verified; production owners pending**.
+
+`SynchronousResetCutWiring` adds explicit final-emission reset routing alongside
+the common-source clock sibling. It traces repeated instances, memory controls,
+native CEs and side effects, rejects unsupported clocks/asynchronous consumers,
+and replaces every original root reset reference with a held-reset input.
+The optional CLI requires a complete root inventory and clock/wiring requests;
+it emits separate bound files and preserves incomplete-image guards. It does
+not connect the production collector or keep the original MMIO/stream engine
+running. See [f2-reset-cut-wiring.md](f2-reset-cut-wiring.md).
+
+Fresh exact-Rocket compilation passes and emits three replaced root references,
+969 reset-dependent register next-state uses, two native CE pins, 224 print uses
+and 228 verification-enable uses. The retained structural input independently
+has 1,001/2/230/228 uses; original input hashes/dates remain distinct. The real F2
+shell combines reset and DDR-ready synchronizers with asynchronous assertion
+from `rst_main_n`; consumer synchrony does not establish writer ownership.
+Its literal source observation and remaining contracts are recorded under runs.
+Fresh ordinary capture-bank compilation still refuses the unowned FASED CE
+latch. No checkpoint-enabled image, AFI or physical capture is emitted.
+
+Fresh Scala passes 356 tests / 57 suites plus sixteen preparation tests. Its
+new fixture is byte-identical to the one synthesized and executed on EDA.
+Fresh SP2 VCS passes 1,865 checks, cuts 0/17/128/256, 320 cycles, 32 collection
+stalls and four negatives. Reset/writer/owner loss fails closed; semantic
+reset-route corruption stops at `left.reset`, cycle 17, without acknowledging
+another edge. The independent audit passes all five complete debug waves.
+All 404 Python tests, ASan/UBSan, host, generated-bank, FCFS and cut checks pass
+after the bench corrections. All 61 manager tests pass.
+
+Native Vivado 2025.2 synthesizes the generated three-SYNC-BUFGCE network.
+Exact-DCP component P&R closes unchanged requested 140 MHz at +1.854/+0.049 ns,
+preserving 158 sequential identities and routing all 190 routable nets without
+routing errors or reported DRC violations. Parent clock and shell/I/O budgets
+remain unmodeled. Initial vendor-startup/DPI bench failures and a wave-audit
+vendor-scope naming diagnostic remain unchanged beside successful new attempts.
+The manager/native/AWS/localhost checks pass; initialized YAMLs and plans retain
+their entry hashes. Existing controller checkpoints were pushed FireSim then
+Chipyard; remote tips match, retaining the local tracking-ref warning.
+
+Next bind the actual shell reset/DDR-ready writers, all 207 CE-cone state owners,
+selective functional hold and independently owned ungated collection. Native
+peer/reservation, atomic transport/stream self-state, memory/FASED/host and
+pre-FAME ownership remain incomplete. Full localhost image/AFI, all-hart early,
+warm-cache, outstanding-memory and late hardware cuts, FPGA-origin paired
+zero-edge/finite/live migration, hardware-image negatives and rolling recovery
+remain pending. Reuse iteration194's retained localhost build invocation.
+Final closure is `runs/aws-f2/iteration291/final-audit-1lzc6t4i/summary.json`;
+raw replay commands are in `verification-commands.json` below that iteration.
+Final inventory has no active loop F2 runtime, pending AFI or native Java/Vivado
+job; the loop/Ray infrastructure remains running. Its broad process inventory
+is retained separately from the native-job classification. No staging,
+local commits, plan edits or controller-state writes were performed. Managed
+worker startup failed before execution; the central agent completed the work.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 290,
 **in_progress; synthesized reset-owned common-cut primitive verified; production installation pending**.
 
 `CheckpointResetOwnedClockCut` separates collector initialization from synchronous
