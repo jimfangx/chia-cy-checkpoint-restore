@@ -35,7 +35,50 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 304,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 305,
+**in_progress; opt-in local readout-owner restore; physical capture pending**.
+
+The shared live-shell bank adapter now has an explicit optional hardware load
+for all 69 routing/response bits, including inactive retained data and sticky
+faults. Default generation disables it and ties off inputs. Loading requires
+hold, revoked permission, no public handshake intent and consistent snapshot/
+route pending ownership; reset wins. Original/staged storage and production
+ownership remain independently unsupported. See
+[f2-live-shell-bank-readout.md](f2-live-shell-bank-readout.md).
+
+All 386 Scala / 60 suites plus sixteen preparation and 25 focused checks pass.
+Native Vivado retains every local owner bit: standalone 396 LUTs / 69 registers;
+generated wrapper 985 LUTs / 1,320 registers. Source-bound fresh EDA SP2 passes
+18 independent component restores, eighteen unsafe-load cases, three every-bit
+processes and 139 generated-wrapper loads. Independent raw-wave auditing
+confirms 2,304 continued bank transactions, all 69 bit-mutation rejections and
+compiled response corruption at canonical bit 2 before any acknowledgement.
+Fifty-nine new debug waves remain. These are directed component donors.
+
+All retained native/EDA staging, bank, shell, ASan/UBSan/host/FCFS/cut checks,
+409 Python / 61 manager tests and the complete six-geometry snapshot-bank/MMIO/
+DMA regression pass. Both fresh exact-Rocket compiler trials retain the real
+FASED physical CE/common-low-phase ownership refusal. Final closure is
+`runs/aws-f2/iteration305/final-audit-m72cd4la/summary.json`, binding 2,068 current
+sources and six matching full-suite/native/VCS fixtures. Final AWS/native
+preflight passes with no active loop F2 instance, pending AFI or native build job.
+Preserve the initial generated-wrapper fixture's functional-reset/freeze-order
+failure; its corrected fresh-process readout restore never resets that owner.
+
+Production ONE-widget descriptor/epoch attachment, synthesized readout-owner
+capture, complete original/live/native/staging/global transport restore,
+physical CE/FASED/common cut, memory/host ownership and global target/pre-FAME
+coverage remain pending. No checkpoint-enabled full image/AFI, physical cut,
+FPGA-origin CPU readback/finite/live comparison or rolling recovery is established.
+Retain iteration194's localhost build invocation and all hardware matrix columns
+as pending. Plans and initialized manager inputs retain entry hashes. Existing
+iteration304 controller checkpoints were pushed FireSim then Chipyard, with
+matching remote tips; Chipyard retains its local read-only tracking-ref warning.
+No staging/local commits. Managed startup failed before execution; no worker
+started or remains. Follow
+[github-publication.md](github-publication.md).
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 304,
 **in_progress; shared bank readout of staged live/native state; physical capture pending**.
 
 `NativeCheckpointLiveShellBankReadout` exposes the immutable live-shell/native
