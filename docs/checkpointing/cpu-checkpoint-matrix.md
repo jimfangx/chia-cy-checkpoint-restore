@@ -14,6 +14,20 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 310 connects the local FAME applied-edge label and an all-domain
+progress-consistency owner to a generated raw-clock F2 collector sibling. See
+[f2-fame-cut-owner.md](f2-fame-cut-owner.md). The witness adds no storage and
+preserves explicit external-owner requirements. Native synthesis retains all 321 observer bits (302 LUTs / 423 registers /
+three BUFGCEs including the separate collector; timing unproven). Fresh SP2
+passes twelve FAME cases / twelve debug waves, four applied cuts, 261 predicate
+fault trials and 323 real readback-checker mutations; all 389 Scala / 16 preparation /
+56 focused / 69 manager / 409 Python and retained native/EDA checks pass.
+Exact-Rocket emission binds 21 roles and 11,465 inventory entries while keeping
+image admission false. Evidence is under `runs/aws-f2/iteration310/`; global
+cut/physical ownership, production
+transport, checkpoint-enabled image and every FPGA migration column remain
+pending. This local predicate cannot acknowledge FASED, memory or host owners.
+
 Iteration 309 adds generated local staging-owner restore; see
 [f2-live-shell-staging-restore.md](f2-live-shell-staging-restore.md). Native
 localhost synthesis retains all 308 / 628 local owner bits with no added

@@ -35,7 +35,55 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 309,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 310,
+**in_progress; local FAME cut-owner binding; physical capture pending**.
+
+The generated F2 collector can now select an explicit FAME applied-edge count
+through compiler-preserved roles and require a checked local progress owner.
+Every domain must satisfy full-width consumed/applied/pending consistency;
+reset, overflow or missing owners revoke permission. The witness adds no
+storage. Source-bound regeneration rejects rewiring even after rehashing.
+Reopening prepared emitter connectors now gives their existing local wires
+fresh names in this new path, preserving annotation renames and avoiding
+multiple CE drivers. See [f2-fame-cut-owner.md](f2-fame-cut-owner.md).
+
+All 389 Scala tests / 60 suites, sixteen preparation checks, 56 focused tests
+and 69 manager tests pass. Both exact-Rocket bank trials retain the physical
+CE refusal; the new exact-Rocket collector sibling emits with 21 FAME roles
+and 11,465 original inventory entries. Native localhost synthesis retains all
+321 observer bits, using 302 LUTs / 423 registers / three BUFGCEs in the
+component (including the existing collector; implementation timing unproven).
+Fresh source-bound SP2 EDA passes twelve FAME cases / twelve debug waves,
+7,870 healthy checks across 512 host steps, four applied cuts, 261 predicate
+fault trials and 323 mutations through the actual independent readback checker.
+Complete current staging/readout/bank/shell/native-wave/host/ASan/UBSan/FCFS/cut
+scope and 409 Python tests pass. Final source/resource closure passes under `runs/aws-f2/iteration310/`,
+binding 2084 source hashes and 11 matching fixture sets. The selected
+receipt is `final-audit-selected.json`; this is component evidence, not FPGA capture.
+
+EDA capacity recovery authenticated 1,516 additional generated-source pairs
+(start 679 of iteration306's retained plan), sharing 27,776,634,880 bytes with
+complete before/after digests and original files/inodes/recorded metadata
+preserved. Its receipt reserves 35 GiB; no debug wave was removed or replaced.
+Initial form/regeneration/synthesis failures, the empty VCS local-symbol-marker
+audit refusal and separate exploratory runs are retained. The final auditor
+keeps that exact empty compiler-marker hash while requiring nonempty actual
+acceptance evidence. Closing inventory has no active native build or scoped F2 runtime. Root DESSERT/Strober papers were read for state/trace/target-time
+semantics; ASIC synthesis/gate replay/power remain excluded. The exact Rocket image
+still needs physical CE/FASED, channel/memory/host ownership, production
+ONE-widget transport/epoch integration and complete restore. Four active
+FPGA cuts, paired CPU zero-edge/finite/live migration and rolling recovery
+remain pending. Plans and initialized manager inputs are protected by hashes.
+The retained localhost invocation is iteration 194. The initial full-context
+managed worker startup failed before execution; a fresh-context (`fork_turns="none"`)
+managed reviewer completed its read-only review and follow-up through this
+central turn. Its two provenance/readback-audit findings were addressed. No
+delegated work remains active.
+Existing controller checkpoints were published FireSim (`b231da81`) then
+Chipyard (`de8ddda3`); preserve the local tracking-ref warning. No local commits
+or staging. Follow [github-publication.md](github-publication.md).
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 309,
 **in_progress; generated local staging-owner restore; physical capture pending**.
 
 `NativeCheckpointLiveShellSnapshot.generate(..., enableRestore = true)` now

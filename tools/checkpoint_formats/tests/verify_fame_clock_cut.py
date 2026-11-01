@@ -1,0 +1,184 @@
+"""Source-bound synthesis and fresh EDA execution of the local FAME cut owner.
+
+This generated sibling is not a deployable image or hardware checkpoint donor.
+"""
+import argparse
+from datetime import datetime, timezone
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import tempfile
+
+from tools.checkpoint_formats import toolchain
+from tools.checkpoint_formats.codec import require
+from tools.checkpoint_formats.evidence import file_sha
+from tools.checkpoint_formats.regression_runner import local
+
+ROOT = Path(__file__).resolve().parents[3]
+RUNS = ROOT / 'automations/checkpoint_loop/runs'
+SCALA = 'sims/firesim/sim/midas/src/'
+VERILOG = 'sims/firesim/sim/midas/src/main/verilog/'
+RTL = ['CheckpointF2ClockResetCut.sv', 'CheckpointF2ResetGuard.sv',
+       'CheckpointResetOwnedClockCut.sv', 'CheckpointPhysicalClockCut.sv']
+SOURCES = [SCALA + 'main/scala/midas/checkpoint/' + n + '.scala' for n in (
+    'FAMEClockCutWiring', 'FAMEClockProgress', 'FAMEClockProgressBindings', 'F2ClockResetCutWiring',
+    'PhysicalClockCutWiring', 'PhysicalClockCutPlan', 'PhysicalClockGateContract',
+    'SynchronousResetCutWiring')] + [
+    SCALA + 'main/scala/midas/stage/GoldenGateCli.scala',
+    SCALA + 'test/scala/midas/checkpoint/FAMEClockProgressSpec.scala',
+    *[VERILOG + n for n in RTL],
+    'tools/checkpoint_formats/tests/fame_clock_cut_tb.sv',
+    'tools/checkpoint_formats/tests/verify_fame_clock_cut.py',
+    'tools/checkpoint_formats/tests/audit_fame_clock_cut.py',
+    'tools/checkpoint_formats/tests/checkpoint_widget_exit.cc']
+GENERATED = ['reference.fir', 'reference.sv', 'wired.fir', 'wired.sv', 'binding.json',
+             'collector-binding.json', 'manifest.json', 'plan.json']
+TCL = '''set_param general.maxThreads 4
+read_verilog -sv [glob *.sv]
+synth_design -top Top -part xcvu47p-fsvh2892-2-e -mode out_of_context -flatten_hierarchy none
+create_clock -name host_clock -period 7.142857 [get_ports hostClock]
+set gates [get_cells -hier -filter {REF_NAME == BUFGCE}]
+if {[llength $gates] != 3} {error "original two gates plus one root gate required"}
+set observers [get_cells -hier -filter {NAME =~ *checkpoint_fame* && IS_SEQUENTIAL == 1}]
+if {[llength $observers] != 321} {error "all 321 observer bits must drive the actual witness"}
+report_utilization -file utilization.rpt
+report_timing_summary -report_unconstrained -file timing.rpt
+set f [open sequential.txt w]
+foreach c [lsort [get_property NAME [get_cells -hier -filter {IS_SEQUENTIAL == 1}]]] {puts $f $c}
+close $f
+write_checkpoint -force synthesized.dcp
+puts "FAME_CUT_NATIVE_PASS observer_bits=321 gates=3"
+'''
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument('--mode', choices=('vivado', 'vcs'), required=True)
+    p.add_argument('--generated', type=Path, required=True)
+    p.add_argument('--native', type=Path)
+    p.add_argument('--compiler-receipt', type=Path, required=True)
+    p.add_argument('--out', type=Path, required=True)
+    args = p.parse_args()
+    base, generated = (local(ROOT, x).resolve() for x in (args.out, args.generated))
+    require(base.is_relative_to(RUNS) and generated.is_relative_to(RUNS), 'evidence outside runs')
+    base.mkdir(parents=True, exist_ok=True)
+    out = Path(tempfile.mkdtemp(prefix=args.mode + '-', dir=base))
+    doc = dict(status='fail', backend='f2' if args.mode == 'vivado' else 'eda',
+               source_root=str(ROOT), observed_utc=datetime.now(timezone.utc).isoformat(),
+               scope='generated local FAME witness connected to native collector; component only',
+               physical_fpga_capture=False, deployable_capture_image=False, global_target_cut_proven=False,
+               sources={n: file_sha(ROOT / n) for n in SOURCES},
+               generated_path=str(generated), generated={n: file_sha(generated / n) for n in GENERATED}, commands=[])
+
+    def run(argv, name, work=out, expected=0):
+        log = out / (name + '.log')
+        row = dict(argv=list(map(str, argv)), cwd=str(work), log=str(log))
+        doc['commands'].append(row)
+        with log.open('x') as stream:
+            row['returncode'] = subprocess.run(row['argv'], cwd=work, stdout=stream, stderr=subprocess.STDOUT).returncode
+        require(row['returncode'] == expected, 'inspect underlying tool log: ' + str(log))
+        return log.read_text()
+
+    try:
+        compiler_receipt = local(ROOT, args.compiler_receipt).resolve()
+        require(compiler_receipt.is_relative_to(RUNS), 'compiler receipt outside runs')
+        compiler = json.loads(compiler_receipt.read_text())
+        require(compiler['status'] == 'pass' and compiler['backend'] == 'f2' and compiler['returncode'] == 0,
+                'successful native Scala fixture emission required')
+        require(SCALA + 'main/scala/midas/checkpoint/FAMEClockCutWiring.scala' in compiler['sources']
+                and SCALA + 'test/scala/midas/checkpoint/FAMEClockProgressSpec.scala' in compiler['sources'],
+                'compiler did not bind generator and real FAME fixture source')
+        for n, digest in compiler['sources'].items():
+            require(file_sha(local(ROOT, n)) == digest, 'compiler source changed: ' + n)
+        for n in GENERATED:
+            key = 'generated/bank/fame-cut/' + n
+            require(compiler['artifacts'].get(key) == file_sha(generated / n),
+                    'RTL or binding differs from compiler-produced fixture: ' + n)
+            require(file_sha(compiler_receipt.parent / key) == compiler['artifacts'][key],
+                    'compiler fixture changed: ' + n)
+        doc['compiler_receipt'] = dict(path=str(compiler_receipt), sha256=file_sha(compiler_receipt))
+        b = json.loads((generated / 'binding.json').read_text())
+        require(b['scope'] == 'local_fame_witness_connected_f2_collector_sibling_only'
+                and b['reference_sha256'] == file_sha(generated / 'reference.fir')
+                and b['wired_reference_sha256'] == file_sha(generated / 'wired.fir')
+                and b['manifest_sha256'] == file_sha(generated / 'manifest.json')
+                and b['plan_sha256'] == file_sha(generated / 'plan.json')
+                and b['collector_binding_sha256'] == file_sha(generated / 'collector-binding.json')
+                and b['primary_domain'] == 'clockA' and b['label_role'] == 'applied'
+                and b['fame_owner_bit'] == b['external_owners'] == 3 and b['new_storage_bits'] == 0
+                and b['global_target_cut_proven'] is False and b['deployable_capture_image'] is False,
+                'generated witness binding differs')
+        for n in GENERATED:
+            shutil.copyfile(generated / n, out / n)
+        for n in RTL:
+            shutil.copyfile(ROOT / VERILOG / n, out / n)
+        for n in ('fame_clock_cut_tb.sv', 'checkpoint_widget_exit.cc'):
+            shutil.copyfile(ROOT / 'tools/checkpoint_formats/tests' / n, out / n)
+        if args.mode == 'vivado':
+            require(ROOT == Path('/home/ubuntu/chia-cy-checkpoint-restore'), 'native synthesis belongs on current manager')
+            vendor = Path(os.environ['XILINX_VIVADO']) / 'data/verilog/src'
+            doc['vendor_models'] = {}
+            for n, source in [('BUFGCE.v', vendor / 'unisims/BUFGCE.v'), ('glbl.v', vendor / 'glbl.v')]:
+                shutil.copyfile(source, out / n)
+                doc['vendor_models'][n] = dict(original_path=str(source), sha256=file_sha(source))
+            # Read only generated DUT and actual collector RTL, never the testbench or reference.
+            (out / 'synth.tcl').write_text(TCL.replace('[glob *.sv]', '{wired.sv ' + ' '.join(RTL) + '}'))
+            text = run(['vivado', '-mode', 'batch', '-source', 'synth.tcl', '-log', 'vivado.log', '-journal', 'vivado.jou'], 'native')
+            require('Vivado v2025.2' in text and 'FAME_CUT_NATIVE_PASS observer_bits=321 gates=3' in text
+                    and not re.search('ERROR:|CRITICAL WARNING:', text), 'native synthesis incomplete')
+            doc['implementation_timing_proven'] = False
+        else:
+            require(ROOT == Path('/scratch/jfx/chia-cy-checkpoint-restore'), 'VCS belongs on EDA')
+            native = local(ROOT, args.native).resolve()
+            receipt = native / 'summary.json'; bound = json.loads(receipt.read_text())
+            require(bound['status'] == 'pass' and bound['backend'] == 'f2' and bound['sources'] == doc['sources']
+                    and bound['generated'] == doc['generated'], 'native inputs differ')
+            for n, digest in bound['artifacts'].items():
+                path = (native / n).resolve()
+                require(path.is_relative_to(native) and file_sha(path) == digest, 'native artifact changed: ' + n)
+            doc['native_receipt'] = dict(path=str(receipt), sha256=file_sha(receipt))
+            for n in ('BUFGCE.v', 'glbl.v'):
+                shutil.copyfile(native / n, out / n)
+            reference = (out / 'reference.sv').read_text()
+            for n in ('Top', 'Model'):
+                reference = re.sub(r'\b' + n + r'\b', 'Reference' + n, reference)
+            (out / 'reference-renamed.sv').write_text(reference)
+            run([toolchain.VCS, '-full64', '-sverilog', '-timescale=1ns/1ps', '-debug_access+all',
+                 '-debug_region+cell+encrypt', '-Mupdate', '-top', 'fame_clock_cut_tb', '-top', 'glbl',
+                 '-Mdir=' + str(out / 'csrc'), '-o', out / 'simv',
+                 *[out / n for n in ('BUFGCE.v', 'glbl.v', 'wired.sv', 'reference-renamed.sv', *RTL, 'fame_clock_cut_tb.sv')],
+                 out / 'checkpoint_widget_exit.cc', '-CFLAGS', '-std=c++17'], 'compile')
+            doc['cases'] = {}
+            for case, extra in [('healthy', []), ('corrupt', ['+corrupt']),
+                                *[('fault-' + str(i), ['+fault=' + str(i)]) for i in range(10)]]:
+                work = out / case; work.mkdir()
+                text = run([out / 'simv', '-no_save', *extra], case, work, 1 if case == 'corrupt' else 0)
+                if case == 'corrupt':
+                    require(re.search(r'FAME_CUT_DIVERGENCE host_step=17 cycle=\d+ acknowledged=16 signal=clockA_applied', text),
+                            'first divergence was acknowledged or missed')
+                elif case == 'healthy':
+                    require(re.search(r'FAME_CUT_PASS checks=\d+ cycles=512 .* cuts=4 mutations=261', text), 'active scope incomplete')
+                else:
+                    require('FAME_CUT_REJECT fault=' + case[6:] + ' acknowledged=17' in text, 'unsafe cut accepted')
+                require((work / 'fame-cut.vcd').stat().st_size > 1000, 'full debug waveform absent')
+                doc['cases'][case] = dict(log=str(out / (case + '.log')), waveform=str(work / 'fame-cut.vcd'))
+        if args.mode == 'vcs':
+            from tools.checkpoint_formats.tests.audit_fame_clock_cut import audit_wave
+            doc['raw_wave_audit'] = audit_wave(out / 'healthy/fame-cut.vcd')
+        require(doc['sources'] == {n: file_sha(ROOT / n) for n in SOURCES}, 'sources changed during execution')
+        require(doc['generated'] == {n: file_sha(generated / n) for n in GENERATED}, 'compiler inputs changed')
+        doc['status'] = 'pass'
+    except Exception as error:
+        doc['error'] = str(error)
+        raise
+    finally:
+        doc['artifacts'] = {str(p.relative_to(out)): file_sha(p) for p in out.rglob('*')
+                            if p.is_file() and p.suffix in {'.log', '.rpt', '.sv', '.v', '.cc', '.fir', '.json', '.tcl', '.dcp', '.vcd', '.txt'}}
+        receipt = out / 'summary.json'; receipt.write_text(json.dumps(doc, indent=2) + '\n'); print(receipt, flush=True)
+
+
+if __name__ == '__main__':
+    main()
