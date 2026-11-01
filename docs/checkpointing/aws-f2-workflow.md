@@ -52,6 +52,18 @@ retain previous selections when comparing observations. Never overwrite a
 receipt already referenced by an audit: AWS response IDs, timestamps and process
 inventories legitimately change between observations.
 
+Preflight inventories all pages of `describe-fpga-images(Owners=["self"])`
+and retains each exact request/response alongside the flattened image list.
+That filter establishes AWS account ownership only. Names, recipe strings and
+source commits do not establish this loop's ownership; retain untagged AFI/AGFI
+descriptors with ownership explicitly unproven. `audit_resources` independently
+checks pagination, image IDs, pending images, farm scope, active instances,
+processes, identity and region against the bound inventory. A pending AFI or an
+active scoped build/run farm does not invalidate a read-only observation.
+Closure must preserve its identity and resume provenance, rather than require
+the entire account to be idle. This audit authorizes no resource changes and
+does not establish a checkpoint image or physical CPU acceptance.
+
 ## Baseline hardware run
 
 Start with a fresh invocation directory and an installed self-checking FireSim

@@ -35,7 +35,42 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 307,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 308,
+**in_progress; resource-closure recovery; physical capture pending**.
+
+The previous controller rerun passed Scala/native/EDA scope but failed its final
+account-wide no-pending-AFI assertion. Actual AWS evidence identifies pending
+`afi-0ed70ab25dc08278b` / `agfi-0f03f58c9ae010a5b`, named for Saturn AutoILA,
+without ownership tags. Preserve it; loop ownership/checkpoint compatibility
+remain unproven. No resource mutation was attempted. Preflight now preserves
+all account AFI API pages and independently audits pagination, image/pending IDs,
+farm scope, active instances, processes, identity and region. Nonempty resource
+observations are valid and authorize no mutation or acceptance claim.
+
+All 69 manager tests pass, including hidden pending IDs, truncated/repeated
+pagination, API failures, wrong scope/region and active-resource cases. Fresh
+EDA SP2 passes the complete retained 409-test Python/sanitizer/host/bank/FCFS/cut
+regression. The source-bound Scala/native/directed-capture hardware evidence
+remains from iteration 307; no RTL changed. Do not relabel those component
+receipts as fresh iteration-308 execution. Exact commands and immutable attempts
+are under `runs/aws-f2/iteration308/`.
+Final independent closure passes with 2,075 current source hashes and eight
+unchanged compiler/native/VCS fixture sets, including the pending AFI descriptor.
+Selection: `runs/aws-f2/iteration308/final-audit-selected.json`.
+
+Native HDK/Vivado 2025.2 and localhost Fabric SSH pass; current AWS observation
+retains the pending AFI and no active loop F2 instance or native build job.
+Reuse iteration194's localhost invocation. Physical CE/common-low-phase owner,
+production ONE-widget descriptor/epoch attachment, complete native/staging/global
+restore, memory/host ownership, full image/AFI, active four-hart cuts and actual
+FPGA-origin finite/live migration/rolling recovery all remain pending.
+Plans and initialized manager YAMLs retain entry hashes. Existing iteration307
+checkpoints were pushed FireSim (`302b0f19`) then Chipyard (`68113416`), with
+matching remote tips; preserve Chipyard's local tracking-ref warning. No staging
+or local commits. Managed worker startup failed before execution; no delegated
+worker ran. Follow [github-publication.md](github-publication.md).
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 307,
 **in_progress; occupied-staging local capture permission; physical capture pending**.
 
 The capture-enabled generated wrapper now withdraws local readout permission

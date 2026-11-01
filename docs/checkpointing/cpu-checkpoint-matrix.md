@@ -14,6 +14,23 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 308 corrects resource closure after iteration 307's controller rerun
+encountered account-owned pending AFI `afi-0ed70ab25dc08278b` /
+`agfi-0f03f58c9ae010a5b`. AWS describes an untagged Saturn AutoILA image;
+loop ownership and checkpoint compatibility are unproven. Its full descriptor
+is preserved without resource mutation. The preflight now retains all AFI API
+pages, independently checks summary/inventory agreement and accepts nonempty
+resource observations. All 69 manager tests pass, including hidden pending IDs,
+pagination errors and active-resource cases. Fresh EDA SP2 also passes the full
+retained 409-test Python/sanitizer/host/bank/FCFS/cut scope. Current-source closure
+retains iteration-307 hardware component receipts as historical evidence;
+this iteration changes no RTL or FPGA implementation. All physical image/cut,
+FPGA-origin migration, live CPU and rolling-hardware columns remain pending.
+Final closure binds 2,075 current sources and eight unchanged fixture sets at
+`runs/aws-f2/iteration308/final-audit-5sxdx9ub/summary.json`.
+Commands, protected-input hashes and fresh regression evidence are under
+`runs/aws-f2/iteration308/`.
+
 Iteration 307 adds source-bound local permission withdrawal during readout
 capture while retaining an occupied staging payload, cut label and pending
 response. This adds no registers or global epoch authority. Full Scala,

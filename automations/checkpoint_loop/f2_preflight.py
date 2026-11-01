@@ -31,6 +31,79 @@ def write_json(path: Path, doc: dict) -> None:
         stream.write(json.dumps(doc, indent=2, default=str) + "\n")
 
 
+def account_fpga_images(ec2) -> dict:
+    """Retain every account-owned AFI page, without inferring loop ownership."""
+    pages, images, tokens = [], [], set()
+    request = dict(Owners=["self"])
+    while True:
+        response = ec2.describe_fpga_images(**request)
+        pages.append(dict(request=request, response=response))
+        images.extend(response["FpgaImages"])
+        token = response.get("NextToken")
+        if not token:
+            break
+        if token in tokens:
+            raise ValueError("repeated AFI pagination token")
+        tokens.add(token)
+        request = dict(Owners=["self"], NextToken=token)
+    return dict(FpgaImages=images, pages=pages)
+
+
+def audit_resources(doc: dict, inventory: dict) -> dict:
+    """Audit observation completeness, not resource idleness or permission to delete.
+
+    An AFI returned by Owners=self belongs to the AWS account. Its recipe name,
+    source commit or missing tags cannot establish this loop's ownership. Preserve
+    full descriptors so subsequent turns can resume an explicitly bound build.
+    """
+    owned = inventory["owned_fpga_images"]
+    pages = owned["pages"]
+    if not isinstance(pages, list) or not pages:
+        raise ValueError("AFI inventory omits API pages")
+    images, tokens, next_token = [], set(), None
+    for index, page in enumerate(pages):
+        request = dict(Owners=["self"])
+        if index:
+            if not next_token:
+                raise ValueError("AFI page follows terminal page")
+            request["NextToken"] = next_token
+        if page["request"] != request:
+            raise ValueError("AFI page request or owner filter mismatch")
+        images.extend(page["response"]["FpgaImages"])
+        next_token = page["response"].get("NextToken")
+        if next_token:
+            if next_token in tokens:
+                raise ValueError("repeated AFI pagination token")
+            tokens.add(next_token)
+    if next_token or images != owned["FpgaImages"]:
+        raise ValueError("AFI inventory truncated or flattened images changed")
+    ids = [image["FpgaImageId"] for image in images]
+    if len(ids) != len(set(ids)):
+        raise ValueError("duplicate AFI IDs across inventory pages")
+    pending = [image for image in images if image["State"]["Code"] == "pending"]
+    filters = [{"Name": "tag:fsimcluster", "Values": ["checkpoint-f2-*"]}]
+    if inventory["all_loop_instance_filters"] != filters:
+        raise ValueError("loop instance inventory filter mismatch")
+    instances = inventory["all_loop_instances"]
+    if len({i["InstanceId"] for i in instances}) != len(instances):
+        raise ValueError("duplicate loop instance IDs")
+    if any(not any(t["Key"] == "fsimcluster" and t["Value"].startswith("checkpoint-f2-")
+                   for t in i.get("Tags", [])) for i in instances):
+        raise ValueError("instance outside dedicated loop farm tags")
+    active = [i["InstanceId"] for i in instances
+              if i["State"]["Name"] not in ("terminated", "shutting-down")]
+    expected = dict(owned_afi_ids=ids, pending_afi_ids=[i["FpgaImageId"] for i in pending],
+                    active_loop_instance_ids=active, local_processes=inventory["local_build_processes"]["processes"],
+                    aws_identity=inventory["aws_identity"], region=inventory["region"],
+                    pending_afi_scope="account-owned in observed region; loop ownership unproven")
+    if any(doc.get(name) != value for name, value in expected.items()):
+        raise ValueError("resource summary differs from bound inventory")
+    return dict(pending_account_fpga_images=pending, active_loop_instance_ids=active,
+                local_processes=expected["local_processes"], afi_api_pages=len(pages),
+                pending_afi_scope=expected["pending_afi_scope"],
+                policy="observe and preserve; this audit authorizes no resource mutation")
+
+
 def audit_receipt(receipt: Path, expected_sha256: str) -> dict:
     """Verify a selected observation, its local evidence and protected inputs."""
     receipt = receipt.resolve()
@@ -63,6 +136,7 @@ def audit_receipt(receipt: Path, expected_sha256: str) -> dict:
     required_sources = {"automations/checkpoint_loop/f2_preflight.py", "automations/checkpoint_loop/f2_inventory.py"}
     if set(sources) != required_sources or any(sha(ROOT / name) != digest for name, digest in sources.items()):
         raise ValueError("preflight producer sources changed or missing")
+    audit_resources(doc, json.loads((receipt.parent / "resource-inventory.json").read_text()))
     return doc
 
 
@@ -95,7 +169,7 @@ def collect(attempt: Path, invocation: Path, protected: dict, session) -> dict:
     inventory["all_loop_instance_filters"] = filters
     inventory["all_loop_instances"] = [i for page in ec2.get_paginator("describe_instances").paginate(Filters=filters)
                                        for reservation in page["Reservations"] for i in reservation["Instances"]]
-    inventory["owned_fpga_images"] = ec2.describe_fpga_images(Owners=["self"])
+    inventory["owned_fpga_images"] = account_fpga_images(ec2)
     write_json(attempt / "resource-inventory.json", inventory)
     manifest = json.loads((invocation / "manager-commands.json").read_text())
     active = [i["InstanceId"] for i in inventory["all_loop_instances"]
@@ -103,15 +177,18 @@ def collect(attempt: Path, invocation: Path, protected: dict, session) -> dict:
     afis = inventory["owned_fpga_images"].get("FpgaImages", [])
     unchanged = all(sha(Path(p)) == expected for p, expected in protected.items())
     passed = result.returncode == 0 and "vivado v2025.2" in result.stdout.lower() and fabric["returncode"] == 0 and unchanged
-    return dict(status="pass" if passed else "fail", native_argv=argv, native_returncode=result.returncode,
+    summary = dict(status="pass" if passed else "fail", native_argv=argv, native_returncode=result.returncode,
                 fabric_localhost=fabric, protected_inputs_unchanged=unchanged,
                 aws_identity=inventory["aws_identity"], region=inventory["region"],
                 active_loop_instance_ids=active, owned_afi_ids=[i["FpgaImageId"] for i in afis],
                 pending_afi_ids=[i["FpgaImageId"] for i in afis if i["State"]["Code"] == "pending"],
+                pending_afi_scope="account-owned in observed region; loop ownership unproven",
                 local_processes=inventory["local_build_processes"]["processes"], retained_invocation=str(invocation),
                 retained_build_dir=manifest["build_dir"], hwdb_ready=manifest["hwdb_ready"],
                 checkpoint_hardware_verified=manifest["checkpoint_hardware_verified"],
                 resume_build=manifest["commands"]["buildbitstream"])
+    audit_resources(summary, inventory)
+    return summary
 
 
 def run_preflight(out: Path, invocation: Path, protected_inputs: Path, *, selected: Path | None = None,

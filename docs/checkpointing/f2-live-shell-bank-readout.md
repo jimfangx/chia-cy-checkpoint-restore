@@ -212,3 +212,12 @@ The independent closure binds 2,075 current sources and eight matching fixtures;
 Both fresh Rocket production trials retain the physical CE/common-cut refusal.
 Final AWS/native inventory has no active loop instance, pending AFI or native
 job. Full checkpoint image and FPGA-origin CPU acceptance remain pending.
+
+Iteration 308 corrects that resource-idleness statement for the subsequent
+controller rerun: its final observation contained pending, account-owned
+`afi-0ed70ab25dc08278b` (untagged Saturn AutoILA), and the account-wide
+no-pending-AFI assertion failed. The original observations and successful
+component checks remain intact. Current preflight preserves full paginated
+AFI descriptors with loop ownership unproven and independently audits inventory
+agreement; an in-flight image is not itself a failed resource observation.
+This correction adds no hardware coverage. See `runs/aws-f2/iteration308/`.
