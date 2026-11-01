@@ -35,7 +35,52 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 302,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 303,
+**in_progress; combined live-shell/native-reader staging; physical capture pending**.
+
+An explicit `stageNativeState` mode samples the original live registers and all
+source-bound native reader/endpoint owners at the same raw pre-edge. It checks
+the implicit RAM register's actual clock driver and requires every reader phase
+idle, rather than testing only pending responses. Derived explicit storage has
+independent synchronous bank-reset initialization through LowForm next-state
+muxes; the implicit RAM data register is initialized by original memory execution.
+Original live equations and original bank descriptors remain unchanged.
+See [f2-live-shell-native-staging.md](f2-live-shell-native-staging.md).
+
+Focused Scala: 25 checks pass. Native Vivado retains all 628 staging bits / 1,331
+sequential cells (598 LUTs). The fixture accounts for 237 original live bits and
+fourteen derived owners / 320 bits, totaling 557 payload bits / nine words.
+Fresh EDA SP2 VCS and independent raw-wave audits pass 419 checks at four cuts,
+20 bank transactions, fourteen fault cases and corruption in both original/live
+and native payload words before any bank handshake. All 1,185 payload/control
+bit mutations reject; seventeen full debug waves remain. An independent EDA
+corruption-wave audit confirms first divergence at component cycle zero in word
+zero (original/live) and word three (native), with no bank request/response
+acknowledgement or functional edge after the cut. All 409 Python / 61 manager
+tests, retained ASan/UBSan/host/bank/FCFS/cut checks and ordinary/selective shell
+regressions pass. All 386 Scala tests / 60 suites plus sixteen preparation
+checks pass (38m02s main suite); all four full-suite fixture sets match the
+independently synthesized inputs byte for byte. Both fresh observed and ordinary
+exact-Rocket compiler trials retain the real FASED physical CE owner/common
+low-phase refusal. Final closure is `final-audit-0bp02wws/summary.json`, binding
+2,060 current source files. Native HDK/Vivado/localhost and AWS checks pass,
+with no active loop F2 instance, pending AFI or native Java/Vivado build job.
+Inspect immutable attempts under `runs/aws-f2/iteration303/`. The independent auditor initially
+probed the combinational RAM wire; the corrected full run probes the actual
+emitter-owned `mem_r_data_pipe_0` register. Preserve the initial clock-validation,
+LowForm reset-emission and stale-source audit diagnostics as failed attempts.
+
+Production widget attachment/descriptor sizing, complete restore ownership,
+physical CE/FASED/functional-memory/host/pre-FAME coverage and global target time
+remain pending. No new image/AFI, physical FPGA checkpoint, CPU migration/live
+comparison or rolling hardware recovery is established. Hardware columns remain
+pending. Initialized manager inputs and both plans remain read-only. Preflight
+passes native HDK/Vivado, localhost SSH and AWS access. Managed delegation failed
+before execution; no worker started. Existing iteration302 controller checkpoints
+were pushed FireSim then Chipyard; remote tips match. No staging/local commits.
+Follow [github-publication.md](github-publication.md).
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 302,
 **in_progress; original live-shell register staging verified; physical capture pending**.
 
 `NativeCheckpointLiveShellSnapshot` attaches atomic pre-edge staging to the

@@ -25,11 +25,12 @@ ROOT = Path(__file__).resolve().parents[3]
 RUNS = ROOT / "automations/checkpoint_loop/runs"
 RTL = "sims/firesim/sim/midas/src/main/verilog/CheckpointNativeStateSnapshot.sv"
 TB = "tools/checkpoint_formats/tests/live_shell_snapshot_tb.sv"
+NATIVE_TB = "tools/checkpoint_formats/tests/live_shell_native_snapshot_tb.sv"
 SELF = "tools/checkpoint_formats/tests/verify_live_shell_snapshot.py"
 SOURCES = sorted({str(p.relative_to(ROOT)) for tree in (
     "sims/firesim/sim/midas/src/main/scala/midas/checkpoint",
     "sims/firesim/sim/midas/src/test/scala/midas/checkpoint")
-    for p in (ROOT / tree).glob("*.scala")} | {RTL, TB, SELF,
+    for p in (ROOT / tree).glob("*.scala")} | {RTL, TB, NATIVE_TB, SELF,
     "tools/checkpoint_formats/tests/audit_checkpoint_regions.py",
     "tools/checkpoint_formats/tests/audit_physical_clock_plan.py",
     "tools/checkpoint_formats/tests/checkpoint_widget_exit.cc",
@@ -46,7 +47,8 @@ def audit_generated(directory, binding=None):
     read = lambda n: (directory / n).read_text()
     doc = json.loads(read("binding.json")) if binding is None else binding
     original = inventory_from_firrtl(read("source.fir"), "LiveTop")
-    expected = sorted((r for r in original if r["hierarchy"] != "LiveTop.shell.count"), key=lambda r: r["hierarchy"])
+    expected = sorted((r for r in original if r["hierarchy"] in
+        {"LiveTop.shell." + n for n in "abcdefgh"}), key=lambda r: r["hierarchy"])
     require(len(expected) == 8 and len(doc["state"]) == 8, "incomplete original live register inventory")
     before, after = parse_modules(read("source.fir"))["Shell"], parse_modules(read("wired.fir"))["Shell"]
     offset = 0
@@ -65,24 +67,54 @@ def audit_generated(directory, binding=None):
                 and row["driver_sha256"] == hashlib.sha256((name + " <= " + before["drivers"][name]).encode()).hexdigest(),
                 "original equations not bound")
         offset += row["width"]
-    require(offset == doc["bits"] == 237 and doc["words"] == 4 and doc["staging_owner_bits"] == 308,
+    native = doc["snapshot_version"] == 2
+    mapping = json.loads(read("banked-mapping.json"))
+    if native:
+        banked = inventory_from_firrtl(read("banked.fir"), "LiveTop")
+        excluded = {r["storage_hierarchy"] for r in mapping["state"]} | {r["hierarchy"] for r in expected}
+        derived = sorted((r for r in banked if r["hierarchy"] not in excluded), key=lambda r:r["hierarchy"])
+        require(len(doc["native_state"]) == len(derived) and derived, "incomplete native derived inventory")
+        for row, source in zip(doc["native_state"], derived):
+            require(row["instrumented_state_id"] == source["state_id"] and all(row[k] == source[k]
+                for k in ("hierarchy", "width", "signed", "adapter")) and row["offset"] == offset,
+                "changed derived native owner or packing")
+            name = source["hierarchy"].split(".")[-1]
+            expression = "mem.r.data" if source["adapter"] == "firrtl-emitter-memory-pipeline-v1" else name
+            require(row["expression"] == expression and row["clock_expression"] ==
+                    source["clock_expression"].removeprefix("checkpoint_shell_"),
+                    "changed native observation expression or clock")
+            offset += source["width"]
+        require(len(re.findall(r"reg \[63:0\] mem_r_data_pipe_0;", read("wired.sv"))) == 1 and
+                "mem_r_data_pipe_0 <= mem_r_data;" in read("wired.sv"),
+                "missing actual emitter-owned synchronous RAM data register")
+        require(doc["original_live_bits"] == 237 and doc["native_bits"] == offset - 237
+                and doc["native_observation"] == json.loads(read("banks-binding.json"))["native_state_observation"],
+                "native source observation changed")
+        require(doc["reader_idle_contract"] == "all_native_phases_idle_and_no_pending_response"
+                and "reader_idle <= and(checkpoint_shell_live_snapshot_raw_req_ready, not(checkpoint_shell_live_snapshot_raw_resp_valid))"
+                in read("wired.fir"), "native busy pipeline omitted from idle qualification")
+    require(offset == doc["bits"] and doc["words"] == (offset + 63) // 64
+            and doc["staging_owner_bits"] == offset + 71,
             "incorrect complete payload geometry")
     require(doc["raw_clock"] == "LiveTop.shell.clock" and doc["enclosing_raw_clock"] == "LiveTop.clock"
-            and doc["snapshot_version"] == 1
-            and doc["scope"] == "selected_original_live_shell_register_atomic_observation_only",
+            and doc["snapshot_version"] in (1,2)
+            and doc["scope"] == ("live_shell_and_native_reader_atomic_observation_only" if native else
+                "selected_original_live_shell_register_atomic_observation_only"),
             "changed clock or ownership scope")
     require("checkpoint_shell_ckpt_clock" not in read("wired.fir"), "independent access clock still exists")
     require(doc["source_sha256"] == sha(ROOT / RTL) and doc["wired_sha256"] == sha(directory / "wired.fir")
             and doc["shell_binding_sha256"] == sha(directory / "banked-binding.json")
             and doc["wired_annotations_sha256"] == sha(directory / "wired.anno.json"), "stale source binding")
+    require(json.loads(read("banked-binding.json"))["banks_binding_sha256"] == sha(directory / "banks-binding.json"),
+            "changed source-bound native bank metadata")
     for flag in ("complete_fpga_capture", "deployable_capture_image", "production_freeze_owners_bound",
                  "metasim_restore_supported", "staging_restore_supported", "target_time_authority_proven"):
         require(doc[flag] is False, "component falsely admits hardware/restore acceptance")
-    mapping = json.loads(read("banked-mapping.json"))
     require(doc["original_unsupported_live_owners"] == mapping["unsupported_live_owners"], "lost ownership deficits")
-    require(len(mapping["state"]) == 1 and mapping["state"][0]["hierarchy"] == "LiveTop.shell.count",
+    require(len(mapping["state"]) == (3 if native else 1) and
+            any(r["hierarchy"] == "LiveTop.shell.count" for r in mapping["state"]),
             "different original functional bank")
-    return doc, mapping["state"][0]
+    return doc, next(r for r in mapping["state"] if r["hierarchy"] == "LiveTop.shell.count")
 
 
 def wave_rows(path, names):
@@ -120,12 +152,22 @@ def audit_wave(path, doc, *, payload_bit=None, owner_bit=None):
         "owners_frozen", "target_cycle", "ready", "valid", "borrow_enable", "failed", "word_address", "word_error",
         "word_data", "cut_cycle", "error", "control_state", "req_valid", "req_ready", "resp_valid", "resp_ready"))
     names |= {stage + n for n in ("clock", "payload", "occupied", "cut_cycle", "error", "live_state")}
-    names |= {"dut.shell." + r["expression"] for r in doc["state"]} | {pending}
+    fields = doc["state"] + doc.get("native_state", [])
+    def signal(row):
+        name = row["hierarchy"].split(".")[-1]
+        # FIRRTL's virtual mem_r_data owner denotes the clocked pipeline,
+        # while mem_r_data in emitted SV is the combinational RAM read wire.
+        if row.get("adapter") == "firrtl-emitter-memory-pipeline-v1": name += "_pipe_0"
+        return "dut.shell." + name
+    names |= {signal(r) for r in fields} | {pending}
+    phase = "dut.shell.checkpoint_shell_ckpt_native_phase"
+    native = doc["snapshot_version"] == 2
+    if native: names.add(phase)
     previous = None
     saved = label = occupied = sticky = 0
     captures, releases, accepted, acknowledged, reads, held = [], 0, 0, 0, 0, 0
     def packed(v):
-        return sum((v["dut.shell." + r["expression"]] & ((1 << r["width"]) - 1)) << r["offset"] for r in doc["state"])
+        return sum((v[signal(r)] & ((1 << r["width"]) - 1)) << r["offset"] for r in fields)
     for v in wave_rows(path, names):
         if any(x is None for x in v.values()):
             require(v["snapshot_reset"] != 0, "unknown state after independent initialization")
@@ -140,7 +182,8 @@ def audit_wave(path, doc, *, payload_bit=None, owner_bit=None):
                 active = occupied or p["request"] or p["req_valid"] or p["release_snapshot"]
                 faults = (int(bool(active and (not p["owners_present"] or p["bank_reset"]))) |
                     (int(bool(active and not (p["freeze"] and p["owners_frozen"]))) << 1) |
-                    (int(bool(((capture or p["release_snapshot"]) and p[pending]) or (capture and p["req_valid"]))) << 2) |
+                    (int(bool(((capture or p["release_snapshot"]) and
+                        (p[pending] or (native and p[phase] != 0))) or (capture and p["req_valid"]))) << 2) |
                     (int(bool(p["req_valid"] and not occupied)) << 3) |
                     (int(bool(occupied and p["target_cycle"] != label)) << 4) |
                     (int(bool((p["request"] and occupied) or (p["request"] and p["release_snapshot"]) or
@@ -170,15 +213,16 @@ def audit_wave(path, doc, *, payload_bit=None, owner_bit=None):
                 and v[stage + "occupied"] == occupied and v[stage + "error"] == sticky,
                 "snapshot differs from independently reconstructed preedge original state")
         observed_owner = v["control_state"] ^ (0 if owner_bit is None else 1 << owner_bit)
-        require(observed_owner == saved | (occupied << 237) | (label << 238) | (sticky << 302),
+        require(observed_owner == saved | (occupied << doc["bits"]) | (label << (doc["bits"]+1)) |
+                (sticky << (doc["bits"]+65)),
                 "staging control readback omitted original owner storage")
         if v["valid"]:
             require(occupied and not v["failed"] and v["borrow_enable"] and not v["release_snapshot"],
                     "unqualified snapshot publication")
             address = v["word_address"]
-            require(v["word_error"] == int(address >= 4) and v["word_data"] ==
-                    ((saved >> (address * 64)) & ((1 << 64) - 1) if address < 4 else 0), "serial staged read differs")
-            reads += int(address < 4)
+            require(v["word_error"] == int(address >= doc["words"]) and v["word_data"] ==
+                    ((saved >> (address * 64)) & ((1 << 64) - 1) if address < doc["words"] else 0), "serial staged read differs")
+            reads += int(address < doc["words"])
         else:
             require(not v["borrow_enable"] and not v["req_ready"] and not v["resp_valid"]
                     and v["word_error"] and v["word_data"] == 0, "revoked handshake or payload escaped")
@@ -223,7 +267,9 @@ def main():
         shutil.copytree(args.generated, out / "generated")
         doc, bank = audit_generated(out / "generated")
         negatives = []
-        for case in ("omission", "shape", "offset", "id", "signed", "restore", "clock"):
+        cases = ["omission", "shape", "offset", "id", "signed", "restore", "clock"]
+        if doc["snapshot_version"] == 2: cases += ["native-omission", "native-offset", "native-id", "native-expression", "native-clock"]
+        for case in cases:
             mutant = copy.deepcopy(doc)
             if case == "omission": mutant["state"].pop()
             elif case == "shape": mutant["state"][2]["width"] -= 1
@@ -232,12 +278,29 @@ def main():
             elif case == "signed": mutant["state"][3]["signed"] = False
             elif case == "restore": mutant["staging_restore_supported"] = True
             elif case == "clock": mutant["raw_clock"] = "LiveTop.shell.reset"
+            elif case == "native-omission": mutant["native_state"].pop()
+            elif case == "native-offset": mutant["native_state"][0]["offset"] += 1
+            elif case == "native-id": mutant["native_state"][0]["instrumented_state_id"] = "0" * 64
+            elif case == "native-expression": mutant["native_state"][0]["expression"] = "count"
+            elif case == "native-clock": mutant["native_state"][0]["clock_expression"] = "reset"
             try: audit_generated(out / "generated", mutant)
             except FormatError as error: negatives.append(dict(case=case, rejected=True, error=str(error)))
             else: raise FormatError("accepted rehashed schema mutation " + case)
         receipt["schema_negatives"] = negatives
         shutil.copyfile(ROOT / RTL, out / "snapshot.sv")
         (out / "bank-selector.svh").write_text(f"localparam COUNT_BANK=8'd{bank['bank']}, COUNT_SLOT=16'd{bank['slot']};\n")
+        if doc["snapshot_version"] == 2:
+            memory = next(r for r in json.loads((out / "generated/banked-mapping.json").read_text())["state"]
+                          if r["kind"] == "memory")
+            (out / "native-geometry.svh").write_text(
+                f"localparam BITS={doc['bits']}, WORDS={doc['words']};\n" +
+                f"localparam MEM_BANK=8'd{memory['bank']}, MEM_SLOT=16'd{memory['slot']};\n")
+            # A directed TB packs direct owner probes. The separate wave audit
+            # reconstructs these from the original/banked FIRRTL inventories.
+            terms = ["dut.shell." + r["hierarchy"].split(".")[-1] +
+                     ("_pipe_0" if r["adapter"] == "firrtl-emitter-memory-pipeline-v1" else "")
+                     for r in doc["native_state"]]
+            (out / "native-probes.svh").write_text("wire [BITS-238:0] native_probes={" + ",".join(reversed(terms)) + "};\n")
         (out / "synth.tcl").write_text("""set_param general.maxThreads 4
 read_verilog -sv {generated/wired.sv snapshot.sv}
 synth_design -top LiveTop -part xcvu47p-fsvh2892-2-e -mode out_of_context -flatten_hierarchy none -keep_equivalent_registers
@@ -246,16 +309,16 @@ set stage [get_cells shell/checkpoint_shell_live_snapshot_adapter]
 if {[llength $stage] != 1} {error "missing original staging instance"}
 set staged [get_cells -hier -filter {NAME =~ */checkpoint_shell_live_snapshot_adapter/* && IS_SEQUENTIAL == 1}]
 set allseq [get_cells -hier -filter {IS_SEQUENTIAL == 1}]
-if {[llength $staged] != 308} {error "incomplete original staging owner"}
+if {[llength $staged] != STAGING_BITS} {error "incomplete original staging owner"}
 if {[llength [get_cells -hier -filter {REF_NAME == BUFGCE}]] != 0} {error "unexpected gated clock owner"}
 report_utilization -file utilization.rpt
 report_timing_summary -file timing.rpt
 write_checkpoint -force live-shell-snapshot.dcp
 puts "LIVE_SHELL_SNAPSHOT_SYNTH_PASS staging_bits=[llength $staged] sequential=[llength $allseq]"
-""")
+""".replace("STAGING_BITS", str(doc["staging_owner_bits"])))
         receipt["inputs"] = {str(p.relative_to(out)): sha(p) for p in out.rglob("*") if p.is_file() and p.name != "summary.json"}
         text = run(["vivado", "-mode", "batch", "-source", "synth.tcl"], "synth")
-        require("LIVE_SHELL_SNAPSHOT_SYNTH_PASS staging_bits=308" in text and
+        require("LIVE_SHELL_SNAPSHOT_SYNTH_PASS staging_bits=" + str(doc["staging_owner_bits"]) in text and
                 not re.search(r"ERROR:|CRITICAL WARNING:", text), "native staging synthesis failed")
     else:
         require(str(ROOT).startswith("/scratch/") and toolchain.VCS == "/tools/Synopsys/vcs/Y-2026.03-SP2/bin/vcs", "EDA SP2 VCS required")
@@ -269,33 +332,62 @@ puts "LIVE_SHELL_SNAPSHOT_SYNTH_PASS staging_bits=[llength $staged] sequential=[
         receipt["inputs"] = native["inputs"]
         doc, bank = audit_generated(out / "generated")
         require((out / "bank-selector.svh").read_text() == f"localparam COUNT_BANK=8'd{bank['bank']}, COUNT_SLOT=16'd{bank['slot']};\n", "changed bank selector")
-        shutil.copyfile(ROOT / TB, out / "testbench.sv")
+        native_mode = doc["snapshot_version"] == 2
+        shutil.copyfile(ROOT / (NATIVE_TB if native_mode else TB), out / "testbench.sv")
         audits = {}
-        for mode in ("healthy", "payload"):
+        corrupt_modes = ("payload", "native-payload") if native_mode else ("payload",)
+        for mode in ("healthy", *corrupt_modes):
             folder = out / mode; folder.mkdir()
             text = (out / "snapshot.sv").read_text()
-            if mode == "payload":
+            if mode in corrupt_modes:
                 needle = "word_error ? 64'b0 : padded[word_address * 64 +: 64]"
                 require(text.count(needle) == 1, "ambiguous payload mutation site")
-                text = text.replace(needle, "word_error ? 64'b0 : (padded[word_address * 64 +: 64] ^ 64'h1)")
+                corruption = "64'h1" if mode == "payload" else (
+                    f"(word_address == 32'd{doc['original_live_bits']//64} ? " +
+                    f"64'h{1 << (doc['original_live_bits']%64):x} : 64'h0)")
+                text = text.replace(needle, "word_error ? 64'b0 : (padded[word_address * 64 +: 64] ^ " + corruption + ")")
             (folder / "compiled-snapshot.sv").write_text(text)
             run([toolchain.VCS, "-full64", "-sverilog", "-timescale=1ns/1ps", "-Mupdate", "-debug_access+all",
                 "+incdir+" + str(out), "-top", "live_shell_snapshot_tb", "-Mdir=" + str(folder / "csrc"),
                 "-o", str(folder / "simv"), str(out / "generated/wired.sv"), str(folder / "compiled-snapshot.sv"),
                 str(out / "testbench.sv"), str(ROOT / "tools/checkpoint_formats/tests/checkpoint_widget_exit.cc")], mode + "-compile")
-            for case in (("healthy", *NEGATIVES) if mode == "healthy" else ("payload",)):
-                text = run([folder / "simv", "-no_save", "+CASE=" + case], case + "-run", 1 if case == "payload" else 0)
+            negatives = (*NEGATIVES, "busy-reader-capture", "busy-reader-release") if native_mode else NEGATIVES
+            for case in (("healthy", *negatives) if mode == "healthy" else ("payload",)):
+                text = run([folder / "simv", "-no_save", "+CASE=" + case],
+                           (mode if case == "payload" else case) + "-run", 1 if case == "payload" else 0)
                 wave = out / "live-shell-snapshot.vcd"
                 require(wave.is_file() and wave.stat().st_size > 0, "missing full debug VCD")
-                destination = out / (case + ".vcd"); wave.rename(destination)
+                destination = out / ((mode if case == "payload" else case) + ".vcd"); wave.rename(destination)
                 if case == "payload":
                     require("LIVE_SHELL_DIVERGENCE scenario=payload cycle=0 signal=staged word and high padding reads=0" in text
                             and "LIVE_SHELL_SNAPSHOT_PASS" not in text, "payload corruption did not stop at first divergent word")
+                    if native_mode:
+                        # Check the failing bus independently: no bank edge was
+                        # acknowledged before the first corrupt original/native
+                        # word. The payload oracle is reconstructed from probes
+                        # by audit_wave, not taken from the serialized vector.
+                        try: audit_wave(destination, doc)
+                        except FormatError as error:
+                            require(str(error) == "serial staged read differs", "corruption failed an unrelated audit")
+                        else: raise FormatError("corrupt word escaped independent wave audit")
+                        signals = {"clock", "target_cycle", "valid", "word_address", "word_error",
+                                   "word_data", "req_ready", "req_valid", "resp_valid", "resp_ready"}
+                        samples = list(wave_rows(destination, signals))
+                        require(not any(v["req_ready"] and v["req_valid"] or
+                                        v["resp_valid"] and v["resp_ready"] for v in samples),
+                                "corrupt capture acknowledged a bank edge")
+                        last = samples[-1]
+                        require(last["target_cycle"] == 0 and last["word_address"] ==
+                                (doc['original_live_bits']//64 if mode == "native-payload" else 0),
+                                "wrong first divergent original/native word")
                     continue
                 audits[case] = audit_wave(destination, doc)
                 if case == "healthy":
-                    match = re.search(r"LIVE_SHELL_SNAPSHOT_PASS checks=(\d+) cuts=4 reads=4 stalls=32 live_changes=(\d+)", text)
-                    require(match and audits[case]["cut_labels"] == [0,17,128,256] and audits[case]["bank_responses"] == 4,
+                    expected_reads = 20 if native_mode else 4
+                    match = re.search(r"LIVE_SHELL_SNAPSHOT_PASS checks=(\d+) cuts=4 reads=" + str(expected_reads) +
+                                      r" stalls=32 live_changes=(\d+)", text)
+                    require(match and audits[case]["cut_labels"] == [0,17,128,256] and
+                            audits[case]["bank_responses"] == expected_reads,
                             "incomplete four-cut live execution")
                     receipt["checks"] = int(match[1])
                 else:
@@ -303,7 +395,7 @@ puts "LIVE_SHELL_SNAPSHOT_SYNTH_PASS staging_bits=[llength $staged] sequential=[
                             and audits[case]["bank_responses"] == 0, "fault acknowledged a bank response")
         receipt["wave_audits"] = audits
         mutations = []
-        for kind,bits in (("payload",237),("owner",308)):
+        for kind,bits in (("payload",doc["bits"]),("owner",doc["staging_owner_bits"])):
             for bit in range(bits):
                 try: audit_wave(out / "healthy.vcd", doc, **({"payload_bit":bit} if kind=="payload" else {"owner_bit":bit}))
                 except FormatError: mutations.append(dict(kind=kind, bit=bit, rejected=True))
