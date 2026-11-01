@@ -10,9 +10,33 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 
 | Family | F2 workload / custom capture image | FPGA Level-1 to EDA metasim | FPGA Level-2 finite RTL replay | Live RTL / rolling hardware recovery |
 | --- | --- | --- | --- | --- |
-| Rocket (all four harts) | baseline verified: real F2 slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress: typed construction-site FAME progress roles now survive concrete native inlining, exact physical gate replacement and actual emitter renames, with complete typed metadata now preserved through native functional-bank specialization; 321 observer bits and two original pending bits remain separately inventoried without asserting global target-time authority; bank/MMIO/DMA fixtures synthesize locally, ordinary whole-root bank trial enforces 2,120 typed dedup groups and passes exact native BUFGCE XDC pin contracts and retires only NoDedup definitions removed by actual native inlining; exact native RAM-style memory hints now translate and the final consumer emits late public host-widget XDC; native SimulationMapping now links and renames the exact TargetBox boundary and all local/nonlocal targets together; the ordinary whole-root trial rejects the FASED physical BUFGCE CE latch lacking a synthesized capture owner/common-low-phase cut; the regional/local probe also rejects eight inlined widget-local MMIO/DMA owners before connection; post-mapping InlineInstances runs before inventory/banking with complete concrete register/RAM rename provenance; exact stage emitter policy and retired abstract clock-gate source have immutable final-emission/history provenance; passive generated headers/defines retain exact-byte emission provenance; stage input retains immutable circuit/module history; consumed bridge extraction retains immutable circuit/connectivity history; consumed pre-link requests retain immutable circuit/mapping history; deduplication-history and target-box instance paths, global memory policies, consumed-input/channel-frequency context, XDC and memory-model labels translate with provenance; all seven FPGA plusarg instances have source-checked constant semantics; three physical BUFGCE owners, complete common-cut/memory/host binding and image P&R/AFI remain pending | pending | pending | pending |
+| Rocket (all four harts) | baseline verified: real F2 slot 0, public AGFI, self-check PASS at 44,104,832 cycles; custom capture image in_progress: typed construction-site FAME progress roles now survive concrete native inlining, exact physical gate replacement and actual emitter renames, with complete typed metadata now preserved through native functional-bank specialization and its actual final emitter; 321 observer bits and two original pending bits remain separately inventoried without asserting global target-time authority; bank/MMIO/DMA fixtures synthesize locally, ordinary whole-root bank trial enforces 2,120 typed dedup groups and passes exact native BUFGCE XDC pin contracts and retires only NoDedup definitions removed by actual native inlining; exact native RAM-style memory hints now translate and the final consumer emits late public host-widget XDC; native SimulationMapping now links and renames the exact TargetBox boundary and all local/nonlocal targets together; the ordinary whole-root trial rejects the FASED physical BUFGCE CE latch lacking a synthesized capture owner/common-low-phase cut; the regional/local probe also rejects eight inlined widget-local MMIO/DMA owners before connection; post-mapping InlineInstances runs before inventory/banking with complete concrete register/RAM rename provenance; exact stage emitter policy and retired abstract clock-gate source have immutable final-emission/history provenance; passive generated headers/defines retain exact-byte emission provenance; stage input retains immutable circuit/module history; consumed bridge extraction retains immutable circuit/connectivity history; consumed pre-link requests retain immutable circuit/mapping history; deduplication-history and target-box instance paths, global memory policies, consumed-input/channel-frequency context, XDC and memory-model labels translate with provenance; all seven FPGA plusarg instances have source-checked constant semantics; three physical BUFGCE owners, complete common-cut/memory/host binding and image P&R/AFI remain pending | pending | pending | pending |
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
+
+Iteration 298 binds the exact Rocket native companion's FAME roles to the
+actual final-emitter IR/RTL, original StateIDs and bank selectors. Constraint
+emission validates the unmasked bank and requires exact reconstruction of the
+masked circuit and every annotation. Fresh exact compilation and independent
+audits pass for 12,102 functional entries / 619,019 transfer words. Native and
+ordinary inventories are separate compiler boundaries: respectively 12,105
+entries / 21,005,699 bits (including three metasim O adapters) and 11,465 entries /
+21,000,989 bits. All eight stored FAME roles retain their StateIDs; complete
+cross-phase state migration remains unsupported. Twenty-one focused Scala
+checks, 124 EDA fixture corruptions and all 409 Python / 61 manager plus retained
+EDA sanitizer/host/bank/FCFS/cut checks pass. All 374 Scala tests / 59 suites
+plus sixteen preparation checks pass (38m18s). Actual bank final-emitter fixture
+synthesis retains 321 observer bits and two BUFGCEs (379 LUTs / 408 registers);
+fresh EDA SP2 VCS passes 7,499 bank checks, 60 reads / 240 response-stall cycles
+at four component host-step cuts, and all 321 raw-wave bit mutations reject.
+Observer/collector VCS passes 6,658 / 4,547 healthy checks with overflow/cancel
+negatives; their component routes retain 140 MHz at +2.768/+0.051 and
++1.720/+0.035 ns. Full-suite generated bytes match native and VCS inputs.
+Shell/parent/I/O timing and bank routing remain unproven. Final source/artifact/
+resource closure passes at `final-audit-xgi0og7v/summary.json` under the iteration.
+This provides no FPGA capture, image or CPU acceptance. See
+[f2-fame-native-emission.md](f2-fame-native-emission.md); commands and receipts
+are under `runs/aws-f2/iteration298/`. All hardware migration columns remain pending.
 
 Iteration 297 adds explicit specialization of complete FAME model/signal
 metadata into native functional banks. Every role retains its one concrete

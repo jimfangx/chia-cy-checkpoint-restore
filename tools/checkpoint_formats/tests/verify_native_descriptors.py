@@ -38,6 +38,7 @@ SOURCES = (
     'tools/checkpoint_formats/tests/physical_descriptor_rom_tb.sv',
     'tools/checkpoint_formats/tests/checkpoint_widget_exit.cc',
     'tools/checkpoint_formats/tests/audit_native_functional_production.py',
+    'tools/checkpoint_formats/tests/audit_native_fame_progress.py',
     'tools/checkpoint_formats/tests/verify_native_functional_bank.py',
     'tools/checkpoint_formats/tests/verify_physical_descriptors.py',
     'tools/checkpoint_formats/tests/audit_physical_clock_dependencies.py',

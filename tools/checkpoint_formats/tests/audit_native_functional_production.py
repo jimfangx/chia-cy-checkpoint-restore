@@ -13,6 +13,7 @@ from tools.checkpoint_formats.codec import canonical, require
 from tools.checkpoint_formats.tests.audit_physical_clock_dependencies import audit as audit_dependencies
 from tools.checkpoint_formats.tests.audit_physical_clock_plan import parse_modules
 from tools.checkpoint_formats.tests.verify_native_functional_bank import digest, sha, FLAGS
+from tools.checkpoint_formats.tests.audit_native_fame_progress import audit as audit_progress, SUFFIXES
 
 
 def audit(directory, prefix='FireSim-generated'):
@@ -24,6 +25,10 @@ def audit(directory, prefix='FireSim-generated'):
         inputs=emission['inputs'],**FLAGS),'native emission scope/admission changed')
     expected_suffixes=['-reference.fir','-reference.anno.json','-context.anno.json','-context.json','-simulator-state.json','-plan.json','-dependencies.json',
         '-inventory.json','-instrumented.fir','-binding.json','.sv','.synthesis.xdc','.implementation.xdc']
+    annotations=read('-reference.anno.json')
+    progress_requested=any(a['class'].endswith(('.FAMEClockProgressModelAnnotation', '.FAMEClockProgressSignalAnnotation')) for a in annotations)
+    if progress_requested:
+        expected_suffixes.extend(SUFFIXES)
     require(set(emission['inputs'])=={'.native-functional'+s for s in expected_suffixes},'incomplete native emission files')
     for suffix in expected_suffixes:
         require(sha(path(suffix))==emission['inputs']['.native-functional'+suffix], 'native emission input changed '+suffix)
@@ -89,11 +94,12 @@ def audit(directory, prefix='FireSim-generated'):
     rtl=path('.sv').read_text()
     require('module BUFGCE' not in rtl and len(re.findall(r'\bBUFGCE [A-Za-z_][A-Za-z0-9_$]* \(',rtl))==len(native),
         'native primitive was substituted or omitted in emitted RTL')
+    progress=audit_progress(directory,prefix) if progress_requested else None
     return dict(status='pass',scope='complete concrete FIRRTL storage readout companion, not complete CPU checkpoint',
         physical_fpga_capture=False,production_rocket_integrated=False,metasim_restore_supported=False,
         descriptors=len(bound),transfer_words=total_words,transfer_payload_bytes=total_words*8,
         native_clock_gates=native,concrete_state_owners=len(actual_storage),endpoint_state_owners=len(endpoint),
-        original_directory=str(directory.resolve()),dependency_audit=dependency_result,
+        original_directory=str(directory.resolve()),dependency_audit=dependency_result,fame_progress_audit=progress,
         artifacts={str(path(s).resolve()):sha(path(s)) for s in expected_suffixes+['-emission.json']})
 
 
