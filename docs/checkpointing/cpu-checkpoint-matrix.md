@@ -14,6 +14,22 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 304 adds source-bound shared bank readout of the staged live/native
+payload. It preserves original selectors, appends a nine-word descriptor and
+retains response ownership through backpressure and public selector changes.
+The new 69-bit routing/response owner remains explicitly unsupported for capture
+and restore. Native synthesis retains all 628 staging bits and 69 readout-owner
+bits. Fresh EDA SP2 VCS passes 1,019 comparisons / 68 bank transactions at four
+component cuts and nineteen fault cases, with twenty-two fixture debug waves.
+Corruption stops at the first bad word before its acknowledgement; all 69 owner
+bit mutations reject. All 386 Scala tests plus sixteen preparation checks,
+409 Python / 61 manager tests and retained regressions pass. Five full-suite
+fixtures match native/VCS inputs. Final closure is
+`runs/aws-f2/iteration304/final-audit-mjgcq2pu/summary.json`; see
+[f2-live-shell-bank-readout.md](f2-live-shell-bank-readout.md). Both fresh exact
+Rocket trials retain the physical CE/common-low-phase ownership refusal.
+All physical capture, migration and rolling-recovery columns remain pending.
+
 Iteration 303 adds optional same-edge observation of the live shell and all
 fourteen derived native-reader/endpoint owners, including the implicit RAM data
 pipeline. The directed payload has 557 bits / nine words and a separate 628-bit
