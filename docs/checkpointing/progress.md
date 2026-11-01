@@ -35,40 +35,64 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 308,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 309,
+**in_progress; generated local staging-owner restore; physical capture pending**.
+
+`NativeCheckpointLiveShellSnapshot.generate(..., enableRestore = true)` now
+routes the existing whole-owner load through the generated raw-clock wrapper.
+It restores payload, occupancy, cut label and all sticky errors without adding
+storage, and includes restore hold in the functional-bank hold. Default
+construction keeps restore disabled. Regeneration/source binding rejects
+changed options and coherently rehashed missing hold wiring. Production and
+CPU restore flags remain false. See
+[f2-live-shell-staging-restore.md](f2-live-shell-staging-restore.md).
+
+Local Vivado passes both emitted profiles, retaining all 308 / 628 staging bits
+(237 / 557 payload bits). Utilization: 406 / 850 LUTs and 675 / 1,251 registers.
+All 386 Scala tests / 60 suites, sixteen preparation checks, 25 focused tests
+and the complete 69 manager tests pass. Fresh SP2 EDA passes eight
+donor/fresh-restore pairs, sixteen unsafe loads, and 1,876 loads in bit-coverage
+processes (1,872 one-hot/complement loads). Compiled corruption stops before
+acknowledgement; 35 debug waves remain. The retained 409-test EDA Python/
+sanitizer/host/bank/FCFS/cut scope passes. Both
+fresh exact-Rocket compiler trials preserve the physical CE/common-cut refusal.
+All retained localhost native synthesis and widget-partition checks pass.
+Fresh source-bound SP2 EDA shell/readout/staging/transport checks and their
+corruption-wave audits pass; the shared auditor also passes all 117 explicitly
+historical iteration286 standalone waves. Evidence and commands are under
+`runs/aws-f2/iteration309/`; final source/fixture/resource closure is selected
+by `final-audit-selected.json`: **pass**, binding 2,078 current
+source hashes and 10 matching compiler/native/VCS fixture sets. No native
+build job or active scoped F2 instance remains.
+Initial audit signal-name, donor delta-settling and historical manager-count
+receipt failures are preserved separately; no failed attempt is acceptance.
+
+AWS/native/localhost preflight passes in us-west-2. Entry observed pending
+Saturn AFI `afi-0ed70ab25dc08278b` / `agfi-0f03f58c9ae010a5b`; closing AWS
+inventory observes it available (AWS update 18:00:18 UTC). Both immutable
+observations are preserved. The image remains untagged/unattributed and must
+not be claimed as this loop's checkpoint build. No resource mutation, new AFI
+or runtime was requested. Physical CE/common-low-phase ownership, production
+ONE-widget descriptor/epoch attachment, complete original/live/native/global restore,
+functional-memory/host ownership, full image/P&R/AFI, all-hart active cuts and
+FPGA-origin finite/live migration/rolling recovery remain pending. Reuse
+iteration194's localhost invocation and the initialized manager inputs.
+
+Existing controller checkpoints were published FireSim (`9143ced3`) then
+Chipyard (`2305b878`); matching remote tips were collected. Preserve the local
+Chipyard tracking-ref warning. No staging or local commits. Plans and initialized
+manager files retain entry hashes. Managed worker startup failed before
+execution; no delegated worker ran. Follow
+[github-publication.md](github-publication.md).
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 308,
 **in_progress; resource-closure recovery; physical capture pending**.
 
-The previous controller rerun passed Scala/native/EDA scope but failed its final
-account-wide no-pending-AFI assertion. Actual AWS evidence identifies pending
-`afi-0ed70ab25dc08278b` / `agfi-0f03f58c9ae010a5b`, named for Saturn AutoILA,
-without ownership tags. Preserve it; loop ownership/checkpoint compatibility
-remain unproven. No resource mutation was attempted. Preflight now preserves
-all account AFI API pages and independently audits pagination, image/pending IDs,
-farm scope, active instances, processes, identity and region. Nonempty resource
-observations are valid and authorize no mutation or acceptance claim.
-
-All 69 manager tests pass, including hidden pending IDs, truncated/repeated
-pagination, API failures, wrong scope/region and active-resource cases. Fresh
-EDA SP2 passes the complete retained 409-test Python/sanitizer/host/bank/FCFS/cut
-regression. The source-bound Scala/native/directed-capture hardware evidence
-remains from iteration 307; no RTL changed. Do not relabel those component
-receipts as fresh iteration-308 execution. Exact commands and immutable attempts
-are under `runs/aws-f2/iteration308/`.
-Final independent closure passes with 2,075 current source hashes and eight
-unchanged compiler/native/VCS fixture sets, including the pending AFI descriptor.
-Selection: `runs/aws-f2/iteration308/final-audit-selected.json`.
-
-Native HDK/Vivado 2025.2 and localhost Fabric SSH pass; current AWS observation
-retains the pending AFI and no active loop F2 instance or native build job.
-Reuse iteration194's localhost invocation. Physical CE/common-low-phase owner,
-production ONE-widget descriptor/epoch attachment, complete native/staging/global
-restore, memory/host ownership, full image/AFI, active four-hart cuts and actual
-FPGA-origin finite/live migration/rolling recovery all remain pending.
-Plans and initialized manager YAMLs retain entry hashes. Existing iteration307
-checkpoints were pushed FireSim (`302b0f19`) then Chipyard (`68113416`), with
-matching remote tips; preserve Chipyard's local tracking-ref warning. No staging
-or local commits. Managed worker startup failed before execution; no delegated
-worker ran. Follow [github-publication.md](github-publication.md).
+The 308 resource audit preserves all AFI pages, independently checks pagination,
+identity/region, instances and processes, and accepts nonempty observations
+without authorizing resource mutation. Its complete 69 manager / 409 EDA tests
+passed; compiler/native fixtures remain explicitly dated iteration307.
+Closure: `runs/aws-f2/iteration308/final-audit-selected.json`.
 
 Historical milestone: `F2-rocket-checkpoint-migration`, iteration 307,
 **in_progress; occupied-staging local capture permission; physical capture pending**.

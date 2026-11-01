@@ -5,11 +5,13 @@ import re
 from tools.checkpoint_formats.codec import require
 
 
-def audit(path, bits, *, loads=1, broken=False):
-    top = "native_snapshot_restore_tb."
+def audit(path, bits, *, loads=1, broken=False, top="native_snapshot_restore_tb.", owner="dut.",
+          reset_signal="reset", ready_signal="request_ready"):
+    """Audit original storage; optional scopes support the generated shell graft."""
     signals = {n: top + n for n in ("clock", "reset", "restore_hold", "restore_load", "restore_state",
         "restore_ready", "valid", "borrow_enable", "request_ready", "word_error", "word_data", "control_state")}
-    signals.update({n: top + "dut." + n for n in ("payload", "occupied", "cut_cycle", "error")})
+    signals.update(reset=top + reset_signal, request_ready=top + ready_signal)
+    signals.update({n: top + owner + n for n in ("payload", "occupied", "cut_cycle", "error")})
     codes, values, scopes, previous = {}, {}, [], {}
     accepted = held = running = 0
     initialized = False
@@ -79,6 +81,7 @@ def audit(path, bits, *, loads=1, broken=False):
     if broken:
         require(first == dict(canonical_bit=0, enabled_edges_before=0, read_acknowledged=False),
                 "compiled semantic fault escaped first original-register load")
+        require(running == 0, "compiled semantic fault continued after divergent load")
     else:
         require(first is None and held >= 8, "incomplete parked snapshot-owner waveform")
     return dict(original_registers=4, bits=bits + 71, accepted_loads=accepted,
