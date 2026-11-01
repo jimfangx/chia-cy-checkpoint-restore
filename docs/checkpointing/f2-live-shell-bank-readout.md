@@ -162,3 +162,53 @@ ENOSPC and wildcard-port failures remain in separate attempts. Kernel-verified
 sharing recovered 16 GiB without removing/replacing any original evidence; the
 legacy bank fixture's inactive capture hold is explicitly tied low. Complete
 native/EDA verification then passes. Physical FPGA/CPU acceptance remains pending.
+
+## Iteration 307: local capture permission with occupied staging
+
+An explicitly capture-enabled generated wrapper now connects readout permission
+to `staging.borrow_enable && !capture_hold`. The same hold parks the routing and
+snapshot-response registers. Staging retains its occupied payload and cut label;
+capture neither releases nor resets it. Removing hold hands local permission
+directly back to the existing staging owner. This adds no registers, epoch or
+target-cycle authority. Default capture-disabled generation retains its previous
+permission connection. Binding metadata records the exact permission contract,
+zero added storage and the still-unbound global permission owner. Regeneration
+validation rejects a removed mask even when circuit hashes are coherently updated.
+
+The generated-wrapper regression uses original functional inputs and actual bank
+transactions, without backdoor assignments or fabricated restore loads. It covers
+occupied idle staging, every staged word, original register responses, in-flight
+native-memory reads and resumed response backpressure. The two-word local capture
+is checked against all six original routing/response registers. A separate raw
+waveform audit compares all four staging registers, including inactive payload,
+occupied bit, cut label and sticky errors, against the full 628-bit observation.
+Both capture-only and capture/restore profiles exercise component cuts 0, 17,
+128 and 256. These labels describe directed fixtures, not Rocket or FPGA cuts.
+
+Unsafe public request/acknowledgement intent during hold must return zero/error
+without accepting either edge. Releasing staging, drifting the target label or
+losing a declared owner/freeze retains the unacknowledged response and fails the
+staging epoch. A local owner capture can still expose its held bits after an
+enclosing fault; its valid flag never authorizes global publication. Tests also
+compile the actual emitted wrapper with its permission mask removed and inspect
+the first divergence and waveform tail for later acknowledgements.
+
+This closes the local permission-withdrawal gap only. The production ONE-widget
+descriptor/MMIO/DMA and epoch attachment, complete original/native/staging restore,
+physical CE/common cut, functional-memory and host ownership, full localhost image,
+AFI/AGFI and active all-hart hardware migration remain pending. Current receipts
+and immutable diagnostic attempts are under `runs/aws-f2/iteration307/`.
+
+Iteration-307 closure passes all 386 Scala / 60 suites plus sixteen preparation
+and 25 focused checks, 409 Python / 61 manager tests, complete native synthesis
+and retained EDA SP2 capture/restore/bank/MMIO/DMA/shell/host/sanitizer/FCFS scope.
+The occupied-staging cases pass both profiles, four component cuts and 112
+continued transactions; all 628 observation-bit mutations and both compiled
+missing-mask failures reject. The capture suite retains 84 debug VCDs. Native
+capture-only and paired wrappers use 1,025 / 1,104 LUTs and 1,320 registers; the
+standalone owner remains 514 LUTs / 69 registers. No capture storage was added.
+The independent closure binds 2,075 current sources and eight matching fixtures;
+`runs/aws-f2/iteration307/final-audit-selected.json` selects the immutable receipt.
+Both fresh Rocket production trials retain the physical CE/common-cut refusal.
+Final AWS/native inventory has no active loop instance, pending AFI or native
+job. Full checkpoint image and FPGA-origin CPU acceptance remain pending.

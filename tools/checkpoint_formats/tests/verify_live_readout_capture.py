@@ -17,10 +17,12 @@ from tools.checkpoint_formats.regression_runner import local
 from tools.checkpoint_formats.tests import verify_live_readout_restore as retained
 from tools.checkpoint_formats.tests.audit_live_readout_capture_wave import audit
 from tools.checkpoint_formats.tests.audit_live_readout_restore_wave import audit as audit_restore
+from tools.checkpoint_formats.tests import verify_live_readout_permission as permission
 
 ROOT=retained.ROOT
 SOURCES=retained.SOURCES+('tools/checkpoint_formats/tests/verify_live_readout_capture.py',
-                        'tools/checkpoint_formats/tests/audit_live_readout_capture_wave.py')
+                        'tools/checkpoint_formats/tests/audit_live_readout_capture_wave.py',
+                        permission.SELF, permission.TB)
 sha=retained.sha
 
 
@@ -59,6 +61,7 @@ def main():
         require(args.generated is not None and args.native is None,'current emitted fixture required')
         for name in SOURCES:
             dest=out/'sources'/name;dest.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(ROOT/name,dest)
+        shutil.copyfile(args.generated/'live-shell-bank-readout/banked-mapping.json',out/'permission-mapping.json')
         for suffix in ('','-restore'):
             shutil.copytree(args.generated/('live-shell-bank-readout-capture'+suffix),out/('generated'+suffix))
             binding=json.loads((out/('generated'+suffix)/'binding.json').read_text())
@@ -68,6 +71,7 @@ def main():
                 binding['local_readout_restore_enabled']==bool(suffix) and
                 binding['local_readout_capture_target_cycle_authority'] is False and
                 binding['metasim_restore_supported'] is False,'changed source-bound capture scope')
+        permission.geometry(out)
         (out/'wrapper.sv').write_text(wrapper())
         for top,tag,generated in [('LiveReadoutRestoreTop','unit','generated-restore'),
                                   ('LiveTop','generated','generated'),('LiveTop','paired','generated-restore')]:
@@ -112,6 +116,7 @@ puts "LIVE_READOUT_CAPTURE_SYNTH_PASS"
         doc['generated_wave_audit']=audit(out/'generated-readout-restore.vcd',
             top='live_readout_generated_restore_tb.',owner='dut.checkpoint_live_readout_adapter.')
         doc['generated_fixture_loads']=139
+        doc['occupied_staging_permission']=permission.verify(out,run,common,retained)
         unit=common+['-top','live_readout_restore_tb']
         run(unit+['+define+READOUT_BITS=557','+define+READOUT_CAPTURE_ONLY',
             '-Mdir='+str(out/'capture-only-csrc'),'-o',out/'capture-only-simv',out/'sources'/retained.RTL,
