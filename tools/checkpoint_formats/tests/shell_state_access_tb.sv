@@ -46,8 +46,13 @@ module shell_state_access_tb;
   always @(posedge clock) begin
     edges=edges+1;
     expected_child=reset ? 0 : expected_child+1;
+`ifdef CHECKPOINT_LIVE_LOCAL_CYCLE
+    expected_cycle=reset ? 0 : expected_cycle+1;
+`endif
     if (!freeze) begin
+`ifndef CHECKPOINT_LIVE_LOCAL_CYCLE
       expected_cycle=reset ? 0 : expected_cycle+1;
+`endif
       expected_value=reset ? 0 : expected_value+65'd18446744073709551619;
       expected_read=expected_memory[address];
       if (writeEn) expected_memory[address]=data;

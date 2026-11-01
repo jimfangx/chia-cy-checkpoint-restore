@@ -45,7 +45,7 @@ def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def audit(directory):
+def audit(directory, live_local_cycle=False):
     """Reconstruct every original local owner independently of Scala metadata."""
     directory = Path(directory)
     source = (directory / "source.fir").read_text()
@@ -55,8 +55,8 @@ def audit(directory):
     local = [r for r in inventory_from_firrtl(source, "ShellTop")
              if r["hierarchy"].startswith("ShellTop.enclosing.")
              and r["hierarchy"].count(".") == 2]
-    expected = {r["hierarchy"]: r for r in local}
-    require(set(expected) == {"ShellTop.enclosing.cycles", "ShellTop.enclosing.saved",
+    all_local = {r["hierarchy"]: r for r in local}
+    require(set(all_local) == {"ShellTop.enclosing.cycles", "ShellTop.enclosing.saved",
                              "ShellTop.enclosing.mem", "ShellTop.enclosing.mem_r_data"},
             "incomplete original local-state reconstruction")
     # The producer's exact mapping schema is audited below, before constructing
@@ -65,6 +65,8 @@ def audit(directory):
     require(mapping["mapping_version"] == 1 and mapping["selected_execution"] == "ShellTop.enclosing",
             "different local execution mapping")
     rows = mapping["state"]
+    expected = {p: r for p, r in all_local.items()
+                if not live_local_cycle or p != "ShellTop.enclosing.cycles"}
     require(len(rows) == len(expected), "omitted or duplicate local state")
     require({row["hierarchy"] for row in rows} == set(expected)
             and len({row["state_id"] for row in rows}) == len(rows), "incomplete or duplicate original owners")
@@ -91,6 +93,32 @@ def audit(directory):
             "changed original concrete child execution")
     require(emitted["Child"]["body"] == modules["Child"]["body"], "changed child definition")
     binding = json.loads((directory / "binding.json").read_text())
+    if live_local_cycle:
+        owners = mapping.get("unsupported_live_owners")
+        require(isinstance(owners, list) and len(owners) == 1, "missing separate live owner")
+        owner, original = owners[0], all_local["ShellTop.enclosing.cycles"]
+        require(all(owner.get(k) == original[k] for k in ("state_id", "hierarchy", "kind", "width", "depth"))
+                and owner.get("clock") == owner.get("raw_clock") == "clock"
+                and owner.get("ownership") == "unsupported_live_local_register_requires_separate_atomic_owner"
+                and owner.get("capture_supported") is False and owner.get("restore_supported") is False,
+                "live owner reshaped or falsely admitted")
+        require(binding.get("unsupported_live_owners") == owners
+                and mapping.get("local_partition_contract") == binding.get("local_partition_contract") ==
+                "banked_local_storage_plus_exact_unmodified_live_registers", "changed partition contract")
+        # Reconstruct original register declaration and driver independently.
+        def declaration(body):
+            match = re.search(r"^  reg cycles : [^\n]+\n    reset => [^\n]+", body, re.M)
+            require(match is not None, "missing original live register")
+            return "\n".join(line[2:] for line in match[0].splitlines())
+        before, after = modules["Shell"], emitted["Shell"]
+        require(declaration(before["body"]) == declaration(after["body"])
+                and before["drivers"]["cycles"] == after["drivers"]["cycles"], "live owner frozen or changed")
+        require(owner.get("declaration_sha256") == hashlib.sha256(declaration(before["body"]).encode()).hexdigest()
+                and owner.get("driver_sha256") == hashlib.sha256(
+                    ("cycles <= " + before["drivers"]["cycles"]).encode()).hexdigest(), "live owner equations not bound")
+    else:
+        require("unsupported_live_owners" not in mapping and "unsupported_live_owners" not in binding,
+                "ordinary fixture cannot omit live owners")
     source_annotations = json.loads((directory / "source.anno.json").read_text())
     final_annotations = json.loads((directory / "generated.anno.json").read_text())
     require(final_annotations == [a for a in source_annotations
@@ -101,7 +129,7 @@ def audit(directory):
                           ("manifest_sha256", "manifest.json"), ("banks_binding_sha256", "banks-binding.json")):
         require(binding[key] == sha(directory / filename), "changed local source/output binding " + key)
     require(binding["scope"] == "existing_unique_execution_local_state_readout_only"
-            and binding["local_entries"] == 4 and binding["child_executions_frozen"] is False
+            and binding["local_entries"] == len(expected) and binding["child_executions_frozen"] is False
             and binding["transport_state_supported"] is False, "changed local bank scope")
     for flag in ("complete_fpga_capture", "deployable_capture_image",
                  "production_freeze_owners_bound", "metasim_restore_supported"):
@@ -123,11 +151,14 @@ def selectors(rows):
     return "\n".join(lines + ["end", "endtask", ""])
 
 
-def audit_negatives(generated, output):
+def audit_negatives(generated, output, live_local_cycle=False):
     """Rehash altered documents so source reconstruction must reject them."""
     results = []
-    for case in ("omitted_owner", "duplicate_owner", "changed_id", "pipeline_remap",
-                 "wide_truncation", "aliased_selector", "changed_child", "false_admission"):
+    cases = ("omitted_owner", "duplicate_owner", "changed_id", "pipeline_remap",
+             "wide_truncation", "aliased_selector", "changed_child", "false_admission")
+    if live_local_cycle:
+        cases += ("missing_live_owner", "live_capture_claim", "live_width", "frozen_live_driver")
+    for case in cases:
         directory = output / case
         shutil.copytree(generated, directory)
         mapping = json.loads((directory / "mapping.json").read_text())
@@ -151,13 +182,24 @@ def audit_negatives(generated, output):
             require(text.count("count <=") == 1, "ambiguous child mutation")
             path.write_text(text.replace("count <=", "count <= UInt<8>(0) ; original:", 1))
             binding["instrumented_sha256"] = sha(path)
+        elif case == "missing_live_owner":
+            mapping["unsupported_live_owners"] = []
+            binding["unsupported_live_owners"] = []
+        elif case in ("live_capture_claim", "live_width"):
+            key = "capture_supported" if case == "live_capture_claim" else "width"
+            mapping["unsupported_live_owners"][0][key] = True if case == "live_capture_claim" else 9
+            binding["unsupported_live_owners"] = mapping["unsupported_live_owners"]
+        elif case == "frozen_live_driver":
+            path = directory / "generated.fir"
+            path.write_text(path.read_text().replace("cycles <= ", "cycles <= mux(checkpoint_shell_ckpt_freeze, cycles, ", 1))
+            binding["instrumented_sha256"] = sha(path)
         else:
             binding["complete_fpga_capture"] = True
         (directory / "mapping.json").write_bytes(canonical(mapping))
         binding["mapping_sha256"] = sha(directory / "mapping.json")
         (directory / "binding.json").write_bytes(canonical(binding))
         try:
-            audit(directory)
+            audit(directory, live_local_cycle)
         except FormatError as error:
             results.append(dict(case=case, status="rejected", error=str(error)))
         else:
@@ -172,6 +214,8 @@ def main():
     parser.add_argument("--generated", type=Path)
     parser.add_argument("--native", type=Path)
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--live-local-cycle", action="store_true",
+                        help="Audit the explicitly separate unsupported live cycles owner")
     args = parser.parse_args()
     require(args.out.resolve().is_relative_to(RUNS), "evidence under runs required")
     args.out.mkdir(parents=True, exist_ok=True)
@@ -182,7 +226,8 @@ def main():
                    scope="enclosing local state-bank component only; no global cut or hardware capture",
                    observed_utc=datetime.now(timezone.utc).isoformat(), host=socket.gethostname(),
                    source_root=str(ROOT), sources=source_hashes, physical_fpga_capture=False,
-                   full_image=False, cut_labels="component scenario identifiers; local cycle output independently checked")
+                   full_image=False, live_local_cycle=args.live_local_cycle,
+                   cut_labels="component scenario identifiers; local cycle output independently checked")
     (out / "summary.json").write_text(json.dumps(receipt, indent=2) + "\n")
     print(out, flush=True)
 
@@ -202,8 +247,8 @@ def main():
                 "native localhost Vivado required")
         require(args.generated is not None and args.native is None, "explicit generated input required")
         shutil.copytree(args.generated, out / "generated")
-        rows = audit(out / "generated")
-        receipt["independent_rehashed_negatives"] = audit_negatives(out / "generated", out / "audit-negatives")
+        rows = audit(out / "generated", args.live_local_cycle)
+        receipt["independent_rehashed_negatives"] = audit_negatives(out / "generated", out / "audit-negatives", args.live_local_cycle)
         (out / "shell_selectors.svh").write_text(selectors(rows))
         (out / "sources").mkdir()
         for name in SOURCES:
@@ -234,7 +279,8 @@ puts "SHELL_STATE_ACCESS_SYNTH_PASS original_children=2"
         require(args.native is not None and args.generated is None, "explicit native receipt required")
         native = json.loads((args.native / "summary.json").read_text())
         require(native["status"] == "pass" and native["backend"] == "f2"
-                and native["sources"] == source_hashes, "stale native shell source pins")
+                and native["sources"] == source_hashes and native.get("live_local_cycle", False) == args.live_local_cycle,
+                "stale native shell source pins or changed partition mode")
         for group in ("inputs", "artifacts"):
             for name, digest in native[group].items():
                 require(sha(args.native / name) == digest, "changed native shell " + group + " " + name)
@@ -243,7 +289,7 @@ puts "SHELL_STATE_ACCESS_SYNTH_PASS original_children=2"
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(args.native / name, destination)
         receipt["inputs"] = native["inputs"]
-        rows = audit(out / "generated")
+        rows = audit(out / "generated", args.live_local_cycle)
         require((out / "shell_selectors.svh").read_text() == selectors(rows), "different oracle selectors")
         shutil.copyfile(ROOT / "tools/checkpoint_formats/tests/shell_state_access_tb.sv", out / "testbench.sv")
         for mode in ("healthy", "corrupt"):
@@ -255,7 +301,8 @@ puts "SHELL_STATE_ACCESS_SYNTH_PASS original_children=2"
                 require(text.count(needle) == 1, "ambiguous compiled payload corruption site")
                 text = text.replace(needle, "assign checkpoint_shell_ckpt_resp_data = checkpoint_shell_ckpt_saved_data ^ 64'h1;")
             (folder / "compiled.sv").write_text(text)
-            run([toolchain.VCS, "-full64", "-sverilog", "-timescale=1ns/1ps", "-Mupdate", "-debug_access+all",
+            defines = ["+define+CHECKPOINT_LIVE_LOCAL_CYCLE"] if args.live_local_cycle else []
+            run([toolchain.VCS, "-full64", "-sverilog", *defines, "-timescale=1ns/1ps", "-Mupdate", "-debug_access+all",
                  "+incdir+" + str(out), "-top", "shell_state_access_tb",
                  "-Mdir=" + str(folder / "csrc"), "-o", str(folder / "simv"),
                  str(folder / "compiled.sv"), str(out / "testbench.sv"),
@@ -266,7 +313,7 @@ puts "SHELL_STATE_ACCESS_SYNTH_PASS original_children=2"
             shutil.move(wave, folder / wave.name)
             if mode == "healthy":
                 match = re.search(r"SHELL_STATE_ACCESS_PASS checks=(\d+) reads=(\d+) stalls=(\d+) edges=(\d+) cuts=4", text)
-                require(match and int(match[1]) > 1000 and int(match[2]) == 69,
+                require(match and int(match[1]) > 1000 and int(match[2]) == (61 if args.live_local_cycle else 69),
                         "incomplete shell functional/readout regression")
                 receipt["checks"], receipt["reads"], receipt["stalls"], receipt["edges"] = map(int, match.groups())
             else:
