@@ -76,12 +76,13 @@ def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def synthesis_contract(compiler_connected):
+def synthesis_contract(compiler_connected, native_banks=False):
     if not compiler_connected:
         return TCL
-    return TCL.replace('f2_generated_cut_fixture.sv', 'f2_compiler_cut_fixture.sv').replace(
+    text = TCL.replace('f2_generated_cut_fixture.sv', 'f2_compiler_cut_fixture.sv').replace(
         'get_cells adapter/guard/source_lost_reg',
         'get_cells execution/checkpoint_f2_adapter/guard/source_lost_reg')
+    return 'set_property verilog_define {CHECKPOINT_NATIVE_BANKS} [current_fileset]\n' + text if native_banks else text
 
 
 def ledger(path, doc):
@@ -92,7 +93,7 @@ def ledger(path, doc):
         p = (path / name).resolve()
         require(p.is_relative_to(path) and p.is_file() and p.stat().st_size and sha(p) == digest,
                 'native artifact changed: ' + name)
-    require((path / 'synth.tcl').read_text() == synthesis_contract(doc['compiler_connected']),
+    require((path / 'synth.tcl').read_text() == synthesis_contract(doc['compiler_connected'], doc.get('native_banks', False)),
             'native synthesis contract changed')
     writers, binding = extract((path / 'original-cl_firesim.sv').read_text())
     require((path / 'shell-writers.sv').read_text() == writers and
@@ -109,7 +110,10 @@ def main():
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--compiler-connected', action='store_true',
                         help='Require the adapter inside the compiler-emitted hierarchy, with no external adapter')
+    parser.add_argument('--native-banks', action='store_true',
+                        help='Exercise compiler-connected native banks with drain and cancellation gating')
     args = parser.parse_args()
+    require(not args.native_banks or args.compiler_connected, 'native banks require the compiler-connected collector')
     faults = (*FAULTS, 'raw-reset', 'owner-0', 'owner-1', 'owner-2') if args.compiler_connected else FAULTS
     bench = 'f2_compiler_cut_tb.sv' if args.compiler_connected else 'f2_generated_cut_tb.sv'
     base = local(ROOT, args.out).resolve()
@@ -120,12 +124,14 @@ def main():
                observed_utc=datetime.now(timezone.utc).isoformat(), source_root=str(ROOT),
                scope='F2 adapter connected to compiler-emitted reset/clock network; component only', physical_fpga_capture=False,
                deployable_capture_image=False, shell_restore_supported=False,
-               complete_shell_timing=False, compiler_connected=args.compiler_connected,
+               complete_shell_timing=False, compiler_connected=args.compiler_connected, native_banks=args.native_banks,
                sources={n: sha(ROOT / n) for n in SOURCES}, commands=[])
 
     generated = local(ROOT, args.generated).resolve()
     doc['generated_path'] = str(generated)
     names = ('reference.fir', 'reference.sv', 'wired.fir', 'wired.sv', 'audit.json', 'binding.json')
+    if args.native_banks:
+        names += ('banks-binding.json', 'reset-binding.json', 'manifest.json', 'plan.json', 'dependencies.json')
     doc['generated'] = {n: sha(generated / n) for n in names}
 
     def run(argv, name, work=out, expected=0):
@@ -145,7 +151,9 @@ def main():
                 sha(out / 'wired.fir') == binding['wired_reference_sha256'] and
                 sha(out / 'reference.fir') == binding['reference_sha256'], 'generated binding mismatch')
         if args.compiler_connected:
-            require(binding['scope'] == 'compiler_connected_f2_collector_sibling_only' and
+            scope = ('compiler_connected_native_bank_collector_sibling_only' if args.native_banks
+                     else 'compiler_connected_f2_collector_sibling_only')
+            require(binding['scope'] == scope and
                     binding['gates'] == 2 and binding['owners'] == 4 and
                     binding['production_shell_installed'] is False and
                     binding['collector_state_atomically_owned'] is False,
@@ -153,6 +161,28 @@ def main():
             text = (out / 'wired.sv').read_text()
             require(text.count('CheckpointF2ClockResetCut #(') == 1 and
                     'checkpoint_f2_adapter' in text, 'adapter absent from emitted hierarchy')
+        if args.native_banks:
+            require(binding['bank_binding_sha256'] == sha(out / 'banks-binding.json') and
+                    binding['reset_wiring_sha256'] == sha(out / 'reset-binding.json') and
+                    binding['simulator_manifest_sha256'] == sha(out / 'manifest.json') and
+                    binding['plan_sha256'] == sha(out / 'plan.json') and
+                    binding['functional_entries'] == 3 and
+                    binding['release_contract'] == 'block_new_requests_and_hold_cut_until_accepted_response_drains' and
+                    binding['endpoint_clock'] == 'PhysicalPlanTop.clock', 'native collector binding mismatch')
+            bank = json.loads((out / 'banks-binding.json').read_text())
+            require(bank['reference_sha256'] == sha(out / 'reference.fir'), 'native bank reference mismatch')
+            rows = bank['state']
+            expected = {'cycles': ('CYCLES', 64), 'left.saved': ('LEFT', 8), 'right.saved': ('RIGHT', 8)}
+            require(len(rows) == len(expected), 'complete three-register functional fixture inventory required')
+            header = []
+            for row in rows:
+                path = row['hierarchy'].removeprefix('PhysicalPlanTop.')
+                require(path in expected, 'unexpected bank state path')
+                name, width = expected[path]
+                require(row['width'] == width and row['depth'] == 1, 'bank shape mismatch')
+                header.append(f"localparam {name}_BANK=8'd{row['bank']}, {name}_SLOT=16'd{row['slot']};")
+            (out / 'bank-selectors.svh').write_text('\n'.join(header) + '\n')
+            doc['bank_entries'] = rows
         for name in SOURCES:
             shutil.copyfile(ROOT / name, out / Path(name).name)
         if args.mode == 'vivado':
@@ -168,7 +198,7 @@ def main():
             for name, original in [('BUFGCE.v', vendor / 'unisims/BUFGCE.v'), ('glbl.v', vendor / 'glbl.v')]:
                 shutil.copyfile(original, out / name)
                 doc['vendor_models'][name] = dict(original_path=str(original), sha256=sha(original))
-            (out / 'synth.tcl').write_text(synthesis_contract(args.compiler_connected))
+            (out / 'synth.tcl').write_text(synthesis_contract(args.compiler_connected, args.native_banks))
             text = run(['vivado', '-mode', 'batch', '-source', 'synth.tcl', '-log', 'vivado.log', '-journal', 'vivado.jou'], 'native')
             match = re.search(r'F2_GENERATED_CUT_TIMING setup_ns=([-0-9.]+) hold_ns=([-0-9.]+) sequential=(\d+)', text)
             require(match and 'Vivado v2025.2' in text and 'F2_GENERATED_CUT_NATIVE_PASS gates=3 shell_writers=4 asynchronous_cancel=1' in text
@@ -186,6 +216,7 @@ def main():
             nd = json.loads((native / 'summary.json').read_text()); ledger(native, nd)
             require(nd['generated'] == doc['generated'], 'native generated input mismatch')
             require(nd['compiler_connected'] == args.compiler_connected, 'native compiler connection mode mismatch')
+            require(nd.get('native_banks', False) == args.native_banks, 'native bank connection mode mismatch')
             for name in ('original-cl_firesim.sv', 'shell-writers.sv', 'shell-binding.json', 'BUFGCE.v', 'glbl.v'):
                 shutil.copyfile(native / name, out / name)
             doc['native_receipt'] = dict(path=str(native / 'summary.json'), sha256=sha(native / 'summary.json'))
@@ -197,6 +228,7 @@ def main():
             work = out / 'healthy'; work.mkdir()
             fixture = 'f2_compiler_cut_fixture.sv' if args.compiler_connected else 'f2_generated_cut_fixture.sv'
             run([toolchain.VCS, '-full64', '-sverilog', '-timescale=1ns/1ps', '-Mupdate', '-debug_access+all',
+                 *(['+define+CHECKPOINT_NATIVE_BANKS', '+incdir+' + str(out)] if args.native_banks else []),
                  '-top', 'f2_generated_cut_tb', '-top', 'glbl', '-Mdir=' + str(work / 'csrc'), '-o', work / 'simv',
                  *[out / n for n in ('BUFGCE.v', 'glbl.v', 'reference-renamed.sv', 'wired.sv', 'shell-writers.sv', 'CheckpointPhysicalClockCut.sv',
                                     'CheckpointResetOwnedClockCut.sv', 'CheckpointF2ResetGuard.sv', 'CheckpointF2ClockResetCut.sv', fixture,
@@ -206,6 +238,10 @@ def main():
             require(match and re.findall(r'F2_GENERATED_CUT_CUT target_cycle=(\d+)', text) == ['0', '17', '128', '256'],
                     'incomplete original-reference execution')
             doc.update(checks=int(match[1]), cycles=320, cuts=[0,17,128,256], stalls=64)
+            if args.native_banks:
+                require('F2_NATIVE_COLLECTOR_BANK_PASS reads=20 response_stalls=80 drain_stalls=16' in text,
+                        'native bank readout/drain scope incomplete')
+                doc.update(bank_reads=20, bank_response_stalls=80, bank_drain_stalls=16)
             for fault in faults:
                 trial = out / fault; trial.mkdir()
                 text = run([work / 'simv', '-no_save', '+fault=' + fault], fault, work=trial)

@@ -11,6 +11,16 @@ module f2_generated_cut_tb;
     wire [63:0] target_cycle, cut_cycle;
     wire [7:0] a,b;
     wire [80:0] control_state;
+`ifdef CHECKPOINT_NATIVE_BANKS
+    `include "bank-selectors.svh"
+    reg ckpt_req_valid=0, ckpt_resp_ready=0;
+    reg [7:0] ckpt_bank=0;
+    reg [15:0] ckpt_slot=0;
+    reg [31:0] ckpt_address=0;
+    wire ckpt_req_ready, ckpt_resp_valid, ckpt_resp_error;
+    wire [63:0] ckpt_resp_data;
+    integer bank_reads=0, bank_stalls=0, drain_stalls=0;
+`endif
     F2GeneratedCutFixture dut (.*);
     wire ref_axi_reset_n, ref_reset;
     wire [3:0] ref_writers;
@@ -62,6 +72,31 @@ module f2_generated_cut_tb;
         check(writer_state===ref_writers && axi_reset_n===ref_axi_reset_n,"ungated shell writers and AXI reset");
         check(functional_reset===0,"held functional reset");
     endtask
+`ifdef CHECKPOINT_NATIVE_BANKS
+    task raw_step;
+        clock=0;#3;clock=1;#3;held();
+    endtask
+    task bank_start(input integer bank, input integer slot, input integer address);
+        ckpt_bank=bank;ckpt_slot=slot;ckpt_address=address;
+        ckpt_req_valid=1;ckpt_resp_ready=0;#1;
+        check(ckpt_req_ready && !ckpt_resp_valid,"bank request permission");
+        raw_step();ckpt_req_valid=0;#1;
+        check(!ckpt_req_ready && ckpt_resp_valid,"bank accepted exactly once");
+    endtask
+    task bank_read(input integer bank,input integer slot,input integer address,
+                   input [63:0] expected,input bit error);
+        bank_start(bank,slot,address);
+        repeat(4)begin
+            // The accepted beat must survive arbitrary selector changes.
+            ckpt_bank=255;ckpt_slot=65535;ckpt_address=32'hffffffff;
+            raw_step();bank_stalls++;
+            check(ckpt_resp_valid && ckpt_resp_data===expected && ckpt_resp_error===error,
+                  "bank held complete response under backpressure");
+        end
+        ckpt_resp_ready=1;raw_step();ckpt_resp_ready=0;#1;
+        check(!ckpt_resp_valid && ckpt_req_ready,"bank response acknowledged once");bank_reads++;
+    endtask
+`endif
     task capture;
         held_cycle=target_cycle;held_words={a,b,target_cycle};held_writers=writer_state;
         freeze_request=1;#1;check(!read_enable,"request not cut acknowledgement");
@@ -74,9 +109,17 @@ module f2_generated_cut_tb;
             force dut.execution.left.reset=1;#1;paths();
         end
         if(fault!="" && target_cycle==17)begin
+`ifdef CHECKPOINT_NATIVE_BANKS
+            bank_start(CYCLES_BANK,CYCLES_SLOT,0);
+            check(ckpt_resp_data===held_cycle && !ckpt_resp_error,"pending bank beat before cancellation");
+`endif
             if(fault=="release-reset" || fault=="release-ddr")begin
                 freeze_request=0;clock=0;#3;clock=1;#3;
+`ifdef CHECKPOINT_NATIVE_BANKS
+                check(clock_mask && read_enable && ckpt_resp_valid,"release boundary retains outstanding response");
+`else
                 check(clock_mask && !read_enable,"release validation no functional edge");
+`endif
             end
             if(fault=="reset" || fault=="release-reset")begin rst_main_n=0;#0.1;end
             else if(fault=="ddr" || fault=="release-ddr")begin ddr_ready=0;#0.1;end
@@ -88,6 +131,10 @@ module f2_generated_cut_tb;
             else if(fault=="raw-reset")begin raw_reset_xor=1;#0.1;end
             else check(0,"unknown fault");
             check(failed && !read_enable,"immediate read revocation without raw edge");
+`ifdef CHECKPOINT_NATIVE_BANKS
+            ckpt_resp_ready=1;ckpt_req_valid=1;
+            check(!ckpt_resp_valid && !ckpt_req_ready,"cancellation revokes both bank handshakes without an edge");
+`endif
             rst_main_n=1;ddr_ready=1;#0.1;
             check(failed && !read_enable,"source return cannot repair cut");
             freeze_request=0;
@@ -95,10 +142,31 @@ module f2_generated_cut_tb;
             writer_xor=0;owner_present=15;
             if(fault=="raw-reset")raw_reset_xor=0;
             repeat(4)begin clock=0;#3;clock=1;#3;held();check(failed && !read_enable,"presence return cannot repair cut");end
+`ifdef CHECKPOINT_NATIVE_BANKS
+            check(!ckpt_resp_valid && !ckpt_req_ready && dut.execution.ckpt_pending,
+                  "cancelled bank beat remains unacknowledged");
+`endif
             check(|physical_error,"independent physical error");
             $display("F2_GENERATED_CUT_REJECT fault=%s target_cycle=17 acknowledged_edges=0",fault);$finish;
         end
         repeat(16)begin clock=0;#3;clock=1;#3;held();check(read_enable && !failed,"collection backpressure");stalls++;end
+`ifdef CHECKPOINT_NATIVE_BANKS
+        bank_read(CYCLES_BANK,CYCLES_SLOT,0,held_cycle,0);
+        bank_read(LEFT_BANK,LEFT_SLOT,0,a,0);
+        bank_read(RIGHT_BANK,RIGHT_SLOT,0,b,0);
+        bank_read(255,65535,0,0,1);
+        bank_read(CYCLES_BANK,CYCLES_SLOT,1,0,1);
+        bank_start(CYCLES_BANK,CYCLES_SLOT,0);
+        freeze_request=0;#1;
+        check(read_enable && !ckpt_req_ready,"withdrawal blocks requests and drains accepted response");
+        repeat(4)begin
+            raw_step();drain_stalls++;
+            check(read_enable && ckpt_resp_valid && ckpt_resp_data===held_cycle && !ckpt_resp_error,
+                  "withdrawal cannot release a stalled response");
+        end
+        ckpt_resp_ready=1;raw_step();ckpt_resp_ready=0;#1;
+        check(!ckpt_resp_valid && !ckpt_req_ready,"drain revoked bank handshakes");
+`endif
         freeze_request=0;#1;check(!read_enable,"withdrawal revokes reads");
         clock=0;#3;clock=1;#3;check(clock_mask,"registered release validation");
         clock=0;reference_clock=0;#3;check(!clock_mask && !read_enable,"common falling release");
@@ -116,6 +184,10 @@ module f2_generated_cut_tb;
             if(i==17 || i==128 || i==256)capture();
         end
         check(cuts==4 && stalls==64 && edges==320,"full scope");
+`ifdef CHECKPOINT_NATIVE_BANKS
+        check(bank_reads==20 && bank_stalls==80 && drain_stalls==16,"complete bank readout and drain scope");
+        $display("F2_NATIVE_COLLECTOR_BANK_PASS reads=20 response_stalls=80 drain_stalls=16");
+`endif
         ddr_ready=0;step();step();check(functional_reset,"ordinary DDR loss propagates");
         ddr_ready=1;repeat(4)step();
         rst_main_n=0;#0.1;check(!axi_reset_n,"original asynchronous AXI reset");

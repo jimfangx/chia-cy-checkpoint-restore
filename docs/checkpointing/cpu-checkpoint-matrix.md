@@ -14,6 +14,19 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 299 connects native functional banks to the compiler-generated F2
+collector with an ungated endpoint clock, internally owned freeze/reset,
+permission-gated handshakes and response-drain release. Missing-owner/reset/
+writer cancellation retains the outstanding beat without acknowledgement.
+The original three-register/two-gate fixture exercises complete bank readout;
+this does not establish production Rocket attachment or any physical capture.
+The component passes native 140 MHz P&R (+0.665/+0.046 ns), 6,304 fresh EDA VCS
+checks and 145 independent bit corruptions; the full 376-test Scala suite and
+sixteen preparation checks pass. Full-suite fixture bytes match native/VCS
+inputs. All retained native/EDA sweep checks and fresh exact Rocket ownership
+refusal checks pass under `runs/aws-f2/iteration299/`; closure is
+`final-audit-xizzcue_/summary.json`. All hardware migration columns remain pending. See [f2-native-collector-banks.md](f2-native-collector-banks.md).
+
 Iteration 298 binds the exact Rocket native companion's FAME roles to the
 actual final-emitter IR/RTL, original StateIDs and bank selectors. Constraint
 emission validates the unmasked bank and requires exact reconstruction of the

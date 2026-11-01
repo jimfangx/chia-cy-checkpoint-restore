@@ -26,7 +26,9 @@ NAMES = ['controller_reset', 'clock', 'freeze_request', 'rst_main_n', 'ddr_ready
          'dut.execution.right.gate_I', 'dut.execution.left.gate_CE', 'dut.execution.right.gate_CE']
 
 
-def audit_wave(path, case):
+def audit_wave(path, case, native_banks=False):
+    names = NAMES + (['dut.execution.checkpoint_f2_adapter.freeze_request',
+                      'dut.execution.ckpt_pending'] if native_banks else [])
     scopes, codes, values = [], {}, {}
     last = None
     samples = holds = 0
@@ -38,7 +40,7 @@ def audit_wave(path, case):
     def sample():
         nonlocal last, samples, holds, max_cycle, pulse_without_edge, reset_divergence
         raw = {n: values.get(code, 'x') for n, code in codes.items()}
-        if raw.get('controller_reset') != '0' or any(not re.fullmatch('[01]+', raw.get(n, 'x')) for n in NAMES):
+        if raw.get('controller_reset') != '0' or any(not re.fullmatch('[01]+', raw.get(n, 'x')) for n in names):
             return
         v = {n: int(bits, 2) for n, bits in raw.items()}
         samples += 1
@@ -70,7 +72,12 @@ def audit_wave(path, case):
             reset_divergence = True
         require(v['dut.execution.right.reset'] == v['functional_reset'], 'right reset route differs')
         if v['read_enable']:
-            require(mask and sampled and not v['failed'] and v['freeze_request'] and
+            request = v['freeze_request']
+            if native_banks:
+                request |= v['dut.execution.ckpt_pending']
+                require(v['dut.execution.checkpoint_f2_adapter.freeze_request'] == request,
+                        'collector release bypassed native response drain')
+            require(mask and sampled and not v['failed'] and request and
                     v['target_cycle'] == v['cut_cycle'] and v['root_clock'] == v['gate_clock'] == 0 and
                     v['captured_writers'] == v['writer_state'] == 15 and s >> 73 == 15 << 2 and
                     (s >> 3) & 3 == v['logical_ce'], 'invalid read permission or packed cut state')
@@ -99,7 +106,7 @@ def audit_wave(path, case):
             elif p[0] == '$var':
                 name = '.'.join(scopes + [p[4].lstrip('\\')])
                 prefix = 'f2_generated_cut_tb.'
-                if name.startswith(prefix) and name[len(prefix):] in NAMES:
+                if name.startswith(prefix) and name[len(prefix):] in names:
                     codes[name[len(prefix):]] = p[3]
             elif line.startswith('#'):
                 sample()
@@ -108,7 +115,7 @@ def audit_wave(path, case):
             elif line[0] in '01xXzZ':
                 values[line[1:].strip()] = line[0].lower()
     sample()
-    require(set(codes) == set(NAMES) and samples > 50 and holds > 15, 'missing full-visibility state')
+    require(set(codes) == set(names) and samples > 50 and holds > 15, 'missing full-visibility state')
     require(cuts == ([0, 17, 128, 256] if case == 'healthy' else [0, 17]), 'incomplete cuts')
     if case == 'healthy':
         require(max_cycle == 320 and last['edges'] == 320, 'incomplete active execution')

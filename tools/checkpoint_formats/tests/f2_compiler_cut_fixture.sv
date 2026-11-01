@@ -11,6 +11,14 @@ module F2GeneratedCutFixture (
     output wire [63:0] target_cycle, cut_cycle,
     output wire [7:0] a,b,
     output wire [80:0] control_state
+`ifdef CHECKPOINT_NATIVE_BANKS
+    ,input wire ckpt_req_valid, ckpt_resp_ready,
+    input wire [7:0] ckpt_bank,
+    input wire [15:0] ckpt_slot,
+    input wire [31:0] ckpt_address,
+    output wire ckpt_req_ready, ckpt_resp_valid, ckpt_resp_error,
+    output wire [63:0] ckpt_resp_data
+`endif
 );
     F2ShellResetWriters shell (
         .firesim_internal_clock(clock), .rst_main_n(rst_main_n), .ddr_ready_in(ddr_ready),
@@ -25,5 +33,12 @@ module F2GeneratedCutFixture (
         .checkpoint_f2_read_enable(read_enable), .checkpoint_f2_failed(failed),
         .checkpoint_f2_captured_ce(captured_ce), .checkpoint_f2_captured_writers(captured_writers),
         .checkpoint_f2_cut_cycle(cut_cycle), .checkpoint_f2_physical_error(physical_error),
-        .checkpoint_f2_reset_error(reset_error), .checkpoint_f2_control_state(control_state));
+        .checkpoint_f2_reset_error(reset_error), .checkpoint_f2_control_state(control_state)
+`ifdef CHECKPOINT_NATIVE_BANKS
+        ,.ckpt_req_valid(ckpt_req_valid), .ckpt_req_ready(ckpt_req_ready),
+        .ckpt_resp_valid(ckpt_resp_valid), .ckpt_resp_ready(ckpt_resp_ready),
+        .ckpt_resp_data(ckpt_resp_data), .ckpt_resp_error(ckpt_resp_error),
+        .ckpt_bank(ckpt_bank), .ckpt_slot(ckpt_slot), .ckpt_address(ckpt_address)
+`endif
+    );
 endmodule

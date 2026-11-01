@@ -35,7 +35,52 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 298,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 299,
+**in_progress; native bank/collector component verified; physical capture pending**.
+
+The native readout endpoint now shares the compiler-connected F2 clock/reset
+collector. Its access clock is tied to the raw common source; freeze and reset
+are internal connections. Read permission gates both request and response
+handshakes. Host withdrawal blocks new requests and holds the cut until an
+accepted response drains; cancellation revokes both handshakes and retains the
+unacknowledged beat with functional clocks stopped. Cycle selection must name
+an original driven root output, excluding newly generated readout data.
+See [f2-native-collector-banks.md](f2-native-collector-banks.md).
+
+The combined component passes native Vivado 2025.2 P&R at 140 MHz, using
+165 LUTs / 231 CLB registers / three BUFGCEs with +0.665/+0.046 ns setup/hold.
+Fresh EDA SP2 VCS passes 6,304 checks, twenty reads, eighty response-stall and
+sixteen withdrawal-stall cycles at component cuts 0/17/128/256. Independent
+raw-wave auditing verifies 24 healthy accepted/acknowledged beats and retained
+unacknowledged beats on all cancellations; 64 response-data and 81 collector-bit
+mutations reject. Full-visibility healthy/fault/corrupt waves are retained.
+
+All 376 Scala tests / 59 suites pass (37m02s), plus sixteen preparation checks,
+six focused collector and 21 FAME/emitter checks, 409 Python / 61 manager tests,
+and the retained EDA sanitizer/host/bank/FCFS/cut scope. Full-suite fixture bytes
+match synthesis and simulation. The retained native observer/bank/collector
+sweep, all EDA VCS/raw-wave checks and 124 final-emitter corruptions pass.
+Fresh observed and ordinary exact Rocket compiles both reach the real missing
+FASED physical CE owner/common-low-phase-cut refusal; no image is admitted.
+
+Verification and immutable attempts are under `runs/aws-f2/iteration299/`.
+Closure: `final-audit-xizzcue_/summary.json`. Initial Scala syntax/native define
+invocation failures, two native runs invalidated by concurrent source edits and
+the first waveform sample-threshold failure retain their original receipts/logs.
+Corrected exact-edge auditing and fresh native execution pass. Final AWS/native
+HDK/localhost checks pass, with no active loop F2 instance, pending AFI or local
+Java/Vivado job. Plans and all four initialized manager inputs retain entry
+hashes. Existing controller checkpoints were published FireSim then Chipyard;
+remote tips match, and the local tracking-ref warning remains in the push log.
+No staging/local commits occurred. Follow [github-publication.md](github-publication.md)
+for the controller's next checkpoint.
+Production selective attachment, complete owners/target-time authority, an
+exact-recipe full image/AFI, physical active CPU captures, paired migration/live
+execution and rolling hardware recovery remain pending. Reuse iteration194's
+localhost invocation; preserve initialized manager inputs. Worker startup failed
+before execution; all work is central. Neither plan was edited or staged.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 298,
 **in_progress; exact Rocket native-bank final-emitter binding verified; physical capture pending**.
 
 Banked FAME roles now bind original StateIDs and selectors to the native

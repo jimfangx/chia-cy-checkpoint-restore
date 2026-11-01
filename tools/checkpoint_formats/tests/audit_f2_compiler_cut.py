@@ -30,6 +30,112 @@ SIGNALS = {n for n, _, _ in FIELDS} | {'control_state', 'controller_reset', 'clo
     ADAPTER + 'writer_state', 'raw_reset_xor', 'simulator_reset'}
 
 
+def audit_native_bank_wave(path, entries, case, corrupt_bit=None):
+    """Reconstruct accepted beats from selectors and ORIGINAL functional state.
+
+    Track requests and acknowledgements at raw edges independently of the
+    producer's packed data, counters and PASS markers. Cancelled beats must
+    remain pending, and withdrawal must drain without accepting another beat.
+    """
+    names = {'clock', 'controller_reset', 'freeze_request', 'clock_mask', 'read_enable', 'failed',
+             'ckpt_req_valid', 'ckpt_req_ready', 'ckpt_resp_valid', 'ckpt_resp_ready', 'ckpt_resp_data',
+             'ckpt_resp_error', 'ckpt_bank', 'ckpt_slot', 'ckpt_address', 'target_cycle', 'a', 'b',
+             'dut.execution.ckpt_clock', 'dut.execution.ckpt_freeze', 'dut.execution.ckpt_reset',
+             'dut.execution.ckpt_pending', 'dut.execution.checkpoint_f2_bank_ckpt_resp_ready'}
+    scopes, codes, values = [], {}, {}
+    last, pending = None, None
+    samples = accepted = acknowledged = draining = cancelled = 0
+    draining_edges = cancelled_edges = 0
+    sources = {'PhysicalPlanTop.cycles': 'target_cycle', 'PhysicalPlanTop.left.saved': 'a',
+               'PhysicalPlanTop.right.saved': 'b'}
+    require(len(entries) == len(sources) and {r['hierarchy'] for r in entries} == set(sources),
+            'complete original bank inventory required')
+    selectors = {(r['bank'], r['slot']): sources[r['hierarchy']] for r in entries}
+    require(len(selectors) == len(sources), 'aliased bank selectors')
+
+    def sample():
+        nonlocal last, pending, samples, accepted, acknowledged, draining, cancelled, draining_edges, cancelled_edges
+        if set(codes) != names:
+            return
+        raw = {n: values.get(codes[n], 'x') for n in names}
+        if raw['controller_reset'] != '0':
+            last, pending = None, None
+            return
+        if any(not re.fullmatch('[01]+', v) for n, v in raw.items()
+               if n not in ('ckpt_resp_data', 'ckpt_resp_error')):
+            return
+        v = {n: int(bits, 2) if re.fullmatch('[01]+', bits) else None for n, bits in raw.items()}
+        samples += 1
+        if last and not last['clock'] and v['clock']:
+            if pending is not None and not last['freeze_request'] and not last['failed']:
+                draining_edges += 1
+            if pending is not None and last['failed']:
+                cancelled_edges += 1
+            if last['ckpt_resp_valid'] and last['ckpt_resp_ready']:
+                require(pending is not None, 'unowned bank acknowledgement')
+                acknowledged += 1
+                pending = None
+            if last['ckpt_req_valid'] and last['ckpt_req_ready']:
+                require(pending is None, 'bank overwrote pending response')
+                source = selectors.get((last['ckpt_bank'], last['ckpt_slot']))
+                valid = source is not None and last['ckpt_address'] == 0
+                pending = (last[source] if valid else 0, int(not valid))
+                accepted += 1
+        require(v['dut.execution.ckpt_clock'] == v['clock'] and
+                v['dut.execution.ckpt_freeze'] == v['clock_mask'] and
+                v['dut.execution.ckpt_reset'] == v['controller_reset'], 'bank clock/freeze/reset ownership changed')
+        require(v['dut.execution.ckpt_pending'] == int(pending is not None), 'bank pending state/handshake mismatch')
+        require(v['ckpt_req_ready'] == int(pending is None and v['read_enable'] and v['freeze_request']) and
+                v['ckpt_resp_valid'] == int(pending is not None and v['read_enable']) and
+                v['dut.execution.checkpoint_f2_bank_ckpt_resp_ready'] ==
+                (v['ckpt_resp_ready'] & v['read_enable']), 'bank permission bypass')
+        if v['ckpt_resp_valid']:
+            observed = v['ckpt_resp_data']
+            if observed is not None and corrupt_bit is not None:
+                observed ^= 1 << corrupt_bit
+            require((observed, v['ckpt_resp_error']) == pending,
+                    'bank response differs from original state at target_cycle=' + str(v['target_cycle']))
+        if pending is not None and not v['freeze_request'] and not v['failed']:
+            require(v['clock_mask'] and v['read_enable'] and not v['ckpt_req_ready'], 'pending response released cut')
+            draining += 1
+        if v['failed'] and pending is not None:
+            require(v['clock_mask'] and not v['ckpt_resp_valid'] and not v['ckpt_req_ready'],
+                    'cancelled beat acknowledged or functional clock released')
+            cancelled += 1
+        last = v
+
+    with path.open() as stream:
+        for line in stream:
+            p = line.split()
+            if not p:
+                continue
+            if p[0] == '$scope':
+                scopes.append(p[2])
+            elif p[0] == '$upscope':
+                scopes.pop()
+            elif p[0] == '$var':
+                name = '.'.join(scopes + [p[4].lstrip('\\')])
+                if name.startswith(TOP) and name[len(TOP):] in names:
+                    codes[name[len(TOP):]] = p[3]
+            elif line.startswith('#'):
+                sample()
+            elif line[0] in 'bB' and len(p) == 2:
+                values[p[1]] = p[0][1:].lower()
+            elif line[0] in '01xXzZ':
+                values[line[1:].strip()] = line[0].lower()
+    sample()
+    require(set(codes) == names and samples > 50, 'complete bank waveform absent')
+    require((accepted, acknowledged) == ((24, 24) if case == 'healthy' else
+            (6, 6) if case == 'corrupt' else (7, 6)), 'incomplete bank acceptance/acknowledgement scope')
+    expected_drain_edges = 20 if case == 'healthy' else 6 if case.startswith('release-') else 5
+    require(draining_edges == expected_drain_edges and
+            (case in ('healthy', 'corrupt') or cancelled_edges == 20),
+            f'missing drain/cancellation edge scope: case={case} drain={draining_edges} cancelled={cancelled_edges}')
+    return dict(samples=samples, accepted=accepted, acknowledged=acknowledged,
+                draining_samples=draining, cancelled_samples=cancelled, draining_edges=draining_edges,
+                cancelled_edges=cancelled_edges, functional_entries=len(entries))
+
+
 def audit_registers(path, corrupt_bit=None):
     scopes, codes, widths, values = [], {}, {}, {}
     samples = 0
@@ -104,8 +210,11 @@ def main():
     cases = {}
     for case in ('healthy', *doc['faults'], 'corrupt'):
         path = execution / case / 'f2-generated-cut.vcd'
-        cases[case] = dict(functional=audit_wave(path, 'owner' if case == 'raw-reset' or case.startswith('owner-') else case),
+        cases[case] = dict(functional=audit_wave(path, 'owner' if case == 'raw-reset' or case.startswith('owner-') else case,
+                                              native_banks=doc.get('native_banks', False)),
                            collector=audit_registers(path))
+        if doc.get('native_banks', False):
+            cases[case]['banks'] = audit_native_bank_wave(path, doc['bank_entries'], case)
         if case == 'raw-reset':
             require(cases[case]['collector']['raw_reset_mismatch_observed'], 'missing actual raw-reset fault')
     rejected = []
@@ -118,6 +227,17 @@ def main():
             rejected.append(bit)
         else:
             require(False, 'undetected packed collector corruption bit ' + str(bit))
+    bank_rejected = []
+    if doc.get('native_banks', False):
+        for bit in range(64):
+            try:
+                audit_native_bank_wave(execution / 'healthy/f2-generated-cut.vcd', doc['bank_entries'], 'healthy', bit)
+            except ValueError as error:
+                require('bank response differs from original state at target_cycle=' in str(error),
+                        'bank mutation failed for an unrelated reason')
+                bank_rejected.append(bit)
+            else:
+                require(False, 'undetected bank response corruption bit ' + str(bit))
     out = local(ROOT, args.out).resolve()
     require(out.is_relative_to(ROOT / 'automations/checkpoint_loop/runs'), 'evidence outside runs')
     out.mkdir(parents=True, exist_ok=True)
@@ -128,6 +248,7 @@ def main():
                            'tools/checkpoint_formats/tests/audit_f2_generated_cut.py': file_sha(
                                ROOT / 'tools/checkpoint_formats/tests/audit_f2_generated_cut.py')},
                   physical_fpga_capture=False, rejected_control_state_bits=rejected,
+                  rejected_bank_response_bits=bank_rejected,
                   waves={str(execution / c / 'f2-generated-cut.vcd'): file_sha(
                       execution / c / 'f2-generated-cut.vcd') for c in cases})
     (attempt / 'summary.json').write_text(json.dumps(result, indent=2) + '\n')
