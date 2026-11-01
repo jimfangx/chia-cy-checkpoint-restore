@@ -24,13 +24,14 @@ RUNS = ROOT / 'automations/checkpoint_loop/runs'
 RTL = 'sims/firesim/sim/midas/src/main/verilog/'
 TEST = 'tools/checkpoint_formats/tests/'
 SHELL = 'sims/firesim/platforms/f2/aws-fpga-firesim-f2/hdk/cl/developer_designs/cl_firesim/design/cl_firesim.sv'
-SOURCES = [RTL + n for n in ('CheckpointPhysicalClockCut.sv', 'CheckpointResetOwnedClockCut.sv', 'CheckpointF2ResetGuard.sv', 'CheckpointF2ClockResetCut.sv')]
+SOURCES = [RTL + n for n in ('CheckpointPhysicalClockCut.sv', 'CheckpointResetOwnedClockCut.sv', 'CheckpointF2ResetGuard.sv', 'CheckpointF2ClockResetCut.sv', 'CheckpointNativeStateSnapshot.sv')]
 SOURCES += [TEST + n for n in ('f2_generated_cut_fixture.sv', 'f2_generated_cut_tb.sv', 'checkpoint_widget_exit.cc',
                               'verify_f2_generated_cut.py', 'test_f2_shell_reset.py')]
 SOURCES += ['tools/checkpoint_formats/f2_shell_reset.py']
 SOURCES += [TEST + 'f2_compiler_cut_fixture.sv', TEST + 'f2_compiler_cut_tb.sv']
 SOURCES += ['sims/firesim/sim/midas/src/' + n for n in (
     'main/scala/midas/checkpoint/F2ClockResetCutWiring.scala',
+    'main/scala/midas/checkpoint/F2NativeCollectorSnapshot.scala',
     'main/scala/midas/checkpoint/SynchronousResetCutWiring.scala',
     'main/scala/midas/checkpoint/PhysicalClockCutWiring.scala',
     'main/scala/midas/checkpoint/PhysicalClockCutPlan.scala',
@@ -52,13 +53,23 @@ report_utilization -file synth-utilization.rpt
 report_timing_summary -file synth-timing.rpt
 write_checkpoint -force f2-generated-cut.dcp
 set original [lsort [get_property NAME [get_cells -hier -filter {IS_SEQUENTIAL == 1}]]]
-set_property DONT_TOUCH true [get_cells $original]
+set inventory [open original-sequential.txt w]
+puts $inventory [join $original "\\n"]
+close $inventory
+# Preserve the actual cell objects. Re-querying names as patterns can miss
+# vector registers whose names contain brackets, leaving them unprotected.
+set_property DONT_TOUCH true [get_cells -hier -filter {IS_SEQUENTIAL == 1}]
+foreach cell [get_cells -hier -filter {IS_SEQUENTIAL == 1}] {
+    if {![get_property DONT_TOUCH $cell]} {error "sequential cell not protected"}
+}
 opt_design
 place_design
 phys_opt_design
 route_design
 set final [lsort [get_property NAME [get_cells -hier -filter {IS_SEQUENTIAL == 1}]]]
-if {$original ne $final} {error "sequential identity changed"}
+set inventory [open final-sequential.txt w]
+puts $inventory [join $final "\\n"]
+close $inventory
 report_utilization -file utilization.rpt
 report_timing_summary -report_unconstrained -file timing.rpt
 report_route_status -file route-status.rpt
@@ -67,6 +78,7 @@ set setup [get_property SLACK [get_timing_paths -delay_type max -max_paths 1]]
 set hold [get_property SLACK [get_timing_paths -delay_type min -max_paths 1]]
 puts "F2_GENERATED_CUT_TIMING setup_ns=$setup hold_ns=$hold sequential=[llength $original]"
 write_checkpoint -force implemented-f2-generated-cut.dcp
+if {$original ne $final} {error "sequential identity changed; inspect original/final-sequential.txt"}
 if {$setup < 0 || $hold < 0} {error "component failed unchanged 140 MHz timing"}
 puts "F2_GENERATED_CUT_NATIVE_PASS gates=3 shell_writers=4 asynchronous_cancel=1"
 '''
@@ -76,13 +88,19 @@ def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def synthesis_contract(compiler_connected, native_banks=False):
+def synthesis_contract(compiler_connected, native_banks=False, collector_snapshot=False):
     if not compiler_connected:
         return TCL
     text = TCL.replace('f2_generated_cut_fixture.sv', 'f2_compiler_cut_fixture.sv').replace(
         'get_cells adapter/guard/source_lost_reg',
         'get_cells execution/checkpoint_f2_adapter/guard/source_lost_reg')
-    return 'set_property verilog_define {CHECKPOINT_NATIVE_BANKS} [current_fileset]\n' + text if native_banks else text
+    if collector_snapshot:
+        require(native_banks, 'collector snapshot requires native banks')
+        text = text.replace('read_verilog -sv ', 'read_verilog -sv CheckpointNativeStateSnapshot.sv ')
+    defines = ['CHECKPOINT_NATIVE_BANKS'] if native_banks else []
+    if collector_snapshot:
+        defines.append('CHECKPOINT_COLLECTOR_SNAPSHOT')
+    return ('set_property verilog_define {' + ' '.join(defines) + '} [current_fileset]\n' + text) if defines else text
 
 
 def ledger(path, doc):
@@ -93,7 +111,8 @@ def ledger(path, doc):
         p = (path / name).resolve()
         require(p.is_relative_to(path) and p.is_file() and p.stat().st_size and sha(p) == digest,
                 'native artifact changed: ' + name)
-    require((path / 'synth.tcl').read_text() == synthesis_contract(doc['compiler_connected'], doc.get('native_banks', False)),
+    require((path / 'synth.tcl').read_text() == synthesis_contract(doc['compiler_connected'],
+            doc.get('native_banks', False), doc.get('collector_snapshot', False)),
             'native synthesis contract changed')
     writers, binding = extract((path / 'original-cl_firesim.sv').read_text())
     require((path / 'shell-writers.sv').read_text() == writers and
@@ -112,8 +131,11 @@ def main():
                         help='Require the adapter inside the compiler-emitted hierarchy, with no external adapter')
     parser.add_argument('--native-banks', action='store_true',
                         help='Exercise compiler-connected native banks with drain and cancellation gating')
+    parser.add_argument('--collector-snapshot', action='store_true',
+                        help='Require atomic collector/idle-endpoint staging before functional reads')
     args = parser.parse_args()
     require(not args.native_banks or args.compiler_connected, 'native banks require the compiler-connected collector')
+    require(not args.collector_snapshot or args.native_banks, 'collector staging requires native banks')
     faults = (*FAULTS, 'raw-reset', 'owner-0', 'owner-1', 'owner-2') if args.compiler_connected else FAULTS
     bench = 'f2_compiler_cut_tb.sv' if args.compiler_connected else 'f2_generated_cut_tb.sv'
     base = local(ROOT, args.out).resolve()
@@ -125,6 +147,7 @@ def main():
                scope='F2 adapter connected to compiler-emitted reset/clock network; component only', physical_fpga_capture=False,
                deployable_capture_image=False, shell_restore_supported=False,
                complete_shell_timing=False, compiler_connected=args.compiler_connected, native_banks=args.native_banks,
+               collector_snapshot=args.collector_snapshot,
                sources={n: sha(ROOT / n) for n in SOURCES}, commands=[])
 
     generated = local(ROOT, args.generated).resolve()
@@ -132,6 +155,8 @@ def main():
     names = ('reference.fir', 'reference.sv', 'wired.fir', 'wired.sv', 'audit.json', 'binding.json')
     if args.native_banks:
         names += ('banks-binding.json', 'reset-binding.json', 'manifest.json', 'plan.json', 'dependencies.json')
+    if args.collector_snapshot:
+        names += ('staging-binding.json',)
     doc['generated'] = {n: sha(generated / n) for n in names}
 
     def run(argv, name, work=out, expected=0):
@@ -147,8 +172,23 @@ def main():
         for name in names:
             shutil.copyfile(generated / name, out / name)
         binding = json.loads((out / 'binding.json').read_text())
+        wired_hash = binding['wired_reference_sha256']
+        if args.collector_snapshot:
+            staging = json.loads((out / 'staging-binding.json').read_text())
+            require(staging['collector_binding_sha256'] == sha(out / 'binding.json') and
+                    staging['reference_sha256'] == sha(out / 'reference.fir') and
+                    staging['bits'] == 147 and staging['words'] == 3 and staging['staging_owner_bits'] == 218 and
+                    staging['endpoint_initialization'] == 'pending_data_and_error_synchronous_ungated_controller_reset_zero' and
+                    staging['cut_hold_contract'] == 'request_or_occupied_or_retained_error_no_live_failure_feedback' and
+                    staging['staging_restore_supported'] is False and staging['deployable_capture_image'] is False and
+                    staging['sources'] == {Path(n).name: sha(ROOT / n) for n in SOURCES if n.startswith(RTL)},
+                    'atomic collector staging binding mismatch')
+            require(staging['state'] == [dict(path='PhysicalPlanTop.' + n, offset=o, width=w) for n,o,w in
+                    [('ckpt_pending',0,1), ('ckpt_saved_data',1,64), ('ckpt_saved_error',65,1),
+                     ('checkpoint_f2_control_state',66,81)]], 'atomic collector observation ABI changed')
+            wired_hash = staging['wired_sha256']
         require(binding['deployable_capture_image'] is False and
-                sha(out / 'wired.fir') == binding['wired_reference_sha256'] and
+                sha(out / 'wired.fir') == wired_hash and
                 sha(out / 'reference.fir') == binding['reference_sha256'], 'generated binding mismatch')
         if args.compiler_connected:
             scope = ('compiler_connected_native_bank_collector_sibling_only' if args.native_banks
@@ -198,7 +238,7 @@ def main():
             for name, original in [('BUFGCE.v', vendor / 'unisims/BUFGCE.v'), ('glbl.v', vendor / 'glbl.v')]:
                 shutil.copyfile(original, out / name)
                 doc['vendor_models'][name] = dict(original_path=str(original), sha256=sha(original))
-            (out / 'synth.tcl').write_text(synthesis_contract(args.compiler_connected, args.native_banks))
+            (out / 'synth.tcl').write_text(synthesis_contract(args.compiler_connected, args.native_banks, args.collector_snapshot))
             text = run(['vivado', '-mode', 'batch', '-source', 'synth.tcl', '-log', 'vivado.log', '-journal', 'vivado.jou'], 'native')
             match = re.search(r'F2_GENERATED_CUT_TIMING setup_ns=([-0-9.]+) hold_ns=([-0-9.]+) sequential=(\d+)', text)
             require(match and 'Vivado v2025.2' in text and 'F2_GENERATED_CUT_NATIVE_PASS gates=3 shell_writers=4 asynchronous_cancel=1' in text
@@ -217,6 +257,7 @@ def main():
             require(nd['generated'] == doc['generated'], 'native generated input mismatch')
             require(nd['compiler_connected'] == args.compiler_connected, 'native compiler connection mode mismatch')
             require(nd.get('native_banks', False) == args.native_banks, 'native bank connection mode mismatch')
+            require(nd.get('collector_snapshot', False) == args.collector_snapshot, 'native staging mode mismatch')
             for name in ('original-cl_firesim.sv', 'shell-writers.sv', 'shell-binding.json', 'BUFGCE.v', 'glbl.v'):
                 shutil.copyfile(native / name, out / name)
             doc['native_receipt'] = dict(path=str(native / 'summary.json'), sha256=sha(native / 'summary.json'))
@@ -229,9 +270,11 @@ def main():
             fixture = 'f2_compiler_cut_fixture.sv' if args.compiler_connected else 'f2_generated_cut_fixture.sv'
             run([toolchain.VCS, '-full64', '-sverilog', '-timescale=1ns/1ps', '-Mupdate', '-debug_access+all',
                  *(['+define+CHECKPOINT_NATIVE_BANKS', '+incdir+' + str(out)] if args.native_banks else []),
+                 *(['+define+CHECKPOINT_COLLECTOR_SNAPSHOT'] if args.collector_snapshot else []),
                  '-top', 'f2_generated_cut_tb', '-top', 'glbl', '-Mdir=' + str(work / 'csrc'), '-o', work / 'simv',
                  *[out / n for n in ('BUFGCE.v', 'glbl.v', 'reference-renamed.sv', 'wired.sv', 'shell-writers.sv', 'CheckpointPhysicalClockCut.sv',
-                                    'CheckpointResetOwnedClockCut.sv', 'CheckpointF2ResetGuard.sv', 'CheckpointF2ClockResetCut.sv', fixture,
+                                    'CheckpointResetOwnedClockCut.sv', 'CheckpointF2ResetGuard.sv', 'CheckpointF2ClockResetCut.sv',
+                                    'CheckpointNativeStateSnapshot.sv', fixture,
                                     bench, 'checkpoint_widget_exit.cc')]], 'compile', work=work)
             text = run([work / 'simv', '-no_save'], 'healthy', work=work)
             match = re.search(r'F2_GENERATED_CUT_PASS checks=(\d+) cycles=320 cuts=4 stalls=64', text)
@@ -242,6 +285,10 @@ def main():
                 require('F2_NATIVE_COLLECTOR_BANK_PASS reads=20 response_stalls=80 drain_stalls=16' in text,
                         'native bank readout/drain scope incomplete')
                 doc.update(bank_reads=20, bank_response_stalls=80, bank_drain_stalls=16)
+            if args.collector_snapshot:
+                require('F2_STAGED_COLLECTOR_PASS captures=4 words=36 bits=147 staging_owner_bits=218' in text,
+                        'atomic collector staging scope incomplete')
+                doc.update(staged_captures=4, staged_word_reads=36, staged_bits=147, staging_owner_bits=218)
             for fault in faults:
                 trial = out / fault; trial.mkdir()
                 text = run([work / 'simv', '-no_save', '+fault=' + fault], fault, work=trial)
@@ -251,9 +298,16 @@ def main():
             text = run([work / 'simv', '-no_save', '+corrupt'], 'corrupt', work=trial, expected=1)
             require('F2_GENERATED_CUT_DIVERGENCE target_cycle=17 signal=left.reset acknowledged_edges=0' in text,
                     'semantic reset corruption did not stop at first divergent signal')
-            require(len(list(out.rglob('*.vcd'))) == len(faults) + 2 and all(p.stat().st_size for p in out.rglob('*.vcd')),
+            staging_faults = ('unstaged-read', 'busy-release', 'duplicate-stage', 'cycle-drift') if args.collector_snapshot else ()
+            for fault in staging_faults:
+                trial = out / fault; trial.mkdir()
+                text = run([work / 'simv', '-no_save', '+fault=' + fault], fault, work=trial)
+                require('F2_STAGED_COLLECTOR_REJECT fault=' + fault + ' target_cycle=17 acknowledged_edges=0' in text and
+                        'F2_GENERATED_CUT_PASS' not in text, 'staging fault did not reject: ' + fault)
+            require(len(list(out.rglob('*.vcd'))) == len(faults) + len(staging_faults) + 2 and all(p.stat().st_size for p in out.rglob('*.vcd')),
                     'complete positive/negative full-visibility debug waves required')
             doc['faults'] = list(faults)
+            doc['staging_faults'] = list(staging_faults)
         require(doc['sources'] == {n: sha(ROOT / n) for n in SOURCES}, 'source changed during verification')
         require(doc['generated'] == {n: sha(generated / n) for n in names}, 'generated inputs changed')
         doc['status'] = 'pass'
@@ -262,7 +316,7 @@ def main():
         raise
     finally:
         doc['artifacts'] = {str(p.relative_to(out)): sha(p) for p in out.rglob('*') if p.is_file()
-                            and p.suffix in ('.log', '.jou', '.rpt', '.dcp', '.vcd', '.tcl', '.sv', '.v', '.py', '.cc', '.json', '.fir')}
+                            and p.suffix in ('.log', '.jou', '.rpt', '.dcp', '.vcd', '.tcl', '.sv', '.v', '.py', '.cc', '.json', '.fir', '.txt')}
         doc['finished_utc'] = datetime.now(timezone.utc).isoformat()
         (out / 'summary.json').write_text(json.dumps(doc, indent=2) + '\n')
         print(out / 'summary.json', flush=True)

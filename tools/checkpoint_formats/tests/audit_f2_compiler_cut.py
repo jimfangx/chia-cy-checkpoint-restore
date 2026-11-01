@@ -30,7 +30,7 @@ SIGNALS = {n for n, _, _ in FIELDS} | {'control_state', 'controller_reset', 'clo
     ADAPTER + 'writer_state', 'raw_reset_xor', 'simulator_reset'}
 
 
-def audit_native_bank_wave(path, entries, case, corrupt_bit=None):
+def audit_native_bank_wave(path, entries, case, corrupt_bit=None, collector_snapshot=False):
     """Reconstruct accepted beats from selectors and ORIGINAL functional state.
 
     Track requests and acknowledgements at raw edges independently of the
@@ -42,6 +42,8 @@ def audit_native_bank_wave(path, entries, case, corrupt_bit=None):
              'ckpt_resp_error', 'ckpt_bank', 'ckpt_slot', 'ckpt_address', 'target_cycle', 'a', 'b',
              'dut.execution.ckpt_clock', 'dut.execution.ckpt_freeze', 'dut.execution.ckpt_reset',
              'dut.execution.ckpt_pending', 'dut.execution.checkpoint_f2_bank_ckpt_resp_ready'}
+    if collector_snapshot:
+        names.add('checkpoint_f2_shadow_valid')
     scopes, codes, values = [], {}, {}
     last, pending = None, None
     samples = accepted = acknowledged = draining = cancelled = 0
@@ -85,10 +87,11 @@ def audit_native_bank_wave(path, entries, case, corrupt_bit=None):
                 v['dut.execution.ckpt_freeze'] == v['clock_mask'] and
                 v['dut.execution.ckpt_reset'] == v['controller_reset'], 'bank clock/freeze/reset ownership changed')
         require(v['dut.execution.ckpt_pending'] == int(pending is not None), 'bank pending state/handshake mismatch')
-        require(v['ckpt_req_ready'] == int(pending is None and v['read_enable'] and v['freeze_request']) and
-                v['ckpt_resp_valid'] == int(pending is not None and v['read_enable']) and
+        permission = v['read_enable'] and (not collector_snapshot or v['checkpoint_f2_shadow_valid'])
+        require(v['ckpt_req_ready'] == int(pending is None and permission and v['freeze_request']) and
+                v['ckpt_resp_valid'] == int(pending is not None and permission) and
                 v['dut.execution.checkpoint_f2_bank_ckpt_resp_ready'] ==
-                (v['ckpt_resp_ready'] & v['read_enable']), 'bank permission bypass')
+                (v['ckpt_resp_ready'] & int(bool(permission))), 'bank permission bypass')
         if v['ckpt_resp_valid']:
             observed = v['ckpt_resp_data']
             if observed is not None and corrupt_bit is not None:

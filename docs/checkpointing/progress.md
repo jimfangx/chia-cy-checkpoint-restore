@@ -35,7 +35,55 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 299,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 300,
+**in_progress; atomic collector/endpoint staging verified; physical capture pending**.
+
+`F2NativeCollectorSnapshot` stages the entire collector and idle response endpoint
+before opening functional banks. It retains the cut through reads, backpressure,
+withdrawal and failed epochs, and requires an explicit idle staging release.
+The endpoint's inactive data/error bytes now have explicit independent controller
+initialization; later inactive bytes remain exact captured state. The snapshot's
+own state is a separate unsupported restore owner. See
+[f2-native-collector-staging.md](f2-native-collector-staging.md).
+
+Native Vivado 2025.2 P&R passes 140 MHz at +0.878/+0.019 ns setup/hold, retaining
+all 452 sequential cells, including all 218 staging bits: 308 LUTs, 449 CLB
+registers and three BUFGCEs. Fresh EDA SP2 VCS and independent pre-edge raw-wave
+audits pass the four component cuts and sixteen healthy/fault/corrupt waves;
+147 payload and 218 owner-packing bit mutations reject. All 378 Scala tests /
+59 suites plus sixteen preparation checks pass (38m19s), and all five full-suite
+fixtures match the independently synthesized/simulated bytes. The retained
+Python/sanitizer/host/bank/FCFS/cut scope passes, including 409 Python and 61
+manager tests. All retained native/VCS/raw-wave checks and 124 companion-manifest
+corruptions pass. Fresh observed and ordinary exact Rocket compiles retain the
+FASED physical CE owner refusal; neither admits an image. Final source/artifact/
+resource closure passes at `final-audit-19lks7s3/summary.json`.
+
+Evidence and immutable failures are under `runs/aws-f2/iteration300/`. Preserve
+the initial FIRRTL construction/LowForm/compiler failures, VCS declaration and
+uninitialized-response diagnostics, rejected replicated-register/timing runs,
+source-change refusals and concurrent-wrapper selection failure. Corrected
+receipt selection uses each process's actual emitted receipt. The current
+successful native attempt is `native-collector/vivado-9afatcx5/summary.json`.
+Final AWS/native HDK/Vivado/localhost checks pass with no active loop F2
+instance, pending AFI or local Java/Vivado job. Five scoped JVM samples retain
+continuous progress through the long whole-host test. Plans and initialized
+manager inputs retain entry hashes. All reported artifacts are nonempty local
+files and original EDA paths remain inside receipts.
+
+No image/AFI, physical FPGA checkpoint, CPU migration/live comparison or rolling
+hardware recovery is established. Production selective attachment to the ONE
+existing widget controller and ungated MMIO/DMA, eight live transport-local
+owners, physical CE/FASED/functional-memory/host/pre-FAME completeness and global
+target-time authority remain pending. All hardware migration columns remain
+pending. Reuse iteration194's localhost invocation and preserve the four manager
+inputs. Both plans remain read-only. Managed worker startup failed before
+execution; all work is central and no worker started. Existing iteration299
+controller checkpoints were published FireSim then Chipyard with matching
+remote tips; retain the local tracking-ref warning. No staging or commits were
+performed. Follow [github-publication.md](github-publication.md).
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 299,
 **in_progress; native bank/collector component verified; physical capture pending**.
 
 The native readout endpoint now shares the compiler-connected F2 clock/reset

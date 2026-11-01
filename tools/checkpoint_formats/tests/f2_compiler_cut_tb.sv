@@ -11,6 +11,7 @@ module f2_generated_cut_tb;
     wire [63:0] target_cycle, cut_cycle;
     wire [7:0] a,b;
     wire [80:0] control_state;
+    reg [63:0] held_cycle;
 `ifdef CHECKPOINT_NATIVE_BANKS
     `include "bank-selectors.svh"
     reg ckpt_req_valid=0, ckpt_resp_ready=0;
@@ -20,6 +21,41 @@ module f2_generated_cut_tb;
     wire ckpt_req_ready, ckpt_resp_valid, ckpt_resp_error;
     wire [63:0] ckpt_resp_data;
     integer bank_reads=0, bank_stalls=0, drain_stalls=0;
+`endif
+`ifdef CHECKPOINT_COLLECTOR_SNAPSHOT
+    reg checkpoint_f2_shadow_request=0, checkpoint_f2_shadow_release=0;
+    reg [31:0] checkpoint_f2_shadow_word_address=0;
+    wire checkpoint_f2_shadow_ready, checkpoint_f2_shadow_valid, checkpoint_f2_shadow_failed;
+    wire checkpoint_f2_shadow_word_error;
+    wire [63:0] checkpoint_f2_shadow_word_data, checkpoint_f2_shadow_cut_cycle;
+    wire [5:0] checkpoint_f2_shadow_error;
+    wire [217:0] checkpoint_f2_shadow_control_state;
+    reg [146:0] staged_expected;
+    integer staged_words=0, staged_captures=0;
+    task read_shadow;
+        for(integer w=0;w<3;w++)begin
+            checkpoint_f2_shadow_word_address=w;#1;
+            check(checkpoint_f2_shadow_valid && !checkpoint_f2_shadow_word_error &&
+                  checkpoint_f2_shadow_word_data===(({45'b0,staged_expected} >> (w*64)) & 64'hffffffffffffffff),
+                  "atomic collector/endpoint word");
+            check(checkpoint_f2_shadow_cut_cycle===held_cycle,"atomic collector label");
+            staged_words++;
+        end
+        checkpoint_f2_shadow_word_address=32'hffffffff;#1;
+        check(checkpoint_f2_shadow_word_error && checkpoint_f2_shadow_word_data===0,"shadow address bound");
+    endtask
+    task stage_collector;
+        check(!ckpt_req_ready && !ckpt_resp_valid && !checkpoint_f2_shadow_valid,
+              "functional banks closed before atomic collector capture");
+        staged_expected={control_state,dut.execution.ckpt_saved_error,
+                         dut.execution.ckpt_saved_data,dut.execution.ckpt_pending};
+        checkpoint_f2_shadow_request=1;#1;
+        check(checkpoint_f2_shadow_ready,"collector staging request ready");
+        raw_step();checkpoint_f2_shadow_request=0;#1;
+        check(checkpoint_f2_shadow_valid && !checkpoint_f2_shadow_failed && ckpt_req_ready,
+              "atomic stage opens functional banks");
+        staged_captures++;read_shadow();
+    endtask
 `endif
     F2GeneratedCutFixture dut (.*);
     wire ref_axi_reset_n, ref_reset;
@@ -38,7 +74,6 @@ module f2_generated_cut_tb;
     bit corrupt;
     reg [79:0] held_words;
     reg [3:0] held_writers;
-    reg [63:0] held_cycle;
     task check(input bit ok,input string why);
         checks++;
         if(!ok)begin
@@ -105,6 +140,27 @@ module f2_generated_cut_tb;
         check(captured_ce===logical_ce,"native CE order");
         held();cuts++;
         $display("F2_GENERATED_CUT_CUT target_cycle=%0d writers=%b",target_cycle,captured_writers);
+`ifdef CHECKPOINT_COLLECTOR_SNAPSHOT
+        if(fault=="unstaged-read" && target_cycle==17)begin
+            ckpt_req_valid=1;#1;
+            check(checkpoint_f2_shadow_failed && !ckpt_req_ready && !ckpt_resp_valid,
+                  "read before staging fails without acknowledgement");
+            repeat(20)begin raw_step();check(clock_mask && !ckpt_resp_valid,"unstaged read retains cut");end
+            $display("F2_STAGED_COLLECTOR_REJECT fault=unstaged-read target_cycle=17 acknowledged_edges=0");$finish;
+        end
+        stage_collector();
+        if((fault=="busy-release" || fault=="duplicate-stage" || fault=="cycle-drift") && target_cycle==17)begin
+            if(fault=="busy-release")begin bank_start(CYCLES_BANK,CYCLES_SLOT,0);checkpoint_f2_shadow_release=1;end
+            else if(fault=="duplicate-stage")checkpoint_f2_shadow_request=1;
+            else force dut.execution.checkpoint_f2_shadow_adapter.target_cycle=64'd18;
+            #1;check(checkpoint_f2_shadow_failed && !checkpoint_f2_shadow_valid &&
+                     !ckpt_req_ready && !ckpt_resp_valid,"staging protocol fault immediately revokes access");
+            freeze_request=0;ckpt_req_valid=0;ckpt_resp_ready=1;
+            repeat(20)begin raw_step();check(clock_mask && !checkpoint_f2_shadow_valid,"staging failure retains cut");end
+            if(fault=="busy-release")check(dut.execution.ckpt_pending,"busy release retains unacknowledged beat");
+            $display("F2_STAGED_COLLECTOR_REJECT fault=%s target_cycle=17 acknowledged_edges=0",fault);$finish;
+        end
+`endif
         if(corrupt && target_cycle==17)begin
             force dut.execution.left.reset=1;#1;paths();
         end
@@ -131,6 +187,10 @@ module f2_generated_cut_tb;
             else if(fault=="raw-reset")begin raw_reset_xor=1;#0.1;end
             else check(0,"unknown fault");
             check(failed && !read_enable,"immediate read revocation without raw edge");
+`ifdef CHECKPOINT_COLLECTOR_SNAPSHOT
+            check(!checkpoint_f2_shadow_valid && checkpoint_f2_shadow_word_error &&
+                  checkpoint_f2_shadow_word_data===0,"cancelled snapshot is not publishable");
+`endif
 `ifdef CHECKPOINT_NATIVE_BANKS
             ckpt_resp_ready=1;ckpt_req_valid=1;
             check(!ckpt_resp_valid && !ckpt_req_ready,"cancellation revokes both bank handshakes without an edge");
@@ -156,6 +216,11 @@ module f2_generated_cut_tb;
         bank_read(RIGHT_BANK,RIGHT_SLOT,0,b,0);
         bank_read(255,65535,0,0,1);
         bank_read(CYCLES_BANK,CYCLES_SLOT,1,0,1);
+`ifdef CHECKPOINT_COLLECTOR_SNAPSHOT
+        read_shadow();
+        check(staged_expected[65:0] !== {dut.execution.ckpt_saved_error,dut.execution.ckpt_saved_data,
+              dut.execution.ckpt_pending},"live endpoint changed while immutable stage retained original state");
+`endif
         bank_start(CYCLES_BANK,CYCLES_SLOT,0);
         freeze_request=0;#1;
         check(read_enable && !ckpt_req_ready,"withdrawal blocks requests and drains accepted response");
@@ -166,6 +231,13 @@ module f2_generated_cut_tb;
         end
         ckpt_resp_ready=1;raw_step();ckpt_resp_ready=0;#1;
         check(!ckpt_resp_valid && !ckpt_req_ready,"drain revoked bank handshakes");
+`endif
+`ifdef CHECKPOINT_COLLECTOR_SNAPSHOT
+        check(read_enable && clock_mask && checkpoint_f2_shadow_valid,"withdrawal retains staged cut after drain");
+        read_shadow();checkpoint_f2_shadow_release=1;#1;
+        check(!checkpoint_f2_shadow_valid && !ckpt_req_ready,"release immediately closes banks");
+        raw_step();checkpoint_f2_shadow_release=0;#1;
+        check(!checkpoint_f2_shadow_valid && !checkpoint_f2_shadow_failed,"idle staging release succeeds");
 `endif
         freeze_request=0;#1;check(!read_enable,"withdrawal revokes reads");
         clock=0;#3;clock=1;#3;check(clock_mask,"registered release validation");
@@ -187,6 +259,10 @@ module f2_generated_cut_tb;
 `ifdef CHECKPOINT_NATIVE_BANKS
         check(bank_reads==20 && bank_stalls==80 && drain_stalls==16,"complete bank readout and drain scope");
         $display("F2_NATIVE_COLLECTOR_BANK_PASS reads=20 response_stalls=80 drain_stalls=16");
+`endif
+`ifdef CHECKPOINT_COLLECTOR_SNAPSHOT
+        check(staged_captures==4 && staged_words==36,"complete collector and endpoint staging scope");
+        $display("F2_STAGED_COLLECTOR_PASS captures=4 words=36 bits=147 staging_owner_bits=218");
 `endif
         ddr_ready=0;step();step();check(functional_reset,"ordinary DDR loss propagates");
         ddr_ready=1;repeat(4)step();

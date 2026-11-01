@@ -26,9 +26,13 @@ NAMES = ['controller_reset', 'clock', 'freeze_request', 'rst_main_n', 'ddr_ready
          'dut.execution.right.gate_I', 'dut.execution.left.gate_CE', 'dut.execution.right.gate_CE']
 
 
-def audit_wave(path, case, native_banks=False):
+def audit_wave(path, case, native_banks=False, collector_snapshot=False):
     names = NAMES + (['dut.execution.checkpoint_f2_adapter.freeze_request',
                       'dut.execution.ckpt_pending'] if native_banks else [])
+    if collector_snapshot:
+        require(native_banks, 'staged collector requires native bank waveform')
+        names += ['checkpoint_f2_shadow_request', 'checkpoint_f2_shadow_control_state',
+                  'checkpoint_f2_shadow_error']
     scopes, codes, values = [], {}, {}
     last = None
     samples = holds = 0
@@ -75,6 +79,10 @@ def audit_wave(path, case, native_banks=False):
             request = v['freeze_request']
             if native_banks:
                 request |= v['dut.execution.ckpt_pending']
+                if collector_snapshot:
+                    request |= (v['checkpoint_f2_shadow_request'] |
+                                ((v['checkpoint_f2_shadow_control_state'] >> 147) & 1) |
+                                int(bool(v['checkpoint_f2_shadow_error'])))
                 require(v['dut.execution.checkpoint_f2_adapter.freeze_request'] == request,
                         'collector release bypassed native response drain')
             require(mask and sampled and not v['failed'] and request and

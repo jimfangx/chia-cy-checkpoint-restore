@@ -14,6 +14,20 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 300 adds atomic pre-read observation of the collector and idle bank
+endpoint, explicit initialization of inactive response bytes, separate staging
+ownership, and immediate fault revocation with retained cut/release control.
+Native 140 MHz P&R passes (+0.878/+0.019 ns), retaining 218 staging bits / 452
+sequential cells. Fresh EDA VCS and sixteen raw-wave audits pass; all 365 staged
+payload/owner bit mutations reject. All 378 Scala tests / 59 suites and sixteen
+preparation checks pass; all full-suite fixture bytes match. All 409 Python /
+61 manager and retained native/EDA/sanitizer/host/bank/FCFS/cut checks pass, plus
+124 companion-manifest corruptions. Both fresh exact Rocket ownership refusals
+remain enforced. Final closure is `final-audit-19lks7s3/summary.json`.
+This remains a component: all FPGA migration columns stay pending. See
+[f2-native-collector-staging.md](f2-native-collector-staging.md) and
+`runs/aws-f2/iteration300/`.
+
 Iteration 299 connects native functional banks to the compiler-generated F2
 collector with an ungated endpoint clock, internally owned freeze/reset,
 permission-gated handshakes and response-drain release. Missing-owner/reset/

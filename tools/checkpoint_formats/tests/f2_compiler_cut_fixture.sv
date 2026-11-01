@@ -19,6 +19,15 @@ module F2GeneratedCutFixture (
     output wire ckpt_req_ready, ckpt_resp_valid, ckpt_resp_error,
     output wire [63:0] ckpt_resp_data
 `endif
+`ifdef CHECKPOINT_COLLECTOR_SNAPSHOT
+    ,input wire checkpoint_f2_shadow_request, checkpoint_f2_shadow_release,
+    input wire [31:0] checkpoint_f2_shadow_word_address,
+    output wire checkpoint_f2_shadow_ready, checkpoint_f2_shadow_valid, checkpoint_f2_shadow_failed,
+    output wire checkpoint_f2_shadow_word_error,
+    output wire [63:0] checkpoint_f2_shadow_word_data, checkpoint_f2_shadow_cut_cycle,
+    output wire [5:0] checkpoint_f2_shadow_error,
+    output wire [217:0] checkpoint_f2_shadow_control_state
+`endif
 );
     F2ShellResetWriters shell (
         .firesim_internal_clock(clock), .rst_main_n(rst_main_n), .ddr_ready_in(ddr_ready),
@@ -39,6 +48,19 @@ module F2GeneratedCutFixture (
         .ckpt_resp_valid(ckpt_resp_valid), .ckpt_resp_ready(ckpt_resp_ready),
         .ckpt_resp_data(ckpt_resp_data), .ckpt_resp_error(ckpt_resp_error),
         .ckpt_bank(ckpt_bank), .ckpt_slot(ckpt_slot), .ckpt_address(ckpt_address)
+`endif
+`ifdef CHECKPOINT_COLLECTOR_SNAPSHOT
+        ,.checkpoint_f2_shadow_request(checkpoint_f2_shadow_request),
+        .checkpoint_f2_shadow_release(checkpoint_f2_shadow_release),
+        .checkpoint_f2_shadow_word_address(checkpoint_f2_shadow_word_address),
+        .checkpoint_f2_shadow_ready(checkpoint_f2_shadow_ready),
+        .checkpoint_f2_shadow_valid(checkpoint_f2_shadow_valid),
+        .checkpoint_f2_shadow_failed(checkpoint_f2_shadow_failed),
+        .checkpoint_f2_shadow_word_error(checkpoint_f2_shadow_word_error),
+        .checkpoint_f2_shadow_word_data(checkpoint_f2_shadow_word_data),
+        .checkpoint_f2_shadow_cut_cycle(checkpoint_f2_shadow_cut_cycle),
+        .checkpoint_f2_shadow_error(checkpoint_f2_shadow_error),
+        .checkpoint_f2_shadow_control_state(checkpoint_f2_shadow_control_state)
 `endif
     );
 endmodule
