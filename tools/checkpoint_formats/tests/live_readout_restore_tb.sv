@@ -9,6 +9,10 @@ module live_readout_restore_tb;
   reg reset=0,permission=0,restore_hold=1,restore_load=0;
   reg [68:0] restore_state=0;
   wire restore_ready;
+  reg capture_hold=0;
+  reg [31:0] capture_address=0;
+  wire capture_valid,capture_error;
+  wire [63:0] capture_data;
   reg [BITS-1:0] snapshot_state=0;
   reg request_valid=0,response_ready=0;
   reg [7:0] bank=1;reg [15:0] slot=0;reg [31:0] address=0;
@@ -19,12 +23,22 @@ module live_readout_restore_tb;
   reg [63:0] original_response_data=64'hfedcba9876543210;
   wire [7:0] original_bank;wire [15:0] original_slot;wire [31:0] original_address;
   wire [68:0] control_state;
-  CheckpointLiveShellSnapshotReadout #(.BITS(BITS),.SNAPSHOT_BANK(1),.RESTORE_ENABLE(1)) dut(.*);
+  CheckpointLiveShellSnapshotReadout #(.BITS(BITS),.SNAPSHOT_BANK(1),
+`ifdef READOUT_CAPTURE_ONLY
+    .RESTORE_ENABLE(0)
+`else
+    .RESTORE_ENABLE(1)
+`endif
+`ifdef READOUT_CAPTURE
+    ,.CAPTURE_ENABLE(1)
+`endif
+  ) dut(.*);
   // Compatibility instance sees the same hostile restore controls. An explicit
   // disabled parameter must leave its ordinary readout protocol unchanged.
   wire [68:0] disabled_state;wire disabled_restore_ready,disabled_request_ready,disabled_response_valid;
   CheckpointLiveShellSnapshotReadout #(.BITS(BITS),.SNAPSHOT_BANK(1),.RESTORE_ENABLE(0)) disabled(
     .clock(clock),.reset(reset),.permission(permission),.restore_hold(restore_hold),
+    .capture_hold(capture_hold),.capture_address(capture_address),.capture_valid(),.capture_error(),.capture_data(),
     .restore_load(restore_load),.restore_state(restore_state),.restore_ready(disabled_restore_ready),
     .snapshot_state(snapshot_state),.request_valid(1'b0),.response_ready(1'b0),
     .bank(bank),.slot(slot),.address(address),.request_ready(disabled_request_ready),
@@ -33,6 +47,7 @@ module live_readout_restore_tb;
     .original_response_valid(1'b0),.original_response_ready(),.original_response_data(64'b0),
     .original_response_error(1'b0),.idle(),.control_state(disabled_state));
   reg [68:0] image[0:0],expected,before_state;
+  reg [68:0] captured;
   reg [63:0] expected_data;
   reg expected_error;
   integer checks=0,acks=0,loads=0,fd;
@@ -61,6 +76,29 @@ module live_readout_restore_tb;
     check(restore_ready,"load-ready");no_handshake();
     edge_done();loads++;restore_load=0;independent_readback(value);
   endtask
+`ifdef READOUT_CAPTURE
+  task capture(input [68:0] value);
+    neg();permission=0;restore_hold=0;capture_hold=1;#1;
+    captured=0;
+    // Scan multiple times, with selector changes and raw clock edges between
+    // the words. Compare to six original registers, never to the capture port.
+    for(integer scan=0;scan<4;scan++)begin
+      for(integer word=0;word<2;word++)begin
+        capture_address=word;bank=bank^8'hff;slot++;address++;snapshot_state=~snapshot_state;#1;
+        check(capture_valid&&!capture_error&&!restore_ready,"capture-qualified");no_handshake();
+        check(capture_data===(word==0?value[63:0]:{59'b0,value[68:64]}),"capture-complete-word-before-ack");
+        if(word==0)captured[63:0]=capture_data;else captured[68:64]=capture_data[4:0];
+        edge_done();independent_readback(value);
+      end
+    end
+    check(captured===value,"capture-all-69-bits");
+    for(integer invalid=0;invalid<2;invalid++)begin
+      capture_address=invalid?32'hffffffff:2;#1;
+      check(capture_valid&&capture_error&&capture_data===0,"capture-address-rejected");
+      edge_done();independent_readback(value);
+    end
+  endtask
+`endif
   initial begin
     $dumpfile("live-readout-restore.vcd");$dumpvars(0,live_readout_restore_tb);
     check($value$plusargs("MODE=%s",mode),"mode-required");
@@ -78,8 +116,31 @@ module live_readout_restore_tb;
         if(cut=="released")begin response_ready=1;edge_done();response_ready=0;end
         if(cut=="fault")begin neg();permission=0;edge_done();check(dut.snapshot_bank.failed,"donor-lost-cut-sticky");end
       end
+`ifdef READOUT_CAPTURE
+      before_state={dut.snapshot_bank.failed,dut.snapshot_bank.pending,dut.snapshot_bank.saved_error,
+        dut.snapshot_bank.saved_data,dut.snapshot_owner,dut.pending};
+      capture(before_state);
+      if(scenario!="healthy")begin
+        neg();capture_address=0;
+        case(scenario)
+          "permission":permission=1;
+          "request":request_valid=1;
+          "response":response_ready=1;
+          "load":restore_load=1;
+          "hold":restore_hold=1;
+          default:check(0,"known-capture-negative");
+        endcase
+        #1;check(!capture_valid&&capture_error&&capture_data===0&&!restore_ready,"unsafe-capture-rejected");
+        no_handshake();repeat(8)begin edge_done();independent_readback(before_state);no_handshake();end
+        $display("READOUT_CAPTURE_NEGATIVE_PASS bits=%0d cut=%s case=%s ack=0",BITS,cut,scenario);$finish;
+      end
+      fd=$fopen(image_path,"w");check(fd!=0,"image-open");
+      $fdisplay(fd,"%h",captured);$fclose(fd);
+      $display("READOUT_CAPTURE_PASS bits=%0d cut=%s checks=%0d words=2 owner_bits=69 ack=0",BITS,cut,checks);
+`else
       fd=$fopen(image_path,"w");check(fd!=0,"image-open");
       $fdisplay(fd,"%h",control_state);$fclose(fd);
+`endif
       $display("READOUT_DONOR_PASS bits=%0d cut=%s checks=%0d",BITS,cut,checks);$finish;
     end
     check(mode=="restore","known-mode");
@@ -99,15 +160,25 @@ module live_readout_restore_tb;
             if(b==67)expected[0]=0;
           end
           load(expected);
+`ifdef READOUT_CAPTURE
+          capture(expected);neg();capture_hold=0;restore_hold=1;
+`endif
         end
       end
       // The compatibility instance is reset only AFTER the fresh-restore proof.
       neg();reset=1;restore_load=1;restore_state='1;#1;
+`ifdef READOUT_CAPTURE
+      capture_hold=1;#1;
+      check(!capture_valid&&capture_error&&capture_data===0,"reset-rejects-capture");
+`endif
       check(!restore_ready,"reset-rejects-load");edge_done();
       check(control_state===0&&disabled_state===0,"reset-over-entire-owner");
       neg();reset=0;permission=1;
       #1;check(!disabled_restore_ready&&disabled_request_ready&&!disabled_response_valid,"default-restore-disabled");
       repeat(4)begin edge_done();check(disabled_state===0,"disabled-load-cannot-change-state");end
+`ifdef READOUT_CAPTURE
+      check(capture_hold&&!capture_valid&&capture_error&&!request_ready,"capture-held-disabled-compatibility");
+`endif
       $display("READOUT_BITS_PASS bits=%0d owner_bits=69 loads=%0d checks=%0d ack=0",BITS,loads,checks);$finish;
     end
     if(scenario!="healthy")begin

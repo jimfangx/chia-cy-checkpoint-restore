@@ -35,7 +35,58 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 305,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 306,
+**in_progress; stateless local readout-owner capture; physical capture pending**.
+
+The shared readout can now explicitly park and expose all 69 routing/response
+bits through two zero-padded 64-bit words, independently of restore enable.
+There is no added storage. Unsafe permission, handshake or restore intent
+withholds valid data and returns an error; reset retains priority. Default
+capture stays disabled and all production ownership/admission refusals remain.
+See [f2-live-shell-bank-readout.md](f2-live-shell-bank-readout.md).
+
+All 386 Scala / 60 suites plus sixteen preparation and 25 focused checks pass.
+Native synthesis passes for standalone capture (514 LUTs / 69 registers), the
+capture-only wrapper (1,024 LUTs / 1,320 registers) and capture/restore wrapper
+(1,103 LUTs / 1,320 registers), retaining all 69 owner bits without new storage.
+Source-bound fresh EDA SP2 passes 24 component capture donors, eighteen fresh
+restores, fifteen unsafe-capture cases, three every-bit processes and 139
+actual generated-wrapper load/capture cycles. Complete raw-register audits
+verify 2,304 continued bank transactions, all 69 omitted-bit rejections and
+compiled corruption at word zero before acknowledgement/publication. Sixty-two
+new debug waves remain. These donors are directed components, not FPGA images.
+
+All retained native/EDA staging, bank, shell, host/ASan/UBSan/FCFS/cut checks,
+409 Python / 61 manager tests and full six-geometry bank/MMIO/DMA regression
+pass. Both fresh exact-Rocket trials retain the physical CE/common-cut refusal.
+Final closure is `runs/aws-f2/iteration306/final-audit-6ustnh9b/summary.json`,
+binding 2,070 current sources and eight matching compiler/native/VCS fixtures.
+
+Preserve the initial EDA ENOSPC transfer, cancelled maintenance attempts and
+legacy wildcard-port compile failure. Explicit kernel sharing of 317 recent
+generated-source pairs recovered 16 GiB with complete before/after digests and
+original files/inodes/recorded metadata intact; no raw waveform was removed or
+replaced. Storage audit then passed before fresh VCS. The legacy snapshot-bank
+fixture now explicitly ties the new optional capture hold low; native and full
+EDA/retained scope reran successfully. Recovery plan, receipts, exact commands
+and diagnostics are under `runs/aws-f2/iteration306/`. The remaining unapplied
+pairs in `recent-generated-storage-plan.json` offer future capacity recovery;
+large CPU-wave runs still need their explicit larger capacity requirement.
+
+Final AWS/native preflight passes with no active loop F2 instance, pending AFI
+or native build job. Production permission revocation/ONE-widget descriptor and
+epoch attachment, complete original/native/staging/global restore, physical
+CE/FASED/common cut, memory/host ownership and target/pre-FAME coverage remain
+pending. No checkpoint-enabled image/AFI, physical CPU cut, FPGA-origin migration,
+finite/live CPU acceptance or rolling recovery is established. Reuse the
+iteration194 localhost build invocation. Existing iteration305 controller
+checkpoints were pushed FireSim then Chipyard, with matching remote tips;
+Chipyard's local tracking-ref warning remains logged. Plans and initialized
+YAMLs retain entry hashes. No staging or local commits. Managed startup failed
+before execution; no worker started or remains. Follow
+[github-publication.md](github-publication.md).
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 305,
 **in_progress; opt-in local readout-owner restore; physical capture pending**.
 
 The shared live-shell bank adapter now has an explicit optional hardware load

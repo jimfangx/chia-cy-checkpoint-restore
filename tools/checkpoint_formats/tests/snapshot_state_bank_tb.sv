@@ -15,7 +15,8 @@ module snapshot_state_bank_tb;
     wire [63:0] response_data;
     wire [66:0] control_state;
     CheckpointSnapshotStateBank #(.BITS(BITS),.SLOT(17)) dut(
-        .restore_hold(1'b0),.restore_load(1'b0),.restore_state(67'b0),.restore_ready(),.*);
+        .restore_hold(1'b0),.restore_load(1'b0),.restore_state(67'b0),.restore_ready(),
+        .capture_hold(1'b0),.*);
     reg [WORDS*64-1:0] padded;
     reg [63:0] expected;
     integer checks=0,requests=0,acks=0,stalls=0;

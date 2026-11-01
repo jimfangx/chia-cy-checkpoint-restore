@@ -1,5 +1,11 @@
 `timescale 1ns/1ps
 module live_readout_generated_restore_tb;
+`ifdef READOUT_CAPTURE
+  reg capture_hold=0;
+  reg [31:0] capture_address=0;
+  wire capture_valid,capture_error;
+  wire [63:0] capture_data;
+`endif
   import "DPI-C" function void checkpoint_widget_failed();
   reg clock=0;always #5 clock=~clock;
   reg functional_reset=1,restore_hold=1,restore_load=0;
@@ -32,6 +38,11 @@ module live_readout_generated_restore_tb;
     .checkpoint_shell_live_snapshot_word_address(32'b0),
     .checkpoint_live_readout_restore_hold(restore_hold),.checkpoint_live_readout_restore_load(restore_load),
     .checkpoint_live_readout_restore_state(restore_state),.checkpoint_live_readout_restore_ready(restore_ready),
+`ifdef READOUT_CAPTURE
+    .checkpoint_live_readout_capture_hold(capture_hold),.checkpoint_live_readout_capture_address(capture_address),
+    .checkpoint_live_readout_capture_valid(capture_valid),.checkpoint_live_readout_capture_data(capture_data),
+    .checkpoint_live_readout_capture_error(capture_error),
+`endif
     .checkpoint_live_readout_control_state(control_state));
   task check(input bit ok,input string why);
     checks++;
@@ -51,6 +62,16 @@ module live_readout_generated_restore_tb;
       dut.checkpoint_live_readout_adapter.snapshot_bank.saved_error===state_in[66]&&
       dut.checkpoint_live_readout_adapter.snapshot_bank.pending===state_in[67]&&
       dut.checkpoint_live_readout_adapter.snapshot_bank.failed===state_in[68],"generated-independent-original-registers");
+`ifdef READOUT_CAPTURE
+    @(negedge clock);restore_hold=0;capture_hold=1;
+    for(integer word=0;word<2;word++)begin
+      capture_address=word;#1;
+      check(capture_valid&&!capture_error&&!restore_ready&&!req_ready&&!resp_valid,"generated-capture-qualified");
+      check(capture_data===(word==0?state_in[63:0]:{59'b0,state_in[68:64]}),"generated-capture-complete-word");
+      @(posedge clock);#1;check(control_state===state_in,"generated-capture-immutable");
+    end
+    @(negedge clock);capture_hold=0;restore_hold=1;
+`endif
     repeat(2)begin @(posedge clock);#1;
       check(control_state===state_in&&!req_ready&&!resp_valid,"generated-parked-owner");end
   endtask
