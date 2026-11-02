@@ -14,6 +14,27 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 9797 adds an explicit FAME-aware exact Rocket reservation and an
+independent final compiler/widget binding audit. Actual compilation binds all
+10,916 descriptors / three physical gates to the registered transport and host
+header, preserving all 321 observer bits and the original two pending bits.
+The strict source/final equation and route audits cover 21 roles / 86 original
+owner registers; executable host/ROM descriptors and their original allocation
+are independently checked on manager and EDA; seventeen actual-output mutations reject semantic, routing,
+opaque-owner, admission, digest and header defects. The manifest still lists
+1,245 uncovered functional entries and unsupported transport ownership, so the
+unchanged image guard rejects emission. See
+[f2-regional-fame-freeze.md](f2-regional-fame-freeze.md) and current progress for
+completed and pending verification under `runs/aws-f2/iteration9797/`.
+Final verification passes 408 Scala tests plus sixteen preparation checks, 69
+manager tests, nine native syntheses, 430 Python tests, retained sanitizer/FCFS
+scope, and all 51 source/native-bound VCS component cases with full debug waves.
+A sync-contaminated log attempt was preserved; the affected native group was
+rebuilt and the entire EDA component scope passed its retry.
+No checkpoint-enabled image, physical capture, FPGA Level-1/Level-2 migration,
+finite CPU replay, sustained live RTL or rolling hardware recovery is verified.
+All four FPGA-origin CPU acceptance columns remain pending/in_progress.
+
 Iteration 9796 adds source-bound FAME role projection through the regional
 bank/clock-mask rewrites. See [f2-regional-fame-freeze.md](f2-regional-fame-freeze.md).
 It validates the original owner equations and keeps ordinary role validation

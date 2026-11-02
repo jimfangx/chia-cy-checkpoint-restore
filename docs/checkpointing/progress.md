@@ -35,7 +35,79 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 9796,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 9797,
+**in_progress; observer-aware exact Rocket transport identity; physical capture pending**.
+
+The explicit `WithRocketFAMERegionCompilerProbeReservation` overlay reserves
+six observer entries separately from the original pending flags. Actual exact
+Rocket generation now reconstructs and binds all 10,916 entries / three physical
+gates to the existing transport and registered header, then hits the unchanged
+incomplete-image guard. No target-cycle authority or missing owner is invented.
+Its manifest still lists 1,245 uncovered functional entries plus opaque transport
+ownership. Detailed/grouped inventories are under
+`runs/aws-f2/iteration9797/rocket-owner-deficits*.json`: control interconnect has
+408 entries, AXI deinterleaver 130, and stream-engine storage over 12 million
+logical bits. These require real atomic owner protocols, not implicit draining.
+
+Added independent final-binding and actual-compiler corruption checks. The
+strict original source-pair audit passes 21 roles / 323 stored bits and all 86
+original registers in the role-owning module. The final checker preserves those
+complete definitions, checks all four regional freeze/mask routes to the actual
+physical transport, and verifies all 10,916 descriptor ROM entries, executable
+C++ host table, digest byte order, original allocation, manifest/binding hashes
+and StateIDs. All seventeen semantic/route/opaque-owner/admission/ROM/host/digest
+mutations reject. Fresh EDA repeats the complete source/final audit and matches
+the manager's input hashes/results. See
+[f2-regional-fame-freeze.md](f2-regional-fame-freeze.md).
+
+Final current-source checks pass: 69 manager tests; 408 Scala tests / 64 suites
+plus sixteen preparation checks; both original exact-Rocket refusals and the
+observed regional binding diagnostic; nine native localhost component syntheses;
+and the complete fresh EDA scope. EDA retains FASED, all three publication
+suites, all 430 Python tests, bank, host ASan/UBSan, FCFS and cut checks, plus all
+51 source/native-bound component cases. All 51 runtime debug waves and four
+additional waveform-auditor corruption probes remain intact. No test or
+sanitizer scope was reduced. Vivado ran only after JVM exit, at most two jobs.
+
+The first EDA component attempt stopped before simulation when native artifact
+validation found two changed physical-nested transport logs. Artifact exchange
+had overlapped active synthesis. All Scala artifacts and the other six native
+syntheses remained intact. The three-profile transport group was rebuilt in a
+fresh directory with synchronization paused; complete before/after-exchange
+hash audits now pass all nine native syntheses, and the entire VCS component
+scope passed its retry. Original logs/receipts and
+`native-input-integrity-failure.json` remain unchanged. Follow the new artifact
+lifetime note in [aws-f2-workflow.md](aws-f2-workflow.md).
+
+Earlier audit probes assumed exposed freeze ports, referenced a moved local
+variable, or changed an unused retained module. Corrected checks verify actual
+internal routes and the annotated concrete execution. The closing auditor also
+now resolves explicitly root-relative input paths separately from receipt-local
+artifacts. All exploratory attempts remain separate. An explicit-key process
+probe failed; the existing localhost default key worked. No credentials or
+initialized manager config changed. Both managed worker starts failed before
+startup; only the central agent performed implementation/review, with no workers
+left running.
+
+Complete-hash kernel sharing preserves closed generated source files, independent
+inodes and every raw wave. The replayable final plan shares 858 file pairs and
+retains the normal 8 GiB VCS pre-run reserve. Source/manager/native/VCS/resource
+closure passes 2,103 current hash bindings in `final-audit-selected.json`.
+Commands, failed attempts and final selections are under
+`automations/checkpoint_loop/runs/aws-f2/iteration9797/`. All compiler, native,
+EDA and preflight jobs have finished; there is no active scoped F2 runtime or
+native build. Account AFI descriptors remain loop-ownership-unproven and unmodified.
+
+Existing controller checkpoints were pushed FireSim `10d442ef` then Chipyard
+`7a4571160`; the post-push local tracking-ref warning is retained. No staging or
+local commits. Plans and all four initialized manager YAMLs retain entry hashes.
+No checkpoint-enabled image, new AFI, physical checkpoint, FPGA-to-EDA CPU
+migration, sustained live RTL or rolling hardware recovery is established.
+Complete global cut/FASED AXI/reset/writer, functional-memory/host/transport
+ownership, complete restore and image P&R/AFI remain required. All physical CPU
+capture/replay/live/rolling columns remain pending.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 9796,
 **in_progress; source-bound regional FAME freeze projection; physical capture pending**.
 
 Added explicit original-source FAME role projection through native in-place,

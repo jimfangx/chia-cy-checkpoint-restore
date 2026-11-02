@@ -204,6 +204,21 @@ never terminate this localhost build server/manager or unrelated farms. Local
 EDA synchronization. Copy only required restore inputs and evidence outside
 those directories. Do not share images or delete unrelated AWS resources.
 
+## Native artifact lifetime during mirror exchange
+
+Do not overlap EDA helper synchronization with localhost synthesis that is still
+writing evidence beneath `runs/`. The helper's exchange is bidirectional; an
+incomplete log copied while Vivado is active can return to the manager and
+invalidate an already published native receipt. Finish native processes, then
+audit every bound artifact before starting EDA exchange. Keep build-host worktrees
+excluded as above. Controller verification commands should retain this order.
+
+Iteration 9797 detected two changed physical-nested transport logs before VCS
+started. All Scala artifacts and the other six native syntheses remained intact.
+Keep that failed receipt and the integrity inventory; rerun the affected native
+group in a fresh directory with synchronization paused. Never repair this by
+updating the original receipt's expected hashes or relabeling its observation.
+
 ## Retained EDA waveform capacity
 
 A full EDA disk can fail a verification receipt after simulation has succeeded.
