@@ -26,6 +26,26 @@ module fame_clock_cut_tb;
   wire checkpoint_f2_clock_mask, checkpoint_f2_functional_reset;
   wire checkpoint_fame_cut_consistent;
   wire [63:0] checkpoint_fame_cut_applied_cycle;
+`ifdef FAME_NATIVE_BANKS
+  reg [7:0] ckpt_bank=0;
+  reg [15:0] ckpt_slot=0;
+  reg [31:0] ckpt_address=0;
+  reg ckpt_req_valid=0,ckpt_resp_ready=0;
+  wire ckpt_req_ready,ckpt_resp_valid,ckpt_resp_error;
+  wire [63:0] ckpt_resp_data;
+  reg checkpoint_f2_shadow_request=0,checkpoint_f2_shadow_release=0;
+  reg [31:0] checkpoint_f2_shadow_word_address=0;
+  wire checkpoint_f2_shadow_ready,checkpoint_f2_shadow_valid,checkpoint_f2_shadow_failed;
+  wire [63:0] checkpoint_f2_shadow_word_data,checkpoint_f2_shadow_cut_cycle;
+  wire checkpoint_f2_shadow_word_error;
+  wire [5:0] checkpoint_f2_shadow_error;
+  wire [217:0] checkpoint_f2_shadow_control_state;
+  reg [146:0] staged;
+  reg [191:0] staged_padded;
+  integer native_reads=0;
+  integer native_fault=-1;
+  `include "fame-bank-reads.svh"
+`endif
   Top dut(.*);
   wire ref_clock_ready, ref_data_ready, ref_value_valid, ref_slow_valid;
   wire [7:0] ref_value, ref_slow;
@@ -71,6 +91,9 @@ module fame_clock_cut_tb;
     check({model_clocks_sink_ready,model_data_sink_ready,model_value_source_valid,model_slow_source_valid,
       model_value_source_bits,model_slow_source_bits}===
       {ref_clock_ready,ref_data_ready,ref_value_valid,ref_slow_valid,ref_value,ref_slow},"all_boundary_outputs");
+`ifdef FAME_NATIVE_BANKS
+    if(checkpoint_f2_shadow_control_state[147])check_native_cut();
+`endif
   endtask
   task step;
     hostClock=0; #4;
@@ -122,7 +145,63 @@ module fame_clock_cut_tb;
     check(checkpoint_f2_captured_writers===4'hf,"original_shell_writers");
     cuts++;
     $display("FAME_CUT_CAPTURE host_step=%0d applied=%0d consumed=%0d steps=%0d",step_index,applied_a,consumed_a,steps);
+`ifdef FAME_NATIVE_BANKS
+    check(!ckpt_req_ready && !ckpt_resp_valid && !checkpoint_f2_shadow_valid,"banks_closed_before_staging");
+    if(native_fault==0)begin
+      ckpt_req_valid=1;#1;check(!ckpt_req_ready,"premature_read_unacknowledged");step();
+      check(checkpoint_f2_shadow_failed && checkpoint_f2_stopped && !ckpt_resp_valid,"premature_read_sticky_refusal");
+      $display("FAME_NATIVE_REJECT fault=0 acknowledged=%0d reads=%0d",ack,native_reads);$finish;
+    end
+    staged={checkpoint_f2_control_state,dut.ckpt_saved_error,dut.ckpt_saved_data,dut.ckpt_pending};
+    save_native_cut();
+    check(!$isunknown(staged),"complete_idle_endpoint_initialized");
+    hostClock=0;#1;checkpoint_f2_shadow_request=1;#1;
+    check(checkpoint_f2_shadow_ready,"staging_ready");step();checkpoint_f2_shadow_request=0;#1;
+    check(checkpoint_f2_shadow_valid && !checkpoint_f2_shadow_failed &&
+      checkpoint_f2_shadow_cut_cycle===applied_a,"staged_same_applied_cut");
+    check(checkpoint_f2_shadow_control_state[146:0]===staged,"independent_collector_and_endpoint_staging");
+    if($test$plusargs("native_drift"))dut.model_.value_fired_0=~dut.model_.value_fired_0;
+    check_native_cut();
+    staged_padded={45'b0,staged};
+    for(integer w=0;w<3;w++)begin
+      checkpoint_f2_shadow_word_address=w;#1;
+      check(!checkpoint_f2_shadow_word_error && checkpoint_f2_shadow_word_data===staged_padded[w*64+:64],"all_staged_words_and_padding");
+    end
+    read_native_cut();
+    // The original endpoint changes during bank reads; staged bytes must not.
+    check(checkpoint_f2_shadow_control_state[146:0]===staged,"staging_immutable_after_reads");
+    $display("FAME_NATIVE_BANK_CAPTURE cut=%0d reads=%0d staging_bits=147",cuts,native_reads);
+`endif
   endtask
+`ifdef FAME_NATIVE_BANKS
+  task read_bank(input [7:0] bank,input [15:0] slot,input [63:0] expected);
+    hostClock=0;#1;ckpt_bank=bank;ckpt_slot=slot;ckpt_address=0;ckpt_req_valid=1;#1;
+    check(ckpt_req_ready && !ckpt_resp_valid,"native_request_before_ack");
+    step();ckpt_req_valid=0;#1;
+    check(ckpt_resp_valid && !ckpt_resp_error && ckpt_resp_data===expected,"bank_original_state_before_ack");
+    if(native_fault>0)begin
+      if(native_fault==1)checkpoint_f2_owner_present=6;
+      else checkpoint_f2_shadow_release=1;
+      #1;check(!ckpt_resp_valid && !ckpt_req_ready,"unsafe_pending_response_unacknowledged");step();
+      check(checkpoint_f2_shadow_failed && checkpoint_f2_stopped,"unsafe_pending_response_holds_cut");
+      $display("FAME_NATIVE_REJECT fault=%0d acknowledged=%0d reads=%0d",native_fault,ack,native_reads);$finish;
+    end
+    checkpoint_f2_freeze_request=0;
+    repeat(4)begin step();compare();
+      check(ckpt_resp_valid && !ckpt_resp_error && ckpt_resp_data===expected &&
+        !ckpt_req_ready && checkpoint_f2_shadow_control_state[146:0]===staged,"backpressure_stable_cut_and_response");end
+    checkpoint_f2_freeze_request=1;
+    ckpt_resp_ready=1;step();ckpt_resp_ready=0;#1;
+    check(!ckpt_resp_valid,"bank_response_drained");native_reads++;
+  endtask
+  task release_staging;
+    // Withdrawal cannot release an occupied epoch, even after the reader drains.
+    checkpoint_f2_freeze_request=0;repeat(4)begin step();compare();end
+    check(checkpoint_f2_stopped && !ckpt_req_ready && checkpoint_f2_shadow_control_state[147],"occupied_epoch_holds_withdrawn_request");
+    checkpoint_f2_freeze_request=1;
+    checkpoint_f2_shadow_release=1;step();checkpoint_f2_shadow_release=0;
+  endtask
+`endif
   task bit_faults;
     reg [63:0] saved;
     for(integer r=0;r<7;r++) begin
@@ -148,6 +227,9 @@ module fame_clock_cut_tb;
     $dumpfile("fame-cut.vcd"); $dumpvars(0,fame_clock_cut_tb);
     corrupt=$test$plusargs("corrupt");
     if ($value$plusargs("fault=%d",fault)) check(fault>=0 && fault<=9,"known_fault");
+`ifdef FAME_NATIVE_BANKS
+    if ($value$plusargs("native_fault=%d",native_fault))check(native_fault>=0 && native_fault<=2,"known_native_fault");
+`endif
     dut.model_.a=0;dut.model_.b=0;original.model_.a=0;original.model_.b=0;
     #120;repeat(4)step();
     hostReset=0;checkpoint_f2_writer_state=4'hf;repeat(3)step();checkpoint_f2_controller_reset=0;
@@ -164,6 +246,9 @@ module fame_clock_cut_tb;
       step();
       if(corrupt && step_index==17) deposit(1,applied_a^1);
       compare();ack++;
+`ifdef FAME_NATIVE_BANKS
+      if(native_fault>=0 && step_index==17)capture();
+`endif
       if(fault>=0 && step_index==17) begin
         capture();
         if(fault<8) begin
@@ -179,8 +264,14 @@ module fame_clock_cut_tb;
       end
       if(i==72 || i==178 || i==332 || i==494) begin
         capture();
+`ifndef FAME_NATIVE_BANKS
         if(i==178) bit_faults();
+`endif
         repeat(7)begin step();compare();end
+`ifdef FAME_NATIVE_BANKS
+        release_staging();
+        if(i==178)bit_faults();
+`endif
         checkpoint_f2_freeze_request=0;repeat(3)begin step();compare();end
         check(!checkpoint_f2_stopped && !checkpoint_f2_failed,"healthy_release");
       end

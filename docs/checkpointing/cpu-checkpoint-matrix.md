@@ -14,6 +14,24 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 9791 composes the local FAME witness with native functional banks
+and atomic collector/idle-endpoint staging. See
+[f2-fame-native-cut.md](f2-fame-native-cut.md). All 58 focused Scala tests,
+69 manager tests and the native component synthesis pass (723 LUTs / 707
+registers / three BUFGCEs). Sixteen fresh SP2 cases retain sixteen full debug
+waves and independently audit 52 reads of thirteen original entries at four
+applied cuts, including host withdrawal during backpressure and refusal before
+unsafe response acknowledgement. Per-cut original-state baselines and
+per-entry acknowledged coverage now pass thirteen directed audit tests and
+a separate VCS fired-flag corruption case. All 422 Python tests and the full
+native/EDA staging/readout/shell/transport/sanitizer/host/bank/FCFS/cut scope pass.
+The full Scala suite passes 391 tests / 60 suites plus sixteen preparation checks.
+Final source/resource closure passes, binding 2,085 source hashes and twelve
+matching compiler/native/VCS fixture sets. This verification sibling does not install the production transport,
+own physical CE/FASED/memory/host state, or provide complete restore. No new
+checkpoint image/AFI or FPGA-origin capture exists; every migration/live/rolling
+hardware column remains pending. Evidence is under `runs/aws-f2/iteration9791/`.
+
 Iteration 310 connects the local FAME applied-edge label and an all-domain
 progress-consistency owner to a generated raw-clock F2 collector sibling. See
 [f2-fame-cut-owner.md](f2-fame-cut-owner.md). The witness adds no storage and

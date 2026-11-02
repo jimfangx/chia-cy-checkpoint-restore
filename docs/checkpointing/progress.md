@@ -35,7 +35,57 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 310,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 9791,
+**in_progress; staged native FAME bank composition; physical capture pending**.
+
+Recovered the unfinished `FAMEClockCutWiring.generateNative` implementation.
+It now passes independent structural regeneration, including actual rename
+mappings, and composes thirteen original bank entries with the checked FAME
+applied cut and pre-read collector/endpoint staging. Unknown ownership still
+rejects. See [f2-fame-native-cut.md](f2-fame-native-cut.md). This is a verification
+sibling API; production compiler/ONE-widget attachment remains required.
+
+Current verified checks: 58 focused Scala tests, 69 manager tests, native
+Vivado synthesis (723 LUTs / 707 registers / three BUFGCEs, all 321 observer
+bits), and sixteen fresh SP2 EDA cases with sixteen full debug waves. The
+independent wave audit confirms 52 original bank reads / acknowledgements,
+four staged applied cuts and 260 backpressure samples. Unsafe borrowing,
+missing owners and busy release refuse before response acknowledgement;
+semantic corruption stops before its first divergent edge. The retained EDA
+422-test Python/generated-bank/host-ASan/UBSan/FCFS/cut scope also passes.
+Initial annotation/object-equality failures are preserved under
+`runs/aws-f2/iteration9791/`; do not treat those attempts as acceptance.
+
+A managed review identified unchecked reset-audit bytes, aggregate-only bank
+coverage and live-value comparisons. All three are repaired: thirteen directed
+auditor tests, per-cut complete original-state baselines through release,
+per-entry acknowledged coverage and a fired-flag VCS corruption process pass.
+The initial full Scala attempt was interrupted before repair; its log and
+explicit interruption receipt are retained. The complete reviewed Scala suite
+passes all 391 tests / 60 suites and sixteen preparation checks. The complete
+retained native and EDA staging/readout/bank/shell/transport/corruption-wave
+sweep also passes. Final closure binds 2,085 current source hashes and twelve
+matching compiler/native/VCS fixture sets; its immutable receipt is selected
+by `runs/aws-f2/iteration9791/final-audit-selected.json`. Historical storage
+recovery remains explicitly historical, with fresh capacity/identity checks;
+no wave was removed or replaced. Native synthesis never overlaps the large
+Java compiler, and its sweep uses at most two jobs. No FPGA image, hardware
+capture, paired CPU migration or live CPU
+acceptance is established. The actual FASED physical CE/common-cut, memory,
+bridge/channel/host ownership, production epoch/transport, complete restore,
+localhost image P&R/AFI and all required hardware cuts remain unfinished.
+
+AWS/native/localhost preflight and closing resource audit pass using the
+initialized setup and retained iteration-194 localhost invocation. No native
+build job or scoped F2 runtime remains active. Both plans and the four manager YAMLs are
+unchanged by this turn. Existing controller checkpoints are published:
+FireSim `7169f78c` then Chipyard `7db13c8cc`; the local tracking-ref warning is
+preserved in the push log. No staging or local commits. Managed worker startup
+failed before execution; a fresh-context managed worker then completed review
+and the auditor fixes. Its results are integrated and no delegated work remains
+active.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 310,
 **in_progress; local FAME cut-owner binding; physical capture pending**.
 
 The generated F2 collector can now select an explicit FAME applied-edge count
