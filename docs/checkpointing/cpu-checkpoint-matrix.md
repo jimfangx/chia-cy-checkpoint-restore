@@ -14,6 +14,21 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 9796 adds source-bound FAME role projection through the regional
+bank/clock-mask rewrites. See [f2-regional-fame-freeze.md](f2-regional-fame-freeze.md).
+It validates the original owner equations and keeps ordinary role validation
+strict; complete regional regeneration separately checks ancestor routes.
+This supplies no production owner acknowledgement or image admission. The
+directed fixture and independent checker cover 21 roles / 323 observer-and-pending
+bits and preserve thirteen original registers. The actual Rocket audit covers
+all 86 registers in its role-owning module and reaches the 10,916 versus 10,910
+reservation guard. Nine native syntheses and 51 source-bound EDA cases pass;
+the new fixture matches 52 reads / four cuts and stops compiled response
+corruption before acknowledgement. FPGA-origin Level-1/Level-2,
+independent CPU replay, sustained live comparison and rolling hardware recovery
+remain pending. Final commands and receipts are under
+`runs/aws-f2/iteration9796/`; progress.md records verification and residual owners.
+
 Iteration 9795 adds a synthesized selective common-cut attachment to the native
 region bank network. An accepted-request register holds its falling-edge mask
 through pending response drain; physical faults revoke both outer handshakes.

@@ -35,7 +35,65 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 9795,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 9796,
+**in_progress; source-bound regional FAME freeze projection; physical capture pending**.
+
+Added explicit original-source FAME role projection through native in-place,
+regional and widget annotation validation. Ordinary role validation remains
+strict. The projection checks every original owner statement against exact bank
+hold/reset/native-clock rewrites; regional regeneration separately authenticates
+ancestor routes. See [f2-regional-fame-freeze.md](f2-regional-fame-freeze.md).
+No external owner, global target-time, restore or image authority is granted.
+
+The final focused fixture passes 21 roles / 323 observer-and-pending bits and
+thirteen original register owners. An independent raw-FIRRTL checker rejects
+eight hold/reset/clock/next-state/native-enable/identity mutations, and eight
+new Python tests cover unselected owners, clocked effects and wire-only aliases.
+Fixture arithmetic initializes through actual zero-valued input tokens without
+simulator state writes. The fresh retained EDA scope passes FASED and all three
+publication suites, all 430 Python tests and the original bank/host ASan/UBSan/
+FCFS/cut checks. The full final-source Scala sweep passes 408 tests / 64 suites
+plus sixteen preparation checks; manager tests pass all 69. All nine native
+component syntheses pass after the JVMs exit, with at most two Vivado jobs.
+The new fixture uses 319 LUTs / 408 registers / three BUFGCEs (unplaced).
+Fresh source/native-bound SP2 passes all 51 component cases / debug waves,
+including the new four-cut / 52-read / 156-stall comparison with an independent
+original instance. A compiled response defect stops at host step 37 with zero
+response acknowledgements. The new fixture uses no simulator state writes.
+
+Both exact-Rocket negative compiler checks retain all 321 observer bits and
+the physical-owner/missing-widget refusals. The observed regional diagnostic
+now passes the independent raw-IR audit for 21 roles / 323 bits and all 86
+registers in the role-owning module. It reaches the next strict guard: 10,916
+actual entries exceed the original test reservation's 10,910 by six observer
+registers. Three physical gates occupy two CE groups. The initial diagnostic
+wrapper assumed a later refusal; its count assertion was corrected and one
+short retry cancelled before a complete fresh rerun passed. Original attempts,
+source snapshots and the scoped cancellation receipt remain separate.
+
+The old generated-source sharing plan did not reach an optional 24 GiB margin;
+that failed attempt remains intact. A new complete-hash source-only plan then
+shares 136 pairs without deleting files or replacing inodes, raising EDA free
+bytes from 8,965,443,584 to 17,209,593,856. Every waveform and all test/sanitizer
+scope remain intact. The normal 8 GiB VCS reserve was satisfied throughout
+accepted verification. Recovery is selected by `current-storage-selected.json`.
+
+No checkpoint-enabled image, new AFI, physical capture or CPU migration is
+established. Production FAME witness/target-time, physical CE/reset/writer,
+FASED AXI and functional-memory/host/transport/controller ownership, complete
+restore and production image binding remain incomplete. All FPGA-origin CPU
+capture/finite/live/rolling columns remain pending. Evidence and replayable
+commands are under `automations/checkpoint_loop/runs/aws-f2/iteration9796/`.
+Both managed workers have returned and their results are integrated. All
+compiler/native/EDA checks have finished. Final source/resource closure passes
+2,097 current hash bindings in `final-audit-selected.json`; no scoped F2 runtime
+or native build remains active. Account AFI descriptors retain unproven loop
+ownership and were not modified. Plans and four initialized
+manager YAMLs retain entry hashes. Existing controller checkpoints were published
+FireSim `94511ed7` then Chipyard `27ad9db31`; the local tracking-ref warning is
+retained. No staging or local commits.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 9795,
 **in_progress; selective native-region common-cut attachment; physical capture pending**.
 
 Added `NativeCheckpointRegionClockCut` to synthesize one raw-clock physical cut
