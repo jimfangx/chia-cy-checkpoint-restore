@@ -75,3 +75,9 @@ four-hart F2 workload/captures at all four active cuts, paired zero-edge CPU
 migration, finite replay, sustained live RTL beyond the recorded window and
 rolling hardware recovery. All complete/deployable/global/restore flags stay
 false. No component artifact here establishes FPGA capture or CPU acceptance.
+
+Iteration 9793 adds an explicit shared-compiler selector for this attachment;
+see [f2-fame-compiler-selection.md](f2-fame-compiler-selection.md). Its actual
+registered-widget tests also repair saved-owner alias declaration ordering.
+The default Rocket recipe still has no production checkpoint owner binding;
+this later compiler path does not establish physical capture acceptance.

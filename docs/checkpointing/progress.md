@@ -35,7 +35,60 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 9792,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 9793,
+**in_progress; production compiler selection of the existing widget FAME witness;
+physical capture pending**.
+
+Added the explicit compiler option
+`--simulator-existing-transport-fame-witness PRIMARY_DOMAIN:FAME_OWNER`.
+The shared post-inline production boundary authenticates the real registered
+widget and native inline history, selects its one transport and ordered owners,
+and applies the existing strict witness qualification before the unchanged
+image guard. Requests and original independent owner inputs remain mandatory.
+The actual-widget test exposed and repaired saved owner aliases being referenced
+before their declarations. See [f2-fame-compiler-selection.md](f2-fame-compiler-selection.md).
+
+All 401 Scala tests / 63 suites plus sixteen preparation checks, six focused
+Scala tests and 69 manager tests pass. Fresh EDA passes all 422 Python tests and
+retained generated-bank, host-ASan/UBSan, FCFS and cut checks. Both exact-Rocket
+negative builds pass: the physical CE/FASED refusal and the missing actual
+widget binding under the explicit witness request. Both retain all 321
+observer bits.
+
+All seven current-source native Vivado component syntheses pass. The new
+registered-widget profile uses 3,872 LUTs / 2,615 registers, retaining 321 FAME
+observer bits and one original transport; placement/full-image timing remains
+unproven. Fresh compiler/native-bound SP2 EDA passes 38 cases / 38 full debug
+waves, retaining the existing 36-case scope. The new actual-widget pair audits
+512 active host steps, all 64 two-owner combinations and 177 backpressure
+stalls. Counter corruption stops at host step 17 with sixteen acknowledgements;
+raw-wave auditing rejects any later edge/acknowledgement or state repair
+through EOF. This is fixture input qualification, not MMIO/DMA capture or CPU
+migration.
+
+The initial fixture-resolution and real owner-alias forward-reference failures
+remain separately recorded. Replayable drivers, protected-input hashes,
+original manager/EDA paths, immutable receipts and final source/resource audit
+selection belong under `runs/aws-f2/iteration9793/`. No historical evidence was
+rewritten or relabeled.
+
+The stock recipe still lacks a production checkpoint top/owner binding.
+Complete physical CE/FASED/common-cut, memory/channel/bridge/host and transport
+ownership, complete restore, localhost image P&R/AFI and all required four-hart
+FPGA cuts and paired CPU zero-edge/finite/live/rolling migration remain pending.
+Both plans and initialized manager YAMLs remain read-only/hash-protected.
+Entry and closing AWS/native/localhost preflight pass using iteration-194's
+retained localhost invocation. Closing inventory has no active scoped F2
+runtime or pending account AFI. No new AFI request or scoped runtime was
+launched; source/resource closure is selected by this iteration's
+`final-audit-selected.json`.
+Existing controller commits were published FireSim `cda64806` then Chipyard
+`c23dd1423`; the local tracking-ref warning is retained in the push log.
+Managed implementation/review results are integrated and all workers finished.
+No staging or local commits by the implementation agent. All compiler,
+native and EDA jobs have exited; no delegated request remains active.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 9792,
 **in_progress; existing-transport FAME witness qualification; physical capture pending**.
 
 Extracted a reusable, validated combinational FAME witness and implemented

@@ -14,6 +14,28 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 9793 adds explicit compiler selection of the one registered physical
+widget transport through authenticated native inline history, preserving
+original owner inputs and the final image guard. The real-widget regression
+also repairs a saved-owner alias forward reference. See
+[f2-fame-compiler-selection.md](f2-fame-compiler-selection.md). All 401 Scala /
+63 suites plus sixteen preparation checks, six focused tests, 69 manager tests
+and the fresh EDA 422-test Python plus retained sanitizer/bank/FCFS/cut scope
+pass. Both exact-Rocket negative builds preserve physical CE/FASED and missing
+actual widget binding refusals. Seven native component syntheses pass; the new
+registered-widget profile uses 3,872 LUTs / 2,615 registers (full-image timing
+unproven). Fresh SP2 passes 38 cases / 38 full debug waves, including the
+retained 36 cases and two actual-widget cases. The new healthy case audits 512
+active host steps, all 64 owner combinations and 177 stalls; corruption stops
+at step 17 before its acknowledgement, with the raw tail audited through EOF.
+These checks exercise fixture progress/input qualification. Complete production
+owner/physical-state binding, image construction, every FPGA-origin migration
+column, sustained live CPU comparison and rolling FPGA recovery remain pending.
+Commands and complete source/resource provenance are under
+`runs/aws-f2/iteration9793/`; selected receipts include `scala-final-selected.json`,
+`selection-native-selected.json`, `selection-eda-selected.json` and
+`final-audit-selected.json`. No FPGA checkpoint donation is established.
+
 Iteration 9792 adds a reusable combinational FAME witness and checked attachment
 to one existing physical/native transport. The selected owner's original
 present/frozen/error inputs remain mandatory; other owner bits and original
