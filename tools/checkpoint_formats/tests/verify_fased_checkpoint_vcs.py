@@ -1,10 +1,14 @@
 """Actual FASED host owner continuation; no whole FireSim runtime restoration."""
 from tools.checkpoint_formats import toolchain as _toolchain
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
+import re
+import shutil
 import struct
+import tempfile
 
 from tools.checkpoint_formats.codec import require
 from tools.checkpoint_formats.tests.verify_semantic_vcs import ROOT, run
@@ -108,61 +112,116 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
-    out = args.out.resolve(); out.mkdir(parents=True, exist_ok=True)
+    destination = args.out.resolve(); destination.mkdir(parents=True, exist_ok=True)
+    out = Path(tempfile.mkdtemp(prefix='attempt-', dir=destination))
     require(os.environ['VCS_HOME'] == _toolchain.VCS_HOME, 'source vcs-env.sh LAST')
     require(os.environ['CXX'] == _toolchain.CXX, 'keep GCC/G++ 13')
     sources = [TESTS / 'fased_checkpoint.cc', CC / 'core/widget.cc', CC / 'core/address_map.cc',
                CC / 'bridges/fased_memory_timing_model.cc']
+    bound_sources = sorted(set(sources + list(CC.rglob('*.h')) + [Path(__file__).resolve(),
+        TESTS / 'fased_checkpoint_tb.sv', TESTS / 'verify_semantic_vcs.py',
+        ROOT / 'tools/checkpoint_formats/toolchain.py', ROOT / 'tools/checkpoint_formats/codec.py',
+        ROOT / 'automations/checkpoint_loop/vcs-env.sh']))
+    source_records = []
+    for source in bound_sources:
+        relative = source.relative_to(ROOT)
+        snapshot = out / 'sources' / relative
+        snapshot.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, snapshot)
+        source_records.append(dict(path=str(source), snapshot=str(snapshot),
+                                   sha256=hashlib.sha256(snapshot.read_bytes()).hexdigest()))
+    (out / 'sources.json').write_text(json.dumps(source_records, indent=2)+'\n')
+    environment = {key: os.environ.get(key) for key in ('VCS_HOME', 'CC', 'CXX', 'VCS_FLAGS', 'ASAN_OPTIONS', 'UBSAN_OPTIONS')}
+    (out / 'environment.json').write_text(json.dumps(environment, indent=2)+'\n')
+    commands = []
+    def invoke(argv, log, cwd=ROOT, expected=0):
+        commands.append(dict(argv=[str(value) for value in argv], cwd=str(cwd), log=str(log),
+                             expected_exit=expected, backend='eda'))
+        (out / 'commands.json').write_text(json.dumps(commands, indent=2)+'\n')
+        return run(argv, log, cwd, expected)
     native, simv = out / 'fased-native', out / 'fased-simv'
-    run([os.environ['CXX'], '-std=c++17', '-Wall', '-Wextra', '-Wno-unused-parameter', '-Werror',
-         '-g', '-no-pie', '-fsanitize=address,undefined', '-fno-omit-frame-pointer', f'-I{CC}',
+    invoke([os.environ['CXX'], '-std=c++17', '-Wall', '-Wextra', '-Wno-unused-parameter', '-Werror',
+         '-g', '-no-pie', '-pthread', '-fsanitize=address,undefined', '-fno-omit-frame-pointer', f'-I{CC}',
          *sources, '-o', native], out / 'native-build.log')
-    run([Path(os.environ['VCS_HOME']) / 'bin/vcs', '-full64', '-sverilog', '-timescale=1ns/1ps',
+    invoke([Path(os.environ['VCS_HOME']) / 'bin/vcs', '-full64', '-Mupdate', '-sverilog', '-timescale=1ns/1ps',
          '-top', 'fased_checkpoint_tb', '-cc', os.environ['CC'], '-cpp', os.environ['CXX'],
-         f'-Mdir={out / "fased-csrc"}', '-CFLAGS', f'-std=c++17 -DFASED_CHECKPOINT_DPI -I{CC}',
+         f'-Mdir={out / "fased-csrc"}', '-CFLAGS', f'-std=c++17 -pthread -DFASED_CHECKPOINT_DPI -I{CC}',
+         '-LDFLAGS', '-pthread',
          '-o', simv, TESTS / 'fased_checkpoint_tb.sv', *sources], out / 'vcs-build.log')
     comparisons, operations, rejections = 0, 0, []
     for backend in ('native-sanitized', 'vcs-dpi'):
         def command(reference, restore, cut, scenario, negative=False):
+            restore = int(restore)
             if backend == 'native-sanitized':
-                return [native, 'negative' if negative else reference, int(restore), cut, scenario]
-            return [simv, '-no_save', f'+reference={reference}', f'+restore={int(restore)}',
+                return [native, 'negative' if negative else reference, restore, cut, scenario]
+            return [simv, '-no_save', f'+reference={reference}', f'+restore={restore}',
                     f'+cut={cut}', f'+scenario={scenario}', *(['+negative'] if negative else [])]
         for scenario in range(4):
             case = out / backend / str(scenario); reference = case / 'reference'
             reference.mkdir(parents=True, exist_ok=True)
             expected, snapshots, outputs = oracle(scenario)
-            run(command(reference, False, 0, scenario), reference / 'run.log', reference)
+            invoke(command(reference, False, 0, scenario), reference / 'run.log', reference)
             require((reference / 'trace').read_text().splitlines() == expected, 'reference MMIO differs from oracle')
-            for cut in range(5):
-                restore = case / f'restore-{cut}'; restore.mkdir(exist_ok=True)
-                run(command(reference, True, cut, scenario), restore / 'run.log', restore)
-                require((reference / f'cut-{cut}.owner').read_bytes() == snapshots[cut], 'captured host payload differs from oracle')
-                require((restore / 'initial.owner').read_bytes() == snapshots[cut], 'owner differs before first edge')
-                require((restore / 'trace').read_text().splitlines() == expected[expected.index(f'OP {cut}'):], 'restored MMIO differs from oracle')
-                for filename, value in outputs.items():
-                    if value is None:
-                        require(not (restore / filename).exists(), 'unexpected range output')
-                    else:
-                        require((reference / filename).read_text() == value == (restore / filename).read_text(), 'output history/counters differ from oracle')
-                comparisons += 1; operations += 5-cut
+            for mode, name in ((1, 'legacy'), (2, 'prepared')):
+                for cut in range(5):
+                    restore = case / f'{name}-restore-{cut}'; restore.mkdir(exist_ok=True)
+                    invoke(command(reference, mode, cut, scenario), restore / 'run.log', restore)
+                    require((reference / f'cut-{cut}.owner').read_bytes() == snapshots[cut], 'captured host payload differs from oracle')
+                    require((restore / 'initial.owner').read_bytes() == snapshots[cut], 'owner differs before first edge')
+                    require((restore / 'trace').read_text().splitlines() == expected[expected.index(f'OP {cut}'):], 'restored MMIO differs from oracle')
+                    for filename, value in outputs.items():
+                        if value is None:
+                            require(not (restore / filename).exists(), 'unexpected range output')
+                        else:
+                            require((reference / filename).read_text() == value == (restore / filename).read_text(), 'output history/counters differ from oracle')
+                    comparisons += 1; operations += 5-cut
         negative = out / backend / 'negative'; negative.mkdir(exist_ok=True)
-        log = run(command(negative, False, 0, 0, True), negative / 'run.log', negative)
+        log = invoke(command(negative, False, 0, 0, True), negative / 'run.log', negative)
         require('PASS: FASED malformed/configuration/suspension/interruption rejections' in log, 'negative guards incomplete')
-        rejections.append(dict(backend=backend, log=str(negative / 'run.log')))
+        require('PASS: FASED prepared cancellation/ABA/lifetime/thread/aggregate/interruption checks' in log,
+                'prepared publication checks incomplete')
+        allocations = re.search(r'FASED_PREPARED_ALLOCATIONS prepare_failures=(\d+) seal_failures=(\d+) '
+                                r'publication_allocations=0 unchanged=1 mmio=0 files=0', log)
+        require(allocations is not None and all(int(value)>0 for value in allocations.groups()),
+                'prepared allocation coverage incomplete')
+        rejections.append(dict(backend=backend, log=str(negative / 'run.log'),
+                               prepare_allocation_failures=int(allocations[1]),
+                               seal_allocation_failures=int(allocations[2])))
         # Malformed loads in separate native/VCS processes reject during init,
         # before a trace is opened or the first fixture edge is dispatched.
-        for i, bad in enumerate((b'', snapshots[1][:-1], snapshots[1]+b'\0', b'\0'*len(snapshots[1]))):
-            malformed = out / backend / f'malformed-{i}'; malformed.mkdir(exist_ok=True)
-            source = malformed / 'input'; source.mkdir(exist_ok=True)
-            (source / 'cut-1.owner').write_bytes(bad)
-            run(command(source, True, 1, 3), malformed / 'run.log', malformed, expected=1)
-            require(not (malformed / 'trace').exists() and not (malformed / 'initial.owner').exists(),
-                    'malformed restore advanced an edge or published state')
-    summary = dict(scope='FASED host component only; no whole FireSim restart', fresh_continuations=comparisons,
+        for mode, name in ((1, 'legacy'), (2, 'prepared')):
+            for i, bad in enumerate((b'', snapshots[1][:-1], snapshots[1]+b'\0', b'\0'*len(snapshots[1]))):
+                malformed = out / backend / f'{name}-malformed-{i}'; malformed.mkdir(exist_ok=True)
+                source = malformed / 'input'; source.mkdir(exist_ok=True)
+                (source / 'cut-1.owner').write_bytes(bad)
+                invoke(command(source, mode, 1, 3), malformed / 'run.log', malformed, expected=1)
+                require(not (malformed / 'trace').exists() and not (malformed / 'initial.owner').exists(),
+                        'malformed restore advanced an edge or published state')
+    deaths = []
+    for i, name in enumerate(('unsealed', 'repeated', 'stale-sealed', 'wrong-thread', 'expired')):
+        case = out / 'native-sanitized' / f'publish-{name}'; case.mkdir(exist_ok=True)
+        log = invoke([native, 'death', 0, i, 0], case / 'run.log', case, expected=86)
+        require('FASED_PUBLISH_REJECTED unchanged=1 mmio=0 files=0' in log,
+                'fatal publication mutated destination or external state')
+        deaths.append(dict(case=name, exit_status=86, log=str(case / 'run.log')))
+    for source in source_records:
+        require(hashlib.sha256(Path(source['path']).read_bytes()).hexdigest() == source['sha256'],
+                'source changed while FASED verification was running')
+    artifacts = [dict(path=str(path), sha256=hashlib.sha256(path.read_bytes()).hexdigest(), bytes=path.stat().st_size)
+                 for path in sorted(out.rglob('*')) if path.is_file() and 'sources' not in path.relative_to(out).parts]
+    (out / 'artifacts.json').write_text(json.dumps(artifacts, indent=2)+'\n')
+    summary = dict(scope='FASED host component only; no whole FireSim restart', output=str(out),
+                   complete_fpga_capture=False, deployable_capture_image=False, cpu_migration_verified=False,
+                   source_manifest=str(out / 'sources.json'), artifact_manifest=str(out / 'artifacts.json'),
+                   commands=str(out / 'commands.json'), fresh_continuations=comparisons,
                    matched_operations=operations, before_first_edge_owner_comparisons=comparisons,
-                   malformed_fresh_processes=8, negatives=rejections)
+                   restore_paths=['legacy', 'prepared'], malformed_fresh_processes=16,
+                   publish_misuse_fail_stops=deaths, negatives=rejections)
     (out / 'summary.json').write_text(json.dumps(summary, indent=2)+'\n')
+    selection = destination / '.selected.json.tmp'
+    selection.write_text(json.dumps(dict(summary=str(out / 'summary.json'),
+        sha256=hashlib.sha256((out / 'summary.json').read_bytes()).hexdigest()), indent=2)+'\n')
+    os.replace(selection, destination / 'selected.json')
     print(json.dumps(summary, indent=2))
 
 

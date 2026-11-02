@@ -35,7 +35,56 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 9793,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 9794,
+**in_progress; prepared publication of the production FASED host owner;
+physical capture pending**.
+
+The actual `FASEDMemoryTimingModel` driver now participates in prepared atomic
+host publication. Preparation parses/allocates all replacement state; sealing
+checks destination bytes, deferred-output intent, lifetime/thread/generation;
+publication performs only nonthrowing copies/swaps. Ordinary calls and valid
+legacy loads invalidate older candidates. The existing payload format and
+deferred profiling-output replay remain intact. See
+[f2-fased-host-publication.md](f2-fased-host-publication.md).
+
+The extended EDA regression preserves all legacy cuts and adds fresh prepared
+restoration, independent full-byte/MMIO/output comparisons, allocation sweeps,
+candidate cancellation/ABA/lifetime/thread/aggregate cases and fail-stop misuse.
+The final FASED run passes 80 fresh continuations, 240 operations, sixteen
+malformed fresh processes, 49 prepare and nineteen seal allocation failures per
+backend, and five native fail-stop processes. The initial additional retained
+configuration-publication VCS link exposed a trailing `--as-needed` flag
+discarding required SP2 libraries. Configuration/scalar harnesses now preserve
+`--no-as-needed`; all three retained publication harnesses request `-Mupdate`.
+The complete fresh final-source EDA run passes FASED, configuration/scalar/base
+publication and all 422 Python tests plus generated-bank, host ASan/UBSan, FCFS
+and cut checks. Selected evidence is `eda-current-selected.json`; retain the
+initial failure under `runs/aws-f2/iteration9794/eda-current-jg5qv_wm/`.
+
+Current manager tests pass all 69 cases. Both fresh exact-Rocket compiler
+checks retain all 321 observer bits and explicitly reject the physical FASED
+BUFGCE owner and missing actual production widget binding respectively. The
+entry and closing AWS/native/localhost preflights pass using iteration 194's
+retained localhost invocation. Neither refusal is a successful
+image build. No new RTL, full-image synthesis/P&R, AFI request or F2 capture was
+produced by this host-only increment. Every hardware migration/live/rolling
+acceptance column remains pending. Actual FASED ingress/egress/outstanding host
+memory, physical CE/common-cut/reset/writer, complete memory/transport/host
+ownership, production binding and complete restore still require implementation.
+
+Replayable commands, original manager/EDA paths, source snapshots, immutable
+attempts and protected-input hashes belong under `runs/aws-f2/iteration9794/`.
+Closing inventory has no active scoped F2 runtime, pending account AFI or
+native Java/Vivado build. Final source/resource evidence is selected by
+`final-audit-selected.json`; all EDA/compiler/host jobs have exited.
+Both plans and initialized manager YAMLs remain read-only/hash-protected.
+Existing controller commits were published FireSim `c3b5de0c` then Chipyard
+`8aff4926b`; retain the local tracking-ref warning. No staging or local commits.
+Full-context managed startup failed before execution; a fresh-context worker
+completed the assigned test implementation and production review, with results
+integrated centrally. That worker has finished; no delegated request remains.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 9793,
 **in_progress; production compiler selection of the existing widget FAME witness;
 physical capture pending**.
 

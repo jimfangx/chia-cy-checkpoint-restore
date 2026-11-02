@@ -57,10 +57,10 @@ def main():
     flags = '-std=c++20 -I' + str(CC)
     execute([os.environ['CXX'], *shlex.split(flags), '-g', '-no-pie', '-fsanitize=address,undefined',
              '-fno-omit-frame-pointer', *sources, '-pthread', '-lgmp', '-o', out / 'native'], 'native-build')
-    execute([Path(os.environ['VCS_HOME']) / 'bin/vcs', '-full64', '-sverilog', '-timescale=1ns/1ps',
+    execute([Path(os.environ['VCS_HOME']) / 'bin/vcs', '-full64', '-Mupdate', '-sverilog', '-timescale=1ns/1ps',
              '-top', 'configuration_publication_tb', '-cc', os.environ['CC'], '-cpp', os.environ['CXX'],
              '-Mdir=' + str(out / 'csrc'), '-CFLAGS', flags + ' -DCONFIGURATION_PUBLICATION_DPI',
-             '-LDFLAGS', '-pthread -Wl,--no-as-needed -lgmp -Wl,--as-needed', '-o', out / 'simv', sv, *sources], 'vcs-build')
+             '-LDFLAGS', '-pthread -Wl,--no-as-needed -lgmp', '-o', out / 'simv', sv, *sources], 'vcs-build')
     for backend in ('native', 'vcs-dpi'):
         reference = out / f'{backend}-reference'
         modes = [('reference', 0)] + [(m, c) for c in range(12) for m in ('restore', 'negative')]

@@ -56,10 +56,10 @@ def main():
     flags = '-std=c++20 -I' + str(CC)
     commands.append(execute([os.environ['CXX'], *shlex.split(flags), '-g', '-no-pie', '-fsanitize=address,undefined',
              '-fno-omit-frame-pointer', *sources, '-pthread', '-lgmp', '-o', out / 'native'], 'native-build'))
-    commands.append(execute([Path(os.environ['VCS_HOME']) / 'bin/vcs', '-full64', '-sverilog', '-timescale=1ns/1ps',
+    commands.append(execute([Path(os.environ['VCS_HOME']) / 'bin/vcs', '-full64', '-Mupdate', '-sverilog', '-timescale=1ns/1ps',
              '-top', 'scalar_publication_tb', '-cc', os.environ['CC'], '-cpp', os.environ['CXX'],
              '-Mdir=' + str(out / 'csrc'), '-CFLAGS', flags + ' -DSCALAR_PUBLICATION_DPI',
-             '-LDFLAGS', '-pthread -Wl,--no-as-needed -lgmp -Wl,--as-needed', '-o', out / 'simv', sv, *sources], 'vcs-build'))
+             '-LDFLAGS', '-pthread -Wl,--no-as-needed -lgmp', '-o', out / 'simv', sv, *sources], 'vcs-build'))
     def case(backend, mode, cut):
         reference = out / f'{backend}-reference'
         dest = reference if mode == 'reference' else out / f'{backend}-{mode}-{cut}'

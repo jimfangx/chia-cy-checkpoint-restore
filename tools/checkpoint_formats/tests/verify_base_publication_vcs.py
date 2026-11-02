@@ -58,7 +58,7 @@ def main():
     execute([os.environ['CXX'], *shlex.split(flags), '-Wall', '-Wextra', '-Werror', '-Wno-unused-parameter',
              '-g', '-no-pie', '-fsanitize=address,undefined', '-fno-omit-frame-pointer',
              *sources, '-pthread', '-lgmp', '-o', native], out / 'native-build.log')
-    execute([Path(os.environ['VCS_HOME']) / 'bin/vcs', '-full64', '-sverilog', '-timescale=1ns/1ps',
+    execute([Path(os.environ['VCS_HOME']) / 'bin/vcs', '-full64', '-Mupdate', '-sverilog', '-timescale=1ns/1ps',
              '-top', 'simulation_checkpoint_tb', '-cc', os.environ['CC'], '-cpp', os.environ['CXX'],
              '-Mdir='+str(out / 'csrc'), '-CFLAGS', flags+' -DSIMULATION_CHECKPOINT_DPI',
              '-LDFLAGS', '-pthread -Wl,--no-as-needed -lgmp', '-o', simv,

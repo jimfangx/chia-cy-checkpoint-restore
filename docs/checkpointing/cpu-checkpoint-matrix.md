@@ -14,6 +14,24 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 9794 adds prepared atomic publication to the actual FASED host
+driver, preserving its complete existing completed-call payload and deferred
+profiling-output semantics. See [f2-fased-host-publication.md](f2-fased-host-publication.md).
+The independent byte/MMIO/output oracle now exercises both legacy and prepared
+fresh restoration at every existing cut and instrumentation geometry, plus
+candidate/lifetime/thread/aggregate/allocation and fail-stop negatives. Fresh
+EDA passes 80 continuations / 240 operations, sixteen malformed fresh processes,
+five native fail-stop cases and preparation/sealing allocation sweeps. The
+configuration/scalar/base publication suites and all 422 Python tests plus
+retained bank/host ASan/UBSan/FCFS/cut checks pass. A retained harness SP2 linker
+flag was repaired before this full final-source rerun; its initial failure is
+preserved under `runs/aws-f2/iteration9794/`. Both exact-Rocket compiler refusals retain
+321 observer bits and the missing physical-owner/production-widget guards.
+This host-only increment changes no RTL or FPGA image. Physical cut and all
+actual FASED timing/ingress/egress/host-memory owners remain separate; every
+FPGA-origin capture, finite/live CPU migration and rolling recovery column is
+still pending.
+
 Iteration 9793 adds explicit compiler selection of the one registered physical
 widget transport through authenticated native inline history, preserving
 original owner inputs and the final image guard. The real-widget regression
