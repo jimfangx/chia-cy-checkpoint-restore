@@ -35,7 +35,60 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 9791,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 9792,
+**in_progress; existing-transport FAME witness qualification; physical capture pending**.
+
+Extracted a reusable, validated combinational FAME witness and implemented
+`FAMEClockCutTransportWiring.connect` for the one existing physical/native
+transport. Its actual target-cycle input receives the selected applied count;
+one selected owner's original present/frozen/error inputs are qualified by
+all-domain consistency. Other owner bits, all original storage and existing
+controllers are preserved. No collector/transport/storage is added. Transparent
+clock/owner input routes, every hierarchy hop, exact ABI/source bytes and
+independent regeneration are checked. Review fixes reject hidden ancestor
+tieoffs/aliases and sequential signals posing as transparent aliases. See
+[f2-fame-transport-witness.md](f2-fame-transport-witness.md).
+
+All **397 Scala tests / 62 suites plus sixteen preparation checks** pass on
+final source. Fresh EDA passes all 422 Python tests and the retained generated-
+bank, host ASan/UBSan, FCFS and cut scope. All six current-source local Vivado
+2025.2 component syntheses pass. New physical root/nested profiles use 2,221
+LUTs / 826 registers; native profiles use 2,748 / 2,749 LUTs and 1,169 registers.
+Each retains all 321 FAME observer bits and both original gates. These are
+unplaced component results, without full-image timing closure.
+
+Fresh source/compiler/native-bound SP2 EDA passes **36 cases / 36 full debug
+waves**: eight new attachment cases plus 28 retained FAME cut/native-bank cases.
+Each new healthy profile independently audits 512 active host steps, 512 owner
+combinations and 177 backpressure stalls. Actual counter corruption stops at
+host step 17 with sixteen acknowledgements; raw-wave auditing checks through
+EOF and rejects any later edge/acknowledgement or repaired divergent state.
+Initial failed fixture attempts and explicitly exploratory older-fixture smoke
+runs remain separate under `runs/aws-f2/iteration9792/`. The fixture corrections
+authenticate complete original storage and resolved clock topology across
+intentional connector alias renames, rather than comparing alias spellings.
+
+The fresh exact-Rocket production-bank command preserves its actual FASED
+physical CE/common-low-phase refusal. Closing AWS/native/localhost preflight
+passes; no native build or scoped F2 runtime remains active. No new AFI request
+was made. Source/resource closure is selected by this iteration's
+`final-audit-selected.json`; replayable compiler/native/EDA and audit drivers
+remain beside the immutable receipts.
+
+Production does not yet select/install this API, and no complete physical
+clock/bank network is installed by these attachment tests. Full CE/FASED,
+reset/channel/memory/bridge/host ownership, transport/stream epoch ownership,
+complete restore, full localhost P&R/AFI and all four-hart FPGA cuts and paired
+CPU zero-edge/finite/live/rolling migration requirements remain unfinished.
+No FPGA capture or CPU acceptance is established. Both plans and the four
+manager YAMLs remain read-only/hash-protected. Reuse iteration-194's retained
+localhost invocation. Existing controller checkpoints were published FireSim
+`46e576cf` then Chipyard `28f9a8800`; preserve the local tracking-ref warning.
+No staging or local commits. Managed review/factoring results are integrated;
+no delegated LLM remains active. All final compiler/native/EDA jobs have exited;
+no delegated request or native job outlives the central turn.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 9791,
 **in_progress; staged native FAME bank composition; physical capture pending**.
 
 Recovered the unfinished `FAMEClockCutWiring.generateNative` implementation.

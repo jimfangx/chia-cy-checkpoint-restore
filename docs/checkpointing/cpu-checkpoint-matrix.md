@@ -14,6 +14,23 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 9792 adds a reusable combinational FAME witness and checked attachment
+to one existing physical/native transport. The selected owner's original
+present/frozen/error inputs remain mandatory; other owner bits and original
+storage are preserved. No second collector or transport is added. See
+[f2-fame-transport-witness.md](f2-fame-transport-witness.md). All 397 Scala / 62
+suites plus sixteen preparation checks, 69 manager tests, 422 Python tests,
+retained EDA sanitizers/bank/FCFS/cut checks, six native component syntheses and
+36 source-bound fresh SP2 cases / debug waves pass. The new four profiles each
+audit 512 active steps / 512 owner combinations; semantic corruption stops at
+host step 17 before its acknowledgement and remains stopped through EOF.
+The exact Rocket bank build retains the actual FASED physical CE refusal.
+Production selection,
+complete physical/host ownership, checkpoint image construction and every
+FPGA migration/live/rolling column remain pending. Diagnostic verification is
+recorded under `runs/aws-f2/iteration9792/`; this API alone grants no hardware
+acceptance.
+
 Iteration 9791 composes the local FAME witness with native functional banks
 and atomic collector/idle-endpoint staging. See
 [f2-fame-native-cut.md](f2-fame-native-cut.md). All 58 focused Scala tests,
