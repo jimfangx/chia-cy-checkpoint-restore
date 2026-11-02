@@ -77,12 +77,20 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--mode',choices=('vivado','vcs'),required=True)
     p.add_argument('--local-shells',action='store_true',help='Include both original raw ancestor counters in shared readout')
+    p.add_argument('--common-cut',action='store_true',help='Verify the compiler-attached selective common-cut controller')
+    p.add_argument('--compiler-receipt',type=Path)
     p.add_argument('--generated',type=Path);p.add_argument('--native',type=Path);p.add_argument('--out',type=Path,required=True)
     a=p.parse_args();require(a.out.resolve().is_relative_to(RUNS),'evidence under runs required')
+    require(not (a.common_cut and a.local_shells),'common cut has no local-shell ownership')
     entries=16 if a.local_shells else 14
     words=288 if a.local_shells else 280
     a.out.mkdir(parents=True,exist_ok=True);out=Path(tempfile.mkdtemp(prefix=a.mode+'-',dir=a.out.resolve()))
-    sources={n:sha(ROOT/n) for n in SOURCES};commands=[]
+    source_names=list(SOURCES)
+    if a.common_cut:
+        source_names += ['sims/firesim/sim/midas/src/test/scala/midas/checkpoint/NativeCheckpointRegionClockCutSpec.scala',
+                         'tools/checkpoint_formats/tests/native_regions_common_cut_tb.sv',
+                         'tools/checkpoint_formats/tests/audit_native_region_cut.py']
+    sources={n:sha(ROOT/n) for n in source_names};commands=[]
     def run(argv,name,expected=0):
         row=dict(argv=list(map(str,argv)),cwd=str(out),log=str(out/(name+'.log')));commands.append(row)
         with Path(row['log']).open('w') as f:r=subprocess.run(row['argv'],cwd=out,stdout=f,stderr=subprocess.STDOUT)
@@ -91,15 +99,32 @@ def main():
         return Path(row['log']).read_text()
     doc=dict(status='running',backend='f2' if a.mode=='vivado' else 'eda',observed_utc=datetime.now(timezone.utc).isoformat(),
         host=socket.gethostname(),source_root=str(ROOT),sources=sources,physical_fpga_capture=False,
-        scope='multi-region graft component only; production owners and full image remain incomplete',local_shells=a.local_shells)
+        scope='multi-region graft component only; production owners and full image remain incomplete',local_shells=a.local_shells,
+        common_cut=a.common_cut)
     (out/'summary.json').write_text(json.dumps(doc,indent=2)+'\n')
     print(out,flush=True)
     if a.mode=='vivado':
         require(ROOT==Path('/home/ubuntu/chia-cy-checkpoint-restore') and shutil.which('vivado'),'native localhost Vivado required')
         require(a.generated is not None and a.native is None,'explicit generated input required')
         shutil.copytree(a.generated,out/'generated');doc['audit']=audit(out/'generated')
+        if a.common_cut:
+            from tools.checkpoint_formats.tests.audit_native_region_cut import audit_cut, audit_cut_negatives
+            require(a.compiler_receipt is not None,'source-bound compiler receipt required')
+            from tools.checkpoint_formats.regression_runner import local
+            cp=local(ROOT,a.compiler_receipt);compiler=json.loads(cp.read_text())
+            require(compiler['status']=='pass' and compiler['backend']=='f2' and compiler['returncode']==0,
+                    'successful fresh compiler emission required')
+            for name,digest in compiler['sources'].items():
+                require(sha(local(ROOT,name))==digest,'changed compiler source '+name)
+            for path in a.generated.rglob('*'):
+                if path.is_file():
+                    key=str(path.relative_to(cp.parent))
+                    require(compiler['artifacts'].get(key)==sha(path),'unbound compiler fixture '+key)
+            doc['compiler_receipt']={'path':str(cp),'sha256':sha(cp)}
+            doc['cut_audit']=audit_cut(out/'generated')
+            doc['cut_negative_audits']=audit_cut_negatives(out/'generated',out/'cut-audit-negatives')
         if a.local_shells:doc['negative_audits']=audit_local_negatives(out/'generated',out/'audit-negatives')
-        for name in SOURCES:
+        for name in source_names:
             dest=out/'sources'/Path(name).name;require(not dest.exists(),'source basename collision')
             dest.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(ROOT/name,dest)
         vendor=Path(os.environ['XILINX_VIVADO'])/'data/verilog/src'
@@ -112,8 +137,25 @@ def main():
         # explicit component-fixture placement conversion; preserve originals.
         (out/'fixture.synthesis.xdc').write_text((out/'generated/instrumented.synthesis.xdc').read_text())
         (out/'fixture.implementation.xdc').write_text((out/'generated/instrumented.implementation.xdc').read_text().replace('shell/CL/','host/'))
-        files=['generated/grafted.sv']+[str(p.relative_to(out)) for p in sorted((out/'generated').glob('FireSim-generated*.sv'))]
-        files += ['sources/CheckpointPhysicalClockCut.sv','sources/native_regions_fixture.sv']
+        files=['generated/attached.sv' if a.common_cut else 'generated/grafted.sv']+[str(p.relative_to(out)) for p in sorted((out/'generated').glob('FireSim-generated*.sv'))]
+        if a.common_cut:
+            wrapper=out/'sources/native_regions_fixture.sv'
+            original=wrapper.read_text()
+            first=original.index('  CheckpointPhysicalClockCut #')
+            last=original.index('  NativeHost host(.*);',first)
+            original=original.replace('input wire clock, reset,', 'input wire [63:0] cut_cycle_xor,\n  input wire clock, reset,')
+            first=original.index('  CheckpointPhysicalClockCut #')
+            last=original.index('  NativeHost host(.*);',first)
+            wrapper.write_text(original[:first]+'''  wire [63:0] cut_input_cycle = cycle ^ cut_cycle_xor;
+  NativeHost host(
+    .capture_cut_freeze_request(freeze_request),
+    .capture_cut_owner_present(owner_present),
+    .capture_cut_target_cycle(cut_input_cycle),
+    .capture_cut_stopped(), .capture_cut_failed(failed),
+    .capture_cut_cycle(cut_cycle), .capture_cut_error(error),
+    .capture_cut_control_state(), .capture_cut_pending(), .*);
+'''+original[last+len('  NativeHost host(.*);\n'):])
+        files += ([] if a.common_cut else ['sources/CheckpointPhysicalClockCut.sv'])+['sources/native_regions_fixture.sv']
         (out/'files.json').write_text(json.dumps(files,indent=2)+'\n')
         tcl='set_param general.maxThreads 4\nread_verilog -sv '+' '.join(files)+'''\nread_xdc fixture.synthesis.xdc
 synth_design -top NativeRegionsFixture -part xcvu47p-fsvh2892-2-e -mode out_of_context -flatten_hierarchy none
@@ -144,6 +186,15 @@ report_timing_summary -file timing.rpt
 write_checkpoint -force native-regions.dcp
 puts "NATIVE_REGIONS_SYNTH_PASS raw_registers=$raw_registers gates=6"
 '''
+        if a.common_cut:
+            tcl=tcl.replace('foreach pattern {host/host_ticks_reg*',
+                'foreach pattern {host/capture_cut_accepted_pending_reg* '
+                'host/checkpoint_region_clock_cut/freeze_low_reg* '
+                'host/checkpoint_region_clock_cut/sampled_reg* '
+                'host/checkpoint_region_clock_cut/release_pending_reg* '
+                'host/checkpoint_region_clock_cut/captured_ce_reg* '
+                'host/checkpoint_region_clock_cut/cut_cycle_reg* '
+                'host/checkpoint_region_clock_cut/error_reg* host/host_ticks_reg*')
         (out/'synth.tcl').write_text(tcl)
         doc['inputs']={str(p.relative_to(out)):sha(p) for p in out.rglob('*') if p.is_file() and p.name!='summary.json'}
         text=run(['vivado','-mode','batch','-source','synth.tcl'],'synth')
@@ -156,13 +207,17 @@ puts "NATIVE_REGIONS_SYNTH_PASS raw_registers=$raw_registers gates=6"
         require(a.native is not None and a.generated is None,'explicit native receipt required')
         native=json.loads((a.native/'summary.json').read_text())
         require(native['status']=='pass' and native['backend']=='f2' and native['sources']==sources and
-            native['local_shells']==a.local_shells,'stale native source pins or different local coverage')
+            native['local_shells']==a.local_shells and native.get('common_cut',False)==a.common_cut,
+            'stale native source pins or different local coverage')
         for group in ('inputs','artifacts'):
             for name,value in native[group].items():require(sha(a.native/name)==value,'changed native input/artifact '+name)
         for name in native['inputs']:
             dest=out/name;dest.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(a.native/name,dest)
         doc['audit']=audit(out/'generated');doc['native_receipt_sha256']=sha(a.native/'summary.json')
-        bench='native_shell_regions_tb' if a.local_shells else 'native_regions_tb'
+        if a.common_cut:
+            from tools.checkpoint_formats.tests.audit_native_region_cut import audit_cut, audit_wave, audit_wave_negatives
+            doc['cut_audit']=audit_cut(out/'generated')
+        bench='native_regions_common_cut_tb' if a.common_cut else ('native_shell_regions_tb' if a.local_shells else 'native_regions_tb')
         files=json.loads((out/'files.json').read_text())+['BUFGCE.v','glbl.v','sources/'+bench+'.sv','sources/checkpoint_widget_exit.cc']
         common=[toolchain.VCS,'-full64','-sverilog','-timescale=1ns/1ps','-Mupdate','-debug_access+all',
             '+incdir+'+str(out),'-top',bench,'-top','glbl']
@@ -170,12 +225,22 @@ puts "NATIVE_REGIONS_SYNTH_PASS raw_registers=$raw_registers gates=6"
         require('Warning-[IPDASP]' not in compiled,'emitted ANSI-port/wire collision; inspect compile.log')
         text=run([out/'simv','-no_save'],'healthy')
         require(re.search(r'NATIVE_REGIONS_PASS checks=\d+ cuts=4 words='+str(words)+r' stalls='+str(words*3)+r' target_cycle=\d+',text),'incomplete four-cut execution')
+        if a.common_cut:
+            require(re.search(r'NATIVE_COMMON_CUT_DRAIN_PASS requests=285 responses=284 withdrawal_stalls=64 gate_events=[1-9]\d*',text),
+                    'incomplete pending-response withdrawal/gate-output coverage')
         doc['execution']=re.search(r'NATIVE_REGIONS_PASS .*',text)[0]
         shutil.move(out/'native-regions.vcd',out/'healthy.vcd')
-        for fault in ('missing-owner','ce-drift'):
+        if a.common_cut:
+            doc['wave_audits']={'healthy':audit_wave(out/'healthy.vcd')}
+        for fault in (('missing-owner','ce-drift','cycle-drift','pending-owner','pending-ce','pending-cycle',
+                       'release-owner','release-ce','release-cycle') if a.common_cut else ('missing-owner','ce-drift')):
             text=run([out/'simv','-no_save','+'+fault],fault)
-            require(re.search(r'NATIVE_REGIONS_REJECTED kind=\s*'+re.escape(fault)+r'\s*$',text,re.M),'wrong rejection boundary')
+            require(re.search(r'NATIVE_REGIONS_REJECTED kind=\s*'+re.escape(fault)+(r' checks=\d+ requests=\d+ responses=\d+\s*$' if a.common_cut else r'\s*$'),text,re.M),'wrong rejection boundary')
             shutil.move(out/'native-regions.vcd',out/(fault+'.vcd'))
+            if a.common_cut:
+                doc['wave_audits'][fault]=audit_wave(out/(fault+'.vcd'),fault=fault)
+        if a.common_cut:
+            doc['wave_negative_audits']=audit_wave_negatives(out/'healthy.vcd',out/'pending-owner.vcd',out/'wave-audit-negatives')
         # Real compiled payload defect: region 1 receives region 0 CE samples.
         path=out/'generated/FireSim-generated.native-region-graft.sv'
         good=path.read_text();bad=good.replace('.capture_captured_ce(capture_captured_ce[2 +: 2])',
@@ -187,6 +252,8 @@ puts "NATIVE_REGIONS_SYNTH_PASS raw_registers=$raw_registers gates=6"
         text=run([out/'fault-simv','-no_save'],'wrong-ce',1)
         require('reason=exact selected regional word/error' in text and 'response_ack=0' in text,'fault acknowledged or failed at wrong boundary')
         shutil.move(out/'native-regions.vcd',out/'wrong-ce.vcd')
+        if a.common_cut:
+            doc['wave_audits']['wrong-ce']=audit_wave(out/'wrong-ce.vcd',broken=True)
         if a.local_shells:
             # A separately compiled payload defect on the first local owner.
             # The public-output oracle must stop before acknowledging its word.
@@ -203,7 +270,9 @@ puts "NATIVE_REGIONS_SYNTH_PASS raw_registers=$raw_registers gates=6"
             shutil.move(out/'native-regions.vcd',out/'wrong-shell.vcd')
         doc['inputs']=native['inputs']
         doc['artifacts']={str(p.relative_to(out)):sha(p) for p in out.iterdir() if p.is_file() and p.name not in ('summary.json',) and p.suffix in ('.vcd','.log','.sv','.json')}
-    require(sources=={n:sha(ROOT/n) for n in SOURCES},'source epoch changed during verification')
+        if a.common_cut:
+            doc['artifacts'].update({str(p.relative_to(out)):sha(p) for p in (out/'wave-audit-negatives').rglob('*') if p.is_file()})
+    require(sources=={n:sha(ROOT/n) for n in source_names},'source epoch changed during verification')
     doc['status']='pass';(out/'summary.json').write_text(json.dumps(doc,indent=2)+'\n');print(out/'summary.json')
 
 if __name__=='__main__': main()

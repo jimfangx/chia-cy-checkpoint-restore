@@ -14,6 +14,26 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 9795 adds a synthesized selective common-cut attachment to the native
+region bank network. An accepted-request register holds its falling-edge mask
+through pending response drain; physical faults revoke both outer handshakes.
+The raw host/readout clock and every original selected execution are preserved.
+See [f2-native-region-common-cut.md](f2-native-region-common-cut.md).
+This component API retains incomplete ownership and image admission; it is not
+installed as a deployable Rocket image. The exact Rocket regional/FAME attempt
+also rejects freeze-wrapped observer equations. Production FASED AXI/reset/writer,
+functional-memory/host/transport/controller ownership, authenticated target time,
+full image P&R/AFI and every FPGA capture/migration/live/rolling column remain
+pending. Final-source verification passes 407 Scala / 64 suites plus sixteen
+preparation checks, 69 manager tests, eight native component syntheses, the
+retained EDA component scope and eleven new SP2 cases / eleven debug waves.
+The new component uses 2,148 LUTs / 996 registers / six BUFGCEs (unplaced).
+Independent raw-wave checking covers 280 reads, 64 withdrawal stalls and all
+nine physical faults; compiled CE corruption stops at cycle 37 / bank 255 /
+slot 2 before acknowledgement. All 422 Python tests and FASED/publication/bank/
+host ASan/UBSan/FCFS/cut checks pass after byte-preserving capacity recovery.
+Evidence is under `runs/aws-f2/iteration9795/`; no hardware acceptance is claimed.
+
 Iteration 9794 adds prepared atomic publication to the actual FASED host
 driver, preserving its complete existing completed-call payload and deferred
 profiling-output semantics. See [f2-fased-host-publication.md](f2-fased-host-publication.md).

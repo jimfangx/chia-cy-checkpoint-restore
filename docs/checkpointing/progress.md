@@ -35,7 +35,59 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 9794,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 9795,
+**in_progress; selective native-region common-cut attachment; physical capture pending**.
+
+Added `NativeCheckpointRegionClockCut` to synthesize one raw-clock physical cut
+controller onto the existing disjoint native-region bank network. It stops all
+selected subtrees on one low phase while leaving the host/readout clock live.
+An explicit accepted-request owner retains the cut through response backpressure
+and healthy request withdrawal. Both handshake directions and data/error revoke
+on physical permission loss. See [f2-native-region-common-cut.md](f2-native-region-common-cut.md).
+Complete controller/reset/writer/FASED AXI/host/memory/target-time ownership and
+production binding remain unsupported; the image guard remains mandatory.
+No checkpoint-enabled image, new AFI or FPGA checkpoint has been produced.
+
+Fresh entry AWS/native/localhost preflight passes against iteration194's retained
+localhost invocation. Existing controller checkpoints were published FireSim
+`20b6265c` then Chipyard `8803678c0`; the local tracking-ref warning is retained.
+The six focused Scala checks pass after correcting the new pending register to
+post-lowering reset-mux form. Full final-source Scala passes 407 tests / 64 suites
+plus sixteen preparation checks; manager tests pass all 69. Both exact-Rocket
+negative builds retain all 321 observer bits and their physical-owner and
+missing-widget guards. The additional exploratory regional/FAME compile rejects
+freeze-wrapped observer equations; authenticated freeze mapping remains required.
+All eight native component syntheses pass on this manager. The new cut uses
+2,148 LUTs / 996 registers / six BUFGCEs, with 347 raw-clock control/readout
+registers checked; placement/full-image timing remains unproven.
+
+Final source/native-bound SP2 EDA passes the retained component scope and eleven
+new cut cases / eleven debug waves. Independent raw-wave checking covers four
+active cuts / 280 bank reads, 64 withdrawal-stall edges, and all nine physical
+fault modes through EOF. Compiled CE corruption diverges at target cycle 37,
+bank 255 slot 2, after 66 acknowledgements; the bad and later beats are never
+acknowledged. Eight rehashed wiring mutations and four raw-wave mutations reject.
+The final EDA retained rerun passes FASED/configuration/scalar/base publication,
+all 422 Python tests and bank/host ASan/UBSan/FCFS/cut checks. Its initial capacity
+refusal is preserved; audited sharing of 1,134 retained generated-source pairs
+recovers free bytes from 7,788,113,920 to 17,181,511,680 without removing files,
+changing bytes, or reducing sanitizer/debug/test scope.
+
+No checkpoint-enabled image, physical capture or CPU migration is established.
+Complete FAME freeze/time, FASED AXI, reset/writer, memory/host/transport and
+atomic controller ownership, full restore and production binding still block
+image admission. Every FPGA-origin Level-1/Level-2/finite/live/rolling CPU column
+remains pending. Evidence and replayable commands belong under
+`automations/checkpoint_loop/runs/aws-f2/iteration9795/`; selections include
+`scala-final-selected.json`, `common-cut-native-selected.json`,
+`common-cut-vcs-selected.json`, `eda-retained-selected.json` and
+`eda-components-selected.json`. Closing source/resource audit is recorded in
+`final-audit-selected.json`. Both plans and initialized manager YAMLs remain
+read-only/hash-protected. No local staging or commits. Managed implementation
+and review results are integrated; all workers have finished. All compiler,
+native and EDA jobs have exited before closure.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 9794,
 **in_progress; prepared publication of the production FASED host owner;
 physical capture pending**.
 
