@@ -35,7 +35,66 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 9799,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 9800,
+**in_progress; coherent control-register/asynchronous-memory staging; final-source closure passes**.
+
+Added an opt-in register/memory snapshot diagnostic covering the complete
+Rocket control-fabric subtree: 395 registers, thirteen memories, 408 entries /
+1,749 bits, 28 words and a separate 1,820-bit staging owner. All memory words
+and both reorder queues feed one raw-clock staging edge. Original functional
+port/writer/mask equations remain unchanged. Unsupported memory timing, shape,
+depth, writer counts and clock guards reject. See
+[register/memory staging](f2-live-register-memory-snapshot.md).
+
+All 414 current-source Scala tests / 65 suites and sixteen preparation checks
+pass. Independent audit sweeps reject all eighteen original register negatives
+and all twenty-eight register/memory negatives per fixture. All 69 manager
+tests pass. Both original exact-recipe refusals, the new actual-compiler
+attachment, final regional binding and all seventeen binding mutations pass.
+The component's complete original definitions/descendants match the current
+actual compiler exactly. Four original oracle emissions and twenty-eight oracle
+negatives pass. All native syntheses pass, including 220 / 1,749 staged bits for
+the new signed/masked and real control-fabric cases. Native integrity passes;
+all local compiler/native jobs have finished, with at most two Vivado jobs.
+Final-source EDA FASED, three publication suites, all 430 Python tests, generated
+banks, host ASan/UBSan, FCFS, cut and the complete component scope pass. All four
+snapshot cases pass with their full corruption sweeps and raw debug waves.
+The real control fabric completes 1,415 writes / 1,414 responses, including
+95 / 96 while staging is occupied; corruption stops at cut 100 / word zero with
+zero acknowledged words, independently checked in the wave. Final source,
+native/VCS, protected-input/resource and publication closure passes 2,109 hash
+bindings in `final-audit-91pe9es5/summary.json`. All scoped jobs have finished.
+Evidence and failed attempts remain under `runs/aws-f2/iteration9800/`.
+
+The first EDA retained scope and component/signed-memory cases pass. The full
+control-fabric run compares all 112 snapshot words but fails activity: sending
+the error-port response first leaves the original RR arbiter's unreset
+`lastGrant` unknown, produces an untracked duplicate response in both executions
+and stalls writes after 65 transactions. Functional port-zero initialization
+now precedes the error path; the verifier also rejects original assertion
+failures explicitly. Original RTL is unchanged. All four snapshot native
+qualifications and complete EDA scope were refreshed successfully. Keep the
+failed raw wave/log; never report it as a passing control run.
+
+EDA initially had only 9 GiB free. Byte-preserving sharing retains all original
+paths, independent inodes, bytes and raw waves. The bootstrap's extra 24-GiB
+margin was not met after input transfer; its failed receipt is preserved. The
+complete canonical 4,140-pair storage audit subsequently passes with 26.9 GiB
+free before VCS, preserving the normal 8-GiB reserve and deleting no files.
+
+Fresh AWS/HDK/Vivado/localhost preflight passes. Published existing controller
+commits FireSim `e6eef3fb` then Chipyard `1f1c11c44`; Chipyard retains its
+post-push local tracking-ref warning. Managed worker startup failed before any
+worker ran; only the central agent performed the work. Plans and initialized
+manager YAMLs remain protected. Complete common-cut/transport/host and restore
+ownership, image P&R/AFI, physical F2 captures, paired CPU readback/finite/live
+continuation and rolling hardware recovery remain pending. Production descriptor
+coverage and image admission have not been expanded by this diagnostic.
+All 1,245 functional entries, including these 408 observed entries, remain
+explicitly unadmitted. Next bind the actual control-fabric common cut, transport,
+host and original/staging restore owners before expanding descriptor admission.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 9799,
 **in_progress; mandatory annotation evidence; full current-source EDA closure**.
 
 Reproduced a real audit gap: removing both annotation files still passed the

@@ -25,12 +25,19 @@ RUNS = ROOT / 'automations/checkpoint_loop/runs'
 
 def mutations(generated, output):
     rejected = {}
-    for name in ('original-equation', 'source-clock', 'observation-lane', 'ancestor-route',
+    binding = json.loads((generated / 'binding.json').read_text())
+    memory_mode = binding['snapshot_version'] == 2
+    cases = ('original-equation', 'source-clock', 'observation-lane', 'ancestor-route',
                  'missing-row', 'aliased-state-id', 'wrong-offset', 'cut-certificate',
                  'restore-enabled', 'added-owner', 'image-admission', 'staging-source',
                  'driver-hash', 'declaration-hash', 'staging-abi',
                  'missing-original-annotations', 'missing-instrumented-annotations',
-                 'changed-instrumented-annotations'):
+                 'changed-instrumented-annotations')
+    if memory_mode:
+        cases += ('memory-address', 'memory-enable', 'memory-clock', 'memory-original-writer',
+                  'memory-missing-reader', 'memory-depth', 'memory-row-depth', 'memory-row-id',
+                  'memory-row-missing', 'memory-declaration-hash')
+    for name in cases:
         case = output / name
         shutil.copytree(generated, case)
         binding = json.loads((case / 'binding.json').read_text())
@@ -39,7 +46,34 @@ def mutations(generated, output):
         rows = binding['state']
         modules = parse_modules(source)
         root = re.search(r'^circuit (\w+) :', source, re.M)[1]
-        if name == 'original-equation':
+        if name.startswith('memory-'):
+            row = next(r for r in rows if r.get('kind') == 'memory')
+            mem = row['hierarchy'].rsplit('.', 1)[1]
+            if name in ('memory-address', 'memory-enable', 'memory-clock'):
+                pin = {'memory-address': 'addr', 'memory-enable': 'en', 'memory-clock': 'clk'}[name]
+                value = ('asClock(UInt<1>("h0"))' if pin == 'clk' else
+                         'UInt<1>("h1")' if pin == 'addr' else 'UInt<1>("h0")')
+                actual, count = re.subn(r'('+re.escape(mem+'.'+PREFIX+'read_0.'+pin)+r' <= )[^\n]+',
+                                        lambda m: m[1]+value, actual, count=1)
+                require(count == 1, 'missing memory corruption target')
+            elif name == 'memory-original-writer':
+                actual, count = re.subn(r'('+re.escape(mem)+r'\.\w+\.data <= )[^\n]+',
+                                        lambda m: m[1]+'UInt<1>("h0")', actual, count=1)
+                require(count == 1, 'missing writer corruption target')
+            elif name == 'memory-missing-reader':
+                actual = actual.replace('      reader => '+PREFIX+'read_0\n', '', 1)
+            elif name == 'memory-depth':
+                actual = actual.replace('      depth => '+str(row['depth'])+'\n',
+                                        '      depth => '+str(row['depth']+1)+'\n', 1)
+            elif name == 'memory-row-depth':
+                row['depth'] += 1
+            elif name == 'memory-row-id':
+                row['state_id'] = rows[0]['state_id']
+            elif name == 'memory-row-missing':
+                binding['state'].remove(row)
+            elif name == 'memory-declaration-hash':
+                row['declaration_sha256'] = '0'*64
+        elif name == 'original-equation':
             module = rows[0]['module']
             register = rows[0]['hierarchy'].rsplit('.', 1)[1]
             text = re.search(r'^  module ' + module + r' :[\s\S]*?(?=^  (?:module|extmodule) |\Z)', actual, re.M)[0]
@@ -133,6 +167,7 @@ def bench(directory):
     root = re.search(r'^circuit (\w+) :', (directory / 'host.fir').read_text(), re.M)[1]
     binding = json.loads((directory / 'binding.json').read_text())
     bits, words = binding['bits'], binding['words']
+    control = root == 'NastiRecursiveInterconnect'
     lines = ['`timescale 1ns/1ps', 'module register_snapshot_tb;',
              'import "DPI-C" function void checkpoint_widget_failed();']
     for name, (direction, kind) in actual[root]['ports'].items():
@@ -147,6 +182,8 @@ def bench(directory):
         for name, (direction, _) in original[root]['ports'].items()) + ');',
         f'reg [{bits-1}:0] expected;', 'integer checks=0,host_step=0,cuts=0,acknowledged_words=0;',
         'integer enqueue_fires=0,dequeue_fires=0,blocked_enqueues=0,staged_enqueue_fires=0,staged_dequeue_fires=0;',
+        'integer write_phase=0,read_phase=0,write_index=0,read_index=0;',
+        'reg b_pending=0,r_pending=0;reg [11:0] b_id=0,r_id=0;',
         'function automatic [11:0] queue_tag(input integer address);',
         'queue_tag=12\'(((address%64)*13%64)*64+(address%64));endfunction',
         'task check(input bit okay,input string signal);checks++;if(!okay)begin',
@@ -159,11 +196,27 @@ def bench(directory):
     vector = []
     for row in reversed(binding['state']):
         hierarchy = 'original.' + row['hierarchy'].split('.', 1)[1]
-        vector.append(hierarchy)
+        vector.extend([hierarchy+f'[{i}]' for i in reversed(range(row['depth']))]
+                      if row.get('kind') == 'memory' else [hierarchy])
     expression = '{' + ','.join(vector) + '}'
     lines += [f'check({OBS}==={expression},"complete_live_vector");endtask',
-              'task tick;clock=0;#3;']
-    if root != 'Top':
+              ('task tick;if(!reset)activity();clock=0;#3;' if control else 'task tick;clock=0;#3;')]
+    if control:
+        lines += ['if(!reset)begin',
+                  'if(io_masters_0_aw_valid&&!io_masters_0_aw_ready)blocked_enqueues++;',
+                  'if(io_masters_0_aw_valid&&io_masters_0_aw_ready)begin write_phase=1;enqueue_fires++;',
+                  f'if({PREFIX}valid)staged_enqueue_fires++;end',
+                  'if(io_masters_0_w_valid&&io_masters_0_w_ready)write_phase=2;',
+                  'if(io_masters_0_b_valid&&io_masters_0_b_ready)begin write_phase=0;write_index++;dequeue_fires++;',
+                  f'if({PREFIX}valid)staged_dequeue_fires++;end',
+                  'if(io_masters_0_ar_valid&&io_masters_0_ar_ready)read_phase=1;',
+                  'if(io_masters_0_r_valid&&io_masters_0_r_ready)begin read_phase=0;read_index++;end',
+                  'if(io_slaves_0_aw_valid&&io_slaves_0_aw_ready)b_id=io_slaves_0_aw_bits_id;',
+                  'if(io_slaves_0_w_valid&&io_slaves_0_w_ready)b_pending=1;',
+                  'if(io_slaves_0_b_valid&&io_slaves_0_b_ready)b_pending=0;',
+                  'if(io_slaves_0_ar_valid&&io_slaves_0_ar_ready)begin r_pending=1;r_id=io_slaves_0_ar_bits_id;end',
+                  'if(io_slaves_0_r_valid&&io_slaves_0_r_ready)r_pending=0;end']
+    elif root != 'Top':
         lines += ['if(!reset)begin',
                   'if(io_enq_valid&&io_enq_ready)begin enqueue_fires++;',
                   f'if({PREFIX}valid)staged_enqueue_fires++;end',
@@ -173,7 +226,24 @@ def bench(directory):
                       f'if({PREFIX}valid)staged_dequeue_fires++;end']
         lines += ['end']
     lines += ['clock=1;#3;compare();clock=0;#3;host_step++;endtask', 'task activity;']
-    if root == 'Top':
+    if control:
+        lines += ['io_masters_0_aw_valid=(write_phase==0);io_masters_0_w_valid=(write_phase==1);',
+                  # Port zero initializes the ordinary RR arbiter's unreset
+                  # lastGrant through a real response before the error port.
+                  'io_masters_0_aw_bits_addr=(write_index==1)?32\'hffffffff:32\'h100;',
+                  'io_masters_0_aw_bits_id=queue_tag(write_index);io_masters_0_aw_bits_size=2;',
+                  'io_masters_0_w_bits_data=32\'(write_index*31+7);io_masters_0_w_bits_strb=15;',
+                  'io_masters_0_w_bits_last=1;io_masters_0_w_bits_id=queue_tag(write_index);',
+                  'io_masters_0_b_ready=(host_step%5!=3);',
+                  'io_masters_0_ar_valid=(read_phase==0);io_masters_0_ar_bits_size=2;',
+                  'io_masters_0_ar_bits_addr=(read_index==1)?32\'hffffffff:32\'h100;',
+                  'io_masters_0_ar_bits_id=queue_tag(read_index);io_masters_0_r_ready=(host_step%5!=2);',
+                  'io_slaves_0_aw_ready=(host_step%7!=2);io_slaves_0_w_ready=(host_step%7!=4);',
+                  'io_slaves_0_ar_ready=(host_step%7!=3);',
+                  'io_slaves_0_b_valid=b_pending;io_slaves_0_b_bits_id=b_id;',
+                  'io_slaves_0_r_valid=r_pending;io_slaves_0_r_bits_id=r_id;',
+                  'io_slaves_0_r_bits_last=1;io_slaves_0_r_bits_data=32\'(read_index*17+11);']
+    elif root == 'Top':
         lines += ["enable=(host_step%3!=1);data={1'b1,32'(host_step*13),32'(host_step*7+5)};"]
     else:
         lines += ['io_enq_valid=(host_step%7!=3);io_enq_bits_tag=queue_tag(host_step);io_enq_bits_data=(host_step/64+host_step*7+13)%16;']
@@ -202,15 +272,15 @@ def bench(directory):
               'initial begin $dumpfile("register-snapshot.vcd");$dumpvars(0,register_snapshot_tb);',
               'tick();tick();reset=0;', f'{PREFIX}reset=0;{PREFIX}owners_present=1;{PREFIX}functional_frozen=1;',
               # First initialize every exact queue slot with enqueue enabled.
-              'for(integer i=0;i<128;i++)begin activity();']
-    if root != 'Top':
+              f'for(integer i=0;i<{4096 if control else 128};i++)begin activity();']
+    if root != 'Top' and not control:
         lines += ['io_enq_valid=1;io_enq_bits_tag=queue_tag(i);io_enq_bits_data=i%16;']
     lines += ['tick();end', 'for(integer i=0;i<512;i++)begin activity();tick();',
               'if(i==4||i==120||i==300||i==499)cut(100+cuts);end',
               f'check(cuts==4&&acknowledged_words=={words*4},"complete_scope");']
     if root != 'Top':
-        lines += ['check(enqueue_fires>64&&dequeue_fires>0&&blocked_enqueues>0&&staged_enqueue_fires>0&&staged_dequeue_fires>0,"active_backpressured_queue_during_staging");',
-                  '$display("REGISTER_SNAPSHOT_QUEUE_TRAFFIC enqueues=%0d dequeues=%0d blocked=%0d staged_enqueues=%0d staged_dequeues=%0d",enqueue_fires,dequeue_fires,blocked_enqueues,staged_enqueue_fires,staged_dequeue_fires);']
+        lines += ['$display("REGISTER_SNAPSHOT_QUEUE_TRAFFIC enqueues=%0d dequeues=%0d blocked=%0d staged_enqueues=%0d staged_dequeues=%0d",enqueue_fires,dequeue_fires,blocked_enqueues,staged_enqueue_fires,staged_dequeue_fires);',
+                  'check(enqueue_fires>64&&dequeue_fires>0&&blocked_enqueues>0&&staged_enqueue_fires>0&&staged_dequeue_fires>0,"active_backpressured_queue_during_staging");']
     lines += [
               f'{PREFIX}owners_present=0;{PREFIX}request=1;#1;check(!{PREFIX}request_ready&&!{PREFIX}valid&&{PREFIX}failed,"missing_owner_before_edge");tick();',
               f'{PREFIX}owners_present=1;{PREFIX}request=0;check({PREFIX}failed,"sticky_owner_fault");',
@@ -338,6 +408,8 @@ puts "REGISTER_SNAPSHOT_SYNTH_PASS payload_bits={bits}"
                 work = out/case
                 work.mkdir()
                 text = run([binary, '-no_save'], case, work, 0 if case == 'healthy' else 1)
+                require('Offending ' not in text and 'Assertion failed:' not in text,
+                        'original DUT/reference assertion failed; inspect '+str(work))
                 expected = f'REGISTER_SNAPSHOT_PASS cuts=4 words={binding["words"]*4}'
                 require(expected in text if case == 'healthy' else
                         'REGISTER_SNAPSHOT_DIVERGENCE source_cut=100' in text and

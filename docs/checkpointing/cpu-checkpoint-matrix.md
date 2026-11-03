@@ -14,6 +14,18 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 9800 adds an opt-in coherent control-fabric observation vector:
+395 registers and thirteen asynchronous memories, including both reorder queues
+and every W-route FIFO word, total 408 entries / 1,749 bits. The separate staging
+owner has 1,820 bits. See [register/memory staging](f2-live-register-memory-snapshot.md).
+This remains a diagnostic component: production descriptor admission, complete
+hardware owners, full image implementation/AFI, F2 capture and CPU migration are
+pending. Qualification commands and attempts are under `runs/aws-f2/iteration9800/`.
+Current-source Scala, localhost native synthesis and complete EDA SP2 component
+closure pass; the control-fabric fixture completes 1,415 writes / 1,414 responses
+and rejects payload corruption before word-zero acknowledgement. These results
+grant no production coverage or physical CPU acceptance.
+
 Iteration 9799 makes original and instrumented annotation evidence mandatory
 in the snapshot auditor and adds three missing/changed-evidence negatives.
 Current-source requalification is recorded under `runs/aws-f2/iteration9799/`;

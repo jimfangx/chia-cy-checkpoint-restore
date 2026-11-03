@@ -26,12 +26,13 @@ object RegisterSnapshotReference {
       firrtl.passes.ToWorkingIR.run(Parser.parse(text))))
     val parsed = firrtl.passes.ResolveFlows.run(typed)
     require(parsed.serialize == text, "oracle must preserve the exact original circuit")
+    var hasMemories = false
     val targets = parsed.modules.collect { case m: Module =>
       val names = scala.collection.mutable.ArrayBuffer.empty[String]
       def visit(s: Statement): Unit = {
         s match {
           case r: DefRegister => names += r.name
-          case _: DefMemory => throw new IllegalArgumentException("register oracle does not support memories")
+          case r: DefMemory => names += r.name; hasMemories = true
           case _ => ()
         }
         s.foreachStmt(visit)
@@ -53,8 +54,9 @@ object RegisterSnapshotReference {
     write("original-annotations.json", read("host-annotations.json"))
     write("preserved-annotations.json", JsonProtocol.serialize(marked.annotations))
     import SemanticStateInventory.{canonical, sha256}
-    write("binding.json", canonical(JObject(List("reference_version" -> JInt(1),
-      "scope" -> JString("original_register_oracle_donttouch_only"),
+    write("binding.json", canonical(JObject(List("reference_version" -> JInt(if (hasMemories) 2 else 1),
+      "scope" -> JString(if (hasMemories) "original_register_memory_oracle_donttouch_only"
+        else "original_register_oracle_donttouch_only"),
       "original_sha256" -> JString(sha256(text)),
       "original_annotations_sha256" -> JString(sha256(read("host-annotations.json"))),
       "preserved_annotations_sha256" -> JString(sha256(JsonProtocol.serialize(marked.annotations))),
