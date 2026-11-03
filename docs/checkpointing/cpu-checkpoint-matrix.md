@@ -14,6 +14,21 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 9806 adds a synthesized adapter that atomically stages the generated
+regional cut controller and accepted-request pending vector before permitting
+bank reads. It retains the cut through host withdrawal and requires explicit
+idle release. Native OOC place/route passes at 140 MHz with +0.911/+0.044-ns
+setup/hold slack, and seventeen EDA SP2 cases plus 75 waveform-checker mutations
+pass. Its separate staging owner, original readout/router payload,
+production installation and all complete-image owners still require binding.
+See [regional cut-control staging](f2-regional-cut-control-staging.md) and
+`runs/aws-f2/iteration9806/` for commands and individual receipts; consult
+progress.md for completed qualification. The exact Rocket compiler still
+rejects the unowned FASED physical CE latch. Full-image implementation/AFI,
+actual FPGA capture, paired CPU readback/replay/live comparison and rolling
+hardware recovery remain pending/in_progress; no hardware acceptance column
+is advanced by these component results.
+
 Iteration 9805 adds protected recovery of interrupted EDA evidence, including
 failed input transfers, without remote setup or another source push. It grants
 no descriptor coverage or hardware acceptance. Fresh exact-recipe generation

@@ -35,7 +35,67 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 9805,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 9806,
+**in_progress; regional control staging implemented/routed and regressions closed; full FPGA image/capture pending**.
+
+Added `CheckpointRegionCutSnapshot.sv`: atomically stage the complete regional
+cut-controller/pending vector before bank access, retain its epoch through host
+withdrawal/backpressure and require explicit idle release. The separate staging
+owner remains exposed without restore admission. This is a synthesized component
+attachment; the actual regional compiler does not yet instantiate it. Next bind
+it through `NativeCheckpointRegionClockCut`, include readout/router owner state
+in the same epoch and add whole-owner destination restore. Keep production image
+guards until all global owners are covered. See
+[regional control staging](f2-regional-cut-control-staging.md).
+
+Final-source localhost Vivado synthesis retains all 75 captured control bits,
+all 146 raw-clock staging registers and six original BUFGCEs. Subsequent OOC
+place/route passes at unchanged 140 MHz: 1,964 LUTs / 1,142 registers, setup/hold
++0.911/+0.044 ns, all 3,124 routable nets routed, zero routing errors and no DRC
+checks found. The original unplaced 2,301-LUT/-0.043/-0.074-ns reports remain.
+This establishes component timing, not full-image timing/Fmax or an AFI.
+
+Final source/native-bound EDA SP2 passes seventeen fresh cases and all 75
+independent waveform-checker mutations, retaining seventeen full debug waves.
+Five component cuts 37/66/102/145/195 include four complete captures/releases
+and a fifth cancelled by shared reset. Healthy continuation checks 280 bank
+words, 285 requests / 284 responses and 64 withdrawal/backpressure edges.
+Actual compiled corruption first differs on `captured_control_state` at component
+cycle 37 (4811 versus 4810), with zero bank requests/responses acknowledged.
+These are component donors/cycles, with no CPU or FPGA capture acceptance.
+
+The fresh complete EDA retained/component scope passes: FASED, three publication
+suites, 430 Python tests, generated banks, ASan/UBSan host, FCFS, cut and fresh
+component restore/readback/replay negatives. Descriptor/driver binding passes.
+The complete 6,477-pair / 130,913,794,091-byte storage audit passes with
+27,825,541,120 bytes available, preserving bytes/paths/independent inodes and
+removing no files. All artifacts returned before native implementation started.
+Final combined audit passes 11,341 bindings across 47 selected receipts; its
+separate current-source audit checks 2,116 source hashes. All jobs have finished.
+
+Initial delta-settling and synchronous-fault bench failures remain alongside
+the corrected exploratory sixteen-case pass. The first closing-helper attempt
+used an obsolete one-argument `audit_receipt` call; its TypeError/failed receipt
+remain, followed by the corrected SHA-bound passing retry. Commands, attempts,
+selections and raw evidence belong under `runs/aws-f2/iteration9806/`.
+
+Fresh AWS/native HDK/Vivado/localhost, 81 manager tests, exact compiler/component
+and original-restore structural audits and all fifteen retained native/Scala
+integrity bindings pass. Fresh exact Rocket generation preserves 321 FAME
+observer bits and still rejects the FASED physical CE-latch/common-cut owner.
+The retained exact-recipe descriptor still lists 1,245 unadmitted functional
+entries (1,059 registers / 186 memories); the new adapter grants no admission.
+Full production ownership, localhost full-image P&R/AFI, active all-hart F2 cuts,
+paired CPU zero-edge restore/finite/live migration and rolling hardware recovery
+remain pending. No new image/AFI, deployment or FPGA checkpoint is claimed.
+
+Published existing controller checkpoints FireSim `1d8cbda3`, then Chipyard
+`05312ce46`; preserve the latter's successful-push/local tracking-ref warning.
+Both plans and initialized manager inputs retain entry hashes. No staging,
+local commits or conda edits. Managed worker startup failed before a worker ran;
+only the central agent performed this increment and no delegated LLM work remains.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 9805,
 **in_progress; interrupted EDA evidence recovered; physical implementation/capture pending**.
 
 Added `eda.py --fetch-only` to retrieve an interrupted attempt without pushing
