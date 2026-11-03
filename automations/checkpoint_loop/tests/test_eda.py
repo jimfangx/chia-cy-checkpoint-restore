@@ -2,6 +2,8 @@
 
 from contextlib import contextmanager
 import os
+import hashlib
+import json
 from pathlib import Path
 import shutil
 import sys
@@ -210,6 +212,55 @@ class EdaTests(unittest.TestCase):
         for cwd in ("..", "/tmp", "sims/../../outside"):
             with self.assertRaises(ValueError):
                 workspace.command(["vcs"], cwd)
+
+    @unittest.skipUnless(shutil.which("rsync"), "rsync required")
+    def test_explicit_storage_bootstrap_precedes_sync_and_retains_current_source_binding(self):
+        with self.workspace() as (workspace, local, remote, output):
+            workspace.push()
+            for name in ('eda_dedupe.py','eda_waveform_storage.py'):
+                shutil.copy2(eda.ROOT/'automations/checkpoint_loop'/name,
+                             local/'automations/checkpoint_loop'/name)
+            plan = local/eda.RUNS/'closed-plan.json'
+            plan.write_text('[]\n')
+            pin = dict(plan=str(plan.relative_to(local)),sha256=hashlib.sha256(plan.read_bytes()).hexdigest(),
+                       required_free_bytes=0,required_free_inodes=0)
+            (local/eda.RUNS/'eda-storage-plan.json').write_text(json.dumps(pin))
+            # Stale remote code must never run, and cannot be updated before bootstrap.
+            (remote/'automations/checkpoint_loop/eda_waveform_storage.py').write_text('raise RuntimeError("STALE")')
+            output.clear()
+            workspace.push()
+            joined = ''.join(output)
+            self.assertLess(joined.index('[eda storage]'),joined.index('[eda command] rsync'))
+            logs = list((local/eda.RUNS).glob('eda-storage-bootstrap-*/execution.jsonl'))
+            self.assertEqual(len(logs),1)
+            events = [json.loads(s) for s in logs[0].read_text().splitlines() if s.startswith('{')]
+            self.assertEqual(events[-1]['status'],'pass')
+            self.assertEqual(events[0]['plan_sha256'],pin['sha256'])
+            self.assertEqual(len(events[0]['sources']),2)
+            self.assertTrue((remote/eda.RUNS/logs[0].relative_to(local/eda.RUNS)).is_file())
+            # A failed maintenance threshold must prevent both source and input
+            # transfers, retaining a local diagnostic even on a full remote disk.
+            (local/'source.txt').write_text('MUST NOT TRANSFER')
+            pin['required_free_bytes'] = 2**63
+            (local/eda.RUNS/'eda-storage-plan.json').write_text(json.dumps(pin))
+            with self.assertRaisesRegex(RuntimeError,'pre-sync storage recovery failed'):
+                workspace.push()
+            self.assertEqual((remote/'source.txt').read_text(),'first version\n')
+            logs = list((local/eda.RUNS).glob('eda-storage-bootstrap-*/execution.jsonl'))
+            self.assertEqual(len(logs),2)
+            self.assertTrue(any('"status": "fail"' in p.read_text() for p in logs))
+
+    def test_invalid_storage_selection_rejects_before_ssh_or_rsync(self):
+        with self.workspace() as (workspace, local, _, _):
+            plan = local/eda.RUNS/'closed-plan.json';plan.write_text('[]\n')
+            valid = dict(plan=str(plan.relative_to(local)),sha256=hashlib.sha256(plan.read_bytes()).hexdigest(),
+                         required_free_bytes=0,required_free_inodes=0)
+            for key,value in [('plan','../outside'),('sha256','0'*64),
+                              ('required_free_bytes',-1),('required_free_inodes',True)]:
+                (local/eda.RUNS/'eda-storage-plan.json').write_text(json.dumps({**valid,key:value}))
+                with self.subTest(key=key), patch.object(workspace,'ssh') as ssh:
+                    with self.assertRaises(ValueError):workspace.push()
+                    ssh.assert_not_called()
 
 
 if __name__ == "__main__":

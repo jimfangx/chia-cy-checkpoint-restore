@@ -11,6 +11,8 @@ import argparse
 from contextlib import contextmanager
 from dataclasses import dataclass
 import fcntl
+import hashlib
+import json
 import os
 from pathlib import Path, PurePosixPath
 import re
@@ -18,6 +20,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 from typing import Callable
 
 
@@ -80,10 +83,22 @@ class EdaConfig:
         return config
 
 
-def stream(command: list[str], emit: Callable[[str], None], **kwargs) -> int:
+def stream(command: list[str], emit: Callable[[str], None], *, input_text: str | None = None, **kwargs) -> int:
     emit(f"[eda command] {shlex.join(command)}\n")
-    with subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+    with subprocess.Popen(command, stdin=subprocess.PIPE if input_text is not None else None,
+                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                           text=True, encoding="utf-8", errors="replace", **kwargs) as process:
+        if input_text is not None:
+            assert process.stdin is not None
+            try:
+                process.stdin.write(input_text)
+            except BrokenPipeError:
+                pass  # Drain the actual remote diagnostic before reporting failure.
+            finally:
+                try:
+                    process.stdin.close()
+                except BrokenPipeError:
+                    pass
         assert process.stdout is not None
         for chunk in iter(lambda: process.stdout.readline(64 * 1024), ""):
             emit(chunk)
@@ -143,6 +158,7 @@ class RemoteWorkspace:
         self.checked([*command, *paths])
 
     def push(self) -> None:
+        self.recover_storage()
         config = self.config
         root = shlex.quote(config.root)
         # Refuse to mirror over an unrelated checkout. --delete is limited to
@@ -186,6 +202,62 @@ class RemoteWorkspace:
             command.extend(["--exclude", pattern])
         self.checked([*command, str(self.root / RUNS) + "/",
                       f"{config.host}:{config.root}/{RUNS}/"])
+
+    def recover_storage(self) -> None:
+        """Opt-in, hash-bound maintenance before either rsync can allocate files.
+
+        An explicit runs/eda-storage-plan.json selection authorizes only its
+        listed closed-file pairs. Stream current audited helpers over SSH stdin:
+        a full EDA disk cannot receive a helper or create its first receipt.
+        """
+        selection = self.root / RUNS / 'eda-storage-plan.json'
+        if not selection.exists():
+            return
+        pin = json.loads(selection.read_text())
+        relative = PurePosixPath(pin['plan'])
+        plan_path = self.root / relative
+        if (relative.is_absolute() or '..' in relative.parts or
+                not plan_path.resolve().is_relative_to(self.root / RUNS)):
+            raise ValueError('EDA storage plan must be relative and beneath runs/')
+        plan_bytes = plan_path.read_bytes()
+        if hashlib.sha256(plan_bytes).hexdigest() != pin['sha256']:
+            raise ValueError('EDA storage plan digest mismatch')
+        required_bytes, required_inodes = pin['required_free_bytes'], pin['required_free_inodes']
+        if any(type(n) is not int or n < 0 for n in (required_bytes, required_inodes)):
+            raise ValueError('EDA storage capacity requirements must be nonnegative integers')
+        modules = []
+        for name in ('eda_dedupe', 'eda_waveform_storage'):
+            relative_source = f'automations/checkpoint_loop/{name}.py'
+            source = (self.root / relative_source).read_text()
+            modules.append(dict(name=name, filename=self.config.root+'/'+relative_source,
+                                source=source, sha256=hashlib.sha256(source.encode()).hexdigest()))
+        payload = dict(modules=modules, plan=json.loads(plan_bytes), plan_sha256=pin['sha256'],
+                       root=self.config.root, required_bytes=required_bytes, required_inodes=required_inodes)
+        loader = '''import hashlib,json,sys,types
+from pathlib import Path
+p=json.load(sys.stdin)
+for row in p['modules']:
+    assert hashlib.sha256(row['source'].encode()).hexdigest()==row['sha256']
+    m=types.ModuleType(row['name']);m.__file__=row['filename'];sys.modules[m.__name__]=m
+    exec(compile(row['source'],m.__file__,'exec'),m.__dict__)
+from eda_waveform_storage import recover_existing
+emit=lambda row:print(json.dumps(row),flush=True)
+emit(dict(event='binding',plan_sha256=p['plan_sha256'],sources={r['filename']:r['sha256'] for r in p['modules']}))
+recover_existing(p['plan'],Path(p['root']),p['required_bytes'],p['required_inodes'],emit)
+'''
+        out = Path(tempfile.mkdtemp(prefix='eda-storage-bootstrap-', dir=self.root / RUNS))
+        (out / 'request.json').write_text(json.dumps(payload, indent=2)+'\n')
+        self.emit(f'[eda storage] explicit pre-sync plan={plan_path}; receipt={out}/execution.jsonl\n')
+        with (out / 'execution.jsonl').open('x') as log:
+            def emit(line):
+                log.write(line)
+                log.flush()
+                if '"event": "begin"' in line or '"event": "summary"' in line:
+                    self.emit(line)
+            code = stream(self.ssh('python3 -c '+shlex.quote(loader)), emit,
+                          input_text=json.dumps(payload))
+        if code:
+            raise RuntimeError(f'EDA pre-sync storage recovery failed (exit {code}): {out}/execution.jsonl')
 
     def mapped_argv(self, argv: list[str]) -> list[str]:
         if not argv or not all(isinstance(arg, str) for arg in argv):

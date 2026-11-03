@@ -237,3 +237,29 @@ free inodes against explicit capacity requirements. It also exposes
 no simulation or hardware acceptance. The iteration-284 bootstrap uses the same
 sharing routine over SSH stdin because an entirely full disk cannot first
 create a remote receipt; its full source and output are retained locally.
+
+If the input transfer itself fills EDA, recovery inside a verification command
+is too late. Explicitly select a closed-file plan with the manager-side
+`automations/checkpoint_loop/runs/eda-storage-plan.json` before invoking EDA:
+
+```json
+{
+  "plan": "automations/checkpoint_loop/runs/aws-f2/INVOCATION/closed-plan.json",
+  "sha256": "COMPLETE_PLAN_FILE_SHA256",
+  "required_free_bytes": 25769803776,
+  "required_free_inodes": 100000
+}
+```
+
+Each plan row requires `source`, `destination`, `source_sha256`,
+`destination_sha256` and the exact nonnegative `size`. Paths name the EDA mirror's
+retained files. Select enough headroom for both the pending transfer and the
+complete regression scope. `RemoteWorkspace.push` runs this opt-in maintenance
+before either source or artifact rsync, using the current helpers streamed over
+SSH stdin. It never needs to upload a helper to the full disk. Requests and
+JSONL results remain under fresh `runs/eda-storage-bootstrap-*/` paths on the
+manager, including failures. Whole-plan validation precedes sharing. Missing
+and partial transfer files are recorded as unavailable and grant no audit or
+simulation acceptance; all available audited files retain their bytes, paths,
+metadata and independent inodes. Both capacity thresholds must pass before
+transfer starts. Without the selection file, transport behavior is unchanged.

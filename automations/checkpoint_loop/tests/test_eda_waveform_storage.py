@@ -1,6 +1,7 @@
 """Storage recovery must audit complete waveforms without dropping evidence."""
 import errno
 import hashlib
+import json
 import os
 from pathlib import Path
 import struct
@@ -87,6 +88,13 @@ class WaveformStorageTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'owned'):
                 self.share()
 
+    def test_special_files_reject_without_waiting_for_a_fifo_peer(self):
+        fifo = self.destination.with_name('fifo')
+        os.mkfifo(fifo)
+        for source,destination in ((fifo,self.destination),(self.source,fifo)):
+            with self.subTest(source=source), self.assertRaisesRegex(ValueError,'regular files'):
+                storage.share(source,destination,self.digest(self.x),self.digest(self.y))
+
     def test_concurrent_byte_and_metadata_changes_reject(self):
         def changed_bytes(fd, op, request, mutate):
             self.kernel(fd, op, request, mutate)
@@ -146,6 +154,68 @@ class WaveformStorageTests(unittest.TestCase):
             for count, inodes in ((101, 10), (100, 11)):
                 with self.assertRaisesRegex(RuntimeError, 'recover capacity before launching VCS'):
                     storage.require_capacity(self.source, count, inodes)
+
+    def bootstrap(self, rows, *, required_bytes=100, required_inodes=10):
+        root = Path(self.tmp.name)
+        (root/'.checkpoint-eda-owner').write_text('checkpoint_loop\n')
+        self.events = []
+        return storage.recover_existing(rows, root, required_bytes, required_inodes, self.events.append)
+
+    def bootstrap_row(self):
+        folder = Path(self.tmp.name)/storage.RUNS
+        folder.mkdir(parents=True, exist_ok=True)
+        s, d = folder/'source.fir', folder/'destination.fir'
+        s.write_bytes(self.x);d.write_bytes(self.y)
+        return dict(source=str(s), destination=str(d), size=len(self.x),
+                    source_sha256=self.digest(self.x), destination_sha256=self.digest(self.y))
+
+    def test_bootstrap_needs_no_remote_receipt_allocation_and_preserves_all_bytes(self):
+        row = self.bootstrap_row()
+        low = dict(available_bytes=0, available_inodes=0)
+        enough = dict(available_bytes=100, available_inodes=10)
+        with patch.object(storage, 'capacity', side_effect=[low,low,enough]), \
+                patch.object(storage.fcntl, 'ioctl', side_effect=self.kernel):
+            report = self.bootstrap([row])
+        self.assertEqual(report['status'], 'pass')
+        self.assertEqual(report['audited_pairs'], 1)
+        self.assertFalse(report['simulation_acceptance'])
+        self.assertEqual(report['removed_files'], [])
+        self.assertEqual([e['event'] for e in self.events], ['begin','audited','summary'])
+        self.assertEqual(Path(row['destination']).read_bytes(), self.y)
+        json.dumps(self.events)  # stdout evidence is independently serializable.
+
+    def test_bootstrap_missing_and_partial_files_never_count_as_audited(self):
+        row = self.bootstrap_row()
+        for mode in ('absent','truncated'):
+            with self.subTest(mode=mode):
+                d = Path(row['destination'])
+                if mode == 'absent':d.unlink()
+                else:d.write_bytes(b'partial rsync')
+                with patch.object(storage, 'capacity', return_value=dict(available_bytes=0,available_inodes=0)), \
+                        patch.object(storage, 'share') as shared:
+                    with self.assertRaisesRegex(RuntimeError, 'capacity insufficient'):
+                        self.bootstrap([row])
+                shared.assert_not_called()
+                summary = self.events[-1]
+                self.assertEqual(summary['status'], 'fail')
+                self.assertEqual(summary['audited_pairs'], 0)
+                self.assertEqual(summary['unavailable_pairs'], 1)
+
+    def test_bootstrap_checks_whole_plan_even_when_capacity_is_already_sufficient(self):
+        row = self.bootstrap_row()
+        for key, value in (('destination','/tmp/outside'),('size',-1),('size',True),
+                           ('source_sha256','BAD')):
+            with self.subTest(key=key,value=value), patch.object(storage, 'share') as shared:
+                with self.assertRaises(ValueError):self.bootstrap([row,{**row,key:value}],required_bytes=0,required_inodes=0)
+                shared.assert_not_called()
+
+    def test_bootstrap_corruption_fails_with_explicit_nonacceptance_receipt(self):
+        row = self.bootstrap_row();row['destination_sha256']='0'*64
+        with patch.object(storage, 'capacity', return_value=dict(available_bytes=0,available_inodes=0)), \
+                patch.object(storage.fcntl, 'ioctl', side_effect=self.kernel):
+            with self.assertRaisesRegex(ValueError, 'digest mismatch'):self.bootstrap([row])
+        self.assertEqual(self.events[-1]['status'], 'fail')
+        self.assertEqual(self.events[-1]['audited_pairs'], 0)
 
 
 if __name__ == '__main__':

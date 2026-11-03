@@ -38,6 +38,65 @@ def require_capacity(path: Path, required_bytes: int, required_inodes: int) -> d
     return observed
 
 
+def recover_existing(plan: list[dict], root: Path, required_bytes: int,
+                     required_inodes: int, emit) -> dict:
+    """Bootstrap explicitly selected closed files before rsync needs free space.
+
+    Missing or incompletely transferred files are inventoried, never repaired or
+    accepted as audited. No disk allocation is required to emit the JSONL receipt
+    over SSH. The caller retains that receipt on the manager, even on failure.
+    """
+    if min(required_bytes, required_inodes) < 0:
+        raise ValueError('capacity requirements must be nonnegative')
+    root = root.resolve()
+    marker = root / '.checkpoint-eda-owner'
+    if marker.is_symlink() or marker.read_text().strip() != 'checkpoint_loop':
+        raise ValueError('storage recovery requires the claimed EDA mirror')
+    scope = root / RUNS
+    # Validate the ENTIRE plan before the first ioctl, including unavailable rows.
+    for row in plan:
+        if type(row.get('size')) is not int or row['size'] < 0:
+            raise ValueError('each bootstrap row requires its exact nonnegative size')
+        for key in ('source', 'destination'):
+            p = Path(row[key])
+            if (not p.is_absolute() or '..' in p.parts or p.is_symlink() or
+                    not p.resolve().is_relative_to(scope)):
+                raise ValueError('bootstrap files must be beneath EDA runs/')
+            h = row[key+'_sha256']
+            if not isinstance(h, str) or len(h) != 64 or any(c not in '0123456789abcdef' for c in h):
+                raise ValueError('bootstrap requires complete SHA256 digests')
+    report = dict(status='running', backend='eda', physical_fpga_capture=False,
+                  simulation_acceptance=False, removed_files=[], root=str(root),
+                  observed_utc=datetime.now(timezone.utc).isoformat(),
+                  before=capacity(root), total_pairs=len(plan), audited_pairs=0,
+                  unavailable_pairs=0, required_free_bytes=required_bytes,
+                  required_free_inodes=required_inodes)
+    emit(dict(event='begin', **report))
+    try:
+        for index, row in enumerate(plan):
+            observed = capacity(root)
+            if (observed['available_bytes'] >= required_bytes and
+                    observed['available_inodes'] >= required_inodes):
+                break
+            paths = [Path(row[k]) for k in ('source', 'destination')]
+            sizes = [p.lstat().st_size if p.exists() else None for p in paths]
+            if sizes != [row['size']]*2:
+                report['unavailable_pairs'] += 1
+                emit(dict(event='unavailable', index=index, expected=row, observed_sizes=sizes))
+                continue
+            result = share(*paths, row['source_sha256'], row['destination_sha256'])
+            report['audited_pairs'] += 1
+            emit(dict(event='audited', index=index, **result))
+        report['after'] = require_capacity(root, required_bytes, required_inodes)
+        report['status'] = 'pass'
+    except BaseException as error:
+        report.update(status='fail', error_type=type(error).__name__, error=str(error), after=capacity(root))
+        raise
+    finally:
+        emit(dict(event='summary', **report))
+    return report
+
+
 def share(source: Path, destination: Path, source_sha256: str,
           destination_sha256: str, *, progress=None) -> dict:
     """Bound memory and I/O while auditing full files, including different data.
@@ -50,7 +109,8 @@ def share(source: Path, destination: Path, source_sha256: str,
     expected = [source_sha256, destination_sha256] * 2
     if any(len(h) != 64 or any(c not in '0123456789abcdef' for c in h) for h in expected):
         raise ValueError('expected complete lowercase SHA256 digests')
-    flags = os.O_CLOEXEC | os.O_NOFOLLOW
+    # Opening an unexpected FIFO must reject rather than hang before fstat.
+    flags = os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK
     sfd = os.open(source, os.O_RDONLY | flags)
     try:
         dfd = os.open(destination, os.O_RDWR | flags)

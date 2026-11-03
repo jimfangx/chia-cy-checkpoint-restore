@@ -35,7 +35,39 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 9802,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 9803,
+**in_progress; EDA pre-transfer capacity recovery implemented; physical image/capture pending**.
+
+The iteration-9802 controller failure was rsync ENOSPC before VCS execution.
+Added explicit hash-bound `runs/eda-storage-plan.json` selection and streamed
+current helpers before either source/input rsync. Maintenance needs no initial
+remote receipt allocation, preserves complete bytes/paths/independent inodes,
+inventories absent/partial transfers, and enforces bytes plus inodes. Special
+files reject without FIFO hangs. All 76 manager/transport tests pass, including
+failure-before-transfer and stale-remote-helper rejection. Documentation:
+[EDA capacity workflow](aws-f2-workflow.md#retained-eda-waveform-capacity).
+
+Both independent 53-pair waveform plans agree: complete manager SHA256 reads
+match retained EDA receipts for 85,988,459,840 candidate bytes. The original
+full-hash planner finished before its attempted cancellation. The first source
+sharing attempt was explicitly interrupted after recovering 4.48 GB; its failed
+receipt and partial-transfer inventory remain intact. A fresh current-source
+waveform bootstrap and the full EDA retained/component/restore/readback/replay/
+negative/wave/binding/storage scope are running; do not claim their completion
+until `runs/aws-f2/iteration9803/eda-full-helper.log` and selected receipts pass.
+
+Exact current compiler/component equality, original-restore structural negatives
+and all fifteen retained native/Scala integrity bindings pass. Fresh AWS/native
+HDK/Vivado/Fabric localhost preflight passes. No new image, AFI, runtime instance
+or physical checkpoint was requested. Full-recipe physical/common-cut ownership,
+complete image implementation, actual FPGA cuts, paired CPU finite/live migration
+and rolling recovery remain pending. Existing controller commits were published
+FireSim first (`37e62f1e`), then Chipyard (`cb0feec64`); remote tips match, despite
+Chipyard's local tracking-ref warning. Managed worker creation failed before any
+worker ran; only the central agent is active. Plans and manager inputs retain
+entry hashes. No staging, local commits or conda changes.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 9802,
 **in_progress; original control-fabric component restore qualified; physical image/capture pending**.
 
 Added opt-in version-4 original register/asynchronous-memory restore to the

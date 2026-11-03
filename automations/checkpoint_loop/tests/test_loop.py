@@ -168,14 +168,19 @@ class LoopTests(unittest.TestCase):
         self.assertEqual([r["returncode"] for r in results], [0, 127])
 
     def test_ssh_failure_is_returned_as_failed_verification(self):
-        workspace = MagicMock()
-        workspace.config.host = "eda"
-        workspace.preflight.side_effect = RuntimeError("SSH unavailable")
-        with patch.object(loop, "RemoteWorkspace", return_value=workspace):
-            results = loop.run_verification(
-                [{"purpose": "simulation", "cwd": ".", "argv": ["simv"]}], MagicMock())
-        workspace.run.assert_not_called()
-        self.assertEqual(results[0]["returncode"], 127)
+        for method, error in [('preflight', RuntimeError('SSH unavailable')),
+                              ('push', ValueError('EDA storage plan digest mismatch'))]:
+            with self.subTest(method=method):
+                workspace = MagicMock()
+                workspace.config.host = 'eda'
+                getattr(workspace, method).side_effect = error
+                log = MagicMock()
+                with patch.object(loop, 'RemoteWorkspace', return_value=workspace):
+                    results = loop.run_verification(
+                        [{'purpose': 'simulation', 'cwd': '.', 'argv': ['simv']}], log)
+                workspace.run.assert_not_called()
+                self.assertEqual(results[0]['returncode'], 127)
+                self.assertTrue(any(str(error) in call.args[0] for call in log.show.call_args_list))
 
     @contextmanager
     def repositories(self):

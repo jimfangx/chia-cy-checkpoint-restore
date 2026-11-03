@@ -265,7 +265,7 @@ def run_verification(commands: list[dict[str, Any]], log: BoundedLog) -> list[di
                     eda_current = False
                 else:
                     returncode = run_local_check(argv, cwd, log)
-            except (OSError, RuntimeError) as exc:
+            except (OSError, RuntimeError, ValueError) as exc:
                 returncode = 127
                 log.show(f"[verification error] {exc}\n")
             log.show(f"[verification result] backend={execution} exit={returncode}\n")
