@@ -35,7 +35,81 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 9806,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 9807,
+**in_progress; compiler cut-control attachment qualified; full FPGA image/capture pending**.
+
+Added opt-in `NativeCheckpointRegionCutSnapshot.generate`, which regenerates
+the regional cut and installs its staging adapter on the original raw clock
+and shared reset. All six outer bank directions and freeze control pass through
+it; the original pending register observes the qualified inner handshake.
+Twelve ports expose staged control/serial readout and the separate staging
+owner. Bindings and an independent FIRRTL auditor preserve every original
+definition, connection and state owner. See
+[regional control staging](f2-regional-cut-control-staging.md).
+
+Fresh native OOC synthesis retains all 75 payload bits, all 146 staging registers
+on the raw clock and six BUFGCEs: 2,301 LUTs / 1,142 registers. OOC place/route
+passes at unchanged 140 MHz with 1,972 LUTs / 1,142 registers, setup/hold
++0.727/+0.034 ns, all 3,123 routable nets routed, zero routing errors and no DRC
+findings. This establishes component timing, with no full-image/AFI claim.
+
+Fresh EDA SP2 passes all seventeen compiler-installed snapshot cases and all 75
+waveform-checker mutations, retaining seventeen full debug waves. Five component
+cuts 37/66/102/145/195 include four complete releases and one shared-reset
+cancellation: 285 requests / 284 responses. The separately compiled control-input
+bit corruption first differs on `captured_control_state` at component cycle 37
+(expected 4811, observed 4810), with zero requests/responses acknowledged.
+These remain component donors/cycles; no CPU or FPGA capture is established.
+
+The full current-source Scala sweep passes 437 tests (6 + 10 + 421); 81 manager
+tests, ten independent attachment negatives and 56 original-reference negatives
+pass. The complete fresh EDA retained/component scope also passes: FASED, three
+publication suites, 430 Python tests, generated banks, ASan/UBSan host, FCFS,
+cut, transport, snapshot and fresh original-RTL restore/readback/replay negatives.
+All fifteen native/Scala integrity bindings pass. The complete 6,477-pair /
+130,913,794,091-byte storage audit passes, preserving all bytes, paths and
+independent inodes, removing no files, with 20,998,680,576 bytes available.
+All EDA artifacts returned before closing manager audits. The closing audit
+passes 15,881 bindings (13,379 unique) across 46 fresh selected receipts.
+Commands, attempts, selections and raw evidence are under
+`runs/aws-f2/iteration9807/`; closing receipt: `increment-audit-esrudlcw/summary.json`.
+
+The initial source-only EDA bootstrap was explicitly interrupted after 2,266
+audited pairs; keep its failed receipt and protected fetch. Independent manager
+full hashes and EDA receipts agree on fourteen recent closed-wave pairs /
+3,145,923,092 bytes. The selected bootstrap tries these first, then the retained
+53-pair wave plan and original 6,477-pair source plan. Both retries pass the
+unchanged 24-GiB pre-transfer reserve. No debug, sanitizer, regression or complete
+storage scope was reduced. Redundant discovery processes were stopped/joined;
+the direct OpenSSH localhost stop rejected its key, while initialized Fabric
+succeeded. The first retained snapshot synthesis correctly rejected an old
+compiler/oracle receipt (`unbound oracle emission`); fresh original references
+for all eight fixtures and all affected syntheses pass. Preserve every failed
+attempt separately from the final selected qualifications.
+
+Fresh closing AWS/native HDK/Vivado/Fabric localhost preflight passes. The
+account's entry-pending `afi-0e35d1956d67d571b` / `agfi-0d5dc3739c853d697` is now
+available, with loop ownership still unproven; it was preserved and grants no
+checkpoint acceptance. No new AFI, instance or image deployment was requested.
+Published existing checkpoints FireSim `ae205322`, then Chipyard `0a961ef2e`;
+remote tips match. Preserve Chipyard's successful-push/local tracking-ref warning.
+Both plans and initialized manager inputs retain entry hashes. No staging,
+local commits or conda edits. An initial full-history worker startup failed;
+a fresh-context managed read-only review completed with no material bug found,
+no edits/tests/resource changes, and no delegated LLM work remains.
+
+Fresh exact Rocket generation preserves all 321 FAME observer bits and still
+rejects the unowned FASED physical CE latch/common cut. The retained exact-recipe
+descriptor still lists 1,245 unadmitted functional entries (1,059 registers /
+186 memories); this attachment grants no admission. Next select this factory in
+the actual regional pipeline and atomically own readout/router and staging state
+with complete destination restore, retaining all global-owner guards. Complete
+functional-memory/host/bridge and target-time ownership, localhost full-image
+P&R/AFI, active all-hart F2 cuts, paired CPU zero-edge/finite/live migration and
+rolling hardware recovery remain pending. All hardware acceptance columns stay
+pending/in_progress.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 9806,
 **in_progress; regional control staging implemented/routed and regressions closed; full FPGA image/capture pending**.
 
 Added `CheckpointRegionCutSnapshot.sv`: atomically stage the complete regional

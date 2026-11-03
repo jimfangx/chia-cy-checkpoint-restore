@@ -14,6 +14,20 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 9807 adds an opt-in compiler installation of that cut-control adapter,
+with explicit raw-clock/reset ownership, complete bank-direction interposition,
+source/resource bindings and independent connection/negative audits. Its 75-bit
+controller observation and separate 146-bit staging owner retain all incomplete
+readout/router, original/global restore, production-image and CPU admission
+flags. Qualification commands and attempts are under `runs/aws-f2/iteration9807/`;
+fresh qualification passes 437 Scala tests, native OOC place/route at 140 MHz
+(+0.727/+0.034-ns setup/hold), seventeen EDA SP2 directed cases and 75 waveform
+checker mutations, plus the complete retained/component and storage scopes.
+Consult progress.md for individual receipts. Production Rocket pipeline
+selection, full localhost image P&R/AFI, actual F2 state capture and paired
+zero-edge/finite/live CPU migration plus rolling hardware recovery remain
+pending/in_progress. No hardware acceptance column advances.
+
 Iteration 9806 adds a synthesized adapter that atomically stages the generated
 regional cut controller and accepted-request pending vector before permitting
 bank reads. It retains the cut through host withdrawal and requires explicit

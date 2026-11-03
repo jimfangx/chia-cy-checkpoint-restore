@@ -22,6 +22,8 @@ from tools.checkpoint_formats.tests.verify_native_functional_bank import sha
 from tools.checkpoint_formats.tests.audit_native_regions import audit as audit_regions
 from tools.checkpoint_formats.tests.audit_native_region_cut import audit_cut
 from tools.checkpoint_formats.tests.audit_region_cut_snapshot import audit as audit_wave
+from tools.checkpoint_formats.tests.audit_region_cut_snapshot_attachment import audit as audit_attachment
+from tools.checkpoint_formats.tests.audit_region_cut_snapshot_attachment import audit_negatives as attachment_negatives
 
 ROOT = Path(__file__).resolve().parents[3]
 RUNS = ROOT / 'automations/checkpoint_loop/runs'
@@ -31,6 +33,7 @@ TB = 'tools/checkpoint_formats/tests/native_region_cut_snapshot_tb.sv'
 EXIT = 'tools/checkpoint_formats/tests/checkpoint_widget_exit.cc'
 SOURCES = (RTL, STAGE, TB, EXIT, 'tools/checkpoint_formats/tests/verify_region_cut_snapshot.py',
            'tools/checkpoint_formats/tests/audit_region_cut_snapshot.py')
+SOURCES += ('tools/checkpoint_formats/tests/audit_region_cut_snapshot_attachment.py',)
 
 
 def fixture(original):
@@ -102,12 +105,31 @@ def check_parent(path):
     return path, doc
 
 
+def compiler_fixture(original):
+    """Use the compiler-installed adapter with the unchanged public oracle."""
+    text = fixture(original)
+    first = text.index('  CheckpointRegionCutSnapshot #')
+    last = text.index('  NativeHost host(', first)
+    text = text[:first] + text[last:]
+    for n in ('request_valid', 'request_ready', 'response_valid', 'response_ready', 'response_data', 'response_error'):
+        text = text.replace('.capture_' + n + '(source_' + n + ')', '.capture_' + n + '(capture_' + n + ')')
+    text = text.replace('.capture_cut_freeze_request(cut_freeze_request)', '.capture_cut_freeze_request(freeze_request)')
+    pins = dict(request='snapshot_request', release='snapshot_release', word_address='snapshot_word_address',
+                ready='snapshot_ready', valid='snapshot_valid', failed='snapshot_failed', word_data='snapshot_word_data',
+                cut_cycle='snapshot_cut_cycle', word_error='snapshot_word_error', error='snapshot_error',
+                captured_control_state='captured_control_state', staging_control_state='staging_control_state')
+    return text.replace('  NativeHost host(', '  NativeHost host(\n' + '\n'.join(
+        '    .capture_snapshot_' + pin + '(' + signal + '),' for pin, signal in pins.items()))
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--mode', choices=('vivado', 'vcs', 'audit'), required=True)
     p.add_argument('--parent', type=Path)
     p.add_argument('--native', type=Path)
     p.add_argument('--eda', type=Path)
+    p.add_argument('--generated-snapshot', type=Path,
+                   help='Compiler-emitted attachment, bound to the parent compiler receipt')
     p.add_argument('--out', type=Path, required=True)
     a = p.parse_args()
     require(a.out.resolve().is_relative_to(RUNS), 'evidence beneath runs required')
@@ -167,9 +189,34 @@ def main():
             doc['regional_audit'] = audit_regions(out / 'generated')
             doc['cut_audit'] = audit_cut(out / 'generated')
             old_fixture = (parent_path.parent / 'sources/native_regions_fixture.sv').read_text()
-            (out / 'sources/native_regions_fixture.sv').write_text(fixture(old_fixture))
+            if a.generated_snapshot:
+                generated = local(ROOT, a.generated_snapshot)
+                cp = local(ROOT, parent['compiler_receipt']['path'])
+                compiler = json.loads(cp.read_text())
+                for path in generated.rglob('*'):
+                    if path.is_file():
+                        require(compiler['artifacts'].get(str(path.relative_to(cp.parent))) == sha(path),
+                                'unbound compiler snapshot artifact ' + str(path))
+                require(sha(generated / 'attached.fir') == sha(out / 'generated/attached.fir'),
+                        'snapshot attached to a different original cut')
+                for name in ('staged.fir', 'staged.sv', 'snapshot-binding.json', 'staged-annotations.json',
+                             'FireSim-generated.native-region-cut-snapshot.sv',
+                             'FireSim-generated.native-region-cut-staging.sv'):
+                    shutil.copyfile(generated / name, out / 'generated' / name)
+                doc['compiler_attachment_audit'] = audit_attachment(out / 'generated')
+                doc['compiler_attachment_negatives'] = attachment_negatives(out / 'generated', out / 'attachment-negatives')
+                require((out / 'generated/FireSim-generated.native-region-cut-snapshot.sv').read_bytes() == (ROOT / RTL).read_bytes()
+                        and (out / 'generated/FireSim-generated.native-region-cut-staging.sv').read_bytes() == (ROOT / STAGE).read_bytes(),
+                        'compiler emitted resources differ from current synthesized implementation')
+            (out / 'sources/native_regions_fixture.sv').write_text(
+                compiler_fixture(old_fixture) if a.generated_snapshot else fixture(old_fixture))
             files = json.loads((out / 'files.json').read_text()) + [
                 'snapshot-sources/' + Path(n).name for n in (RTL, STAGE)]
+            if a.generated_snapshot:
+                files = [n.replace('generated/attached.sv', 'generated/staged.sv') for n in files
+                         if not n.startswith('snapshot-sources/')]
+                files += ['generated/FireSim-generated.native-region-cut-snapshot.sv',
+                          'generated/FireSim-generated.native-region-cut-staging.sv']
             (out / 'files.json').write_text(json.dumps(files, indent=2) + '\n')
             tcl = (parent_path.parent / 'synth.tcl').read_text()
             tcl = tcl.replace('read_verilog -sv ' + ' '.join(json.loads((parent_path.parent / 'files.json').read_text())),
@@ -184,6 +231,8 @@ foreach cell $stage_regs {
 }
 puts "REGION_CUT_SNAPSHOT_SYNTH_PASS control_bits=75 staging_registers=146"
 report_utilization -file utilization.rpt''')
+            if a.generated_snapshot:
+                tcl = tcl.replace('snapshot/staging/', 'host/checkpoint_region_cut_snapshot/staging/')
             (out / 'synth.tcl').write_text(tcl)
             doc['inputs'] = {str(f.relative_to(out)): sha(f) for f in out.rglob('*')
                              if f.is_file() and f != summary}
@@ -195,6 +244,8 @@ report_utilization -file utilization.rpt''')
             require(ROOT == Path('/scratch/jfx/chia-cy-checkpoint-restore') and
                     toolchain.VCS == '/tools/Synopsys/vcs/Y-2026.03-SP2/bin/vcs', 'EDA SP2 only')
             np, native = native_input()
+            if 'compiler_attachment_audit' in native:
+                doc['compiler_attachment_audit'] = audit_attachment(np.parent / 'generated')
             for name in native['inputs']:
                 dest = out / name
                 dest.parent.mkdir(parents=True, exist_ok=True)
@@ -239,6 +290,8 @@ report_utilization -file utilization.rpt''')
             # separately compiled negative executable. The expected-state
             # oracle and original control registers remain unchanged.
             original_rtl = 'snapshot-sources/' + Path(RTL).name
+            if 'compiler_attachment_audit' in native:
+                original_rtl = 'generated/FireSim-generated.native-region-cut-snapshot.sv'
             mutated_rtl = 'snapshot-sources/CheckpointRegionCutSnapshot-corrupt.sv'
             text = (out / original_rtl).read_text()
             needle = '.live_state(live_control_state)'

@@ -87,3 +87,49 @@ from the final source-bound qualification. The strict exact-Rocket physical
 CE-owner refusal remains in force; full localhost image P&R/AFI, actual F2 cuts,
 paired CPU restores, finite replay, sustained live RTL and rolling hardware
 recovery remain pending.
+
+
+Iteration 9807 adds `NativeCheckpointRegionCutSnapshot.generate`: an opt-in
+compiler attachment that regenerates the original regional cut, installs the
+staging adapter on its proven raw clock and shared reset, and interposes all
+six bank-handshake/data directions and the freeze request. The original
+physical controller remains the sole clock authority; its accepted-request
+pending register now observes the qualified inner handshake. Twelve explicit
+`capture_snapshot_*` ports expose staging request/release, serial readout and
+complete control/staging vectors. Physical `capture_read_enable` retains its
+original meaning; callers must also honor snapshot validity/failure.
+
+The binding authenticates the parent cut, attached FIRRTL, adapter declaration
+and both emitted RTL resources. Regeneration validation and an independent
+FIRRTL audit retain every original definition, execution, state owner and
+connection. Ten coherent corruption cases cover raw clock, shared reset,
+pending, payload, request/response/freeze bypass, admission and resource
+integrity. The native/VCS verifier can now consume this actual compiler
+attachment with its unchanged public functional oracle and raw-wave auditor.
+
+This attachment observes only the controller/pending vector. It does not
+admit the readout/router, separate staging owner, functional memory, host
+owners, target-time authority or complete simulator/semantic state. Production
+Rocket pipeline selection, whole-owner destination restore, full-image
+implementation/AFI and actual F2 capture remain pending. Qualification attempts,
+commands and selections belong under `runs/aws-f2/iteration9807/`; consult
+progress.md for completed results.
+
+The iteration-9807 compiler-installed component passes fresh localhost native
+synthesis with 2,301 LUTs / 1,142 registers and OOC place/route with 1,972 LUTs /
+1,142 registers. All 75 payload bits, all 146 staging registers on the raw clock
+and all six retained BUFGCEs survive. At the unchanged 140-MHz constraint,
+setup/hold slack is +0.727/+0.034 ns; all 3,123 routable nets are routed, with
+zero routing errors and no DRC findings. This establishes component timing;
+full-image timing, AFI creation and physical capture remain pending.
+
+Fresh source/native-bound EDA SP2 qualification of this compiler-installed
+variant passes seventeen directed cases and all 75 independent waveform-checker
+mutations, retaining seventeen full debug waves. The independent auditor
+reconstructs five component snapshots at cuts 37/66/102/145/195, four releases
+and one shared-reset cancellation, with 285 requests / 284 responses. A real
+compiled control-input bit mutation first differs on `captured_control_state`
+at component cycle 37 (4811 versus 4810), before any bank acknowledgement.
+The complete retained/component regression and storage scopes also pass; see
+progress.md and the iteration-9807 closing receipt. These results grant no
+production coverage, FPGA capture, CPU restore or live CPU acceptance.
