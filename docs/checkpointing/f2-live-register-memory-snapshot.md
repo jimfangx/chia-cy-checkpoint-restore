@@ -89,3 +89,55 @@ The iteration-9801 restore variants retain all 219 / 1,820 sequential staging
 bits in native Vivado. They use 426 LUTs / 432 registers and 4,384 LUTs / 3,569
 registers, respectively. These are unplaced component resources, with no full
 image timing, P&R or AFI acceptance implied.
+
+## Opt-in original subtree restore (iteration 9802)
+
+`--simulator-native-register-memory-original-restore-probe` requests version 4
+at the actual compiler diagnostic. It adds original-state restore separately
+from whole staging-owner restore. Normal capture and version-3 behavior retain
+their ABI. The selection is a component boundary, never a complete simulator.
+
+Assert `original_hold` before any destination functional edge. This holds every
+selected register and disables original memory writes and clocked effects.
+`original_state` uses the independently audited observation layout. With hold
+asserted, present every `original_address` from zero through
+`original_restore_depth - 1` and pulse `original_load` on the running raw clock.
+Each accepted edge loads all registers and the addressed element of each memory
+whose depth includes that address. The original checked writer is multiplexed;
+no extra writer or reader pipeline is introduced. Signed fields retain their bit
+patterns. Root readiness rejects out-of-range addresses and loads without hold;
+invalid held loads preserve all original state. There is no hardware completion
+counter: the caller must load every address and independently read every bit
+before releasing hold. No partial-load completion or global restore is implied.
+
+The generator accepts only reset-free LowForm declarations with synchronous
+reset already in the resolved next-state equation. It rejects asynchronous reset,
+nontransparent clocks and stateless effect-only descendants needing separate
+parking. Selected clocked effects are disabled during hold. Shared definitions
+get local restore inputs; every unselected execution receives explicit inactive
+connections. Original functional writer equations resume when hold is released.
+Combinational outputs and external writers/handshakes still require a global
+cut contract before production use. Loading a held control fabric also requires
+an independent raw-clock access path: MMIO through that same frozen fabric
+cannot supply its restore traffic. That attachment is still unsupported.
+
+Qualification covers a signed, shared register/memory fixture and the actual
+Rocket control-fabric definitions. Fresh VCS destination processes load original
+storage and the separate staging owner, independently read all component state
+before a functional edge, then replay the source component's continuation.
+Raw-clock restore edges are labeled separately from functional edges. These are
+component donors and finite component continuations, not FPGA-origin images,
+CPU live shadowing or complete Level-1/Level-2 acceptance. Tests and actual
+results are recorded under `runs/aws-f2/iteration9802/` and in progress.md.
+
+Production descriptors, all 1,245 uncovered functional entries and image admission
+remain unchanged. Complete common-cut/reset/writer, functional memory, FAME,
+FASED, transport and host owners, full-image implementation/AFI, actual F2
+captures and CPU finite/live/rolling acceptance remain pending.
+
+The iteration-9802 localhost synthesis retains all 291 / 1,820 staging-owner
+bits and checks that every one of the 220 / 1,749 original restore bus bits
+reaches a synthesized endpoint. The signed shared-memory fixture uses 725 LUTs
+(including 64 memory LUTs) and 504 registers; the exact Rocket control fabric
+uses 5,424 LUTs and 3,569 registers. These are unplaced component results with no
+full-image timing, P&R, bitstream, AFI or physical capture acceptance implied.

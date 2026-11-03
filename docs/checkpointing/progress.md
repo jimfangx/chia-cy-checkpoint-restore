@@ -35,7 +35,70 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 9801,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 9802,
+**in_progress; original control-fabric component restore qualified; physical image/capture pending**.
+
+Added opt-in version-4 original register/asynchronous-memory restore to the
+concrete subtree generator and actual compiler diagnostic. Original hold/load,
+address and vector inputs remain separate from staging-owner restore. Hold parks
+registers, memory writes and clocked effects; loading multiplexes each original
+checked single-writer port. Every address must be loaded and every bit read back
+before release. Async reset, unsupported clocks/storage and stateless effect-only
+owners reject. Shared, unselected executions are tied inactive. Production
+coverage and image admission remain unchanged. See
+[f2-live-register-memory-snapshot.md](f2-live-register-memory-snapshot.md).
+
+All 416 Scala tests / 65 suites plus sixteen preparation checks pass. Both
+original exact-recipe refusals, the version-4 actual compiler attachment, final
+regional binding / seventeen mutations, eight original oracles / fifty-six
+reference negatives, exact current-compiler component equality and all 69 manager
+tests pass. Independent original-restore audits reject 24 / 23 mutations.
+All fifteen native syntheses and native integrity pass. The new components retain
+all 291 / 1,820 staging-owner bits; every 220 / 1,749 original restore input bit
+reaches a synthesized endpoint. Resources are 725 LUTs / 504 registers and 5,424
+LUTs / 3,569 registers (unplaced component results).
+
+Final-source EDA SP2 FASED, all three publication suites, all 430 Python tests,
+ASan/UBSan host, FCFS, generated-bank, cut and the complete retained component
+scope pass. Both new original-restore fixtures pass with native/compiler/oracle
+bindings and full debug waves. Fresh processes independently read all 6 / 408
+original fields directly from registers/memories before functional advancement,
+load/read the separate staging owners, and match 256 continuation edges each.
+Corrupt state and partial memory loading stop with zero acknowledged edges; a
+boundary output mutation stops at edge 32 without acknowledging it. Final EDA
+descriptor/driver/ROM binding passes. These are component donors and finite
+component continuations, with no CPU or FPGA-origin migration acceptance.
+
+The initial negative smoke correctly rejected corruption but expected exit 42
+instead of the existing failure hook's 1. Preserve that attempt and the corrected
+retry. The early retained pass predates the direct-wave auditor change; preserve
+it separately from final-source verification. All attempts, commands and raw
+waves remain under `runs/aws-f2/iteration9802/`; see `verification-commands.json`.
+
+Both 6,003-pair / 120.9-GB closed-file storage audits pass, preserving independent
+inodes, paths and all bytes with no deletions. The post-VCS observation leaves
+9,246,461,952 bytes available. Artifacts have returned. Native synthesis never
+overlapped large Java generation, and at most two native jobs ran together.
+The final current-source/provenance audit passes all 2,111 hash bindings and
+47 selected receipts in `final-audit-qpx1m4q8/summary.json`. All compiler, native,
+VCS, storage, transfer and audit jobs from this turn have finished.
+
+Fresh AWS/native HDK/Vivado/localhost and protected-input observations pass.
+Published existing controller commits FireSim `b620afaa`, then Chipyard
+`97cbe23e8`; the latter retains its successful-push/local tracking-ref warning.
+Managed worker startup failed before any worker ran; only the central agent
+performed this turn. Plans and initialized manager configs remain protected.
+No agent staging/commits, new AFI or run-farm instance were requested.
+
+All 1,245 functional entries, including these 408 component entries, remain
+explicitly unadmitted. A held control bus needs an independent raw access path
+for loading; global target-cut/reset/writer, memory, transport and host binding
+remain incomplete. The exact whole-root recipe still refuses the FASED BUFGCE
+CE latch needing a synthesized owner/common low-phase cut. Full-image P&R/AFI,
+actual F2 captures, paired CPU readback/finite/live comparison and rolling
+hardware recovery remain pending.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 9801,
 **in_progress; complete control-fabric staging-owner restore qualified; physical image/capture pending**.
 
 Added explicit version-3 whole staging-owner hold/load/state/readiness to the

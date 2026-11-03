@@ -107,10 +107,12 @@ def audit(directory):
     original_text = (directory / 'host.fir').read_text()
     actual_text = (directory / 'instrumented.fir').read_text()
     binding = json.loads((directory / 'binding.json').read_text())
-    require(type(binding['snapshot_version']) is int and binding['snapshot_version'] in (1, 2, 3),
+    require(type(binding['snapshot_version']) is int and binding['snapshot_version'] in (1, 2, 3, 4),
             'unknown staging version')
-    restore_mode = binding['snapshot_version'] == 3
-    memory_mode = binding['include_async_memories'] if restore_mode else binding['snapshot_version'] == 2
+    original_mode = binding['snapshot_version'] == 4
+    restore_mode = binding['staging_restore_supported'] if original_mode else binding['snapshot_version'] == 3
+    require(type(restore_mode) is bool and binding['original_restore_supported'] is original_mode, 'invalid original restore policy')
+    memory_mode = binding['include_async_memories'] if restore_mode or original_mode else binding['snapshot_version'] == 2
     require(type(memory_mode) is bool, 'invalid memory policy')
     if restore_mode:
         require(binding['staging_restore_supported'] is True and binding['staging_restore_contract'] ==
@@ -131,7 +133,7 @@ def audit(directory):
     require(sha(annotations) == binding['source_annotations_sha256'] and
             annotations == instrumented_annotations.read_text(),
             'changed or unbound original annotations')
-    for flag in ('cut_certificates_bound', 'host_owner_bound', 'original_restore_supported',
+    for flag in ('cut_certificates_bound', 'host_owner_bound',
                  'complete_fpga_capture', 'deployable_capture_image',
                  'metasim_restore_supported'):
         require(binding[flag] is False, 'staging cannot grant ' + flag)
@@ -162,9 +164,10 @@ def audit(directory):
             # declaration. Their exact set, pins and clocks are checked below.
             new = [line for line in new if not re.fullmatch(
                 r'    reader => '+PREFIX+r'read_\d+', line)]
-        require(new[:len(old)] == old, 'original declarations/equations/effects changed ' + name)
-        require(all(after['drivers'].get(n) == e for n, e in before['drivers'].items()),
-                'original next-state or connection changed ' + name)
+        if not original_mode:
+            require(new[:len(old)] == old, 'original declarations/equations/effects changed ' + name)
+            require(all(after['drivers'].get(n) == e for n, e in before['drivers'].items()),
+                    'original next-state or connection changed ' + name)
     layouts, vectors, clocks, memory_drivers = [], {}, {}, {}
 
     def clock_port(module):
@@ -326,6 +329,92 @@ def audit(directory):
         require(actual[parent]['ports'].get(OBS) == ('output', f'UInt<{bits}>') and
                 actual[parent]['drivers'].get(OBS) == selected[i+1] + '.' + OBS,
                 'broken ancestor observation route')
+    original_drivers, original_ports, original_edits = {}, {}, {}
+    if original_mode:
+        require(binding['original_restore_contract'] ==
+                'hold_raw_clock_load_all_addresses_complete_readback_before_release', 'unknown original restore contract')
+        depth = max([1] + [r['depth'] for r in layouts if r.get('kind') == 'memory'])
+        require(type(binding['original_restore_depth']) is int and binding['original_restore_depth'] == depth,
+                'incomplete original restore address range')
+        hold, address, state = (PREFIX+n for n in ('original_hold', 'original_address', 'original_state'))
+        for name, module in original.items():
+            own = name in vectors
+            changed = own or name in chain
+            width = vectors.get(name, bits)
+            load = ('and('+PREFIX+'original_load, '+PREFIX+'original_ready)' if name == root
+                    else PREFIX+'original_load')
+            extra, edits = original_drivers.setdefault(name, {}), original_edits.setdefault(name, {})
+            original_ports[name] = ({PREFIX+n: ('input', f'UInt<{w}>') for n, w in
+                dict(original_hold=1, original_load=1, original_address=32, original_state=width).items()}
+                if changed else {})
+            if name == root:
+                original_ports[name][PREFIX+'original_ready'] = ('output', 'UInt<1>')
+                extra[PREFIX+'original_ready'] = f'and({hold}, lt({address}, UInt<32>("h{depth:x}")))'
+            offset, child_offsets = 0, {}
+            def field(start, count, signed=False):
+                value = f'bits({state}, {start+count-1}, {start})'
+                return f'asSInt({value})' if signed else value
+            if own:
+                for register, kind, count in sorted(re.findall(r'^  reg (\w+) : (UInt|SInt)<(\d+)>,', module['body'], re.M)):
+                    count = int(count)
+                    # LowForm reset must be inactive; a live asynchronous reset
+                    # would bypass the hold mux and destroy restored bits.
+                    require(re.search(r'^  reg '+re.escape(register)+r' :[^\n]+ with :\n'
+                                      r'    reset => \(UInt<1>\("h0"\), ', module['body'], re.M),
+                            'unparkable original register reset')
+                    edits[register] = f'mux({hold}, mux({load}, {field(offset, count, kind == "SInt")}, {register}), {module["drivers"][register]})'
+                    offset += count
+                for memory, ram in sorted(memories(module).items()):
+                    writer = memory+'.'+next(v for k, v in ram['pairs'] if k == 'writer')
+                    values = [field(offset+i*ram['element_width'], ram['element_width'], ram['signed'])
+                              for i in range(ram['depth'])]
+                    value = values[-1]
+                    for i in reversed(range(len(values)-1)):
+                        value = f'mux(eq({address}, UInt<32>("h{i:x}")), {values[i]}, {value})'
+                    pins = dict(en=f'and({load}, lt({address}, UInt<32>("h{ram["depth"]:x}")))',
+                                addr=f'bits({address}, {max(1, (ram["depth"]-1).bit_length())-1}, 0)',
+                                data=value, mask='UInt<1>("h1")')
+                    for pin, expression in pins.items():
+                        edits[writer+'.'+pin] = f'mux({hold}, {expression}, {module["drivers"][writer+"."+pin]})'
+                    edits[writer+'.clk'] = clock_port(module)
+                    offset += ram['element_width']*ram['depth']
+                for instance, child in sorted(module['instances'].items()):
+                    if child in vectors:
+                        child_offsets[instance] = offset
+                        offset += vectors[child]
+                require(offset == vectors[name], 'incomplete local restore vector')
+            for instance, child in module['instances'].items():
+                if child not in vectors and child not in chain:
+                    continue
+                active = instance in child_offsets if own else (name in chain[:-1] and
+                    selected[chain.index(name)+1] == instance)
+                cw = vectors.get(child, bits)
+                vector = field(child_offsets[instance], cw) if instance in child_offsets else state
+                for pin, value in dict(original_hold=hold, original_load=load,
+                                       original_address=address, original_state=vector).items():
+                    w = cw if pin == 'original_state' else 32 if pin == 'original_address' else 1
+                    extra[instance+'.'+PREFIX+pin] = value if active else f'UInt<{w}>("h0")'
+            require(all(actual[name]['drivers'].get(k) == v for k, v in (extra | edits).items()),
+                    'changed original restore equation or route '+name)
+            require(all(actual[name]['ports'].get(k) == v for k, v in original_ports[name].items()),
+                    'changed original restore ABI '+name)
+            old = executable(module)
+            expected = []
+            for line in old:
+                connect = re.fullmatch(r'  ([^ ]+) <= (.*)', line)
+                if connect and connect[1] in edits:
+                    line = '  '+connect[1]+' <= '+edits[connect[1]]
+                effect = re.match(r'  (printf|stop|assert|assume|cover)\((.*)\)(.*)', line)
+                if effect and own:
+                    args = arguments(effect[2]); index = 1 if effect[1] in ('printf', 'stop') else 2
+                    args[index] = f'and(not({hold}), {args[index]})'
+                    line = '  '+effect[1]+'('+', '.join(args)+')'+effect[3]
+                expected.append(line)
+            new = [line for line in executable(actual[name]) if not re.fullmatch(
+                   r'    reader => '+PREFIX+r'read_\d+', line)]
+            require(new[:len(expected)] == expected, 'unaccounted original restore edit '+name)
+            require(all(actual[name]['drivers'].get(k) == edits.get(k, v) for k, v in module['drivers'].items()),
+                    'unaccounted original connection change '+name)
     expected_inputs = dict(clock=binding['raw_clock'], live_state=OBS,
                            restore_hold='UInt<1>("h0")', restore_load='UInt<1>("h0")',
                            restore_state=f'UInt<{bits+71}>("h0")', reader_idle='UInt<1>("h1")',
@@ -373,11 +462,15 @@ def audit(directory):
         expected = ({OBS} if name in vectors or name in chain else set())
         if name == root:
             expected |= {PREFIX+n for n in (*inputs, *outputs)}
+        if original_mode:
+            expected |= set(original_ports[name])
         require(extras == expected, 'unaccounted added ports ' + name)
         require(set(memories(changed)) == set(memories(module)), 'unaccounted added/removed memory ' + name)
         if name not in memory_drivers:
             require(memories(changed) == memories(module), 'unaccounted memory edit ' + name)
-        require(changed['consumers'] == module['consumers'] and changed['effects'] == module['effects'],
+        expected_consumers = [(n, k, original_edits.get(name, {}).get(n+'.clk', c))
+                              for n, k, c in module['consumers']] if original_mode else module['consumers']
+        require(changed['consumers'] == expected_consumers and changed['effects'] == module['effects'],
                 'unaccounted original clocked state/effect ' + name)
         require(changed['instances'] == (module['instances'] | {ADAPTER: 'CheckpointNativeStateSnapshot'}
                 if name == root else module['instances']), 'unaccounted instance ' + name)
@@ -386,7 +479,9 @@ def audit(directory):
         if name == root:
             expected_drivers |= {ADAPTER+'.'+n for n in expected_inputs} | {PREFIX+n for n in outputs}
         expected_drivers |= set(memory_drivers.get(name, {}))
+        if original_mode:
+            expected_drivers |= set(original_drivers[name])
         require(extra_drivers == expected_drivers, 'unaccounted added driver ' + name)
     return dict(status='pass', entries=len(rows), bits=bits, words=(bits+63)//64,
-                staging_owner_bits=bits+71, original_equations_preserved=True,
+                staging_owner_bits=bits+71, original_equations_preserved=not original_mode, original_restore_supported=original_mode,
                 raw_clock_routes_checked=True, staging_restore_supported=restore_mode, complete_fpga_capture=False)

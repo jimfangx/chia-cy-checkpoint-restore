@@ -14,6 +14,15 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 9802 adds opt-in held original register/asynchronous-memory restore
+for the selected component, independently of its staging owner. Native synthesis, independent structural negatives and fresh-process EDA
+component readback / 256-edge continuation pass. It retains explicit unsupported
+global ownership and unchanged descriptor/image admission.
+See [register/memory restore](f2-live-register-memory-snapshot.md) and progress.md
+for actual qualification results and commands under `runs/aws-f2/iteration9802/`.
+Full-image implementation/AFI, hardware capture, paired CPU readback/replay/live
+comparison and rolling hardware recovery remain pending/in_progress.
+
 Iteration 9801 adds explicit whole staging-owner destination restore for that
 control-fabric observation, including payload, occupancy, cycle and sticky
 errors (1,820 bits). Independent ABI/route audits, native synthesis and fresh-process readback

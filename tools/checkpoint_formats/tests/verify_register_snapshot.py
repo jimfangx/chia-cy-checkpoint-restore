@@ -247,7 +247,7 @@ def bench(directory):
     root = re.search(r'^circuit (\w+) :', (directory / 'host.fir').read_text(), re.M)[1]
     binding = json.loads((directory / 'binding.json').read_text())
     bits, words = binding['bits'], binding['words']
-    restore_mode = binding['snapshot_version'] == 3
+    restore_mode = binding['staging_restore_supported']
     control = root == 'NastiRecursiveInterconnect'
     lines = ['`timescale 1ns/1ps', 'module register_snapshot_tb;',
              'import "DPI-C" function void checkpoint_widget_failed();']
