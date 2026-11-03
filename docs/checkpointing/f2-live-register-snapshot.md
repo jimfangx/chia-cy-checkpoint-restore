@@ -52,6 +52,13 @@ commands, raw failed attempts and final receipts belong under
 `automations/checkpoint_loop/runs/aws-f2/iteration9798/`; progress.md records
 which checks actually completed.
 
+Both original and instrumented annotation files are required evidence, including
+when the annotation list is empty. Missing either file must reject explicitly;
+the auditor must never skip annotation binding because a file is absent.
+Iteration 9799 retains the prior acceptance of missing files as a reproduction
+and adds missing-original, missing-instrumented and changed-instrumented cases
+to each fixture's eighteen-case corruption sweep.
+
 The original debug oracle is emitted separately from the exact original
 FIRRTL, with a complete set of register `DontTouch` annotations. These retain
 otherwise unused state through emitter dead-code elimination; they add no

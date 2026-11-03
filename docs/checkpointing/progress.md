@@ -35,7 +35,46 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 9798,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 9799,
+**in_progress; mandatory annotation evidence; full current-source EDA closure**.
+
+Reproduced a real audit gap: removing both annotation files still passed the
+register-snapshot auditor. Both files are now mandatory; missing original,
+missing instrumented and changed instrumented annotation evidence reject.
+Native and EDA qualification now retain eighteen independent corruption cases
+per snapshot fixture. No original RTL, staging RTL, Scala source, descriptor
+coverage or image-admission policy changed.
+
+The initial recovery audit rejected stale iteration-9798 EDA source hashes.
+Both fresh pre-fix SP2 snapshot cases subsequently passed; the real reorder
+queue exercised 601 enqueues, 479 dequeues, 86 blocked enqueues, and 102/128
+enqueue/dequeue events while staging was occupied. These receipts predate the
+annotation fix and remain diagnostic observations. Final-source native
+requalification passes both fixtures / eighteen negatives each, fourteen oracle
+negatives, the complete native integrity audit and all 69 manager tests.
+EDA FASED, all three publication suites, all 430 Python tests, generated banks,
+host ASan/UBSan, FCFS, cut and the complete component scope pass. Both fresh
+snapshot fixtures reject all eighteen audit corruptions; compiled payload
+corruption stops at cut 100 / word 0 with zero acknowledged words, independently
+checked in the raw wave. The fresh Rocket queue repeats the active/backpressured
+traffic counts above. Complete source/native integrity, final compiler binding,
+protected-input/resource and publication audits pass after artifact return in
+`final-audit-32t5v8ef/summary.json`. All native/EDA/preflight/audit jobs have
+finished. Preserve the reproduction and all attempts under
+`runs/aws-f2/iteration9799/`.
+
+Fresh AWS access and HDK/Vivado/localhost checks pass. Published existing
+controller commits FireSim `c039a298` then Chipyard `75103cae6`; the latter
+reports its existing local tracking-ref warning after the successful push.
+Managed worker startup failed before any worker ran. Plans and initialized
+manager YAMLs remain protected. Complete capture ownership, localhost image
+P&R/AFI, actual F2 checkpoints, paired CPU restore/finite/live comparison and
+rolling hardware recovery remain pending; the milestone is not ready.
+Next hardware work remains complete control-interconnect capture, including
+both reorder queues and thirteen memories, with real common-cut, transport,
+host and original/staging restore ownership before descriptor admission.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 9798,
 **in_progress; live control-register staging; final EDA closure running**.
 
 Added a same-raw-clock hierarchical register snapshot generator and explicit

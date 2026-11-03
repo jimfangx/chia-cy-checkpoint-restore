@@ -14,6 +14,11 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 9799 makes original and instrumented annotation evidence mandatory
+in the snapshot auditor and adds three missing/changed-evidence negatives.
+Current-source requalification is recorded under `runs/aws-f2/iteration9799/`;
+this validation correction grants no hardware acceptance or descriptor coverage.
+
 Iteration 9798 adds live register-subtree staging for the actual control-bus AW
 reorder queue: 192 registers / 704 bits, eleven words and 775 additional staging
 owner bits. Original functional equations keep running during staged readout.

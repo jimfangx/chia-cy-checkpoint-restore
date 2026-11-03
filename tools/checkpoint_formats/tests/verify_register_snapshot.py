@@ -28,7 +28,9 @@ def mutations(generated, output):
     for name in ('original-equation', 'source-clock', 'observation-lane', 'ancestor-route',
                  'missing-row', 'aliased-state-id', 'wrong-offset', 'cut-certificate',
                  'restore-enabled', 'added-owner', 'image-admission', 'staging-source',
-                 'driver-hash', 'declaration-hash', 'staging-abi'):
+                 'driver-hash', 'declaration-hash', 'staging-abi',
+                 'missing-original-annotations', 'missing-instrumented-annotations',
+                 'changed-instrumented-annotations'):
         case = output / name
         shutil.copytree(generated, case)
         binding = json.loads((case / 'binding.json').read_text())
@@ -71,6 +73,12 @@ def mutations(generated, output):
             rows[0]['driver_sha256' if name == 'driver-hash' else 'declaration_sha256'] = '0'*64
         elif name == 'staging-abi':
             actual = actual.replace('output snapshot_state : UInt<', 'output snapshot_state : SInt<')
+        elif name == 'missing-original-annotations':
+            (case / 'host-annotations.json').unlink()
+        elif name == 'missing-instrumented-annotations':
+            (case / 'instrumented-annotations.json').unlink()
+        elif name == 'changed-instrumented-annotations':
+            (case / 'instrumented-annotations.json').write_text('[]\n')
         else:
             p = case / 'generated.register-snapshot.sv'
             p.write_text(p.read_text().replace('payload <= live_state;', "payload <= live_state ^ 1'b1;"))

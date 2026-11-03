@@ -92,11 +92,13 @@ def audit(directory):
     require(binding['source_sha256'] == sha(original_text) and
             binding['instrumented_sha256'] == sha(actual_text), 'changed circuit binding')
     annotation_path = directory / 'host-annotations.json'
-    if annotation_path.is_file():
-        annotations = annotation_path.read_text()
-        require(sha(annotations) == binding['source_annotations_sha256'] and
-                annotations == (directory / 'instrumented-annotations.json').read_text(),
-                'changed or unbound original annotations')
+    instrumented_annotations = directory / 'instrumented-annotations.json'
+    require(annotation_path.is_file() and instrumented_annotations.is_file(),
+            'missing original or instrumented annotation evidence')
+    annotations = annotation_path.read_text()
+    require(sha(annotations) == binding['source_annotations_sha256'] and
+            annotations == instrumented_annotations.read_text(),
+            'changed or unbound original annotations')
     for flag in ('cut_certificates_bound', 'host_owner_bound', 'original_restore_supported',
                  'staging_restore_supported', 'complete_fpga_capture', 'deployable_capture_image',
                  'metasim_restore_supported'):
