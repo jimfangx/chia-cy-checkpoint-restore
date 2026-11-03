@@ -26,13 +26,17 @@ RUNS = ROOT / 'automations/checkpoint_loop/runs'
 def mutations(generated, output):
     rejected = {}
     binding = json.loads((generated / 'binding.json').read_text())
-    memory_mode = binding['snapshot_version'] == 2
+    restore_mode = binding['snapshot_version'] == 3
+    memory_mode = binding['include_async_memories'] if restore_mode else binding['snapshot_version'] == 2
     cases = ('original-equation', 'source-clock', 'observation-lane', 'ancestor-route',
                  'missing-row', 'aliased-state-id', 'wrong-offset', 'cut-certificate',
                  'restore-enabled', 'added-owner', 'image-admission', 'staging-source',
                  'driver-hash', 'declaration-hash', 'staging-abi',
                  'missing-original-annotations', 'missing-instrumented-annotations',
                  'changed-instrumented-annotations')
+    if restore_mode:
+        cases += ('restore-hold-route', 'restore-load-route', 'restore-state-route',
+                  'restore-ready-route', 'restore-owner-width', 'restore-contract', 'original-restore-claim')
     if memory_mode:
         cases += ('memory-address', 'memory-enable', 'memory-clock', 'memory-original-writer',
                   'memory-missing-reader', 'memory-depth', 'memory-row-depth', 'memory-row-id',
@@ -46,7 +50,21 @@ def mutations(generated, output):
         rows = binding['state']
         modules = parse_modules(source)
         root = re.search(r'^circuit (\w+) :', source, re.M)[1]
-        if name.startswith('memory-'):
+        if name in ('restore-hold-route', 'restore-load-route', 'restore-state-route'):
+            pin = name.split('-')[1]
+            actual = actual.replace(f'{ADAPTER}.restore_{pin} <= {PREFIX}restore_{pin}',
+                                    f'{ADAPTER}.restore_{pin} <= UInt<1>("h0")')
+        elif name == 'restore-ready-route':
+            actual = actual.replace(f'{PREFIX}restore_ready <= {ADAPTER}.restore_ready',
+                                    f'{PREFIX}restore_ready <= UInt<1>("h1")')
+        elif name == 'restore-owner-width':
+            binding['staging_owner_bits'] -= 1
+        elif name == 'restore-contract':
+            binding['staging_restore_contract'] = 'partial_payload_only'
+        elif name == 'original-restore-claim':
+            binding['original_restore_supported'] = True
+        elif name.startswith('memory-'):
+
             row = next(r for r in rows if r.get('kind') == 'memory')
             mem = row['hierarchy'].rsplit('.', 1)[1]
             if name in ('memory-address', 'memory-enable', 'memory-clock'):
@@ -96,7 +114,8 @@ def mutations(generated, output):
             actual = actual.replace(f'{ADAPTER}.functional_frozen <= {PREFIX}functional_frozen',
                                     f'{ADAPTER}.functional_frozen <= UInt<1>("h1")')
         elif name == 'restore-enabled':
-            actual = actual.replace('parameter RESTORE_ENABLE = 0', 'parameter RESTORE_ENABLE = 1')
+            actual = actual.replace('parameter RESTORE_ENABLE = '+str(int(restore_mode)),
+                                    'parameter RESTORE_ENABLE = '+str(1-int(restore_mode)))
         elif name == 'added-owner':
             marker = f'    {OBS} <= '
             index = actual.index(marker)
@@ -131,7 +150,7 @@ def mutations(generated, output):
     return rejected
 
 
-def negative_wave(path):
+def negative_wave(path, top='register_snapshot_tb', minimum_steps=128):
     """Read first-word/cut/ack labels independently from the flushed raw VCD."""
     names = {PREFIX+'cut_cycle', PREFIX+'word_address', 'acknowledged_words', 'host_step'}
     scopes, codes, values, times = [], {}, {}, []
@@ -143,7 +162,7 @@ def negative_wave(path):
             scopes.append(parts[2])
         elif parts[0] == '$upscope':
             scopes.pop()
-        elif parts[0] == '$var' and scopes == ['register_snapshot_tb'] and parts[4] in names:
+        elif parts[0] == '$var' and scopes == [top] and parts[4] in names:
             codes[parts[4]] = parts[3]
         elif line.startswith('#'):
             times.append(int(line[1:]))
@@ -156,9 +175,70 @@ def negative_wave(path):
             'incomplete/unflushed negative debug waveform')
     labels = {n: int(values[c], 2) for n, c in codes.items()}
     require(labels[PREFIX+'cut_cycle'] == 100 and labels[PREFIX+'word_address'] == 0 and
-            labels['acknowledged_words'] == 0 and labels['host_step'] > 128,
+            labels['acknowledged_words'] == 0 and labels['host_step'] > minimum_steps,
             'negative waveform did not retain first-word/cut/ack labels')
     return labels
+
+
+
+def fresh_wave(path, donor_path, bits, words, corrupt=False):
+    """Independently count raw edges and check complete donor/serial readback."""
+    names = {'clock', 'reset', 'acknowledged_words'} | {PREFIX+n for n in
+        ('restore_hold', 'restore_load', 'control_state', 'word_address', 'word_data',
+         'word_error', 'valid', 'cut_cycle')}
+    scopes, codes, values, snapshots = [], {}, {}, []
+    def save():
+        # The first #0 precedes $dumpvars; it has declarations but no values.
+        if set(codes) == names and values:
+            snapshots.append({n: int(values[c], 2) if re.fullmatch('[01]+', values.get(c, 'x'))
+                              else None for n, c in codes.items()})
+    for line in path.read_text().splitlines():
+        parts = line.split()
+        if not parts:
+            continue
+        if parts[0] == '$scope':
+            scopes.append(parts[2])
+        elif parts[0] == '$upscope':
+            scopes.pop()
+        elif parts[0] == '$var' and scopes == ['register_staging_restore_tb'] and parts[4] in names:
+            codes[parts[4]] = parts[3]
+        elif line.startswith('#'):
+            save()
+        elif line.startswith('b') and len(parts) == 2:
+            values[parts[1]] = parts[0][1:]
+        elif line[0] in '01xz':
+            values[line[1:]] = line[0]
+    save()
+    require(set(codes) == names and len(snapshots) > 10, 'missing fresh raw-wave state')
+    rises, previous, seen_words = 0, None, set()
+    donor_text = donor_path.read_text().strip()
+    require(re.fullmatch('[0-9a-fA-F]+', donor_text) is not None, 'noncanonical donor hex')
+    donor = int(donor_text, 16)
+    require(donor.bit_length() <= bits+71, 'oversized staging donor')
+    for row in snapshots:
+        current = row['clock']
+        if previous == 0 and current == 1:
+            rises += 1
+            require(row[PREFIX+'restore_hold'] == row[PREFIX+'restore_load'] == 1,
+                    'first raw edge did not load under hold')
+        previous = current
+        require(row['reset'] == 1, 'fresh original component was not held in reset')
+        if row[PREFIX+'valid'] == 1:
+            address = row[PREFIX+'word_address']
+            require(not corrupt and row[PREFIX+'word_error'] == 0 and address is not None and address < words,
+                    'corrupt/unreadable fresh serial publication')
+            require(row[PREFIX+'word_data'] == ((donor & ((1 << bits)-1)) >> (address*64)) & ((1 << 64)-1),
+                    'fresh raw-wave serial data mismatch')
+            seen_words.add(address)
+    require(rises == 1 and snapshots[-1][PREFIX+'cut_cycle'] == 100 and
+            snapshots[-1][PREFIX+'control_state'] == (donor ^ int(corrupt)),
+            'fresh complete owner differs or advanced past first raw edge')
+    require(snapshots[-1]['acknowledged_words'] == (0 if corrupt else words) and
+            (not seen_words if corrupt else seen_words == set(range(words))),
+            'fresh raw wave did not match all words/first divergence')
+    return dict(status='pass', raw_positive_edges=rises, complete_owner_bits=bits+71,
+                serial_words=len(seen_words), acknowledged_words=snapshots[-1]['acknowledged_words'],
+                donor_sha256=file_sha(donor_path), corruption_rejected=corrupt)
 
 
 def bench(directory):
@@ -167,6 +247,7 @@ def bench(directory):
     root = re.search(r'^circuit (\w+) :', (directory / 'host.fir').read_text(), re.M)[1]
     binding = json.loads((directory / 'binding.json').read_text())
     bits, words = binding['bits'], binding['words']
+    restore_mode = binding['snapshot_version'] == 3
     control = root == 'NastiRecursiveInterconnect'
     lines = ['`timescale 1ns/1ps', 'module register_snapshot_tb;',
              'import "DPI-C" function void checkpoint_widget_failed();']
@@ -180,7 +261,7 @@ def bench(directory):
     lines += [f'{root} dut(.*);', 'Reference' + root + ' original(' + ','.join(
         f'.{name}({"ref_" if direction == "output" else ""}{name})'
         for name, (direction, _) in original[root]['ports'].items()) + ');',
-        f'reg [{bits-1}:0] expected;', 'integer checks=0,host_step=0,cuts=0,acknowledged_words=0;',
+        f'reg [{bits-1}:0] expected;reg [{bits+70}:0] donor;integer restore_checks=0,donor_file;', 'integer checks=0,host_step=0,cuts=0,acknowledged_words=0;',
         'integer enqueue_fires=0,dequeue_fires=0,blocked_enqueues=0,staged_enqueue_fires=0,staged_dequeue_fires=0;',
         'integer write_phase=0,read_phase=0,write_index=0,read_index=0;',
         'reg b_pending=0,r_pending=0;reg [11:0] b_id=0,r_id=0;',
@@ -259,8 +340,22 @@ def bench(directory):
               # Initial queue data/tag contents are unknown in ordinary VCS;
               # warm all slots through real enqueue, never simulator writes.
               'check(!$isunknown(expected),"all_original_state_initialized");tick();',
-              f'{PREFIX}request=0;#1;check({PREFIX}valid&&{PREFIX}cut_cycle==label,"captured_cut");',
-              f'for(integer word=0;word<{words};word++)begin',
+              f'{PREFIX}request=0;#1;check({PREFIX}valid&&{PREFIX}cut_cycle==label,"captured_cut");']
+    if restore_mode:
+        lines += [f'donor={PREFIX}control_state;',
+                  'donor_file=$fopen($sformatf("staging-owner-%0d.hex",label),"w");check(donor_file!=0,"donor_file_open");',
+                  '$fwrite(donor_file,"%h\\n",donor);$fclose(donor_file);',
+                  f'{PREFIX}reset=1;tick();{PREFIX}reset=0;#1;',
+                  f'check({PREFIX}control_state==0,"staging_reset_before_restore");',
+                  f'{PREFIX}restore_hold=1;{PREFIX}restore_state=donor;#1;',
+                  f'check({PREFIX}restore_ready&&!{PREFIX}valid&&!{PREFIX}request_ready&&{PREFIX}word_error,"restore_hold_revokes_ack");',
+                  f'tick();check({PREFIX}control_state==0,"hold_without_load_preserves_owner");',
+                  f'{PREFIX}restore_load=1;tick();#1;',
+                  f'check({PREFIX}control_state===donor,"staging_restore_complete");',
+                  f'check(!{PREFIX}valid&&{PREFIX}word_error,"restore_load_not_acknowledged");',
+                  f'{PREFIX}restore_load=0;{PREFIX}restore_hold=0;#1;',
+                  f'check({PREFIX}valid&&!{PREFIX}failed&&{PREFIX}cut_cycle==label,"restored_cut_before_next_edge");restore_checks++;']
+    lines += [f'for(integer word=0;word<{words};word++)begin',
               f'{PREFIX}word_address=word;#1;',
               'repeat(3)begin',
               f'check({PREFIX}valid&&!{PREFIX}word_error&&{PREFIX}word_data===64\'(expected>>(word*64)),"immutable_word_before_ack");',
@@ -289,8 +384,76 @@ def bench(directory):
               f'check(!{PREFIX}valid&&{PREFIX}failed,"cycle_drift_before_edge");tick();',
               f'{PREFIX}reset=1;tick();{PREFIX}reset=0;',
               f'{PREFIX}functional_frozen=0;{PREFIX}request=1;#1;check(!{PREFIX}request_ready&&{PREFIX}failed,"missing_freeze");tick();',
-              '$display("REGISTER_SNAPSHOT_PASS cuts=%0d words=%0d checks=%0d host_steps=%0d",cuts,acknowledged_words,checks,host_step);$finish;end endmodule']
+              ]
+    if restore_mode:
+        lines += [f'{PREFIX}request=0;{PREFIX}functional_frozen=1;{PREFIX}restore_hold=1;',
+                  # Exercise every bit of the separate owner: payload, occupied,
+                  # cut_cycle, and all sticky errors, including released payload.
+                  f'for(integer pattern=0;pattern<4;pattern++)begin',
+                  f'donor=0;for(integer b=0;b<{bits+71};b++)donor[b]=((b+pattern)%4==0);',
+                  f'{PREFIX}target_cycle=donor[{bits+64}:{bits+1}];',
+                  f'{PREFIX}restore_state=donor;{PREFIX}restore_load=1;#1;',
+                  f'check({PREFIX}restore_ready,"donor_errors_do_not_block_load");tick();#1;',
+                  f'check({PREFIX}control_state===donor,"whole_owner_pattern_readback");restore_checks++;end',
+                  f'{PREFIX}restore_load=0;#1;tick();check({PREFIX}control_state===donor,"restored_errors_preserved_on_hold");',
+                  f'{PREFIX}restore_load=1;{PREFIX}owners_present=0;#1;',
+                  f'check(!{PREFIX}restore_ready&&{PREFIX}failed,"missing_restore_owner_before_edge");tick();',
+                  f'check({PREFIX}control_state[{bits+64}:0]===donor[{bits+64}:0],"rejected_restore_preserves_payload");',
+                  f'{PREFIX}owners_present=1;{PREFIX}functional_frozen=0;#1;',
+                  f'check(!{PREFIX}restore_ready,"missing_restore_freeze_before_edge");tick();',
+                  f'{PREFIX}functional_frozen=1;{PREFIX}request=1;#1;',
+                  f'check(!{PREFIX}restore_ready,"capture_during_restore_rejected");tick();{PREFIX}request=0;',
+                  f'{PREFIX}release_snapshot=1;#1;check(!{PREFIX}restore_ready,"release_during_restore_rejected");tick();{PREFIX}release_snapshot=0;',
+                  f'{PREFIX}reset=1;#1;check(!{PREFIX}restore_ready,"reset_dominates_restore");tick();{PREFIX}reset=0;',
+                  f'{PREFIX}restore_hold=0;#1;check(!{PREFIX}restore_ready&&{PREFIX}failed,"load_without_hold_rejected");tick();',
+                  f'check({PREFIX}control_state[{bits+64}:0]==0,"invalid_load_cannot_publish_owner");',
+                  'check(restore_checks==8,"complete_restore_scope");',
+                  '$display("REGISTER_STAGING_RESTORE_PASS complete_readbacks=%0d",restore_checks);']
+    lines += ['$display("REGISTER_SNAPSHOT_PASS cuts=%0d words=%0d checks=%0d host_steps=%0d",cuts,acknowledged_words,checks,host_step);$finish;end endmodule']
     return '\n'.join(lines) + '\n'
+
+
+
+def restore_bench(directory):
+    """A fresh, reset-held ORIGINAL component; only staging state is restored.
+
+    Hold is asserted from time zero. The first raw edge loads the entire donor
+    owner; all readbacks finish without a second edge. This establishes no
+    original-state, CPU, global-cut or production transport restore coverage.
+    """
+    text = (directory/'instrumented.fir').read_text()
+    root = re.search(r'^circuit (\w+) :', text, re.M)[1]
+    ports = parse_modules(text)[root]['ports']
+    b = json.loads((directory/'binding.json').read_text())
+    bits, words = b['bits'], b['words']
+    lines = ['`timescale 1ns/1ps', 'module register_staging_restore_tb;',
+             'import "DPI-C" function void checkpoint_widget_failed();']
+    for n, (direction, kind) in ports.items():
+        width = 1 if kind == 'Clock' else int(re.fullmatch(r'UInt<(\d+)>', kind)[1])
+        shape = '' if width == 1 else f'[{width-1}:0] '
+        initial = int(n in ('reset', PREFIX+'restore_hold', PREFIX+'owners_present', PREFIX+'functional_frozen'))
+        lines.append(f'{"reg" if direction == "input" else "wire"} {shape}{n}'+
+                     (f"={width}'d{initial};" if direction == 'input' else ';'))
+    lines += [f'{root} dut(.*);', f'reg [{bits+70}:0] donor[0:0];',
+              'integer checks=0,acknowledged_words=0,host_step=0;',
+              'task check(input bit okay,input string signal);checks++;if(!okay)begin',
+              f'$display("REGISTER_STAGING_FRESH_DIVERGENCE source_cut=%0d acknowledged_words=%0d signal=%s",{PREFIX}cut_cycle,acknowledged_words,signal);',
+              '$dumpflush;#0.001;checkpoint_widget_failed();$finish;end endtask',
+              'initial begin $dumpfile("register-snapshot.vcd");$dumpvars(0,register_staging_restore_tb);',
+              '$readmemh("staging-owner-100.hex",donor);',
+              'check(!$isunknown(donor[0]),"complete_donor_file");',
+              f'{PREFIX}restore_state=donor[0];{PREFIX}target_cycle=donor[0][{bits+64}:{bits+1}];',
+              f'repeat(20)begin #1;host_step++;check({PREFIX}restore_ready&&!{PREFIX}valid&&{PREFIX}word_error,"hold_from_time_zero");end',
+              f'{PREFIX}restore_load=1;#1;clock=1;#3;host_step++;',
+              f'check({PREFIX}control_state===donor[0],"fresh_complete_owner_before_second_edge");',
+              f'{PREFIX}restore_load=0;{PREFIX}restore_hold=0;#1;',
+              f'check({PREFIX}valid&&!{PREFIX}failed&&{PREFIX}cut_cycle==100,"fresh_cut_label");',
+              f'for(integer word=0;word<{words};word++)begin {PREFIX}word_address=word;#1;',
+              f'check({PREFIX}valid&&!{PREFIX}word_error&&{PREFIX}word_data===64\'(donor[0][{bits-1}:0]>>(word*64)),"fresh_word_before_ack");acknowledged_words++;end',
+              f'check(acknowledged_words=={words},"fresh_all_words");',
+              f'$display("REGISTER_STAGING_FRESH_PASS bits={bits+71} words=%0d raw_edges=1",acknowledged_words);',
+              '$dumpflush;$finish;end endmodule']
+    return '\n'.join(lines)+'\n'
 
 
 def main():
@@ -375,6 +538,14 @@ write_verilog -force synthesized.v
 write_checkpoint -force synthesized.dcp
 puts "REGISTER_SNAPSHOT_SYNTH_PASS payload_bits={bits}"
 ''')
+            if binding['snapshot_version'] == 3:
+                tcl = (out/'synth.tcl').read_text()
+                marker = 'report_utilization -file utilization.rpt'
+                tcl = tcl.replace(marker, f'''set owner [get_cells -hier -filter {{NAME =~ *checkpoint_register_snapshot_adapter/* && IS_SEQUENTIAL == 1}}]
+if {{[llength $owner] != {bits+71}}} {{error "incomplete native staging restore owner"}}
+puts "REGISTER_STAGING_RESTORE_SYNTH_PASS owner_bits={bits+71}"
+''' + marker)
+                (out/'synth.tcl').write_text(tcl)
             text = run(['vivado', '-mode', 'batch', '-source', 'synth.tcl'], 'native')
             require(f'REGISTER_SNAPSHOT_SYNTH_PASS payload_bits={bits}' in text and 'ERROR:' not in text,
                     'native staging qualification incomplete')
@@ -398,11 +569,17 @@ puts "REGISTER_SNAPSHOT_SYNTH_PASS payload_bits={bits}"
             rtl = (generated/'generated.register-snapshot.sv').read_text()
             require(rtl.count('payload <= live_state;') == 1, 'ambiguous corruption target')
             (out/'corrupt.sv').write_text(rtl.replace('payload <= live_state;', "payload <= live_state ^ 1'b1;"))
-            for case in ('healthy', 'corrupt'):
+            restore_mode = binding['snapshot_version'] == 3
+            if restore_mode:
+                require(rtl.count('payload <= restore_state[BITS-1:0];') == 1, 'ambiguous restore corruption target')
+                (out/'corrupt-restore.sv').write_text(rtl.replace('payload <= restore_state[BITS-1:0];',
+                    "payload <= restore_state[BITS-1:0] ^ 1'b1;"))
+            for case in ('healthy', 'corrupt', 'corrupt-restore') if restore_mode else ('healthy', 'corrupt'):
+
                 binary = out/('simv-'+case)
                 run([toolchain.VCS, '-full64', '-sverilog', '-timescale=1ns/1ps', '-Mupdate', '-debug_access+all',
                      '-top', 'register_snapshot_tb', '-Mdir='+str(out/('csrc-'+case)), '-o', binary,
-                     out/'instrumented.sv', out/('generated.register-snapshot.sv' if case == 'healthy' else 'corrupt.sv'),
+                     out/'instrumented.sv', out/('generated.register-snapshot.sv' if case == 'healthy' else case+'.sv'),
                      out/'reference.sv', out/'bench.sv', ROOT/'tools/checkpoint_formats/tests/checkpoint_widget_exit.cc',
                      '-CFLAGS', '-std=c++17'], case+'-compile')
                 work = out/case
@@ -413,8 +590,13 @@ puts "REGISTER_SNAPSHOT_SYNTH_PASS payload_bits={bits}"
                 expected = f'REGISTER_SNAPSHOT_PASS cuts=4 words={binding["words"]*4}'
                 require(expected in text if case == 'healthy' else
                         'REGISTER_SNAPSHOT_DIVERGENCE source_cut=100' in text and
-                        'acknowledged_words=0 signal=immutable_word_before_ack' in text,
+                        ('acknowledged_words=0 signal=staging_restore_complete' if case == 'corrupt-restore' else
+                         'acknowledged_words=0 signal=immutable_word_before_ack') in text,
                         'incomplete run or corruption escaped first-word check')
+                if case == 'healthy' and restore_mode:
+                    require('REGISTER_STAGING_RESTORE_PASS complete_readbacks=8' in text,
+                            'incomplete whole staging-owner restore/unsafe-input scope')
+                    doc['staging_restore_readbacks'] = 8
                 if case == 'healthy' and root != 'Top':
                     traffic = re.search(r'REGISTER_SNAPSHOT_QUEUE_TRAFFIC enqueues=(\d+) dequeues=(\d+) '
                                         r'blocked=(\d+) staged_enqueues=(\d+) staged_dequeues=(\d+)', text)
@@ -428,6 +610,36 @@ puts "REGISTER_SNAPSHOT_SYNTH_PASS payload_bits={bits}"
                         'missing runtime debug waveform')
                 if case == 'corrupt':
                     doc['negative_wave_labels'] = negative_wave(wave)
+                if case == 'corrupt-restore':
+                    doc['restore_negative_wave_labels'] = negative_wave(wave)
+            if restore_mode:
+                (out/'restore-bench.sv').write_text(restore_bench(generated))
+                doc['fresh_restore_wave_audits'] = {}
+                for case in ('healthy', 'corrupt-restore'):
+                    work = out/('fresh-'+case)
+                    work.mkdir()
+                    shutil.copyfile(out/'healthy/staging-owner-100.hex', work/'staging-owner-100.hex')
+                    binary = out/('fresh-simv-'+case)
+                    run([toolchain.VCS, '-full64', '-sverilog', '-timescale=1ns/1ps', '-Mupdate', '-debug_access+all',
+                         '-top', 'register_staging_restore_tb', '-Mdir='+str(out/('fresh-csrc-'+case)), '-o', binary,
+                         out/'instrumented.sv', out/('generated.register-snapshot.sv' if case == 'healthy' else case+'.sv'),
+                         out/'restore-bench.sv', ROOT/'tools/checkpoint_formats/tests/checkpoint_widget_exit.cc',
+                         '-CFLAGS', '-std=c++17'], 'fresh-'+case+'-compile')
+                    text = run([binary, '-no_save'], 'fresh-'+case, work, 0 if case == 'healthy' else 1)
+                    require('Offending ' not in text and 'Assertion failed:' not in text, 'fresh original assertion failure')
+                    if case == 'healthy':
+                        require(f'REGISTER_STAGING_FRESH_PASS bits={bits+71} words={binding["words"]} raw_edges=1' in text,
+                                'incomplete fresh staging readback')
+                    else:
+                        require('REGISTER_STAGING_FRESH_DIVERGENCE source_cut=100 acknowledged_words=0 '
+                                'signal=fresh_complete_owner_before_second_edge' in text, 'fresh corruption not rejected first')
+                        doc['fresh_restore_negative_wave_labels'] = negative_wave(work/'register-snapshot.vcd',
+                            top='register_staging_restore_tb', minimum_steps=0)
+                    wave = work/'register-snapshot.vcd'
+                    require(wave.stat().st_size > 1000, 'fresh restore wave missing')
+                    doc['fresh_restore_wave_audits'][case] = fresh_wave(wave, work/'staging-owner-100.hex',
+                        bits, binding['words'], corrupt=case != 'healthy')
+                doc['fresh_staging_restore_processes'] = 2
         require(all(file_sha(ROOT/n) == h for n, h in sources.items()), 'verification sources changed')
         doc['status'] = 'pass'
     except Exception as error:
@@ -435,7 +647,7 @@ puts "REGISTER_SNAPSHOT_SYNTH_PASS payload_bits={bits}"
         raise
     finally:
         doc['artifacts'] = {str(p.relative_to(out)): file_sha(p) for p in out.rglob('*') if p.is_file() and
-                            p.suffix in {'.sv', '.v', '.fir', '.json', '.log', '.rpt', '.tcl', '.dcp', '.vcd'}}
+                            p.suffix in {'.sv', '.v', '.fir', '.json', '.log', '.rpt', '.tcl', '.dcp', '.vcd', '.hex'}}
         receipt = out/'summary.json'
         receipt.write_text(json.dumps(doc, indent=2)+'\n')
         print(receipt, flush=True)

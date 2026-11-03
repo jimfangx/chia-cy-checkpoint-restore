@@ -35,7 +35,64 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 9800,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 9801,
+**in_progress; complete control-fabric staging-owner restore qualified; physical image/capture pending**.
+
+Added explicit version-3 whole staging-owner hold/load/state/readiness to the
+concrete register/asynchronous-memory generator and actual compiler diagnostic.
+The separate Rocket owner contains all 1,820 payload/occupancy/cycle/error bits;
+the shared signed-register fixture has 219 bits. Defaults retain capture-only
+ports. Original storage equations, production descriptors and image admission
+remain unchanged. See [register/memory staging](f2-live-register-memory-snapshot.md).
+
+All 415 Scala tests / 65 suites plus sixteen preparation checks pass. Both
+original exact-recipe refusals, actual version-3 control-fabric compilation,
+final regional binding / seventeen mutations, six original oracles / forty-two
+negatives, all thirteen native syntheses, native integrity, 69 manager tests and
+complete current-compiler component equality pass. All 219 / 1,820 staging bits
+survive synthesis. Native resources are 426 LUTs / 432 registers and 4,384 LUTs /
+3,569 registers, respectively (unplaced component results). Java and native
+synthesis did not overlap; at most two Vivado jobs ran.
+
+Final-source EDA SP2 FASED, all three publication suites, all 430 Python tests,
+generated banks, host ASan/UBSan, FCFS, cut and the complete component scope pass.
+All six snapshot fixtures pass their full original or extended corruption scope;
+the two restore fixtures reject 25 / 35 independent mutations. Each exercises
+eight complete owner readbacks including released payload and sticky errors.
+Separate fresh healthy/corrupt processes load the retained component owner on
+the first raw edge; independent VCD audits check all 219 / 1,820 bits and all
+3 / 28 serial words before a second edge. Compiled capture/restore corruption
+stops at cut 100 with zero acknowledged words, independently checked in raw
+waves. The real control fabric completes 1,418 writes / 1,418 responses, with
+95 / 96 while staging is occupied. Original RTL is unchanged. These are staging
+component tests; the fresh destination holds its original component in reset.
+No original-state or CPU migration acceptance is implied.
+
+An early retained EDA pass predates a one-file initial-#0 guard correction in
+the new VCD auditor. The final complete retained/component scope was repeated
+successfully; preserve both observations. All attempts, raw waves and runnable
+commands are under `runs/aws-f2/iteration9801/` (see `verification-commands.json`).
+The early EDA exchange closed before native synthesis; native integrity closed
+before final exchange. The 4,598-pair storage audit passes without deleting any
+files. The expanded 5,062-pair / 100.9-GB logical closed-input plan also passes,
+preserving independent inodes, all paths and bytes, with no deletions and
+19,286,921,216 available bytes (about 18 GiB). Its receipts have returned;
+`binding-storage-final/wave-storage-_9cpih8p/summary.json` binds that observation.
+Closing source/native/VCS/protected-input/resource/publication audit passes all
+2,109 hash bindings in `final-audit-f5guvhna/summary.json`. All compiler, native,
+VCS, storage and audit jobs from this turn have finished.
+
+Fresh AWS/HDK/Vivado/localhost preflight passes. Published existing controller
+commits FireSim `bf3d6324`, then Chipyard `3f1d1e6a9`; Chipyard retains its local
+tracking-ref write warning after the successful push. Worker startup failed
+before a worker ran; only the central agent performed the work. Plans and
+initialized configs remain protected. All 1,245 functional entries, including
+these 408 observed entries, remain explicitly unadmitted. Next bind original
+control-fabric restore and common-cut/transport/host owners before descriptor
+admission. Full image P&R/AFI, actual F2 captures, paired CPU readback/finite/live
+continuation and rolling hardware recovery remain pending.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 9800,
 **in_progress; coherent control-register/asynchronous-memory staging; final-source closure passes**.
 
 Added an opt-in register/memory snapshot diagnostic covering the complete

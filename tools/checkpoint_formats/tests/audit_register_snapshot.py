@@ -107,8 +107,18 @@ def audit(directory):
     original_text = (directory / 'host.fir').read_text()
     actual_text = (directory / 'instrumented.fir').read_text()
     binding = json.loads((directory / 'binding.json').read_text())
-    memory_mode = binding['snapshot_version'] == 2
-    require((binding['snapshot_version'], binding['scope']) in (
+    require(type(binding['snapshot_version']) is int and binding['snapshot_version'] in (1, 2, 3),
+            'unknown staging version')
+    restore_mode = binding['snapshot_version'] == 3
+    memory_mode = binding['include_async_memories'] if restore_mode else binding['snapshot_version'] == 2
+    require(type(memory_mode) is bool, 'invalid memory policy')
+    if restore_mode:
+        require(binding['staging_restore_supported'] is True and binding['staging_restore_contract'] ==
+                'whole_owner_on_raw_clock_original_and_target_owners_parked_separately',
+                'unknown staging restore contract')
+    else:
+        require(binding['staging_restore_supported'] is False, 'staging restore was not explicitly requested')
+    require((2 if memory_mode else 1, binding['scope']) in (
         (1, 'concrete_raw_clock_register_subtree_staging_only'),
         (2, 'concrete_raw_clock_register_async_memory_subtree_staging_only')), 'unknown staging contract')
     require(binding['source_sha256'] == sha(original_text) and
@@ -122,7 +132,7 @@ def audit(directory):
             annotations == instrumented_annotations.read_text(),
             'changed or unbound original annotations')
     for flag in ('cut_certificates_bound', 'host_owner_bound', 'original_restore_supported',
-                 'staging_restore_supported', 'complete_fpga_capture', 'deployable_capture_image',
+                 'complete_fpga_capture', 'deployable_capture_image',
                  'metasim_restore_supported'):
         require(binding[flag] is False, 'staging cannot grant ' + flag)
     require(binding['source_registers_keep_running'] is True and binding['sampling_contract'] ==
@@ -324,6 +334,9 @@ def audit(directory):
                   functional_frozen=1, target_cycle=64, word_address=32)
     outputs = dict(request_ready=1, valid=1, failed=1, word_data=64, word_error=1,
                    cut_cycle=64, error=6, control_state=bits+71)
+    if restore_mode:
+        inputs.update(restore_hold=1, restore_load=1, restore_state=bits+71)
+        outputs.update(restore_ready=1)
     expected_inputs.update({n: PREFIX+n for n in inputs})
     for name, expression in expected_inputs.items():
         require(actual[root]['drivers'].get(ADAPTER + '.' + name) == expression,
@@ -338,7 +351,7 @@ def audit(directory):
     require(actual[root]['instances'].get(ADAPTER) == 'CheckpointNativeStateSnapshot', 'wrong staging instance')
     ext = actual['CheckpointNativeStateSnapshot']['body']
     require(re.search(r'^  parameter BITS = ' + str(bits) + '$', ext, re.M) and
-            re.search(r'^  parameter RESTORE_ENABLE = 0$', ext, re.M) and
+            re.search(r'^  parameter RESTORE_ENABLE = '+str(int(restore_mode))+'$', ext, re.M) and
             '  defname = CheckpointNativeStateSnapshot' in ext, 'wrong staging specialization')
     expected_ports = {'clock': ('input', 'Clock')}
     expected_ports.update({n: ('input', f'UInt<{w}>') for n, w in
@@ -376,4 +389,4 @@ def audit(directory):
         require(extra_drivers == expected_drivers, 'unaccounted added driver ' + name)
     return dict(status='pass', entries=len(rows), bits=bits, words=(bits+63)//64,
                 staging_owner_bits=bits+71, original_equations_preserved=True,
-                raw_clock_routes_checked=True, complete_fpga_capture=False)
+                raw_clock_routes_checked=True, staging_restore_supported=restore_mode, complete_fpga_capture=False)

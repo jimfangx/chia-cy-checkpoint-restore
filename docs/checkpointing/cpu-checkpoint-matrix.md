@@ -14,6 +14,16 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 9801 adds explicit whole staging-owner destination restore for that
+control-fabric observation, including payload, occupancy, cycle and sticky
+errors (1,820 bits). Independent ABI/route audits, native synthesis and fresh-process readback
+checks pass as component qualification; see
+[f2-live-register-memory-snapshot.md](f2-live-register-memory-snapshot.md) and
+progress.md for completed results under `runs/aws-f2/iteration9801/`.
+Original control-fabric/global-owner restore, production transport attachment,
+full-image implementation/AFI and every FPGA-origin CPU acceptance column remain
+pending/in_progress. Descriptor admission is unchanged.
+
 Iteration 9800 adds an opt-in coherent control-fabric observation vector:
 395 registers and thirteen asynchronous memories, including both reorder queues
 and every W-route FIFO word, total 408 entries / 1,749 bits. The separate staging

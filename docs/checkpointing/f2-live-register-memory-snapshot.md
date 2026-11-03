@@ -25,7 +25,8 @@ The version-2 binding retains each original memory StateID, declaration hash,
 element width, depth, signedness and flattened vector offset. Address zero
 occupies the least significant element of each memory field. No reader state
 is added; the staging payload, occupancy, cycle and errors remain a separate
-owner. Original and staging restore support remain disabled.
+owner. The capture-only mode disables original and staging restore. The explicit
+version-3 mode below adds only whole staging-owner destination loading.
 
 The exact Rocket control fabric contains 395 registers and thirteen memories:
 408 entries / 1,749 bits, including all fifteen words of the W-route FIFO and
@@ -52,6 +53,39 @@ component results, not implemented full-image resources or achieved Fmax.
 
 This diagnostic does not change production descriptor coverage or permit image
 emission. Global target-cut/reset/external-writer ownership, MMIO/DMA attachment,
-original/staging/host restore, complete FAME/FASED/functional-memory/bridge and
+production original/staging/host restore attachment, complete FAME/FASED/functional-memory/bridge and
 pre-FAME ownership, full-image P&R/AFI, actual F2 captures, paired CPU replay/live
 continuation and rolling recovery remain required.
+
+## Opt-in whole staging-owner restore
+
+The version-3 generator can expose `restore_hold`, `restore_load`,
+`restore_state` and `restore_ready` for the separate staging owner. The actual
+compiler diagnostic selects this with
+`--simulator-native-register-memory-staging-restore-probe`. Defaults retain the
+capture-only ABI. The complete 1,820-bit Rocket owner packs payload, occupancy,
+cut-cycle and six sticky errors; released payload and donor errors are retained.
+The load uses the running raw clock with hold asserted before the destination's
+first edge. Target clocks and all original owners require independent parking,
+restoration and readback before complete simulator execution can resume.
+
+The independent auditor checks the explicit version/policy, complete original
+state/equations, every restore pin and direction, owner width and native resource.
+The component verifier exercises occupied/released/error-bearing whole-owner
+patterns, unsafe-input rejection and continued original traffic. Fresh VCS
+processes load a retained healthy component staging image on their first raw
+edge and read back all bits/serial words before a second edge. A separately
+compiled restore-payload mutation must stop before any word acknowledgement;
+raw debug waves retain the first divergence. This fresh test holds the original
+component in reset and supplies no original-state or CPU migration acceptance.
+
+Iteration-9801 attempts and receipts belong under
+`automations/checkpoint_loop/runs/aws-f2/iteration9801/`; see progress.md for
+completed verification. Original control-fabric restore, common-cut/transport/
+host attachment and every complete-image/physical CPU obligation remain pending.
+Production descriptors and image admission are unchanged.
+
+The iteration-9801 restore variants retain all 219 / 1,820 sequential staging
+bits in native Vivado. They use 426 LUTs / 432 registers and 4,384 LUTs / 3,569
+registers, respectively. These are unplaced component resources, with no full
+image timing, P&R or AFI acceptance implied.
