@@ -35,7 +35,66 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 9797,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 9798,
+**in_progress; live control-register staging; final EDA closure running**.
+
+Added a same-raw-clock hierarchical register snapshot generator and explicit
+actual-compiler diagnostic, preserving all original functional equations.
+The Rocket AW reorder queue has 192 registers / 704 bits, eleven staged words
+and a separate 775-bit staging owner. The equivalent AR selection is exercised
+separately. The whole control fabric has 395 registers **and thirteen memories**,
+408 entries / 1,749 bits; the register-only adapter correctly rejects the
+memories. The manifest's 1,245 uncovered entries are unchanged. See
+[f2-live-register-snapshot.md](f2-live-register-snapshot.md).
+
+All 413 current-source Scala tests / 65 suites plus sixteen preparation checks
+and 69 manager tests pass. Fifteen independent source/layout/clock/owner/hash/ABI
+corruptions reject. The actual new compiler attachment independently passes
+192 registers / 704 bits and complete original equation/clock/route preservation.
+Both original exact-Rocket compiler refusals, the complete regional diagnostic
+and final binding audit pass. The unchanged image guard rejects the same missing
+transport owner; all 1,245 uncovered entries remain explicit. All eleven native
+syntheses and the full compiler/native integrity audit pass. New payloads retain
+148 / 704 physical staging bits; the fixtures use 240 LUTs / 430 registers and
+4,392 LUTs / 1,477 registers, respectively (unplaced). The native sweep's shared
+log name collided before launching its last fixture; distinct argument-based
+names repair the harness, and the missing Rocket case plus complete integrity
+audit pass separately. Original logs remain unchanged.
+The final-source EDA scope is synchronizing; do not claim it passed until its
+unique receipts close. Native artifacts were closed and hashed before exchange.
+The complete retained EDA scope and all 51 earlier component cases subsequently
+passed. The new shared-instance case then failed VCS compilation because the
+ordinary reference emitter removed unused `signed_value` storage. The fix emits
+the exact original FIRRTL separately with a complete register DontTouch set,
+without capture logic or equation changes. Its independent checker validates
+all original bytes, annotations, targets and emitted register declarations.
+Twelve oracle mutations reject. Both new native fixtures have been refreshed
+against the same oracle and complete native integrity passes. The two corrected
+VCS cases are being tried first; repeat the full final-source retained/component
+scope after they pass. Hardware Scala sources remain unchanged; the oracle tool
+lives at `tools/checkpoint_formats/tests/RegisterSnapshotReference.scala`.
+Initial oracle setup/type-resolution failures and a mutation aimed at a random
+initializer rather than original storage remain in separate logs. Runtime setup
+uses an invocation-local XDG directory; type/flow resolution preserves exact
+serialized original FIRRTL before adding only DontTouch annotations.
+The first retained EDA sweep passes all its scope, but predates the strengthened
+nonzero-tag/active-staging traffic stimulus in `verify_register_snapshot.py`.
+Its immutable receipt and one-file source delta are retained separately; rerun
+the complete retained scope after final synchronization for source closure.
+The retained Scala scope historically takes 38 minutes. Its thirty-minute
+scheduling waiter alone was cancelled and replaced with a ninety-minute waiter;
+the actual Scala JVM and all test scope were untouched. Initial fixture reset
+emission and whole-control-fabric memory refusals remain in the original logs.
+All evidence is under `runs/aws-f2/iteration9798/`.
+
+Fresh AWS/HDK/Vivado/localhost checks pass; no runtime or new AFI was requested.
+Existing controller commits were pushed FireSim first, then Chipyard; the
+Chipyard post-push local tracking-ref warning is retained. Managed worker
+creation failed before startup; no worker was started. Both plans and manager
+inputs remain protected. No full capture image, FPGA checkpoint, paired CPU
+restore, finite/live continuation or rolling hardware acceptance is established.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 9797,
 **in_progress; observer-aware exact Rocket transport identity; physical capture pending**.
 
 The explicit `WithRocketFAMERegionCompilerProbeReservation` overlay reserves

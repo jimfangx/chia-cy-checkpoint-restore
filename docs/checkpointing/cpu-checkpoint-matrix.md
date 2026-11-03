@@ -14,6 +14,18 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 9798 adds live register-subtree staging for the actual control-bus AW
+reorder queue: 192 registers / 704 bits, eleven words and 775 additional staging
+owner bits. Original functional equations keep running during staged readout.
+The equivalent AR selection is tested separately; the complete control fabric
+has 395 registers and thirteen memories and is correctly rejected by this
+register-only adapter. Descriptor coverage and complete-image ownership remain
+unchanged. See [f2-live-register-snapshot.md](f2-live-register-snapshot.md) and
+progress.md for current verification under `runs/aws-f2/iteration9798/`.
+Global cut/host/reset/writer, memory, transport and restore owners, image
+P&R/AFI and every FPGA-origin CPU migration/live/rolling requirement remain
+pending. This component supplies no hardware acceptance.
+
 Iteration 9797 adds an explicit FAME-aware exact Rocket reservation and an
 independent final compiler/widget binding audit. Actual compilation binds all
 10,916 descriptors / three physical gates to the registered transport and host
