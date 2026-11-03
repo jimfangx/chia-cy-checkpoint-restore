@@ -14,6 +14,14 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 9805 adds protected recovery of interrupted EDA evidence, including
+failed input transfers, without remote setup or another source push. It grants
+no descriptor coverage or hardware acceptance. Fresh exact-recipe generation
+still rejects the FASED physical CE-latch/common-cut owner; all four FPGA-origin
+CPU acceptance columns remain pending/in_progress. The current recovery and
+regression commands and individual receipts are under
+`runs/aws-f2/iteration9805/`; consult progress.md for completed checks.
+
 Iteration 9802 adds opt-in held original register/asynchronous-memory restore
 for the selected component, independently of its staging owner. Native synthesis, independent structural negatives and fresh-process EDA
 component readback / 256-edge continuation pass. It retains explicit unsupported

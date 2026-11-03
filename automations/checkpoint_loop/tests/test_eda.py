@@ -1,6 +1,7 @@
 """Real rsync round trips through a local SSH stand-in; no licensed EDA execution."""
 
 from contextlib import contextmanager
+import io
 import os
 import hashlib
 import json
@@ -261,6 +262,95 @@ class EdaTests(unittest.TestCase):
                 with self.subTest(key=key), patch.object(workspace,'ssh') as ssh:
                     with self.assertRaises(ValueError):workspace.push()
                     ssh.assert_not_called()
+
+    @unittest.skipUnless(shutil.which("rsync"), "rsync required")
+    def test_fetch_only_recovers_interrupted_run_without_remote_setup_or_writes(self):
+        with self.workspace() as (workspace, local, remote, output):
+            workspace.push()
+            # Recovery must remain usable when VCS/setup or storage selection
+            # is broken, without overwriting the interrupted attempt's source.
+            Path(workspace.config.vcs).unlink()
+            Path(workspace.config.setup).unlink()
+            (local / "source.txt").write_text("unsent local edit")
+            (local / eda.RUNS / "eda-storage-plan.json").write_text("invalid selection")
+            (remote / eda.RUNS / "interrupted.log").write_text("original VCS diagnostic\n")
+            (remote / eda.RUNS / "state.json").write_text("must not overwrite controller")
+            before = {str(p.relative_to(remote)): (p.read_bytes(), p.stat().st_mtime_ns)
+                      for p in remote.rglob('*') if p.is_file()}
+            with patch.object(eda, 'RemoteWorkspace', return_value=workspace), \
+                    patch.object(sys, 'argv', ['eda.py', '--fetch-only']):
+                self.assertEqual(eda.main(), 0)
+            self.assertEqual((local / eda.RUNS / "interrupted.log").read_text(),
+                             "original VCS diagnostic\n")
+            self.assertEqual((local / eda.RUNS / "state.json").read_text(), "local state")
+            self.assertEqual(before, {str(p.relative_to(remote)): (p.read_bytes(), p.stat().st_mtime_ns)
+                                     for p in remote.rglob('*') if p.is_file()})
+
+    @unittest.skipUnless(shutil.which("rsync"), "rsync required")
+    def test_failed_push_returns_prior_diagnostics_without_launching_simulation(self):
+        with self.workspace() as (workspace, local, remote, output):
+            workspace.push()
+            (remote / eda.RUNS / "prior.log").write_text("retained interrupted attempt\n")
+            output.clear()
+            errors = io.StringIO()
+            with patch.object(eda, 'RemoteWorkspace', return_value=workspace), \
+                    patch.object(workspace, 'push', side_effect=RuntimeError('rsync ENOSPC')), \
+                    patch.object(workspace, 'run') as run, \
+                    patch.object(sys, 'argv', ['eda.py', '--', 'must-not-run']), \
+                    patch.object(sys, 'stderr', errors):
+                self.assertEqual(eda.main(), 127)
+                run.assert_not_called()
+            self.assertIn('rsync ENOSPC', errors.getvalue())
+            self.assertEqual((local / eda.RUNS / "prior.log").read_text(),
+                             "retained interrupted attempt\n")
+
+    def test_recovery_failure_preserves_primary_transfer_error(self):
+        with self.workspace() as (workspace, _, _, _):
+            errors = io.StringIO()
+            with patch.object(eda, 'RemoteWorkspace', return_value=workspace), \
+                    patch.object(workspace, 'preflight'), \
+                    patch.object(workspace, 'push', side_effect=RuntimeError('original sync failed')), \
+                    patch.object(workspace, 'fetch_existing', side_effect=RuntimeError('fetch SSH failed')), \
+                    patch.object(sys, 'argv', ['eda.py', '--', 'must-not-run']), \
+                    patch.object(sys, 'stderr', errors):
+                self.assertEqual(eda.main(), 127)
+            self.assertIn('[eda recovery error] fetch SSH failed', errors.getvalue())
+            self.assertIn('[eda error] original sync failed', errors.getvalue())
+
+    @unittest.skipUnless(shutil.which("rsync"), "rsync required")
+    def test_fetch_only_rejects_unclaimed_or_symlinked_mirrors(self):
+        with self.workspace() as (workspace, local, remote, _):
+            workspace.push()
+            marker = remote / '.checkpoint-eda-owner'
+            marker.unlink()
+            (remote / eda.RUNS / 'must-not-return').write_text('unclaimed')
+            with self.assertRaises(RuntimeError):
+                workspace.fetch_existing()
+            self.assertFalse((local / eda.RUNS / 'must-not-return').exists())
+            target = remote.parent / 'claimed-marker'
+            target.write_text('checkpoint_loop\n')
+            marker.symlink_to(target)
+            with self.assertRaises(RuntimeError):
+                workspace.fetch_existing()
+            marker.unlink()
+            marker.write_text('checkpoint_loop\n')
+            original = remote.with_name('original mirror')
+            remote.rename(original)
+            remote.symlink_to(original, target_is_directory=True)
+            with self.assertRaises(RuntimeError):
+                workspace.fetch_existing()
+            self.assertFalse((local / eda.RUNS / 'must-not-return').exists())
+
+    def test_fetch_only_cannot_silently_ignore_a_requested_command(self):
+        for argv in (['--fetch-only', '--', 'vcs'], ['--check', '--', 'vcs'],
+                     ['--check', '--fetch-only']):
+            with self.subTest(argv=argv), patch.object(sys, 'argv', ['eda.py', *argv]), \
+                    patch.object(sys, 'stderr', io.StringIO()), \
+                    patch.object(eda, 'RemoteWorkspace') as workspace:
+                with self.assertRaises(SystemExit) as error:
+                    eda.main()
+                self.assertEqual(error.exception.code, 2)
+                workspace.assert_not_called()
 
 
 if __name__ == "__main__":

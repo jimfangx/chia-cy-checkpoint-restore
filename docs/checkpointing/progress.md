@@ -35,7 +35,54 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 9803,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 9805,
+**in_progress; interrupted EDA evidence recovered; physical implementation/capture pending**.
+
+Added `eda.py --fetch-only` to retrieve an interrupted attempt without pushing
+inputs, requiring VCS/licenses/setup, or allocating remote files. Normal input
+transfer failures now also attempt a protected artifact fetch, retaining the
+original error when recovery fails. Existing mirror ownership and symlink checks
+apply; controller files and newer manager evidence remain protected. All 81
+manager/transport tests pass, including five new recovery tests. See
+[EDA recovery workflow](aws-f2-workflow.md#retained-eda-waveform-capacity).
+
+The new recovery command returned the interrupted iteration-9803 artifacts.
+Its retained EDA group passed; its component group did not finish and retains
+its original running receipt. Do not relabel it as completed. After byte-preserving
+capacity recovery, the fresh SP2 retained group passes FASED, all three publication
+suites, 430 Python tests, generated banks, ASan/UBSan host, FCFS and cut checks.
+The complete component sweep is running; do not claim it or closing storage passed
+until their selected receipts and closing audit exist. Commands, attempts and
+selections belong under `runs/aws-f2/iteration9805/`.
+
+The extra 40-GiB bootstrap was explicitly interrupted after recovering sufficient
+headroom for the original 32-GiB pre-transfer reserve; its failed receipt remains.
+The redundant manager full-hash planner was interrupted with exit 130. The existing
+complete 6,477-pair closed-file plan stays hash-bound and its final full EDA audit
+remains required. Operational pre-transfer selection now reserves 24 GiB: 8 GiB
+postcheck reserve, 8 GiB full regression outputs, 4 GiB new inputs and 4 GiB margin
+(`capacity-requirement-basis.json`). This changes no simulation, sanitizer, debug
+visibility or complete-plan storage scope. No files were deleted or compressed.
+
+Fresh exact-recipe compiler generation preserves all 321 FAME observer bits and
+rejects the physical CE latch at
+`F1Shim.top.FASEDMemoryTimingModel_0.gate`, which still needs a synthesized
+capture owner/common low-phase cut. Exact current compiler/component equality,
+original-restore structural negatives and all fifteen retained native/Scala
+integrity bindings pass. No hardware RTL changed in this recovery increment;
+these retained syntheses are historical component evidence. Fresh initialized
+AWS/native HDK/Vivado/localhost preflight passes. No new AFI, image deployment
+or physical checkpoint is claimed. Full production ownership, localhost image
+P&R/AFI, four active-workload FPGA cuts, paired CPU restore/finite/live migration
+and rolling hardware recovery remain pending.
+
+Published existing controller checkpoints FireSim `fbac6592`, then Chipyard
+`be83b181f`. Chipyard's successful remote push retains its local tracking-ref
+write warning. Managed worker startup failed before a worker ran; the central
+agent performed this increment. Both plans and initialized manager configs
+retain entry hashes. No staging, local commits or conda changes.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 9803,
 **in_progress; EDA pre-transfer capacity recovery implemented; physical image/capture pending**.
 
 The iteration-9802 controller failure was rsync ENOSPC before VCS execution.

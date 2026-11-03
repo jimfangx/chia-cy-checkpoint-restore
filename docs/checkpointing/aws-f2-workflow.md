@@ -226,6 +226,23 @@ Preserve that attempt and its underlying compiler/runtime logs, then recover
 capacity before starting a fresh attempt. Do not delete raw debug waves, replace
 them with compressed files, rewrite historical receipts, or reduce visibility.
 
+If a helper was interrupted before its final artifact fetch, first retrieve the
+existing evidence without another input transfer:
+
+```bash
+python3 automations/checkpoint_loop/eda.py --fetch-only
+```
+
+This operation locks the manager's EDA transport and checks the existing remote
+ownership marker. It only fetches `runs/`, preserving controller files and newer
+manager evidence. It does not push sources, run storage maintenance, initialize
+remote environments, or require VCS/licenses. An unclaimed or symlinked mirror
+is rejected. Stop native evidence writers before exchange as described above.
+Fetching an interrupted receipt does not change its recorded completion status
+or establish simulation acceptance. Normal helper invocations also attempt this
+fetch after input-transfer/setup failure; if fetching fails, both errors are
+reported with the original failure retained as the primary diagnostic.
+
 `automations/checkpoint_loop/eda_waveform_storage.py` accepts an explicit JSON
 list of source/destination regular files and their independently recorded full
 SHA256 digests. Run it on EDA with `--plan` and `--out` paths under `runs/`.

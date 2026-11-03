@@ -292,28 +292,64 @@ recover_existing(p['plan'],Path(p['root']),p['required_bytes'],p['required_inode
         self.rsync(CONTROL_EXCLUDES, f"{self.config.host}:{self.config.root}/{RUNS}/",
                    str(self.root / RUNS) + "/", update=True)
 
+    def fetch_existing(self) -> None:
+        """Recover an interrupted attempt without allocating anything on EDA.
+
+        Do not require VCS, licenses, setup scripts, capacity maintenance or a
+        source push to retrieve diagnostics. Only an already claimed mirror is
+        eligible; this path never creates or claims a remote directory.
+        """
+        for binary in ("ssh", "rsync"):
+            if not shutil.which(binary):
+                raise RuntimeError(f"missing local executable: {binary}")
+        root = shlex.quote(self.config.root)
+        self.checked(self.ssh(
+            f"set -e; command -v rsync; test ! -L {root}; cd {root}; "
+            "test ! -L .checkpoint-eda-owner; "
+            "test \"$(cat .checkpoint-eda-owner)\" = checkpoint_loop; "
+            f"test -d {shlex.quote(RUNS)}; test ! -L {shlex.quote(RUNS)}"
+        ))
+        self.fetch()
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--check", action="store_true", help="check SSH, rsync and remote VCS; do not sync")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--check", action="store_true", help="check SSH, rsync and remote VCS; do not sync")
+    mode.add_argument("--fetch-only", action="store_true",
+                      help="recover existing run artifacts without pushing inputs or running a check")
     parser.add_argument("--cwd", default=".", help="working directory relative to Chipyard")
     parser.add_argument("argv", nargs=argparse.REMAINDER)
     args = parser.parse_args()
+    argv = args.argv[1:] if args.argv[:1] == ["--"] else args.argv
+    if (args.check or args.fetch_only) and argv:
+        parser.error("--check and --fetch-only do not accept a command")
     workspace = RemoteWorkspace()
     try:
+        if args.fetch_only:
+            with workspace.locked():
+                workspace.fetch_existing()
+            return 0
         workspace.preflight()
         if args.check:
             return 0
-        argv = args.argv[1:] if args.argv[:1] == ["--"] else args.argv
         if not argv:
             parser.error("a command after -- is required")
         workspace.command(argv, args.cwd)  # Validate before syncing.
         with workspace.locked():
-            workspace.push()
             try:
+                workspace.push()
                 code = workspace.run(argv, args.cwd)
-            finally:
-                workspace.fetch()  # Failed simulations still return diagnostics.
+            except (OSError, RuntimeError, ValueError):
+                # An interrupted/partial input transfer can leave useful prior
+                # receipts on EDA. Preserve the primary error if recovery also
+                # fails (for example, SSH loss or an unclaimed directory).
+                try:
+                    workspace.fetch_existing()
+                except (OSError, RuntimeError, ValueError) as recovery_error:
+                    print(f"[eda recovery error] {recovery_error}", file=sys.stderr)
+                raise
+            workspace.fetch()  # Nonzero simulation exits still return diagnostics.
             return code
     except (OSError, RuntimeError, ValueError) as exc:
         print(f"[eda error] {exc}", file=sys.stderr)
