@@ -268,6 +268,12 @@ def audit_annotations(directory, root, before, after):
     require(len(actual)==len({canonical(a) for a in actual}) and {canonical(a) for a in expected}=={canonical(a) for a in actual},
         'lost/duplicated/crossed original constraint')
     require(grafted==actual,'readout graft changed annotations')
+    # Several original constraints can project to the same annotation when
+    # only one execution of a shared definition is specialized. The generator
+    # deduplicates annotation identities before WriteXDCFile expands them.
+    # Retain the independently derived first-occurrence order; do not dedup
+    # emitted lines, since distinct annotations can legitimately emit equal text.
+    expected=list({canonical(a):a for a in expected}.values())
     emitted={'Synthesis':[],'Implementation':[]}
     for a in expected:
         if a['class'] not in XDC:continue

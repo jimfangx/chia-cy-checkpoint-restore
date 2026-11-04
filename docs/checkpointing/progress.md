@@ -35,7 +35,59 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 9812,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 9813,
+**in_progress; generated router held restore qualified; physical image/capture pending**.
+
+The generated native-only regional adapter can explicitly load every shared and
+physical router register together on one raw edge. Complete-owner validation
+prevents partial loads, and hold or rejected loading suppresses all router
+handshakes. Inactive fields survive. Default compiler callers still disable
+restore. Endpoint/global-cut/MMIO ownership and complete image admission remain
+unsupported. See [generated router restore](f2-regional-router-attachment.md).
+
+Qualification passes **446 Scala / 430 Python / 81 manager tests**, the full
+retained EDA SP2 FASED/publication/bank/host ASan/UBSan/FCFS/82-cut scope,
+existing router/caller/staging regressions, and twelve current-source localhost
+Vivado synthesis cases. Eleven fresh EDA processes retain full debug waves:
+18 actual fixture donor records at target cut 38, 144 legal ABI encodings and
+164 successful destination loads. All seven deliberately corrupted router bits
+stop on first readback with zero acknowledged transport edges; twelve waveform
+checker mutations and 22 coherently rehashed attachment defects reject.
+Destination endpoints are prepared through matching public requests; this is
+router-only qualification, not CPU or endpoint migration.
+
+The one-region synthesis retains four raw-clock registers and independently
+proves observation bit 2 has exactly one GND driver; two regions retain all seven
+registers. Whole-fixture resources are 1,192 LUTs / 921 registers and 1,996 LUTs /
+995 registers, respectively. No full-image timing/Fmax claim. Preserve the first
+failed register-count receipt and DCP inspection, the two failed VCS fixtures
+(same-delta release/cleanup checks), their exact original sources, and the initial
+XDC-auditor failure. The fixes retain strict complete-vector and final-row audits.
+
+Fresh exact-Rocket attachment auditing passes 2,701 definitions / 33 routes,
+81 observation bits / 152 staging-owner bits. The actual compiler still stops at
+the incomplete-image guard with **1,245 uncovered functional entries** and
+unbound cut MMIO. No image, AFI or hardware-produced checkpoint is created.
+
+Closing integrity auditing passes **20,001 bindings / 29 receipts**:
+`runs/aws-f2/iteration9813/final-audit-wfgfftve/summary.json`. Commands and all
+attempts are under `runs/aws-f2/iteration9813/verification-commands.json`.
+AWS/native/Fabric closure passes with no active scoped runtime or pending
+account AFI observed. All launched qualification processes and exchanges are
+finished; managed worker startup failed before creation, and only the central
+agent remains. Plans and initialized manager configs retain their entry bytes.
+Extent sharing preserves every byte/path/independent inode, removes no files,
+and restores the unchanged 50-GiB transfer reserve. Existing controller
+checkpoints were published FireSim first (`25ea7eec`), then Chipyard
+(`f216bb0d7`); remote heads were independently verified. Preserve the successful
+Chipyard push's read-only local tracking-ref warning. No staging/local commits.
+
+Complete controller/staging/reader/endpoint and MMIO integration, functional
+memory/host/bridge/pre-FAME ownership, full localhost image implementation/AFI,
+active all-hart F2 cuts, paired CPU zero-edge/finite/live migration and rolling
+hardware recovery remain pending. No hardware acceptance column advances.
+
+Previous controller checkpoint: `F2-rocket-checkpoint-migration`, iteration 9812,
 **in_progress; same-cut router observation qualified; physical image/capture pending**.
 
 The explicit `--simulator-native-region-cut-router-snapshot-probe` option

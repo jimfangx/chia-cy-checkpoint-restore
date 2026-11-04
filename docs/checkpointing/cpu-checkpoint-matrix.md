@@ -14,6 +14,22 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 9813 qualifies explicit held restore of the complete shared/physical
+router vector in generated native-only readout. All 446 Scala / 430 Python /
+81 manager tests, the retained EDA sanitizer/FCFS/cut/caller/staging scope and
+twelve current-source native synthesis cases pass. Eleven fresh EDA processes
+check 18 donor records, 144 legal encodings and 164 destination loads; seven
+router corruptions stop with no acknowledged transport edge. Twelve checker
+mutations and 22 coherent attachment defects reject. The single-region constant
+owner bit has an independent GND proof. See
+[generated router restore](f2-regional-router-attachment.md) and progress.md for
+scope, failed attempts and receipts under `runs/aws-f2/iteration9813/`.
+Default compiler restore remains disabled. The fresh exact compiler still
+rejects image admission with 1,245 uncovered entries and unbound cut MMIO.
+Endpoint/global/host/memory/semantic ownership, complete image implementation/
+AFI, physical F2 cuts, paired CPU migration/live comparison and rolling hardware
+recovery remain pending/in_progress. No hardware acceptance column advances.
+
 Iteration 9812 binds complete shared/physical router observation into the
 compiler-selected common-cut snapshot, retaining inactive bits with default
 ABI and image guards unchanged. Exact Rocket attachment audits 2,701
