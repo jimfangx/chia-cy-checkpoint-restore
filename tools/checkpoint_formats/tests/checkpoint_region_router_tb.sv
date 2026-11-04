@@ -19,7 +19,8 @@ module checkpoint_region_router_tb;
   wire [31:0] region_address;
   CheckpointRegionStateRouter #(
     `include "parameters.svh"
-  ) dut(.*);
+  ) dut(.capture_state(), .restore_hold(1'b0), .restore_load(1'b0),
+    .restore_state(3'b0), .restore_error(), .*);
   reg [1:0] saved_pending=0;
   reg [63:0] saved_data[0:1];
   reg saved_error[0:1];

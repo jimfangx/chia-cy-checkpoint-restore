@@ -35,7 +35,49 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 9809,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 9810,
+**in_progress; shared-router held restore qualified; physical image/capture pending**.
+
+Added opt-in complete observation/held restore for the shared regional router,
+including inactive owner/error payloads, with no new sequential storage. Existing
+generated callers retain restore disabled. Source/destination VCS tests and an
+independent raw-register/transaction waveform auditor pass on EDA SP2;
+see [shared-router restore](f2-regional-router-restore.md). Production attachment,
+other router/reader/endpoint/staging owners, complete image ownership, localhost
+full-image implementation/AFI, F2 capture, paired CPU migration/live comparison
+and rolling hardware recovery remain pending. No hardware acceptance advances.
+
+Current commands, logs and selections belong under `runs/aws-f2/iteration9810/`.
+Manager regression and initialized AWS/native/Fabric preflight pass. The first
+EDA attempt stopped before source sync/VCS: its 3,984-pair storage plan preserved
+all files but finished short of the unchanged 50-GiB transfer reserve. A new
+receipt-bound extent selection audited seven additional pairs and recovered the
+reserve (53,731,872,768 available bytes). Preserve both attempts. The EDA
+retry passes the new shared-router scope (13 full waves, 1,044 ABI encodings, twenty donor restores and all twenty checker mutations) and the
+complete retained scope: FASED, three publication suites, 430 Python tests,
+generated banks, host ASan/UBSan, FCFS and all 82 cut checks. Returned receipts
+and their current sources are audited. Complete Scala qualification passes all
+443 tests (6 + 10 + 427). Fresh native Vivado synthesis passes for both default
+routing and enabled restore: the three-region component has 124 LUTs and all
+four original state registers on the raw clock. This is component synthesis,
+with no timing-closure or full-image claim. The existing source/native-bound
+router VCS scope passes 6,155 checks, boundary cases and all configuration/
+corruption negatives. Java generation, native jobs and EDA exchange were
+serialized as required. Existing controller checkpoints FireSim `abadf9be`, then Chipyard `61ee00608`, were
+published and independently found on the forks; preserve the successful Chipyard
+push's local read-only tracking-ref warning. No new local commits were made.
+
+Closing audit passes 6,873 bindings across nine fresh receipts:
+`runs/aws-f2/iteration9810/final-audit-uzg47ire/summary.json`.
+Closing AWS/native/Fabric preflight passes, with no active loop runtime or
+pending account AFI observed and no new image/instance requested. All launched
+native/VCS processes, exchanges and delegated requests are finished. Commands
+are in `runs/aws-f2/iteration9810/verification-commands.json`.
+Next attach this vector and held restore to the authenticated regional graft
+and common-cut snapshot, then complete every other pending owner before image
+admission. The standalone interface grants no new descriptor coverage.
+
+Previous controller checkpoint: `F2-rocket-checkpoint-migration`, iteration 9809,
 **in_progress; authenticated staged widget binding qualified; physical image/capture pending**.
 
 The regional compiler now routes its authenticated staged circuit through the

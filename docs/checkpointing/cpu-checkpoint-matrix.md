@@ -14,6 +14,18 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 9810 adds opt-in complete state observation and held restore for the
+shared regional router, including inactive owner/error bits, with independent
+fresh-process and raw-register waveform qualification passing on EDA SP2.
+All 443 Scala tests, native synthesis and existing router/retained regressions
+pass. This remains a component-only interface. Existing
+production generated callers keep restore disabled. See
+[shared-router restore](f2-regional-router-restore.md) and progress.md for actual
+results under `runs/aws-f2/iteration9810/`. Other owner pipelines and production
+attachment, complete-image localhost P&R/AFI, physical F2 captures, paired CPU
+zero-edge/finite/live migration and rolling recovery remain pending/in_progress.
+No hardware acceptance column advances.
+
 Iteration 9809 binds the authenticated selected staged circuit through the real
 widget factory and its registered descriptor/host identity. Seventeen transport
 roles connect while the physical controller retains mask/read/captured-CE
