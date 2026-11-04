@@ -35,7 +35,58 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 9811,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 9812,
+**in_progress; same-cut router observation qualified; physical image/capture pending**.
+
+The explicit `--simulator-native-region-cut-router-snapshot-probe` option
+stages complete shared/physical router vectors with common-cut control on one
+raw pre-edge. It retains inactive owner/error/endpoint-selection bits and adds
+no router storage. Version-two bindings retain actual instances, offsets,
+packing, resources and parent/source hashes; default callers retain their ABI.
+The real compiler/widget identity path authenticates this diagnostic selection.
+Restore, cut MMIO and complete-image admission remain unsupported. See
+[router cut observation](f2-router-cut-observation.md).
+
+Fresh exact Rocket regeneration retains 2,701 definitions / 33 adapter routes,
+with **81 observation bits / 152 staging-owner bits**. Independent attachment
+auditing passes. Its actual compiler exits at the expected incomplete-image
+guard; all **1,245 uncovered functional entries** and unbound cut MMIO controls
+remain explicit. This does not produce a deployable image or FPGA state.
+
+Qualification passes **445 Scala / 430 Python / 81 manager tests**, the complete
+retained EDA SP2 FASED/publication/bank/host ASan/UBSan/FCFS/82-cut scope, and
+**ten serialized localhost Vivado syntheses**. Both default and router-enabled
+staging pass seventeen EDA cases. The new fixture additionally rejects seven
+compiled staging-input corruptions of router bits at target label 37 with zero acknowledged
+requests/responses and all 82 waveform-checker bit mutations. Five actual
+fixture captures retain inactive vectors `[0,82,84,82,84]` across 289 requests /
+288 responses; the final outstanding response is deliberately reset-cancelled.
+Full debug waves and independent raw-register/transaction audits remain under
+`runs/aws-f2/iteration9812/`. Ten coherently rehashed router-attachment defects
+reject. The enabled component retains all 153 staging registers on the raw
+clock: 2,299 LUTs / 1,149 total registers. No full-image timing/Fmax claim.
+Existing fresh router restores, physical/regional transport and generated
+in-place/widget caller regressions also pass. Exact runnable commands:
+`runs/aws-f2/iteration9812/verification-commands.json`.
+
+Closing evidence/resource audit passes **19,023 bindings / 26 receipts**:
+`runs/aws-f2/iteration9812/final-audit-d2ismk4o/summary.json`. Closing AWS/native/
+Fabric inventory passes with no active loop runtime, launched native/VCS job or
+pending account AFI observed; existing account images remain unmodified. All
+qualification jobs and exchanges are finished. EDA capacity recovery preserves
+all bytes, paths and independent inodes with complete before/after hashes;
+the unchanged 50-GiB reserve is restored after tests. Existing controller
+checkpoints were published FireSim first (`678c4406`), then Chipyard (`66852991`).
+No local staging/commits, new AFI or run-farm requests. Managed worker startup
+failed before creation; all implementation and coordination stayed central.
+Plans and initialized manager inputs remain byte-identical to entry.
+
+Complete router/controller/staging/reader/endpoint restore and production
+MMIO, memory/bridge/host/pre-FAME ownership, localhost full-image P&R/AFI,
+active all-hart F2 cuts, paired CPU zero-edge/finite/live migration and rolling
+hardware recovery remain pending. No hardware acceptance column advances.
+
+Previous controller checkpoint: `F2-rocket-checkpoint-migration`, iteration 9811,
 **in_progress; physical-router held restore qualified; physical image/capture pending**.
 
 Added opt-in observation and atomic held restore of both original physical-router

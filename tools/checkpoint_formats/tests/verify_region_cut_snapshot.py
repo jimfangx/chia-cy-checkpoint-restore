@@ -23,7 +23,7 @@ from tools.checkpoint_formats.tests.audit_native_regions import audit as audit_r
 from tools.checkpoint_formats.tests.audit_native_region_cut import audit_cut
 from tools.checkpoint_formats.tests.audit_region_cut_snapshot import audit as audit_wave
 from tools.checkpoint_formats.tests.audit_region_cut_snapshot_attachment import audit as audit_attachment
-from tools.checkpoint_formats.tests.audit_region_cut_snapshot_attachment import audit_negatives as attachment_negatives
+from tools.checkpoint_formats.tests.audit_region_cut_snapshot_attachment import audit_negatives as attachment_negatives, audit_router_negatives
 
 ROOT = Path(__file__).resolve().parents[3]
 RUNS = ROOT / 'automations/checkpoint_loop/runs'
@@ -122,6 +122,52 @@ def compiler_fixture(original):
         '    .capture_snapshot_' + pin + '(' + signal + '),' for pin, signal in pins.items()))
 
 
+def router_bench(original):
+    """Independent public transaction oracle; never read state through a backdoor."""
+    original = original.replace('[74:0]', '[81:0]').replace('[145:0]', '[152:0]')
+    original = original.replace('control_bits=75 staging_bits=146', 'control_bits=82 staging_bits=153')
+    original = original.replace('  NativeRegionsFixture dut(.*);', r"""
+  wire [6:0] capture_router_state;
+  reg shared_pending=0, shared_invalid=0, shared_owner=0;
+  reg [1:0] local_pending=0, local_selected_ce=0;
+  wire [6:0] expected_router = {local_selected_ce[1],local_pending[1],
+    local_selected_ce[0],local_pending[0],shared_owner,shared_invalid,shared_pending};
+  integer route;
+  always @(posedge clock) begin
+    if(capture_reset) begin
+      shared_pending=0; shared_invalid=0; shared_owner=0;
+      local_pending=0; local_selected_ce=0;
+    end else begin
+      if(capture_request_valid && capture_request_ready) begin
+        route=(capture_bank==0 || capture_bank==1)?int'(capture_bank):
+          (capture_bank==255 && capture_slot<4)?int'(capture_slot)/2:-1;
+        shared_pending=1; shared_invalid=(route<0); shared_owner=(route==1);
+        if(route>=0) begin local_pending[route]=1; local_selected_ce[route]=(capture_bank==255); end
+      end
+      if(capture_response_valid && capture_response_ready) begin
+        shared_pending=0;
+        if(!shared_invalid) local_pending[shared_owner]=0;
+      end
+    end
+    #2;
+    check(capture_router_state===expected_router,"complete live router state from independent transactions");
+  end
+  NativeRegionsFixture dut(.*);""")
+    original = original.replace("expected_control={1'b0,3'b000,expected_cycle,expected_ce,3'b011};",
+        "expected_control={expected_router,1'b0,3'b000,expected_cycle,expected_ce,3'b011};")
+    original = original.replace('    @(negedge clock); #1; snapshot_release=1;', r"""
+    // Retain distinct inactive router payloads into the next running epoch.
+    // The occupied snapshot must remain byte-identical during these later beats.
+    freeze_request=1;
+    if(cuts%2) readword(254,0,0,0,1);
+    else readword(255,2,0,64'(expected_ce[2]),0);
+    freeze_request=0;
+    check(captured_control_state===expected_control,"later router state cannot overwrite staged vector");
+    @(negedge clock); #1; snapshot_release=1;""")
+    original = original.replace('words==280 && cuts==4', 'words==284 && cuts==4')
+    return original
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--mode', choices=('vivado', 'vcs', 'audit'), required=True)
@@ -130,17 +176,21 @@ def main():
     p.add_argument('--eda', type=Path)
     p.add_argument('--generated-snapshot', type=Path,
                    help='Compiler-emitted attachment, bound to the parent compiler receipt')
+    p.add_argument('--include-routers', action='store_true', help='Require the authenticated complete same-edge router observation ABI')
     p.add_argument('--out', type=Path, required=True)
     a = p.parse_args()
     require(a.out.resolve().is_relative_to(RUNS), 'evidence beneath runs required')
     a.out.mkdir(parents=True, exist_ok=True)
     out = Path(tempfile.mkdtemp(prefix=a.mode + '-', dir=a.out.resolve()))
     sources = {n: sha(ROOT / n) for n in SOURCES}
+    control_bits = 82 if a.include_routers else 75
+    staging_bits = control_bits + 71
+    router_bits = 7 if a.include_routers else 0
     doc = dict(status='running', backend='eda' if a.mode == 'vcs' else 'f2',
                observed_utc=datetime.now(timezone.utc).isoformat(), host=socket.gethostname(),
                source_root=str(ROOT), sources=sources, commands=[],
                scope='atomic generated regional cut-control observation; original endpoint/router state remains separately owned',
-               control_bits=75, staging_bits=146, physical_fpga_capture=False,
+               control_bits=control_bits, staging_bits=staging_bits, router_bits=router_bits, physical_fpga_capture=False,
                full_image=False, CPU_migration_verified=False, staging_restore_supported=False)
     summary = out / 'summary.json'
     def save():
@@ -160,7 +210,7 @@ def main():
         require(a.native is not None, 'explicit native receipt required')
         np = local(ROOT, a.native)
         n = json.loads(np.read_text())
-        require(n['status'] == 'pass' and n['backend'] == 'f2' and n['sources'] == sources,
+        require(n['status'] == 'pass' and n['backend'] == 'f2' and n['sources'] == sources and n.get('router_bits', 0) == router_bits,
                 'native source or completion mismatch')
         for group in ('inputs', 'artifacts'):
             for name, h in n[group].items():
@@ -189,6 +239,12 @@ def main():
             doc['regional_audit'] = audit_regions(out / 'generated')
             doc['cut_audit'] = audit_cut(out / 'generated')
             old_fixture = (parent_path.parent / 'sources/native_regions_fixture.sv').read_text()
+            require(bool(json.loads((out / 'generated/graft-binding.json').read_text()).get('router_state_observation')) ==
+                    a.include_routers, 'parent and requested router ABI differ')
+            require(not a.include_routers or a.generated_snapshot, 'router observation needs actual compiler attachment')
+            if a.include_routers:
+                tb_path = out / 'snapshot-sources' / Path(TB).name
+                tb_path.write_text(router_bench(tb_path.read_text()))
             if a.generated_snapshot:
                 generated = local(ROOT, a.generated_snapshot)
                 cp = local(ROOT, parent['compiler_receipt']['path'])
@@ -205,11 +261,16 @@ def main():
                     shutil.copyfile(generated / name, out / 'generated' / name)
                 doc['compiler_attachment_audit'] = audit_attachment(out / 'generated')
                 doc['compiler_attachment_negatives'] = attachment_negatives(out / 'generated', out / 'attachment-negatives')
+                if a.include_routers:
+                    doc['router_attachment_negatives'] = audit_router_negatives(out / 'generated', out / 'router-attachment-negatives')
                 require((out / 'generated/FireSim-generated.native-region-cut-snapshot.sv').read_bytes() == (ROOT / RTL).read_bytes()
                         and (out / 'generated/FireSim-generated.native-region-cut-staging.sv').read_bytes() == (ROOT / STAGE).read_bytes(),
                         'compiler emitted resources differ from current synthesized implementation')
             (out / 'sources/native_regions_fixture.sv').write_text(
                 compiler_fixture(old_fixture) if a.generated_snapshot else fixture(old_fixture))
+            if a.include_routers:
+                wrapper = out / 'sources/native_regions_fixture.sv'
+                wrapper.write_text(wrapper.read_text().replace('[74:0]', '[81:0]').replace('[145:0]', '[152:0]'))
             files = json.loads((out / 'files.json').read_text()) + [
                 'snapshot-sources/' + Path(n).name for n in (RTL, STAGE)]
             if a.generated_snapshot:
@@ -217,6 +278,7 @@ def main():
                          if not n.startswith('snapshot-sources/')]
                 files += ['generated/FireSim-generated.native-region-cut-snapshot.sv',
                           'generated/FireSim-generated.native-region-cut-staging.sv']
+            files = list(dict.fromkeys(files))
             (out / 'files.json').write_text(json.dumps(files, indent=2) + '\n')
             tcl = (parent_path.parent / 'synth.tcl').read_text()
             tcl = tcl.replace('read_verilog -sv ' + ' '.join(json.loads((parent_path.parent / 'files.json').read_text())),
@@ -233,11 +295,14 @@ puts "REGION_CUT_SNAPSHOT_SYNTH_PASS control_bits=75 staging_registers=146"
 report_utilization -file utilization.rpt''')
             if a.generated_snapshot:
                 tcl = tcl.replace('snapshot/staging/', 'host/checkpoint_region_cut_snapshot/staging/')
+            if a.include_routers:
+                tcl = tcl.replace('!= 75', '!= 82').replace('!= 146', '!= 153').replace(
+                    'control_bits=75 staging_registers=146', 'control_bits=82 staging_registers=153')
             (out / 'synth.tcl').write_text(tcl)
             doc['inputs'] = {str(f.relative_to(out)): sha(f) for f in out.rglob('*')
                              if f.is_file() and f != summary}
             text = run(['vivado', '-mode', 'batch', '-source', 'synth.tcl'], 'synth')
-            require('REGION_CUT_SNAPSHOT_SYNTH_PASS control_bits=75 staging_registers=146' in text and
+            require(f'REGION_CUT_SNAPSHOT_SYNTH_PASS control_bits={control_bits} staging_registers={staging_bits}' in text and
                     not re.search(r'ERROR:|CRITICAL WARNING:', text), 'native staging synthesis failed')
             doc['artifacts'] = {n: sha(out / n) for n in ('native-regions.dcp', 'utilization.rpt', 'timing.rpt', 'synth.log')}
         elif a.mode == 'vcs':
@@ -274,7 +339,7 @@ report_utilization -file utilization.rpt''')
                 text = run([build / 'simv', '-no_save', *args], name, cwd=work, expected=status)
                 require(not re.search(r'Assertion failed|Fatal:|Error:', text), 'original runtime assertion ' + name)
                 if name == 'healthy':
-                    require('REGION_CUT_SNAPSHOT_PASS words=10 control_bits=75 staging_bits=146' in text and
+                    require(f'REGION_CUT_SNAPSHOT_PASS words=10 control_bits={control_bits} staging_bits={staging_bits}' in text and
                             'NATIVE_REGIONS_PASS' in text, 'healthy coverage incomplete')
                 elif name == 'corrupt-snapshot':
                     require('atomic control serial word and zero padding before acknowledgement' in text and
@@ -284,7 +349,7 @@ report_utilization -file utilization.rpt''')
                              'NATIVE_REGIONS_REJECTED kind=' + name in text) and
                             'NATIVE_REGIONS_PASS' not in text, 'negative not rejected ' + name)
                 doc['cases'][name] = audit_wave(work / 'native-regions.vcd', healthy=name == 'healthy',
-                                               corrupt=name == 'corrupt-snapshot')
+                                               corrupt=name == 'corrupt-snapshot', router_bits=router_bits)
                 save()
             # Corrupt the actual synthesized adapter's staging input in a
             # separately compiled negative executable. The expected-state
@@ -296,7 +361,7 @@ report_utilization -file utilization.rpt''')
             text = (out / original_rtl).read_text()
             needle = '.live_state(live_control_state)'
             require(text.count(needle) == 1, 'ambiguous compiled semantic mutation')
-            (out / mutated_rtl).write_text(text.replace(needle, ".live_state(live_control_state ^ 75'd1)"))
+            (out / mutated_rtl).write_text(text.replace(needle, f".live_state(live_control_state ^ {control_bits}'d1)"))
             broken = out / 'semantic-build'
             broken.mkdir()
             compile_variant(broken, [mutated_rtl if n == original_rtl else n for n in files], 'semantic-compile')
@@ -306,20 +371,37 @@ report_utilization -file utilization.rpt''')
             require('complete pre-edge cut and pending control vector' in text and 'response_ack=0' in text,
                     'compiled semantic corruption stopped at wrong boundary')
             doc['cases']['compiled-control-corruption'] = audit_wave(
-                work / 'native-regions.vcd', semantic_corruption=True)
+                work / 'native-regions.vcd', semantic_corruption=True, router_bits=router_bits)
             doc['semantic_mutation'] = dict(path=str(out / mutated_rtl), sha256=sha(out / mutated_rtl),
                                             source_sha256=sha(out / original_rtl), bit=0)
+            if a.include_routers:
+                doc['compiled_router_corruptions'] = {}
+                for bit in range(75, 82):
+                    bad_rtl = f'snapshot-sources/CheckpointRegionCutSnapshot-router-{bit}.sv'
+                    text = (out / original_rtl).read_text()
+                    (out / bad_rtl).write_text(text.replace(needle, f".live_state(live_control_state ^ (82'd1 << {bit}))"))
+                    bad_build = out / f'router-{bit}-build'
+                    bad_build.mkdir()
+                    compile_variant(bad_build, [bad_rtl if n == original_rtl else n for n in files], f'router-{bit}-compile')
+                    work = out / f'compiled-router-{bit}-corruption'
+                    work.mkdir()
+                    text = run([bad_build / 'simv', '-no_save'], f'compiled-router-{bit}-corruption', cwd=work, expected=1)
+                    require('complete pre-edge cut and pending control vector' in text and 'response_ack=0' in text,
+                            'compiled router corruption stopped at wrong boundary')
+                    doc['compiled_router_corruptions'][str(bit)] = audit_wave(work / 'native-regions.vcd',
+                        semantic_corruption=True, router_bits=router_bits)
+                    save()
             doc['auditor_mutations_rejected'] = []
-            for bit in range(75):
+            for bit in range(control_bits):
                 try:
-                    audit_wave(out / 'healthy/native-regions.vcd', healthy=True, mutate_bit=bit)
+                    audit_wave(out / 'healthy/native-regions.vcd', healthy=True, mutate_bit=bit, router_bits=router_bits)
                 except FormatError:
                     doc['auditor_mutations_rejected'].append(bit)
                 else:
                     raise FormatError('corrupt control bit escaped independent checker: ' + str(bit))
             doc['inputs'] = native['inputs']
             doc['artifacts'] = {str(f.relative_to(out)): sha(f) for f in out.rglob('*')
-                                if f.is_file() and f.suffix in ('.log', '.vcd')}
+                                if f.is_file() and f.suffix in ('.log', '.vcd', '.sv')}
             doc['artifacts'][mutated_rtl] = sha(out / mutated_rtl)
         else:
             np, native = native_input()
@@ -327,7 +409,7 @@ report_utilization -file utilization.rpt''')
             eda = json.loads(ep.read_text())
             require(eda['status'] == 'pass' and eda['backend'] == 'eda' and eda['sources'] == sources and
                     eda['native_receipt']['sha256'] == sha(np), 'native/EDA receipt mismatch')
-            require(len(eda['cases']) == 17 and len(eda['auditor_mutations_rejected']) == 75,
+            require(len(eda['cases']) == 17 and len(eda['auditor_mutations_rejected']) == control_bits,
                     'incomplete healthy/negative/raw-wave coverage')
             for name, h in eda['artifacts'].items():
                 require(sha(ep.parent / name) == h, 'changed EDA evidence ' + name)

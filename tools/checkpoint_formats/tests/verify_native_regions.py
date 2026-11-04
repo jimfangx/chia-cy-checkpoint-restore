@@ -144,6 +144,13 @@ def main():
             first=original.index('  CheckpointPhysicalClockCut #')
             last=original.index('  NativeHost host(.*);',first)
             original=original.replace('input wire clock, reset,', 'input wire [63:0] cut_cycle_xor,\n  input wire clock, reset,')
+            router = json.loads((out/'generated/graft-binding.json').read_text()).get('router_state_observation')
+            if router:
+                original=original.replace('  input wire [63:0] cut_cycle_xor,',
+                    f"  output wire [{router['bits']-1}:0] capture_router_state,\n  input wire [63:0] cut_cycle_xor,")
+                tb=out/'sources/native_regions_common_cut_tb.sv'
+                tb.write_text(tb.read_text().replace('  NativeRegionsFixture dut(.*);',
+                    f"  wire [{router['bits']-1}:0] capture_router_state;\n  NativeRegionsFixture dut(.*);"))
             first=original.index('  CheckpointPhysicalClockCut #')
             last=original.index('  NativeHost host(.*);',first)
             wrapper.write_text(original[:first]+'''  wire [63:0] cut_input_cycle = cycle ^ cut_cycle_xor;

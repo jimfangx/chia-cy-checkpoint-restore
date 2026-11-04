@@ -14,6 +14,19 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 9812 binds complete shared/physical router observation into the
+compiler-selected common-cut snapshot, retaining inactive bits with default
+ABI and image guards unchanged. Exact Rocket attachment audits 2,701
+definitions / 81 observation bits / 152 staging bits; the actual compile still
+rejects image admission with 1,245 uncovered functional entries and unbound cut
+MMIO. All 445 Scala / 430 Python / 81 manager tests, ten localhost syntheses,
+retained EDA scope and new staging waveform/corruption checks pass. See
+[router cut observation](f2-router-cut-observation.md) and progress.md for scope
+and receipts. This remains bounded component/diagnostic evidence. Complete
+restore/owner/MMIO binding, localhost full-image P&R/AFI, physical F2 cuts,
+paired CPU migration and sustained live RTL/rolling recovery remain
+pending/in_progress. No hardware acceptance column advances.
+
 Iteration 9811 adds an opt-in complete two-bit physical-router observation and
 held-restore interface with no new storage. Fresh EDA source/destination
 readbacks, every original ABI encoding, independent raw-register/handshake

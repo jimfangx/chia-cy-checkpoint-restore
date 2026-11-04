@@ -19,8 +19,17 @@ def audit(directory):
     after = parse_modules((d / 'staged.fir').read_text())
     root = re.search(r'^circuit (\w+) :', (d / 'staged.fir').read_text(), re.M)[1]
     inst, definition = 'checkpoint_region_cut_snapshot', 'CheckpointRegionCutSnapshot'
-    bits = cut['control_state_bits']
-    require(b['snapshot_version'] == 1 and b['scope'] ==
+    control_bits = cut['control_state_bits']
+    router = b.get('router_state_observation')
+    router_bits = router['bits'] if router else 0
+    bits = control_bits + router_bits
+    require((b['snapshot_version'] == 2) == bool(router), 'snapshot router ABI mismatch')
+    if router:
+        audit_router_observation(d, router)
+        require(b['controller_state_bits'] == control_bits and b['router_state_offset'] == control_bits and
+                b['router_state_bits'] == router_bits and b['router_observation_atomically_staged'] is True and
+                b['payload_layout_lsb0'] == ['cut_control', 'router_state'], 'incomplete same-edge router layout')
+    require(b['snapshot_version'] in (1, 2) and b['scope'] ==
             'selected_native_regions_atomic_cut_control_observation_only', 'changed snapshot ABI')
     require(b['cut_binding_sha256'] == sha(d / 'cut-binding.json') and
             b['attached_sha256'] == sha(d / 'staged.fir'), 'changed snapshot source binding')
@@ -68,6 +77,8 @@ def audit(directory):
         outs[n] = 'capture_' + n
     for n in ('request_valid', 'response_ready'):
         outs['source_' + n] = 'capture_snapshot_source_' + n
+    if router:
+        ins['live_control_state'] = 'cat(capture_router_state, capture_cut_control_state)'
     expected.update({inst + '.' + n: v for n, v in ins.items()})
     expected.update({v: inst + '.' + n for n, v in outs.items()})
     require(new['drivers'] == expected, 'changed staging/permission/pending route')
@@ -92,10 +103,55 @@ def audit(directory):
                 complete_fpga_capture=False)
 
 
+def audit_router_observation(d, router):
+    """Derive every bit from actual routing geometry and emitted instance pins."""
+    d = Path(d)
+    graft = json.loads((d / 'graft-binding.json').read_text())
+    routing = json.loads((d / 'routing.json').read_text())['regions']
+    regions = json.loads((d / 'binding.json').read_text())['regions']
+    count = len(routing)
+    shared = max(1, (count - 1).bit_length()) + 2
+    bits = shared + 2 * len(regions)
+    require(graft.get('router_state_observation') == router, 'router observation differs from exact graft')
+    require(router['version'] == 1 and router['port'] == 'capture_router_state' and router['bits'] == bits and
+            router['extra_storage_bits'] == 0 and router['raw_clock'] == graft['raw_clock'] and
+            router['atomic_snapshot_supported'] is False and router['restore_supported'] is False and
+            router['sampling_contract'] == 'same_raw_preedge_as_cut_control_before_first_bank_handshake',
+            'changed router observation scope/shape')
+    instance = graft['adapter_instance']
+    owners = [dict(instance=instance+'.router', definition='CheckpointRegionStateRouter', offset=0, bits=shared,
+                   fields_lsb0=['pending', 'invalid', 'owner'])]
+    owners += [dict(instance=instance+f'.region{i}.router', definition='CheckpointPhysicalStateRouter',
+                    offset=shared+2*i, bits=2, fields_lsb0=['pending', 'selected_ce']) for i in range(len(regions))]
+    require(router['owners'] == owners, 'lost or reordered router owner including inactive bits')
+    top = (d / 'FireSim-generated.native-region-graft.sv').read_text()
+    require(top.count(f'.capture_state(capture_router_state[0 +: {shared}])') == 1,
+            'shared router observation pin is unbound or aliased')
+    require(re.search(r'CheckpointRegionStateRouter #\([^;]+?\) router\(\s*\.capture_state', top, re.S),
+            'shared observation attached to a different execution')
+    for i in range(len(regions)):
+        endpoint = re.search(r'\bregion' + str(i) + r'\((.*?)\);', top, re.S)
+        require(endpoint and f'.capture_router_state(capture_router_state[{shared+2*i} +: 2])' in endpoint[1],
+                'physical observation attached to a different regional instance')
+        require(top.count(f'.capture_router_state(capture_router_state[{shared+2*i} +: 2])') == 1,
+                'physical router observation slice is unbound or aliased')
+        child = (d / f'FireSim-generated.native-region-graft-{i}.sv').read_text()
+        require(child.count('.capture_state(capture_router_state)') == 1 and
+                '.restore_hold(1\'b0),.restore_load(1\'b0),.restore_state(2\'b0),.restore_error()' in child,
+                'physical observation or disabled restore contract changed')
+        require(re.search(r'CheckpointPhysicalStateRouter #\([^;]+?\) router\(\s*\.capture_state', child, re.S),
+                'physical observation attached to a different execution')
+    return dict(status='pass', router_bits=bits, routers=len(owners), extra_storage_bits=0)
+
+
 def audit_negatives(directory, out):
     """Coherently rehash connectivity mutations so a hash check cannot mask them."""
     directory, out = Path(directory), Path(out)
     text = (directory / 'staged.fir').read_text()
+    binding = json.loads((directory / 'snapshot-binding.json').read_text())
+    bits = binding['control_state_bits']
+    payload = ('cat(capture_router_state, capture_cut_control_state)' if binding.get('router_state_observation')
+               else 'capture_cut_control_state')
     mutations = {
         'clock': ('checkpoint_region_cut_snapshot.clock <= clock',
                   'checkpoint_region_cut_snapshot.clock <= asClock(UInt<1>("h0"))'),
@@ -103,8 +159,8 @@ def audit_negatives(directory, out):
                   'checkpoint_region_cut_snapshot.reset <= reset'),
         'pending': ('checkpoint_region_cut_snapshot.source_pending <= capture_cut_pending',
                     'checkpoint_region_cut_snapshot.source_pending <= UInt<1>("h0")'),
-        'payload': ('checkpoint_region_cut_snapshot.live_control_state <= capture_cut_control_state',
-                    'checkpoint_region_cut_snapshot.live_control_state <= UInt<75>("h0")'),
+        'payload': ('checkpoint_region_cut_snapshot.live_control_state <= ' + payload,
+                    f'checkpoint_region_cut_snapshot.live_control_state <= UInt<{bits}>("h0")'),
         'request-bypass': ('capture_request_ready <= checkpoint_region_cut_snapshot.request_ready',
                            'capture_request_ready <= capture_snapshot_source_request_ready'),
         'response-bypass': ('capture_response_valid <= checkpoint_region_cut_snapshot.response_valid',
@@ -136,4 +192,56 @@ def audit_negatives(directory, out):
             rejected.append(name)
         else:
             raise FormatError('compiler attachment corruption escaped: ' + name)
+    return rejected
+
+
+def audit_router_negatives(directory, out):
+    """Coherently hash altered observations; exact route/geometry must reject."""
+    directory, out = Path(directory), Path(out)
+    mutations = {
+        'shared-open': ('.native-region-graft.sv', '.capture_state(capture_router_state[0 +: 3])', '.capture_state()'),
+        'physical-open': ('.native-region-graft-0.sv', '.capture_state(capture_router_state)', '.capture_state()'),
+        'physical-slice-alias': ('.native-region-graft.sv',
+            '.capture_router_state(capture_router_state[3 +: 2])', '.capture_router_state(capture_router_state[5 +: 2])'),
+        'physical-instance-swap': ('.native-region-graft.sv', ' region0(', ' region_swapped('),
+        'restore-enable': ('.native-region-graft-0.sv', ".restore_hold(1'b0)", ".restore_hold(1'b1)"),
+    }
+    rejected = []
+    for name in [*mutations, 'owner-order', 'missing-inactive-bit', 'offset', 'staged-layout', 'staged-offset']:
+        work = out / name
+        shutil.copytree(directory, work)
+        b = json.loads((work / 'snapshot-binding.json').read_text())
+        g = json.loads((work / 'graft-binding.json').read_text())
+        router = g['router_state_observation']
+        if name in mutations:
+            suffix, before, after = mutations[name]
+            path = work / ('FireSim-generated' + suffix)
+            text = path.read_text()
+            require(text.count(before) == 1, 'ambiguous router corruption ' + name)
+            path.write_text(text.replace(before, after))
+            g['files'][suffix] = sha(path)
+        elif name == 'owner-order':
+            router['owners'][1:] = router['owners'][1:][::-1]
+        elif name == 'missing-inactive-bit':
+            router['owners'][1]['fields_lsb0'] = ['pending']
+        elif name == 'offset':
+            router['owners'][2]['offset'] = 3
+        elif name == 'staged-layout':
+            b['payload_layout_lsb0'].reverse()
+        else:
+            b['router_state_offset'] -= 1
+        b['router_state_observation'] = router
+        for path in ('graft-binding.json', 'FireSim-generated.native-region-graft.json'):
+            (work / path).write_text(json.dumps(g, indent=2)+'\n')
+        cut = json.loads((work / 'cut-binding.json').read_text())
+        cut['graft_binding_sha256'] = sha(work / 'graft-binding.json')
+        (work / 'cut-binding.json').write_text(json.dumps(cut, indent=2)+'\n')
+        b['cut_binding_sha256'] = sha(work / 'cut-binding.json')
+        (work / 'snapshot-binding.json').write_text(json.dumps(b, indent=2)+'\n')
+        try:
+            audit(work)
+        except FormatError as error:
+            rejected.append(dict(name=name, error=str(error)))
+        else:
+            raise FormatError('coherent router corruption escaped: ' + name)
     return rejected
