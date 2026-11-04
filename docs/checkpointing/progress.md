@@ -35,7 +35,78 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 9807,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 9808,
+**in_progress; regional compiler cut-staging selection added; physical image/capture pending**.
+
+Added explicit `--simulator-native-region-cut-snapshot-probe OWNER[,OWNER...]`
+at the actual pre/post-inline regional compiler boundary. Ordered owner labels
+are checked but grant no ownership. The compiler returns the staged circuit
+before the old widget-binding factory could regenerate an unstaged graft.
+It retains parent/graft/snapshot/source/resource bindings, rejects conflicting
+shell/register snapshot requests and rejects changed requests across inline.
+The original production reservation and physical-owner guards still reject,
+including after annotation removal. See
+[regional control staging](f2-regional-cut-control-staging.md).
+
+Qualification commands, selections, failed attempts and raw logs belong under
+`runs/aws-f2/iteration9808/`. The full Scala sweep passes 441 tests (6 + 10 + 425),
+including the four new compiler tests. Fresh manager tests pass all 81 cases.
+The returned EDA retained receipt passes FASED, all three publication suites,
+430 Python tests, generated banks, host ASan/UBSan, FCFS and the 82-check cut
+regression. Fresh exact Rocket compilation selects the staged circuit and then
+correctly rejects the unbound lowered readout/image. Its independent audit
+preserves all 2,701 original definitions and checks 33 adapter routes: 74 control
+bits and a separate 145-bit staging owner. All 10,916 existing descriptors and
+1,245 unadmitted functional entries remain; this grants no coverage admission.
+All fifteen native/Scala integrity bindings pass. The separate four-gate
+component passes fresh OOC place/route at 140 MHz: 1,972 LUTs / 1,142 registers,
+setup/hold +0.727/+0.034 ns, all 3,123 routable nets routed and zero DRC findings.
+All 75 fixture payload bits, 146 staging registers on the raw clock and six
+BUFGCEs survive. This is component timing only. Fresh default regional binding
+and all seventeen binding-corruption cases pass, retaining the 1,245-entry
+unadmitted frontier. All 56 independent original-reference negatives pass.
+The complete fresh EDA component scope passes, including seventeen staged-cut
+cases and all 75 waveform-checker mutations, with seventeen full debug waves.
+Five component cuts 37/66/102/145/195 include four releases and shared-reset
+cancellation, with 285 requests / 284 responses. Actual compiled control-bit
+corruption first differs on `captured_control_state` at component cycle 37
+(4811 versus 4810), before any request/response acknowledgement. These remain
+component cycles and donors, with no CPU or FPGA capture claim.
+
+The complete 6,477-pair / 130,913,794,091-byte storage audit passes, preserving
+all bytes, paths and independent inodes, removing no files, with 12,229,263,360
+bytes available. All EDA artifacts returned before closing manager checks.
+The closing audit passes 17,278 bindings (13,956 unique) across 51 receipts:
+`runs/aws-f2/iteration9808/increment-audit-hmxg3y6o/summary.json`.
+All native/VCS jobs finished. Fresh closing AWS/native HDK/Vivado/Fabric
+localhost preflight passes; no loop runtime or pending account AFI was observed,
+and no image, AFI or runtime instance was requested. Existing controller
+checkpoints FireSim `489469aa`, then Chipyard `5084d317a`, were published;
+preserve Chipyard's successful-push/local tracking-ref warning.
+
+EDA's initial pre-transfer bootstrap was explicitly interrupted after 23
+audited pairs because its old-wave-only plan reclaimed little space. Its
+KeyboardInterrupt receipt and protected fetch remain. The replacement bootstrap
+passes 2,407 audited pairs and the unchanged 24-GiB transfer reserve, leaving
+27,307,642,880 bytes available. Newer compiler/native and VCS artifacts have
+independent receipt hashes; recovery retains all original bytes, paths and
+independent inodes. A separate supplemental attempt found already shared files
+and correctly failed capacity; preserve it. The later 64-KiB comparison attempt
+found capacity already restored and audited zero pairs, so it grants no sharing
+claim. No debug, sanitizer or regression scope was reduced. Native synthesis
+and EDA exchange were serialized; preserve all failed attempts separately.
+
+Next bind the selected staged circuit through an authenticated widget factory
+without regenerating the old unstaged graft; atomically own readout/router and
+staging state with complete destination restore. Production MMIO/host controls,
+complete functional-memory/host/bridge/target-time and pre-FAME coverage,
+localhost full-image P&R/AFI, active all-hart F2 cuts, paired CPU zero-edge /
+finite / sustained-live migration and rolling hardware recovery remain pending.
+No hardware acceptance column advances. Both plans and initialized manager
+inputs remain protected; no staging, local commits or conda edits. Managed
+read-only review found no material defect; no delegated LLM work remains.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 9807,
 **in_progress; compiler cut-control attachment qualified; full FPGA image/capture pending**.
 
 Added opt-in `NativeCheckpointRegionCutSnapshot.generate`, which regenerates

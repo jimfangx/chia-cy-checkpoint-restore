@@ -14,6 +14,21 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 9808 selects cut-control staging in the actual regional compiler via
+an explicit ordered-owner option. It retains the selected staged circuit and
+its parent/source/resource bindings rather than regenerating the old unstaged
+graft. This remains an incomplete diagnostic: production MMIO/host attachment,
+whole-owner restore and complete simulator/semantic coverage still reject.
+Fresh exact Rocket attachment preserves 2,701 definitions / 33 adapter routes,
+with 74 control bits and a separate 145-bit staging owner; all 1,245 unadmitted
+functional entries remain. Qualification passes 441 Scala tests, native OOC
+component place/route at 140 MHz, seventeen EDA SP2 staged-cut cases and 75
+waveform-checker mutations, plus the complete retained/component/storage scopes.
+Commands and attempts are under `runs/aws-f2/iteration9808/`; consult progress.md
+for individual receipts. Full-image localhost P&R/AFI, physical F2 capture, paired
+CPU zero-edge/finite/live migration and rolling hardware recovery remain
+pending/in_progress. No hardware acceptance column advances.
+
 Iteration 9807 adds an opt-in compiler installation of that cut-control adapter,
 with explicit raw-clock/reset ownership, complete bank-direction interposition,
 source/resource bindings and independent connection/negative audits. Its 75-bit

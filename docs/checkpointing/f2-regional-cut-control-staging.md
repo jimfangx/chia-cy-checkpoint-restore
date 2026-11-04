@@ -1,5 +1,37 @@
 # Atomic regional cut-control staging
 
+Iteration 9808 adds the explicit compiler option
+`--simulator-native-region-cut-snapshot-probe OWNER[,OWNER...]`, subordinate to
+one `--simulator-native-region-compiler-probe` selection. Owner names preserve
+the physical acknowledgement-bit order; they do not establish ownership.
+Empty, duplicate, malformed or multiple requests, local shells and concurrent
+register-snapshot requests reject. The request must remain identical across
+the actual inline boundary.
+
+The regional compiler now selects the staged circuit itself and retains the
+parent cut, graft and snapshot bindings, original/attached FIRRTL, annotation
+history and every emitted resource. It returns before ordinary widget binding,
+which would regenerate an unstaged graft. This explicit diagnostic still has
+unconnected snapshot control ports; MMIO/host integration, router/staging
+restore, external writers, functional memory and target-time ownership remain
+unsupported. Resource annotations are appended to the returned state after its
+FIRRTL/annotation snapshots; the separately saved resources are hash-bound.
+The unchanged reservation and physical-owner guards reject image emission,
+including after annotations are stripped. No deployable-image or physical
+capture claim follows from this compiler selection. Qualification commands and
+attempts are under `runs/aws-f2/iteration9808/`; consult progress.md for results.
+
+Fresh exact Rocket selection passes an independent audit of 2,701 original
+definitions and 33 adapter routes, with 74 control bits and a separate 145-bit
+staging owner. All 10,916 descriptors / 1,245 unadmitted functional entries
+remain, and the actual compiler rejects the unbound lowered readout/image.
+The separate four-gate fixture passes current-source native OOC place/route at
+140 MHz (+0.727/+0.034-ns setup/hold), seventeen EDA SP2 cases and all 75
+waveform-checker mutations. The complete retained/component and storage scopes
+pass; the closing receipt is `iteration9808/increment-audit-hmxg3y6o/summary.json`
+under loop `runs/aws-f2/`. This does not establish complete image ownership,
+an AFI, physical F2 capture or CPU migration/live/rolling acceptance.
+
 `CheckpointRegionCutSnapshot.sv` connects the existing generated regional
 common-cut controller to atomic control-state staging. The controller remains
 the only clock authority. This is a bounded synthesizable adapter; production
