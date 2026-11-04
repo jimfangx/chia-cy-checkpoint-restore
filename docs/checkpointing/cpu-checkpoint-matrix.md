@@ -14,6 +14,24 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 9809 binds the authenticated selected staged circuit through the real
+widget factory and its registered descriptor/host identity. Seventeen transport
+roles connect while the physical controller retains mask/read/captured-CE
+authority; cut/snapshot MMIO controls remain explicit unsupported ports. The
+staged binding retains all resources without changing the ordinary unstaged
+binding format. Independent final-route/resource/host-table audits and coherent
+mutation checks supplement the compiler tests. Qualification passes 443 Scala
+tests, fourteen staged-binding corruptions, native OOC place/route at 140 MHz,
+seventeen EDA staged-cut cases / 75 waveform-checker mutations, all seventeen
+default-binding corruptions and the complete retained/component/storage scope.
+This supplies structural staged-widget evidence and separate staged-bank runtime
+evidence. Commands, fresh receipts and
+failed attempts belong under `runs/aws-f2/iteration9809/`; consult progress.md for
+completed qualification. Readout/router and staging-owner restore, complete
+memory/host/bridge/semantic ownership, full-image localhost P&R/AFI, actual F2
+cuts, paired CPU migration/live comparison and rolling hardware recovery remain
+pending/in_progress. No hardware acceptance column advances.
+
 Iteration 9808 selects cut-control staging in the actual regional compiler via
 an explicit ordered-owner option. It retains the selected staged circuit and
 its parent/source/resource bindings rather than regenerating the old unstaged

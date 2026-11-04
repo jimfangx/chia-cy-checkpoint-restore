@@ -35,7 +35,83 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 9808,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 9809,
+**in_progress; authenticated staged widget binding qualified; physical image/capture pending**.
+
+The regional compiler now routes its authenticated staged circuit through the
+registered widget factory and host/transport identity binder. Seventeen
+transport roles connect while the original physical controller retains mask,
+read-permission and captured-CE authority. Cut/snapshot controls remain explicit
+unsupported diagnostic ports. Selected/parent/resource hashes bind the result;
+resources are retained exactly once and suffix conflicts reject. The ordinary
+unstaged binding format remains unchanged. See
+[regional control staging](f2-regional-cut-control-staging.md).
+
+Full current-source Scala qualification passes 443 tests (6 + 10 + 427).
+Independent final binding audits pass on the 39-definition fixture and actual
+2,702-definition Rocket circuit, checking 34 route hops, every selected driver
+and original execution/declaration, complete resources, executable host tables
+and original registered MMIO/stream allocation. All fourteen coherent corruption
+cases reject. Exact Rocket retains 65 staged compiler artifacts, 10,916
+descriptors and all 1,245 unadmitted functional entries, then correctly rejects
+its incomplete image. The independent attachment audit preserves 2,701 parent
+definitions / 33 adapter routes, 74 control bits and a separate 145-bit owner.
+
+All 81 manager tests, 56 independent reference negatives, native/restore scopes,
+fifteen native/Scala integrity bindings and seventeen default-binding
+corruptions pass. The fresh OOC component passes 140-MHz place/route with
+1,972 LUTs / 1,142 registers and setup/hold +0.727/+0.034 ns; all 75 fixture
+payload bits, 146 raw-clock staging registers and six gates survive. These are
+component resources/timing, not full-image implementation or FPGA acceptance.
+
+The final Python allocation-audit change was followed by a complete fresh EDA
+retained rerun: FASED, all three publication suites, 430 Python tests, generated
+banks, host ASan/UBSan, FCFS and 82 cut checks pass. Full component VCS, original
+clean-RTL restore/replay, seventeen staged-cut debug waves, all 75 waveform
+checker mutations and transferred binding/widget audits also pass. Functional
+waveform checks ran only on EDA. New staged-widget qualification is structural;
+the separate staged-bank runtime does not establish an end-to-end staged-widget
+or CPU live comparison claim. All artifacts returned before manager closure.
+
+The full 6,477-pair / 130,913,794,091-byte storage audit passes with all bytes,
+paths and independent inodes preserved, no files removed, and 37,919,948,800
+bytes available. The closing audit passes 17,454 bindings (14,066 unique) across
+53 receipts: `runs/aws-f2/iteration9809/increment-audit-05skfzqp/summary.json`.
+Commands and selections are under `runs/aws-f2/iteration9809/`, including
+`verification-commands.json`, `factory-native-selected-index.json` and the
+separate returned-evidence/process-closure receipts. All jobs and delegated LLM
+requests finished; no native/VCS or delegated work remains active.
+
+The previous controller failure was input rsync ENOSPC before VCS. Recovery
+first fetched interrupted evidence, then audited 3,144 closed-file pairs to
+restore 50 GiB free without deleting/compressing files or sharing inodes. Both
+insufficient-capacity attempts remain. XFS inode availability recovered with
+free bytes; no threshold or host configuration was reduced. A new receipt-bound
+50-GiB bootstrap selection is installed for future exchanges. Preserve the
+initial resource-annotation Scala failures, the cancelled source-stale JVM,
+earlier audit-debug attempts, old-source retained pass and mode-log collision.
+The collision was fixed with distinct mode logs; a fresh resume authenticated
+the already executed exact compiler pass and completed every remaining check.
+No historical receipt was rewritten to look newly verified.
+
+Fresh closing AWS/native HDK/Vivado/Fabric localhost preflight passes: no active
+loop runtime or pending account AFI, and no instance/image request. Existing
+controller checkpoints FireSim `cf2af257`, then Chipyard `95a586205`, are published;
+preserve the successful remote push and local read-only tracking-ref warning.
+Plans and initialized configs retain their entry hashes; no staging, local
+commits or conda edits were performed. Managed review found no remaining
+material defect after the resource and allocation-audit fixes.
+
+Next atomically own and restore shared/per-region readout/router response
+pipelines, the separate staging owner and physical-controller/pending state at
+one held destination cut. Production MMIO, complete functional-memory,
+bridge/host/reset/writer/target-time and pre-FAME ownership remain unsupported.
+The diagnostic Rocket overlay still forces absent owners and cycle zero. Full
+localhost image P&R/AFI, active all-hart F2 cuts, paired CPU zero-edge / finite /
+sustained-live migration and rolling hardware recovery remain pending. No
+hardware acceptance column advances.
+
+Historical milestone: `F2-rocket-checkpoint-migration`, iteration 9808,
 **in_progress; regional compiler cut-staging selection added; physical image/capture pending**.
 
 Added explicit `--simulator-native-region-cut-snapshot-probe OWNER[,OWNER...]`

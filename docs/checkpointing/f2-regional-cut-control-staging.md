@@ -1,5 +1,67 @@
 # Atomic regional cut-control staging
 
+Iteration 9809 routes the authenticated staged selection through
+`NativeCheckpointRegionWidgetGraft.connectSnapshot` and
+`NativeCheckpointWidgetIdentity.bindRegionSnapshot`. The factory independently
+regenerates the attachment before accepting it, then uses that selected circuit
+instead of rebuilding an unstaged graft. Seventeen existing transport roles
+are connected; physical mask, read permission and captured logical CEs retain
+their original controller ownership. Cut and snapshot controls remain explicit
+top-level diagnostic ports. The registered transport manifest and executable
+host descriptor table receive the same reconstructed identity.
+
+Staged bindings retain the selected circuit, snapshot and all generated-resource
+hashes. Every resource is appended exactly once; conflicting enclosing suffixes
+reject. The ordinary unstaged binding format remains unchanged. The independent
+Python auditor compares every selected driver, original declaration and
+definition against the connected circuit, permits only the declared routes and
+transport identity change, and checks resources and the executable host table.
+The host identity must retain the original registered MMIO/stream allocation;
+only the registered header may change during identity binding. A coherently
+changed host allocation is included in the fourteen corruption cases.
+Qualification commands and failures are retained under
+`runs/aws-f2/iteration9809/`; consult progress.md for completed checks.
+This factory path has structural/compiler qualification. The separately
+retained staged-bank VCS runtime exercises the cut adapter, and does not
+establish an end-to-end staged-widget/MMIO execution claim.
+
+Final iteration-9809 qualification passes 443 Scala tests, fourteen independent
+binding corruptions and the actual Rocket 2,702-definition / 34-route audit.
+The complete native/restore scope and fresh 140-MHz component place/route pass
+with 1,972 LUTs / 1,142 registers and +0.727/+0.034-ns setup/hold slack. Complete
+current-source EDA retained/component, seventeen raw debug-wave cases / 75
+waveform-checker mutations, transferred binding and 6,477-pair storage audits
+pass. The closing 53-receipt audit is recorded in progress.md. No descriptor
+coverage, image admission, physical capture or CPU migration status advances.
+
+This does not own the readout/router response pipelines, the separate staging
+owner or their destination restore. Next supply complete observation and held
+restore for the shared router, each physical router, native functional reader
+and CE response endpoint; wire staging and physical-controller/pending restore
+before claiming complete destination state. Production MMIO cut controls,
+functional memory, external writers, host owners and target-time authority also
+remain pending. The exact recipe's diagnostic test overlay still forces absent
+owners and cycle zero; it cannot capture workload execution. Full-image guards
+remain mandatory, including when annotations are stripped. No hardware or CPU
+migration acceptance follows from this factory connection.
+
+The next owner inventory must derive widths and multiplicities from the actual
+generated network, including inactive response payloads whose values survive
+after occupancy clears:
+
+| Owner | Sequential state | Current gap |
+| --- | --- | --- |
+| Shared region router | `pending`, `invalid`, `owner` | No observation or held restore ports |
+| Each physical router | `pending`, `selected_ce` | No observation or held restore ports |
+| Each functional reader endpoint | `ckpt_pending`, `ckpt_saved_data`, `ckpt_saved_error` | Reader state changes during checkpoint reads |
+| Each CE response endpoint | `response_valid`, `response_data`, `response_error` | Response state changes during checkpoint reads |
+| Physical controller and accepted-request tracking | Positive/negative-edge controller state and pending bit | Restore disabled and tied low |
+| Cut-control staging | Payload, occupancy, cut cycle and sticky errors | Whole-owner restore disabled and tied low |
+
+Freezing or restoring only the semantic DUT does not establish ownership of
+these raw-clock pipelines. A destination must hold every relevant owner until
+complete independent readback, before releasing either physical or target time.
+
 Iteration 9808 adds the explicit compiler option
 `--simulator-native-region-cut-snapshot-probe OWNER[,OWNER...]`, subordinate to
 one `--simulator-native-region-compiler-probe` selection. Owner names preserve
