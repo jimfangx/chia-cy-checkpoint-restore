@@ -23,13 +23,15 @@ def audit(directory):
     router = b.get('router_state_observation')
     router_bits = router['bits'] if router else 0
     bits = control_bits + router_bits
-    require((b['snapshot_version'] == 2) == bool(router), 'snapshot router ABI mismatch')
+    restoring = b['staging_owner_restore_supported']
+    require(type(restoring) is bool and b['snapshot_version'] == (3 if restoring else 2 if router else 1),
+            'snapshot router/restore ABI mismatch')
     if router:
         audit_router_observation(d, router)
         require(b['controller_state_bits'] == control_bits and b['router_state_offset'] == control_bits and
                 b['router_state_bits'] == router_bits and b['router_observation_atomically_staged'] is True and
                 b['payload_layout_lsb0'] == ['cut_control', 'router_state'], 'incomplete same-edge router layout')
-    require(b['snapshot_version'] in (1, 2) and b['scope'] ==
+    require(b['snapshot_version'] in (1, 2, 3) and b['scope'] ==
             'selected_native_regions_atomic_cut_control_observation_only', 'changed snapshot ABI')
     require(b['cut_binding_sha256'] == sha(d / 'cut-binding.json') and
             b['attached_sha256'] == sha(d / 'staged.fir'), 'changed snapshot source binding')
@@ -37,7 +39,11 @@ def audit(directory):
             b['control_state_bits'] == bits and b['staging_owner_bits'] == bits + 71,
             'changed source clock or complete owner widths')
     require(b['controller_observation_atomically_staged'] is True, 'missing atomic observation')
-    for key in ('readout_router_state_atomically_owned', 'staging_owner_restore_supported',
+    if restoring:
+        require(b['staging_restore_extra_storage_bits'] == 0 and
+                b['staging_restore_contract'] == 'whole_owner_raw_posedge_under_hold_with_physical_read_permission_and_idle_readers' and
+                b['original_controller_router_endpoint_restore_supported'] is False, 'changed staging-only restore contract')
+    for key in ('readout_router_state_atomically_owned',
                 'complete_fpga_capture', 'deployable_capture_image', 'metasim_restore_supported'):
         require(b[key] is False, 'unsupported complete owner admission ' + key)
     require(set(after) == set(before) | {definition}, 'duplicate or missing original definitions')
@@ -48,6 +54,10 @@ def audit(directory):
     require(new['instances'] == dict(old['instances'], **{inst: definition}), 'changed original execution')
     require(new['consumers'] == old['consumers'], 'new/masked original state owner')
     expected_ports = dict(old['ports'])
+    if restoring:
+        expected_ports.update({'capture_snapshot_restore_' + n: (direction, f'UInt<{width}>')
+            for n, direction, width in [('hold', 'input', 1), ('load', 'input', 1),
+                                       ('state', 'input', bits + 71), ('ready', 'output', 1)]})
     for direction, shape in [('input', {'request': 1, 'release': 1, 'word_address': 32}),
             ('output', {'ready': 1, 'valid': 1, 'failed': 1, 'word_data': 64, 'cut_cycle': 64,
                         'word_error': 1, 'error': 6, 'captured_control_state': bits, 'staging_control_state': bits + 71})]:
@@ -60,6 +70,9 @@ def audit(directory):
         return re.sub(r'(?<![\w.])(' + '|'.join(renamed) + r')\b', lambda m: renamed[m[0]], text)
     expected = {rename(n): rename(v) if v is not None else None for n, v in old['drivers'].items()}
     ins = {'clock': cut['raw_clock'], 'reset': 'capture_reset',
+           'restore_hold': 'capture_snapshot_restore_hold' if restoring else 'UInt<1>("h0")',
+           'restore_load': 'capture_snapshot_restore_load' if restoring else 'UInt<1>("h0")',
+           'restore_state': 'capture_snapshot_restore_state' if restoring else f'UInt<{bits+71}>("h0")',
            'host_freeze_request': 'capture_cut_freeze_request', 'snapshot_request': 'capture_snapshot_request',
            'snapshot_release': 'capture_snapshot_release', 'physical_read_enable': 'capture_read_enable',
            'physical_failed': 'capture_cut_failed', 'source_pending': 'capture_cut_pending',
@@ -68,7 +81,8 @@ def audit(directory):
            'word_address': 'capture_snapshot_word_address'}
     for n in ('request_ready', 'response_valid', 'response_data', 'response_error'):
         ins['source_' + n] = 'capture_snapshot_source_' + n
-    outs = {'cut_freeze_request': 'capture_snapshot_cut_freeze_request',
+    outs = {'restore_ready': 'capture_snapshot_restore_ready',
+            'cut_freeze_request': 'capture_snapshot_cut_freeze_request',
             'snapshot_ready': 'capture_snapshot_ready', 'snapshot_valid': 'capture_snapshot_valid',
             'snapshot_failed': 'capture_snapshot_failed', 'snapshot_error': 'capture_snapshot_error'}
     for n in ('word_data', 'cut_cycle', 'word_error', 'captured_control_state', 'staging_control_state'):
@@ -88,12 +102,14 @@ def audit(directory):
     pins = {'clock': ('input', 'Clock')}
     widths = {'target_cycle': 64, 'live_control_state': bits, 'source_response_data': 64, 'word_address': 32,
               'response_data': 64, 'word_data': 64, 'cut_cycle': 64, 'snapshot_error': 6,
-              'captured_control_state': bits, 'staging_control_state': bits + 71}
+              'captured_control_state': bits, 'staging_control_state': bits + 71, 'restore_state': bits + 71}
     pins.update({n: ('input', f'UInt<{widths.get(n, 1)}>') for n in ins if n != 'clock'})
     pins.update({n: ('output', f'UInt<{widths.get(n, 1)}>') for n in outs})
     require(adapter['ports'] == pins, 'changed complete adapter port ABI')
     require(re.search(r'\bparameter CONTROL_BITS = ' + str(bits) + r'\b', adapter['body']),
             'changed control vector parameter')
+    require(re.findall(r'\bparameter (\w+) = (\d+)\b', adapter['body']) ==
+            [('CONTROL_BITS', str(bits)), ('RESTORE_ENABLE', str(int(restoring)))], 'changed restore/default parameters')
     require(set(b['resource_hashes']) == {'.native-region-cut-snapshot.sv', '.native-region-cut-staging.sv'},
             'incomplete snapshot resources')
     for suffix, h in b['resource_hashes'].items():
@@ -168,6 +184,17 @@ def audit_negatives(directory, out):
         'freeze-bypass': ('or(capture_snapshot_cut_freeze_request, capture_cut_accepted_pending)',
                           'or(capture_cut_freeze_request, capture_cut_accepted_pending)'),
     }
+    if binding['staging_owner_restore_supported']:
+        mutations.update({
+            'restore-hold': ('checkpoint_region_cut_snapshot.restore_hold <= capture_snapshot_restore_hold',
+                             'checkpoint_region_cut_snapshot.restore_hold <= UInt<1>("h0")'),
+            'restore-load': ('checkpoint_region_cut_snapshot.restore_load <= capture_snapshot_restore_load',
+                             'checkpoint_region_cut_snapshot.restore_load <= capture_snapshot_restore_hold'),
+            'restore-state': ('checkpoint_region_cut_snapshot.restore_state <= capture_snapshot_restore_state',
+                              f'checkpoint_region_cut_snapshot.restore_state <= UInt<{bits+71}>("h0")'),
+            'restore-ready': ('capture_snapshot_restore_ready <= checkpoint_region_cut_snapshot.restore_ready',
+                              'capture_snapshot_restore_ready <= capture_snapshot_ready'),
+        })
     rejected = []
     for name in [*mutations, 'admission', 'resource', 'missing-resource']:
         work = out / name

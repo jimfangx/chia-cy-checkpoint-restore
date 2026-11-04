@@ -14,6 +14,19 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 9814 adds opt-in whole-owner restore for regional cut staging,
+including released payload, occupancy, cycle label and sticky errors. Default
+compiler callers still tie restore off. All 447 Scala / 430 Python / 81 manager
+tests, fourteen current-scope native synthesis cases and the retained EDA scope
+pass. New qualification checks 38 fresh processes, eight component donors, 630
+complete loads, 299 checker mutations and two first-divergence payload faults
+with zero bank acknowledgements. This restores staging only. See
+[regional staging restore](f2-regional-staging-restore.md) and progress.md for
+current receipts under `runs/aws-f2/iteration9814/`. Original controller/router/
+endpoint and MMIO integration, complete state coverage, localhost full-image
+implementation/AFI, active F2 captures and paired CPU finite/live migration
+remain pending. No hardware acceptance column advances.
+
 Iteration 9813 qualifies explicit held restore of the complete shared/physical
 router vector in generated native-only readout. All 446 Scala / 430 Python /
 81 manager tests, the retained EDA sanitizer/FCFS/cut/caller/staging scope and

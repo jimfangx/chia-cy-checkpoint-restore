@@ -35,7 +35,59 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 9813,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 9814,
+**in_progress; regional staging-owner held restore qualified; F2 image/capture and CPU migration pending**.
+
+Opt-in `NativeCheckpointRegionCutSnapshot.generate(..., restoreStaging = true)`
+loads the complete staging payload/occupancy/cycle/error vector on one raw edge,
+including released payload and donor errors. Hold or load retains the physical
+freeze and suppresses bank visibility; unsafe current owners, permission,
+readers and controls reject. Defaults still bind restore to zero. This restores
+staging only; original controller/router/endpoint, MMIO and complete-image
+integration remain unsupported. See
+[regional staging restore](f2-regional-staging-restore.md).
+
+All **447 Scala / 430 Python / 81 manager tests**, the full retained EDA SP2
+FASED/publication/bank/host ASan/UBSan/FCFS/82-cut/router/caller/staging scope,
+and fourteen current-scope localhost native synthesis cases pass. The new EDA
+qualification passes **38 fresh processes / eight actual component donors /
+630 successful complete loads**. All 299 waveform-checker bit mutations reject;
+two compiled payload faults stop at the first readback at target cut 38 with
+zero acknowledged bank edges. Full debug waves remain retained. Original
+endpoints/controller are prepared through public inputs in each destination;
+this is staging-only qualification, not CPU migration or live CPU continuation.
+
+Native synthesis retains every 146 / 153 staging register on the raw clock,
+with 2,381 / 2,384 LUTs and 1,142 / 1,149 total fixture registers. No full-image
+Fmax claim. The updated fixture withdraws host freeze while holding empty or
+released owners and checks both target counters remain at cut 38. Preserve the
+first two pre-refinement native cases, their exact original testbench and
+`withdrawal-refinement.json`. Sixteen native jobs ran in total, at most two
+concurrently, after large Java generation finished and before EDA exchange.
+
+Fresh exact-Rocket auditing retains 2,701 definitions / 37 adapter routes,
+81 observation bits / 152 staging bits, then stops at the incomplete-image guard
+with **1,245 uncovered functional entries and unbound cut MMIO**. No image,
+AFI or hardware checkpoint is produced. Complete controller/reader/endpoint and
+MMIO integration, functional memory and host/bridge/pre-FAME ownership, localhost
+full-image P&R/AFI, active all-hart F2 cuts, paired CPU zero-edge/finite/live
+migration and rolling hardware recovery remain pending. No hardware acceptance
+column advances.
+
+Closing integrity audit passes **22,364 bindings / 30 receipts**:
+`runs/aws-f2/iteration9814/final-audit-mx_29a_c/summary.json`. Exact replayable
+commands are `runs/aws-f2/iteration9814/verification-commands.json`. Closing
+AWS/native/Fabric inventory passes with no active scoped runtime or pending
+account AFI observed. Byte-preserving extent sharing restores the unchanged
+50-GiB EDA transfer reserve; preserve the first insufficient-capacity receipt.
+All qualification processes and exchanges finished. Managed worker startup
+failed before creation; only the central agent remains. Plans and initialized
+manager configs retain entry hashes. Existing controller checkpoints were
+published FireSim first (`8acbb838`), then Chipyard (`4ab6784f3`), with remote
+heads independently verified; retain the successful Chipyard push's local
+tracking-ref warning. No agent staging or local commits.
+
+Previous controller checkpoint: `F2-rocket-checkpoint-migration`, iteration 9813,
 **in_progress; generated router held restore qualified; physical image/capture pending**.
 
 The generated native-only regional adapter can explicitly load every shared and
