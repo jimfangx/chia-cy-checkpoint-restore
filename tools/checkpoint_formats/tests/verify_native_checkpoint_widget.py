@@ -184,7 +184,8 @@ def audit(generated):
     router={n:'capture_'+n for n in ('descriptor_entry','descriptor_valid','descriptor_bank','descriptor_slot',
         'descriptor_width','descriptor_depth','request_valid','request_ready','bank','slot','address',
         'response_valid','response_ready','response_data','response_error')}
-    router.update(clock=clock,reset='capture_reset')
+    router.update(clock=clock,reset='capture_reset',capture_state='',restore_hold="1'b0",
+        restore_load="1'b0",restore_state="2'b0",restore_error='')
     params=instance('router','CheckpointPhysicalStateRouter',router,True)
     require(params==f'.ENTRIES({len(bank["state"])}),.GATES({descriptors["physical_clock_gates"]})','changed routing geometry')
     rows=[]
@@ -214,6 +215,8 @@ def corruptions(generated,out):
         'ce-sample':('.captured_ce(capture_captured_ce)','.captured_ce(capture_logical_ce)'),
         'ce-reset':('.reset(capture_reset),.read_enable','.reset(reset),.read_enable'),
         'router-response':('.response_ready(capture_response_ready)',".response_ready(1'b1)"),
+        'router-restore-load':(".restore_load(1'b0)",".restore_load(1'b1)"),
+        'router-restore-observation':('.capture_state()', '.capture_state(capture_response_data)'),
         'rom-depth':('functional_descriptor_depth=32\'d1;',"functional_descriptor_depth=32'd2;"),
     }
     rejected=[]

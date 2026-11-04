@@ -124,7 +124,8 @@ def audit(directory):
     router = {n:'capture_'+n for n in ('descriptor_entry','descriptor_valid','descriptor_bank','descriptor_slot',
         'descriptor_width','descriptor_depth','request_valid','request_ready','bank','slot','address',
         'response_valid','response_ready','response_data','response_error')}
-    router.update(clock=clock, reset='capture_reset')
+    router.update(clock=clock, reset='capture_reset', capture_state='', restore_hold="1'b0",
+                  restore_load="1'b0", restore_state="2'b0", restore_error='')
     instance('CheckpointPhysicalStateRouter', 'router', router,
              f'.ENTRIES({len(functional)}),.GATES({gates})', True)
     rows = []
@@ -171,6 +172,8 @@ endmodule'''
 
 def corruptions(directory, out):
     mutations = {
+        'router-restore-load':(".restore_load(1'b0)",".restore_load(1'b1)"),
+        'router-restore-observation':('.capture_state()', '.capture_state(capture_response_data)'),
         'masked-router-clock':('.clock(clock),.reset(capture_reset)', '.clock(capture_clock_mask),.reset(capture_reset)'),
         'functional-reset':('.checkpoint_inplace_ckpt_reset(capture_reset)', '.checkpoint_inplace_ckpt_reset(reset)'),
         'freeze-bypass':('.checkpoint_inplace_ckpt_freeze(capture_clock_mask)', ".checkpoint_inplace_ckpt_freeze(1'b0)"),

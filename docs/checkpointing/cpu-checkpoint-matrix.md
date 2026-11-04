@@ -14,6 +14,19 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 9811 adds an opt-in complete two-bit physical-router observation and
+held-restore interface with no new storage. Fresh EDA source/destination
+readbacks, every original ABI encoding, independent raw-register/handshake
+waveform audits and semantic/checker corruption negatives pass. All 443 Scala
+tests, retained EDA regressions, six local synthesis jobs and generated-caller
+VCS qualification pass; consult progress.md and
+[physical-router restore](f2-physical-router-restore.md) for actual results under
+`runs/aws-f2/iteration9811/`. Production callers still disable restore, and
+production attachment/common-cut ownership remains pending. Complete-image
+localhost P&R/AFI, physical F2 cuts, paired CPU zero-edge/finite/live migration
+and rolling recovery remain pending/in_progress. No hardware acceptance column
+advances.
+
 Iteration 9810 adds opt-in complete state observation and held restore for the
 shared regional router, including inactive owner/error bits, with independent
 fresh-process and raw-register waveform qualification passing on EDA SP2.

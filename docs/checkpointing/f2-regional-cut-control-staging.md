@@ -52,7 +52,7 @@ after occupancy clears:
 | Owner | Sequential state | Current gap |
 | --- | --- | --- |
 | Shared region router | `pending`, `invalid`, `owner` | [Opt-in observation/held restore component](f2-regional-router-restore.md); production attachment/staging still pending |
-| Each physical router | `pending`, `selected_ce` | No observation or held restore ports |
+| Each physical router | `pending`, `selected_ce` | [Opt-in complete observation/held restore component](f2-physical-router-restore.md); production attachment/staging still pending |
 | Each functional reader endpoint | `ckpt_pending`, `ckpt_saved_data`, `ckpt_saved_error` | Reader state changes during checkpoint reads |
 | Each CE response endpoint | `response_valid`, `response_data`, `response_error` | Response state changes during checkpoint reads |
 | Physical controller and accepted-request tracking | Positive/negative-edge controller state and pending bit | Restore disabled and tied low |

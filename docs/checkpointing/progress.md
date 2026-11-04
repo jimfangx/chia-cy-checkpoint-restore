@@ -35,7 +35,54 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 9810,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 9811,
+**in_progress; physical-router held restore qualified; physical image/capture pending**.
+
+Added opt-in observation and atomic held restore of both original physical-router
+registers, including inactive endpoint selection, with no new storage. Hold and
+rejected loading block every handshake; unsupported geometry cannot alter state.
+The shared compiler renderer and wildcard fixtures explicitly disable restore;
+strict independent audits reject changed tieoffs. Production attachment and
+owner admission remain pending. See [physical-router restore](f2-physical-router-restore.md).
+
+Fresh final-source qualification passes all **443 Scala / 430 Python / 81 manager
+tests**, the retained FASED/publication/bank/host ASan/UBSan/FCFS/82-cut scope,
+and all six serialized localhost Vivado jobs. Unit synthesis retains both raw
+registers: 303 LUTs enabled / 298 disabled. Fresh EDA source/destination checks
+retain sixteen full debug waves, fifteen donor restores, twelve ABI loads,
+six first-corruption stops with zero acknowledged edges and six checker mutations.
+Generated in-place/widget callers synthesize, reject **12 / 17** coherent
+corruptions and pass VCS **7,101 / 6,482** checks. Physical and regional transport
+regressions pass **4,912 / 6,155** checks; thirteen evidence substitutions reject.
+Initial wildcard-port synthesis failure and the earlier source qualification
+remain unchanged; the complete compiler/EDA/native scopes were rerun after
+fixing both fixture and actual generated callers.
+
+Closing audit passes **12,547 bindings / nineteen receipts**:
+`runs/aws-f2/iteration9811/final-audit-ypy6a239/summary.json`.
+Commands are in `runs/aws-f2/iteration9811/verification-commands.json`.
+All launched qualification jobs, exchanges and delegated requests are finished.
+Worker startup failed before creation; implementation stayed central. Protected
+plans/configs are unchanged; no staging, commits, AFI or instance requests.
+EDA extent sharing preserved all bytes/paths/independent inodes and the unchanged
+50-GiB transfer reserve. GitHub publication remains pending `Permission denied
+(publickey)` for existing FireSim `aec94c15` / Chipyard `dcf3a729` controller
+checkpoints; exact errors/IDs are in `publication.json` and `publication-fireSim.log`.
+
+Closing AWS/native/Fabric preflight passes with no active loop runtime or launched
+native/VCS job. Account AFI `afi-0bb0c7835aa9ae269` / AGFI
+`agfi-0fae1b5f39f2cf83b` was observed pending for a different CIRCT-threaded
+recipe, without tags proving loop ownership. Preserve it unchanged; see
+`pending-account-image.json` and its bound inventory. It establishes no
+checkpoint image acceptance.
+
+Next bind both router vectors into the authenticated common-cut snapshot and
+restore every remaining reader/endpoint/controller/staging owner. Complete
+memory/bridge/host/pre-FAME ownership, localhost full-image P&R/AFI, active
+all-hart F2 cuts, paired CPU zero-edge/finite/live migration and rolling hardware
+recovery remain pending. No hardware acceptance column advances.
+
+Previous controller checkpoint: `F2-rocket-checkpoint-migration`, iteration 9810,
 **in_progress; shared-router held restore qualified; physical image/capture pending**.
 
 Added opt-in complete observation/held restore for the shared regional router,

@@ -12,6 +12,8 @@
   wire functional_response_ready, ce_response_ready, ce_response_valid, ce_response_error;
   wire [63:0] ce_response_data;
   CheckpointPhysicalStateRouter #(.ENTRIES(2),.GATES(3)) router(
+    .capture_state(), .restore_hold(1'b0), .restore_load(1'b0),
+    .restore_state(2'b0), .restore_error(),
     .request_valid(bank_request_valid),.request_ready(bank_request_ready),
     .response_valid(bank_response_valid),.response_ready(bank_response_ready),
     .response_data(bank_response_data),.response_error(bank_response_error),
