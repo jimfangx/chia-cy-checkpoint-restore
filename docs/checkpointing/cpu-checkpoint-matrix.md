@@ -14,6 +14,22 @@ Checkpoint-enabled images and hardware-origin checkpoint migration remain separa
 | BOOM (speculative/in-flight) | pending | pending | pending | pending |
 | Shuttle + Saturn (vector-active) | pending | pending | pending | pending |
 
+Iteration 12214 qualifies opt-in complete parked restore of the generated
+physical controller and accepted-request pending owner. All 449 Scala / 430 Python /
+81 manager tests, fifteen serialized localhost native syntheses and the complete
+retained EDA SP2 regression scope pass. Four fresh processes check eleven actual
+component donor records, 75 checker mutations and two first-divergence donor
+corruptions without functional/transport acknowledgements. Native synthesis
+retains all 75 raw-clock owner bits (2,158 LUTs / 996 fixture registers). Closing
+audit passes 23,022 bindings / 32 receipts. See
+[regional controller restore](f2-regional-controller-restore.md) and progress.md
+for receipts under `runs/aws-f2/iteration12214/`. This is a permanently held
+component interface without endpoint/DUT restoration or resume support. Exact
+Rocket still rejects image admission with 1,245 uncovered functional entries
+and unbound cut MMIO. Full image/AFI, physical F2 cuts, paired CPU zero-edge/
+finite/live migration and rolling FPGA recovery remain pending. No hardware
+acceptance column advances.
+
 Iteration 9814 adds opt-in whole-owner restore for regional cut staging,
 including released payload, occupancy, cycle label and sticky errors. Default
 compiler callers still tie restore off. All 447 Scala / 430 Python / 81 manager

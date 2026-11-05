@@ -35,7 +35,62 @@ mapping/formal/gate/power remain excluded. Standalone Shuttle is excluded.
 Follow [GitHub checkpoint publication](github-publication.md); the loop controller
 owns staging/local commits and the agent may publish existing checkpoints.
 
-Active milestone: `F2-rocket-checkpoint-migration`, iteration 9814,
+Active milestone: `F2-rocket-checkpoint-migration`, iteration 12214,
+**in_progress; generated parked controller restore qualified; F2 image/capture and CPU migration pending**.
+
+Opt-in `NativeCheckpointRegionClockCut.generate(..., restoreController = true)`
+connects complete physical-controller and original accepted-request pending
+restore. The falling-edge mask and positive-edge fields load under permanent
+hold before any selected functional edge; unheld loads reject while parking the
+mask, and shared reset dominates. No sequential storage is added. Defaults retain
+tied-off restore, existing ports/bindings and the image guard. There is no resume,
+endpoint/DUT or complete-image contract. See
+[regional controller restore](f2-regional-controller-restore.md).
+
+All **449 Scala / 430 Python / 81 manager tests**, the full retained EDA SP2
+FASED/publication/bank/host ASan/UBSan/FCFS/82-cut/router/caller/staging scope,
+and **15 serialized current-source localhost Vivado processes** pass. The new
+controller fixture retains all **75 original owner bits** on the raw clock,
+with 2,158 LUTs / 996 total fixture registers. These are OOC fixture resources,
+with no full-image Fmax claim. Native integrity audits 10,652 bindings / 15 receipts.
+
+Four fresh EDA SP2 processes qualify eleven actual component donor records,
+including inactive, freezing, pending/stalled, released, error and controller-reset
+phases at labels 17–20. A healthy destination independently restores all fields,
+retains 119 held raw edges and rejects eleven unheld loads with zero functional
+or transport acknowledgements. All 75 waveform-checker mutations and six
+coherently rehashed structural defects reject. Corrupt mask/pending donor bits
+stop at the first readback at label 17 with zero acknowledged edges. Full debug
+VCDs and exact source bytes remain retained. This is permanently parked
+controller-only qualification; original DUT/endpoints are not migrated.
+
+Fresh exact-Rocket attachment auditing passes 2,701 definitions / 37 routes,
+81 observation / 152 staging bits, then stops at the actual incomplete-image
+guard: **1,245 uncovered functional entries and unbound cut MMIO**. No image,
+AFI or hardware checkpoint is produced. Complete controller/router/staging/
+reader/endpoint restore and restart coordination, production MMIO, functional
+memory and host/bridge/pre-FAME ownership, localhost full-image P&R/AFI, active
+all-hart F2 cuts, paired CPU zero-edge/finite/live migration and rolling hardware
+recovery remain pending. No hardware acceptance column advances.
+
+Closing evidence audit passes **23,022 bindings / 32 receipts**:
+`runs/aws-f2/iteration12214/final-audit-ajrd9ock/summary.json`. Exact raw commands:
+`runs/aws-f2/iteration12214/verification-commands.json`. New native/VCS receipts:
+`controller-restore/vivado-94wjojut/summary.json` and
+`controller-restore/vcs-1jw4kjgy/summary.json` under that iteration. Complete EDA
+exchange finished with exit zero; all launched qualification processes finished.
+Closing AWS/native/Fabric inventory passes, with no active scoped run farm,
+pending account AFI, local Java or Vivado observed. Byte-preserving closed-file
+extent sharing preserves all waves, paths and independent inodes; retain both
+entry and closing storage receipts and the original capacity observation.
+
+Managed worker startup failed before creation; all work stayed central and no
+worker remains. Plans and initialized manager inputs retain entry hashes.
+Existing controller checkpoints were published FireSim first (`21d94598`), then
+Chipyard (`7f04d99f5`), with both remote heads verified; retain the Chipyard
+successful push's read-only local tracking-ref warning. No staging/local commits.
+
+Previous controller checkpoint: `F2-rocket-checkpoint-migration`, iteration 9814,
 **in_progress; regional staging-owner held restore qualified; F2 image/capture and CPU migration pending**.
 
 Opt-in `NativeCheckpointRegionCutSnapshot.generate(..., restoreStaging = true)`
